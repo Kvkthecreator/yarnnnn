@@ -2527,8 +2527,21 @@ export const api = {
           server_url?: string | null;
           category?: string | null;
           tools_exposed?: number | null;
-          // ADR-642 D2 — what this connection DOES (reads · writes · chat ·
-          // agents), derived server-side; absent on attached connectors.
+          // ADR-642 D2 / ADR-644 — what this connection DOES: the ONE
+          // structure (`reach`) and its member-face rendering (`does`). The
+          // lane frame and the agent's `list_integrations` result render the
+          // same structure, so what you read here is what the agent is told.
+          reach?: {
+            platform: string;
+            name: string;
+            target?: string | null;
+            status?: string | null;
+            captures?: string | null;
+            reads: string[];
+            agent_writes: Array<{ tool: string; mode: 'direct' | 'propose' }>;
+            member_doors: Array<{ platform: string; verb: string; door: string; pane: string; takes: string }>;
+            reach_on: boolean;
+          } | null;
           does?: { reads: string; writes: string; chat?: string; agents: string } | null;
         }>;
       }>("/api/integrations"),

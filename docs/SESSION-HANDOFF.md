@@ -4,6 +4,42 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part V — ADR-644: one reach status (2026-09-07)
+
+Operator, after the Reach click-pass showed the surface and the editor
+disagreeing: *"agents and display should reference the same status …
+permissions edited elsewhere … no different from Claude/ChatGPT
+connectors. Aligned in full."*
+
+**Shipped.** `services/reach_status.py` — ONE structure per first-party
+connection (`platform_reach` · `reach_status` · `connection_rows`) with two
+renderers (`describe` = the member face on Connectors + Reach;
+`frame_paragraph` = the lane frame's reach section, all four ADR-535 states
++ one line per connection naming the read tools, any composed write tool
+with its gate mode, and the member's door). `list_integrations` returns the
+same rows (description rewritten, CHANGELOG `[2026.09.07.7]`).
+**Deleted**: `connector_does`, the three hand-written reach branches + the
+`.6` sentence, `PUBLISH_VERBS` (→ `PUBLISH_DOORS`), the commerce/trading
+branches of the tool result, the second `platform_connections` read in the
+LIST route and the tool handler. ADR-635's `attached_surface` is the
+sibling structure for attached rows, untouched.
+
+**The precedent for the next face**: anything that tells a member OR an
+agent what a connection lets a turn do reads `reach_status`. A new sentence
+anywhere else is the fifth face.
+
+Verification: `test_adr644` (driven: four states through the generator;
+tool result + LIST route compared row for row to the structure; the
+write-tool falsifier flips every face) · 535 · 585 · 628 · 582 · 642 · 577 ·
+the two prompt ratchets · the CLAUDE.md ratchet · next build · the frame
+paragraph driven on prod read-only.
+
+⚠️ Owed with Part U (Reach): the browser click-pass of Reach × 3 panes ×
+2 themes; the editor re-asked to send the doc to Slack (it should now name
+the Send to Slack door from its frame, not from a tool call).
+
+---
+
 # Part U (Reach) — ADR-642 Reach + Slack, the second outbound tenant (2026-09-07; the parallel session's Part U, the access decider, is below)
 
 Operator, after a strategic discourse (*am I steering wrong, given the labs'

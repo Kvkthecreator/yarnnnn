@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.09.07.7] - the reach section is GENERATED from the one reach structure (ADR-644); the agent and the member read the same facts
+
+### Changed
+- `services/lane_runner.py` — the three hand-written reach branches (scoped-to-nothing · unscoped/scoped · darkened) and the `.6` outbound sentence are DELETED. The section is now `reach_status.frame_paragraph(...)`: the turn's edge for all four reach states (ADR-535 D3's fragments kept verbatim), then ONE LINE PER CONNECTION from the same structure the member's Connectors page and Reach render — *"Slack (yarnnn): you read it with platform_slack_list_channels, platform_slack_get_channel_history; you cannot send a file there — Kev can, from the Text pane (Send to Slack)"*; *"WordPress (KVKtheCreator): you cannot publish there — Kev can, from the Blogger pane (Publish)"*. A write tool composed into the live surface renders *"you can post with … (by PROPOSAL — queued for Kev)"* without anyone editing prose.
+- `services/primitives/registry.py` — `list_integrations` returns the SAME rows (name · target · captures · reads · agent_writes · member_doors) and its description is rewritten: it no longer advertises the retired commerce/trading connectors or tells the model to "suggest connecting in Settings" as the answer to a send request; it says what each field means and that a send request is pointed to `member_doors`.
+- Expected behavior: what the agent is told in its frame, what it finds when it calls `list_integrations`, and what the member reads on Connectors and Reach are one derivation. The frame grows by one line per connection (≈120 chars each; the ratchet holds).
+
+### Why
+Operator ruling on the first Reach click-pass: *"agents and display should reference the same status … no different from existing connectors handled by Claude, ChatGPT."* Four faces described one fact; two of them disagreed on screen within an hour of shipping. ADR-635 had already solved it for attached connectors (`attached_surface` → tools + `frame_section` + settings); ADR-644 brings first-party connections onto the same rule.
+
+### Gate
+`test_adr644_one_reach_status.py` (the four reach states driven through the generator; the tool result and the LIST route compared row for row against `reach_status`; a write tool patched into the live surface flips every face); `test_adr535_connector_visibility.py`; the ratchets `test_adr632_the_seat_retires.py` §5 + `test_adr630_skills.py`.
+
+---
+
 ## [2026.09.07.6] - the reach section names the member's outbound door; an agent asked to send says so and points there
 
 ### Changed

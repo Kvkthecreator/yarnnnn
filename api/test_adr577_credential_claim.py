@@ -273,7 +273,10 @@ PRINCIPAL_LESS_CREDENTIAL_READS = {
     "integrations/validation.py",       # the health probe (ADR-576 D3)
     # -- ENUMERATION only (platform/status/created_at; never the token) --
     "services/bundle_reader.py",
-    "services/primitives/registry.py",  # list_integrations (ADR-535: see != reach)
+    # `services/primitives/registry.py` (list_integrations) LEFT 2026-09-07
+    # (ADR-644): it reads through the ONE enumeration reader below, which
+    # takes its place here AND in ENUMERATION_ONLY (metadata only, checked).
+    "services/reach_status.py",
     "services/primitives/track_universe.py",
     "routes/system.py",
     "services/capture/lane.py",         # capability gate: existence, not token
@@ -305,7 +308,12 @@ ENUMERATION_ONLY = {
     "services/bundle_reader.py",
     # `services/freddie_envelope.py` + `services/primitives/system_state.py`
     # were DELETED with the steward (ADR-632); a stale entry is a mute button.
-    "services/primitives/registry.py",
+    # `services/primitives/registry.py` LEFT this list with ADR-644: the
+    # list_integrations handler no longer reads the table itself — it reads
+    # through the ONE enumeration reader below (a stale entry is a mute button).
+    # ADR-644: the ONE enumeration reader every reach face uses
+    # (`connection_rows` — metadata only; the ADR-535 D2 boundary).
+    "services/reach_status.py",
     "services/capture/lane.py",
     "routes/system.py",
     "routes/workspace.py",

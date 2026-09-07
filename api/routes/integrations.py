@@ -119,11 +119,12 @@ class IntegrationResponse(BaseModel):
     server_url: Optional[str] = None
     category: Optional[str] = None
     tools_exposed: Optional[int] = None
-    # ADR-642 D2 — what this connection DOES (`connector_does`: reads ·
-    # writes · chat · agents), served on the LIST so a roster can say what
-    # each row reads and writes without a drill-in per row. Derived from the
-    # machinery that enacts it, never a copy. Absent on attached connectors
-    # (their aperture is the fact; `tools_exposed` carries it).
+    # ADR-642 D2 / ADR-644 — what this connection DOES: the ONE structure
+    # (`reach` — `services/reach_status.py`) and its member-face rendering
+    # (`does`: reads · writes · chat · agents, `describe(reach)`). The lane
+    # frame and the `list_integrations` tool render the SAME structure.
+    # Absent on attached connectors (their aperture is the fact).
+    reach: Optional[dict] = None
     does: Optional[dict] = None
 
 
@@ -150,9 +151,15 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
     user_id = auth.user_id
 
     try:
-        result = auth.client.table("platform_connections").select(
-            "id, platform, status, metadata, created_at"
-        ).eq(*account_scope_filter(user_id)).execute()
+        # ADR-644 — the ONE enumeration reader (metadata only).
+        from services.reach_status import connection_rows, describe, reach_status
+        from services.turn_reach import is_turn_reach_enabled
+
+        rows = connection_rows(auth.client, user_id)
+        facts_by = {
+            f["platform"]: f
+            for f in reach_status(rows, reach_on=is_turn_reach_enabled(), scoped_platforms=None)
+        }
 
         # Derive last_used_at from resource bookkeeping in sync_registry
         registry_result = auth.client.table("sync_registry").select(
@@ -166,10 +173,9 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                 max_synced[p] = ts
 
         from services.attached_connectors import is_attached_platform
-        from services.connectors import connector_does
 
         integrations = []
-        for row in result.data or []:
+        for row in rows:
             metadata = row.get("metadata", {}) or {}
             platform = row["platform"]
             attached = is_attached_platform(platform)
@@ -190,8 +196,10 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                     sum(1 for m in aperture.values() if m in ("direct", "propose"))
                     if attached else None
                 ),
-                # ADR-642 D2 — the roster says what each row reads and writes.
-                does=(None if attached else connector_does(platform)),
+                # ADR-642 D2 / ADR-644 — the roster says what each row reads and
+                # writes, rendered from the one structure.
+                reach=(None if attached else facts_by.get(str(platform).lower())),
+                does=(None if attached else describe(facts_by.get(str(platform).lower()))),
             ))
 
         return IntegrationListResponse(integrations=integrations)
@@ -1354,11 +1362,13 @@ async def get_capture_signal(
         "connection": {workspace_name, connected_at} | None,
         "capture": {schedule, paused} | None,
         "settings": {destination, last_capture_at} | None,
-        "does": {reads, writes, agents} | None,
+        "reach": {…the ADR-644 structure…} | None,
+        "does": {reads, writes, chat, agents} | None,   # describe(reach)
       }
     """
     from services.capture.declarations import read_capture_signal
-    from services.connectors import connector_does
+    from services.reach_status import describe, platform_reach
+    from services.turn_reach import is_turn_reach_enabled
 
     db_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
@@ -1434,7 +1444,8 @@ async def get_capture_signal(
         # The capability facts (reads / writes / agents) — derived server-side
         # from the machinery that enacts them (binding · exporter registry ·
         # the ADR-577 refusal), so the display can never drift from the code.
-        "does": connector_does(db_platform),
+        "reach": (_reach_facts := platform_reach(db_platform, reach_on=is_turn_reach_enabled())),
+        "does": describe(_reach_facts),
         # ADR-591: there is no capture flag. Pinned False — kept only so a
         # not-yet-deployed client still reads "nothing runs on a schedule",
         # which is permanently true. Remove once no client reads it.

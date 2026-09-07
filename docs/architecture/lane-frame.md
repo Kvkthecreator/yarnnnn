@@ -59,7 +59,7 @@ below it is inferred — see §6.
 1. **Conventions frame** — kernel constants (commons contract, attribution,
    citation, read-before-write, filesystem model, format discipline) + the tool
    line derived from the same reach facts the loop enforces (ADR-585).
-2. **Connector-reach section** — stated affirmatively either way. ADR-635: when the member holds **attached connectors** with a non-empty aperture, the section names each server, its tools, and which run DIRECT versus by PROPOSE; the tools themselves join the payload and allowlist from the same one read (`attached_surface`).
+2. **Connector-reach section** — stated affirmatively either way, and **GENERATED, never hand-written (ADR-644)**: `reach_status.frame_paragraph` states the turn's edge for all four reach states (ADR-535 D3) and then one line per first-party connection from the ONE structure the member's Connectors page, Reach and the `list_integrations` tool also render — what the agent reads it with, what it can post (by proposal or not), and the member's door where it cannot. ADR-635: when the member holds **attached connectors** with a non-empty aperture, the section names each server, its tools, and which run DIRECT versus by PROPOSE; the tools themselves join the payload and allowlist from the same one read (`attached_surface`). The two are siblings under one rule: a structure feeds the tools, the frame and the settings pane.
 3. **Mandate head** — first 40 lines, read-only orientation.
 4. **Character** — the resident's posture, wearing the app's `name` if declared.
 5. **Job overlay** — `posture_for_app(app)`, falling back to the studio posture

@@ -1104,96 +1104,25 @@ def build_lane_conventions(
         attached = attached_surface(client, user_id) if _reach else []
     tools_line = " · ".join(lane_tool_names(_reach, _reach_plats, attached))
 
-    # ADR-585 / ADR-535 D3 — the connector edge, stated affirmatively either
-    # way. Without reach the model must not infer it from the inventory; with
-    # reach it must know the bound (the MEMBER's own connections, read-only,
-    # transient) rather than guess at more.
-    if _reach_plats is not None and not _reach_plats:
-        # ADR-612 D3 — an explicit empty opt-in. The member scoped this one to
-        # NO platform, so it holds no platform_* tool at all. Said plainly:
-        # the honest-absence branch below would tell it connections are
-        # unreadable in general, which is false and would have it offering
-        # remedies ("connect in Settings") for a limit the member set here.
-        #
-        # ⚠️ KEYED ON THE PLATFORMS, NOT ON `_reach` (2026-09-07). This read
-        # `_reach and _reach_plats is not None and not _reach_plats` — a state
-        # `resolve_turn_reach` documents as UNREACHABLE ("`(True, ())` is
-        # unreachable and deliberately so"). Scoped-to-nothing returns
-        # `(False, ())`, so the guard never fired and this branch was dead: a
-        # member who scoped an agent to no connection got the DARKENED wording
-        # below, which offers "paste it, or export and drop the files in" and
-        # never names the one remedy that applies — widening the scope on the
-        # agent's own page. The two no-reach states are told apart by the
-        # PLATFORMS tuple (`()` scoped-to-nothing vs `None` darkened); reading
-        # `_reach` asked a question that cannot separate them.
-        connector_reach_section = (
-            f"You have no platform reach in this workspace: {member} scoped "
-            "you to no connections. list_integrations still tells you what "
-            "THEY have connected, and you may name it — you simply cannot "
-            "read through any of it. If they want that content here, say so "
-            "plainly: they can widen your connections on your agent page, "
-            "paste it, or drop the files into the commons."
-        )
-    elif _reach:
-        # Unscoped (None) and scoped-to-a-subset read differently, and the
-        # difference must be TRUE: claiming "the member scoped you to these"
-        # when nobody scoped anything would have the model report a limit that
-        # does not exist.
-        if _reach_plats is None:
-            _scope_line = (
-                "CONNECTED (Notion, Slack, GitHub) and whether each is "
-                "active. Call it instead of guessing. "
-            )
-        else:
-            _plat_label = ", ".join(p.capitalize() for p in _reach_plats)
-            _scope_line = (
-                f"CONNECTED and whether each is active. YOU can read through "
-                f"{_plat_label} — that is what {member} scoped you to, and "
-                "the platform_* tools you hold are only for those. Call "
-                "list_integrations instead of guessing. "
-            )
-        connector_reach_section = (
-            f"list_integrations tells you which platforms {member} has "
-            + _scope_line
-            + "The platform_* tools read through "
-            f"{member}'s OWN connections — theirs only, granted by their "
-            "authorization on each platform, read-only. What you fetch lives "
-            "in this conversation and dies with it; if it is worth keeping, "
-            "save it to the commons with WriteFile so it is attributed and "
-            "citable. A platform they have not connected answers honestly "
-            "that it is not connected — offer Connect in Settings, or paste."
-        )
-    else:
-        connector_reach_section = (
-            f"list_integrations tells you which platforms {member} has "
-            "CONNECTED (Notion, Slack, GitHub) and whether each is active. "
-            "Call it instead of guessing — never tell them a connector is "
-            "absent without looking. But seeing a connection is not having "
-            "it: you can name what they bound, and you CANNOT read through "
-            "it. There is no tool here that opens a Notion page or a Slack "
-            "channel. If they want that content, say so plainly and offer "
-            "what you can do — they can paste it, or export and drop the "
-            "files into the commons, where you read them normally."
-        )
+    # ADR-644 — the reach section is RENDERED from the ONE structure every
+    # face reads (`services/reach_status.py`): the member's Connectors + Reach
+    # pages, the `list_integrations` result, and this paragraph. It states the
+    # turn's edge for all four reach states (ADR-535 D3) and one line per
+    # connection — what you read, what you can post, and the member's door
+    # where you cannot. No hand-written prose lives here any more: the three
+    # branches this replaced were the fourth face of one fact, and the first
+    # Reach click-pass caught them disagreeing with the surface.
+    from services.reach_status import connection_rows, frame_paragraph, reach_status
 
-    # ADR-628 amendment 3 / ADR-642 (2026-09-07) — the OUTBOUND fact, stated
-    # for every reach state. Observed on the first Reach click-pass: asked to
-    # "send this to my Slack channel", the editor answered truthfully that it
-    # cannot post and offered "check Settings" — the wrong remedy, because the
-    # door exists and is the member's (Send to Slack on a prose file's pane,
-    # Publish on a post's). Derived from the seam's own roster, never a
-    # hand-kept list, so a third tenant names its door here the day it lands.
-    from services.connectors import platform_display_name
-    from services.publish import PUBLISH_TARGETS, PUBLISH_VERBS
-
-    _doors = " · ".join(
-        f"{PUBLISH_VERBS.get(p, 'publish')} to {platform_display_name(p)}"
-        for p in sorted(PUBLISH_TARGETS)
-    )
-    connector_reach_section += (
-        f" You cannot send or publish anywhere. {member} can — {_doors} — "
-        "from the file's own pane: their click, receipted beside the file. "
-        "Asked to send something out, say you cannot and point them to that door."
+    connector_reach_section = frame_paragraph(
+        reach_status(
+            connection_rows(client, user_id),
+            reach_on=_reach,
+            scoped_platforms=_reach_plats,
+        ),
+        member,
+        reach_on=_reach,
+        scoped_platforms=_reach_plats,
     )
 
     if attached:

@@ -6,7 +6,7 @@ external platform. Everything outbound crosses HERE — the gate
 (`test_adr628_outbound_publish.py`) pins that no other module under `api/`
 performs an outbound platform write. Its predecessor, the ADR-028
 `integrations/exporters/` DestinationExporter stack, is DELETED (a fossil:
-its one `.deliver()` caller was removed 2026-08-26; `connector_does` cited
+its one `.deliver()` caller was removed 2026-08-26; the connectors copy cited
 it to promise an export capability no route could perform).
 
 Phase (a) shape, held strictly:
@@ -50,17 +50,22 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-#: The platforms with a live MEMBER-CLICKED outbound write path.
-#: `connector_does` derives its "writes" copy from this AND from the gated
-#: agent capability map — two homes, both read, so the connectors surface
-#: cannot promise a write the seam does not perform (the exporter-fossil
-#: defect) nor deny one the ADR-304 tool performs (the ADR-642 D5 defect).
+#: The platforms with a live MEMBER-CLICKED outbound write path. The ONE
+#: reach structure (`services/reach_status.py`, ADR-644) derives the member's
+#: door from this roster + `PUBLISH_DOORS` below, so the connectors page, Reach,
+#: the lane frame and the `list_integrations` result cannot promise a write the
+#: seam does not perform (the exporter-fossil defect).
 PUBLISH_TARGETS: frozenset[str] = frozenset({"wordpress", "slack"})
 
-#: The member's verb at each tenant's door — the door's own name, so the
-#: connectors copy and the lane frame name the same thing (ADR-638: name
-#: the THING). Every target has one; the ADR-628 gate asserts it.
-PUBLISH_VERBS: dict[str, str] = {"wordpress": "publish", "slack": "send a file"}
+#: The member's DOOR at each tenant (ADR-644 D1): the verb, the door's own
+#: name, the pane it is mounted on, and what it takes — so the connectors
+#: page, Reach, the lane frame and the tool result name the same thing
+#: (ADR-638: name the THING). Every target has one, and the ADR-644 gate
+#: asserts each door is mounted where it says (pane ↔ `app.slug`).
+PUBLISH_DOORS: dict[str, dict[str, str]] = {
+    "wordpress": {"verb": "publish", "door": "Publish", "pane": "Blogger", "takes": "a post"},
+    "slack": {"verb": "send a file", "door": "Send to Slack", "pane": "Text", "takes": "a prose file (.md or .txt)"},
+}
 
 
 class PublishError(Exception):

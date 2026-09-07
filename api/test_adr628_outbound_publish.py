@@ -304,7 +304,7 @@ check("D8: the receipt is derived_from the post (the provenance edge)",
 
 print("6. the connect surfaces tell the truth")
 from services.connector_registry import CONNECTOR_REGISTRY  # noqa: E402
-from services.connectors import connector_does  # noqa: E402
+from services.reach_status import describe, platform_reach  # noqa: E402  (ADR-644: one structure)
 from integrations.core.oauth import OAUTH_CONFIGS, WRITE_SCOPE_MARKERS  # noqa: E402
 
 check("wordpress is a live connector (BE registry)",
@@ -317,7 +317,7 @@ check("the OAuth config exists (global scope, own callback)",
       and OAUTH_CONFIGS["wordpress"].redirect_path == "/api/integrations/wordpress/callback")
 check("the write-marker ledger has a deliberate entry (not an omission)",
       "wordpress" in WRITE_SCOPE_MARKERS and WRITE_SCOPE_MARKERS["wordpress"] is None)
-_does = connector_does("wordpress") or {}
+_does = describe(platform_reach("wordpress", reach_on=True)) or {}
 check("the facts: publishes on your click · never captures · agents never",
       "publish" in _does.get("writes", "")
       and "never captures" in _does.get("reads", "")

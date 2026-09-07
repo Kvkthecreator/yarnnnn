@@ -176,6 +176,20 @@ export function ReachConnected() {
                   <dl className="mt-2 space-y-1 text-[11px]">
                     {i.does?.reads && <Fact label="Reads" text={i.does.reads} />}
                     {i.does?.writes && <Fact label="Writes" text={i.does.writes} />}
+                    {/* ADR-644 — the same structure the agent is told: what an
+                        agent holds through this connection, in one line. */}
+                    {i.reach && (
+                      <Fact
+                        label="Agents"
+                        text={
+                          i.reach.agent_writes.length > 0
+                            ? `can post here — by proposal, from your queue`
+                            : i.reach.reads.length > 0
+                              ? `read only — ${i.reach.reads.length} read tool${i.reach.reads.length === 1 ? '' : 's'}; cannot send`
+                              : 'no reach — this connection carries only your own clicks'
+                        }
+                      />
+                    )}
                     {attached && (
                       <Fact
                         label="Exposes"

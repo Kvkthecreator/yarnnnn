@@ -214,7 +214,11 @@ def run() -> bool:
     import inspect
     from services.primitives.registry import handle_list_integrations
 
-    _src = inspect.getsource(handle_list_integrations)
+    # ADR-644: the handler delegates the read to the ONE enumeration reader
+    # (`connection_rows`); the boundary is asserted over both sources.
+    from services.reach_status import connection_rows
+
+    _src = inspect.getsource(handle_list_integrations) + inspect.getsource(connection_rows)
     _check(
         "the handler reads platform_connections (the binding row)",
         "platform_connections" in _src,

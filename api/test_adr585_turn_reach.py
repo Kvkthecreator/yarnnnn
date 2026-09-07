@@ -273,11 +273,31 @@ def _assigns_reach_section(nodes) -> bool:
                for stmt in nodes for x in ast.walk(stmt))
 
 
+# Re-anchored 2026-09-07 (ADR-644): the frame no longer branches in
+# lane_runner — it hands the SAME reach fact (`_reach`, `_reach_plats`) to
+# `reach_status.frame_paragraph`, which branches on it and states an edge in
+# every direction (driven for all four states by test_adr644 + test_adr535).
+# The invariant is unchanged: one fact, both directions affirmative.
+import inspect  # noqa: E402
+
+import services.reach_status as _rs_mod  # noqa: E402
+
+_fp_src = inspect.getsource(_rs_mod.frame_paragraph)
+_fp_tree = ast.parse(_fp_src)
+_fp_ifs = [n for n in ast.walk(_fp_tree) if isinstance(n, ast.If)
+           and any(isinstance(x, ast.Name) and x.id == "reach_on" for x in ast.walk(n.test))]
+
+
+def _assigns_edge(nodes) -> bool:
+    return any(isinstance(x, ast.Assign)
+               and any(isinstance(t, ast.Name) and t.id == "edge" for t in x.targets)
+               for stmt in nodes for x in ast.walk(stmt))
+
+
 check("5b the frame prose branches on the SAME fact, both directions stated "
       "affirmatively (ADR-535 D3 held with the flag on or off)",
-      _reach_ifs and any(
-          _assigns_reach_section(i.body) and _assigns_reach_section(i.orelse)
-          for i in _reach_ifs))
+      "reach_on=_reach" in _lr_src and "frame_paragraph(" in _lr_src
+      and _fp_ifs and any(_assigns_edge(i.body) and _assigns_edge(i.orelse) for i in _fp_ifs))
 check("5c the frame template carries the slot (no orphaned prose)",
       "{connector_reach_section}" in _lr_src
       and "There is no tool here that opens" not in
@@ -303,7 +323,10 @@ def _chat_row(flag: bool) -> str:
     import services.turn_reach as _tr
     importlib.reload(_tr)
     importlib.reload(_conn)
-    return (_conn.connector_does("notion") or {}).get("chat", "")
+    # ADR-644: the chat disclosure is rendered from the ONE structure; the
+    # reach flag it rides is read from the reloaded module.
+    from services.reach_status import describe, platform_reach
+    return (describe(platform_reach("notion", reach_on=_tr.is_turn_reach_enabled())) or {}).get("chat", "")
 
 
 _off = _chat_row(False)

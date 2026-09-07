@@ -447,40 +447,48 @@ check("7l2 the retired cadence enum is GONE from the payload (ADR-591)",
       "cadence_choices" not in _ret_keys, str(sorted(_ret_keys)))
 
 # --- the capability facts are DERIVED, never a parallel copy ------------------
-from services.connectors import connector_does  # noqa: E402
+# ADR-644 (2026-09-07): the facts derive ONCE (`platform_reach`) and the
+# member's sentences are a renderer of them (`describe`) — the same structure
+# the lane frame and the `list_integrations` tool render. `connector_does`
+# is deleted.
+from services.reach_status import describe, platform_reach  # noqa: E402
 
-_slack_does = connector_does("slack") or {}
-_gh_does = connector_does("github") or {}
+
+def _does(plat: str) -> dict:
+    return describe(platform_reach(plat, reach_on=True)) or {}
+
+
+_slack_does = _does("slack")
+_gh_does = _does("github")
 check("7m does.reads comes from the binding row itself (one home)",
       _slack_does.get("reads") == CONNECTOR_CAPTURE_BINDINGS["slack"]["reads"]
       and all("reads" in b for b in CONNECTOR_CAPTURE_BINDINGS.values()))
 
-# Re-anchored 2026-09-01 (ADR-628): the exporter registry this drove was a
-# FOSSIL — its one .deliver() caller was deleted 2026-08-26, so `slack
-# exports` was copy promising a write no route performed. The writes fact
-# now derives from the ADR-628 publish seam: wordpress publishes; slack and
-# github never write.
 from services.publish import PUBLISH_TARGETS  # noqa: E402
 
-_wp_does = connector_does("wordpress") or {}
-# Re-anchored 2026-09-07 (ADR-628 amendment 3 + ADR-642 D5): Slack is the
-# SECOND publish target, and its writes fact derives from BOTH homes — the
-# member-clicked seam AND the gated agent capability (`write_slack`, ADR-304)
-# the old sentence denied. GitHub still never writes.
-check("7n does.writes follows the publish seam (wordpress + slack publish; "
+_wp_does = _does("wordpress")
+# Re-anchored 2026-09-07 (ADR-628 amendment 3 + ADR-644): WordPress and Slack
+# are the two publish targets — the MEMBER's doors. No first-party platform
+# has a live agent write path (the lane composes read rosters only), so the
+# writes fact for Slack names the member's click and no proposal. GitHub
+# still never writes.
+check("7n does.writes follows the publish seam (wordpress + slack are member doors; "
       "github never writes)",
       "wordpress" in PUBLISH_TARGETS
       and "slack" in PUBLISH_TARGETS
       and "publish" in _wp_does.get("writes", "")
-      and "never writes" in _slack_does.get("writes", "")
+      and "your click" in _slack_does.get("writes", "")
+      and "proposal" not in _slack_does.get("writes", "")
       and "never writes" in _gh_does.get("writes", ""),
       f"wp={_wp_does.get('writes')!r} slack={_slack_does.get('writes')!r}")
 check("7n2 an outbound-only connector states its non-capture (never omits it)",
       "never captures" in _wp_does.get("reads", "")
       and "your click" in _wp_does.get("agents", ""),
       f"reads={_wp_does.get('reads')!r}")
-check("7o does is None for an unbound platform (no fabricated facts)",
-      connector_does("commerce") is None and connector_does("") is None)
+check("7o the structure is None for an unbound platform (no fabricated facts)",
+      platform_reach("commerce", reach_on=True) is None
+      and platform_reach("", reach_on=True) is None
+      and describe(None) is None)
 
 # --- a selection is CONSENT: nothing machine-fills selected_sources ----------
 # ADR-079/113 auto-selection deleted 2026-08-19: a heuristic pre-checking 50

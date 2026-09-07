@@ -174,6 +174,12 @@ reach section now names the member's outbound doors, derived from the same
 roster, so an agent asked to send says it cannot and points to the door
 instead of to Settings.
 
+> **Superseded the same day by [ADR-644](ADR-644-one-reach-status.md)**: the
+> derivation moved into ONE structure (`services/reach_status.py`) with two
+> renderers — `describe` for the member, `frame_paragraph` for the agent —
+> and `connector_does` was deleted. D5's rule (a registry row is not a live
+> path) stands; its home moved.
+
 ### D6 — The Dock gains a pin, by generation
 
 Reach is `primary`, so `DEFAULT_KEPT_SURFACES` gains it (the gate asserts the

@@ -93,157 +93,13 @@ def platform_display_name(platform: str) -> str:
     return _PLATFORM_DISPLAY.get(plat, plat)
 
 
-def connector_does(platform: str) -> Optional[dict]:
-    """The three capability facts the detail page states — DERIVED from the
-    machinery that enacts them, never a parallel copy that can drift:
-
-      reads  — the capture binding's own statement of its read tool (or the
-               honest "nothing" for an outbound-only connector)
-      writes — whether the platform is an ADR-628 PUBLISH TARGET (the only
-               write path; member-clicked, never scheduled). The exporter
-               registry this used to consult was a FOSSIL: its one caller was
-               deleted 2026-08-26, so the old copy promised an export no
-               route could perform. Deleted with the ADR-628 build; the fact
-               now derives from the seam that actually publishes.
-      agents — the ADR-577 refusal: agents hold no platform credential and
-               the lane allowlists exclude platform tools; consumers read
-               LANDED files only (ADR-582 D6)
-
-    Facts, not controls — there is no per-tool enforcement point on the
-    outbound side to bind dials to (the OAuth scope is the platform's
-    control; ours is species-level). None for a platform with neither a
-    capture binding nor a publish target."""
-    plat = (platform or "").strip().lower()
-    binding = CONNECTOR_CAPTURE_BINDINGS.get(plat)
-    from services.publish import PUBLISH_TARGETS, PUBLISH_VERBS
-
-    can_export = plat in PUBLISH_TARGETS
-    verb = PUBLISH_VERBS.get(plat, "publish")
-    # ADR-642 D5 — the writes fact has TWO homes: the member-clicked publish
-    # seam, and whether a WRITE tool for this platform is composed into a
-    # LIVE tool loop. ⚠️ Derived from the live lane surface, NOT the
-    # capability registry (corrected 2026-09-07 on the first Reach
-    # click-pass): the registry still carries `write_slack` for the DELETED
-    # task pipeline that consumed it, so a registry read said "an agent's
-    # post goes out through a proposal" while the lane — the only live tool
-    # surface — composes read rosters only (`turn_reach_tool_names`), and the
-    # editor truthfully answered "I cannot post". Today no write tool is
-    # composed anywhere; the day one is, this sentence flips on its own.
-    try:
-        from services.platform_tools import PLATFORM_TOOLS_BY_CAPABILITY
-        from services.turn_reach import turn_reach_tool_names
-
-        _live = set(turn_reach_tool_names((plat,)))
-        agent_writes = any(
-            t in _live for t in PLATFORM_TOOLS_BY_CAPABILITY.get(f"write_{plat}", [])
-        )
-    except Exception:  # noqa: BLE001
-        agent_writes = False
-    if binding is None and not can_export and not agent_writes:
-        return None
-    name = _PLATFORM_DISPLAY.get(plat, plat)
-    try:
-        from services.turn_reach import is_turn_reach_enabled
-        reach_on = is_turn_reach_enabled()
-    except Exception:  # noqa: BLE001
-        reach_on = False
-    return {
-        # An outbound-only connector (no capture binding) reads NOTHING —
-        # stated, not omitted: an absent row would read as an oversight
-        # (the ADR-572 §3.1 lesson — a deliberate absence must say so).
-        "reads": (
-            binding["reads"]
-            if binding is not None
-            else f"nothing — yarnnn never captures from {name}"
-        ),
-        "writes": (
-            (
-                f"only when you {verb} to {name} from the file's own pane — your click, "
-                "receipted beside the file, never scheduled"
-                + (
-                    f"; an agent's {name} post goes out only through a proposal you approve"
-                    if agent_writes
-                    else ""
-                )
-            )
-            if can_export
-            else f"only through a proposal you approve — an agent's {name} post waits in your queue for the decision"
-            if agent_writes
-            else f"nothing — yarnnn never writes to {name}"
-        ),
-        # ADR-585: chat turn reach — the member's OWN connection, inside their
-        # own turn, read-only and transient. Derived from the deploy flag so
-        # the fact flips the day the capability does.
-        #
-        # D5 (the engine disclosure) is the SECOND sentence, and it lives here
-        # rather than on the chat surface for two reasons: this row is already
-        # flag-derived (a hand-kept copy at the new-chat door could disagree
-        # with the capability it describes), and a standing exposure fact
-        # belongs where the connection is GRANTED, not repeated at every
-        # conversation until it stops being read. A lane's engine is
-        # member-chosen and may be any provider (ADR-558/559), so reaching a
-        # connection sends its content there — the same exposure as pasting,
-        # which is the comparison that makes it legible.
-        "chat": (
-            # Outbound-only: there is no read tool to reach, whatever the
-            # turn-reach flag says — the fact derives from the binding.
-            f"chat does not read {name} — this connection only publishes, on your click"
-            if binding is None
-            else (
-                f"your chat can read {name} through your own connection — "
-                "read-only, in the turn, nothing saved unless you ask. "
-                "What it reads goes to the engine you picked for that chat, "
-                "the same as pasting it in"
-                if reach_on
-                else "chat cannot reach platforms on this deployment"
-            )
-        ),
-        # ADR-615 — reach follows the PRINCIPAL, not the surface. An agent
-        # working at its desk is the member, present and driving (the lane
-        # stamps `member:{id} via {model}`), so it reaches what the member
-        # granted and the member scoped it to. This row is flag-derived for
-        # the same reason the `chat` row above is: a hand-kept sentence here
-        # would outlive the capability it describes — as the pre-615 wording
-        # did, asserting a boundary the code stopped drawing.
-        #
-        # What stays true in BOTH branches, and is the honest half of the old
-        # sentence: an unattended standing run reaches nothing live. Those are
-        # toolless by construction (`run_bounded_derive_turn`), so a scoped
-        # being gains no reach when nobody is present.
-        "agents": (
-            (
-                # ADR-628 D5 — agents cannot publish, structurally: the
-                # credential path refuses agent callers (ADR-577) and the
-                # publish door is a member surface act. Stated where the
-                # connection is granted.
-                f"agents never publish to {name} — publishing is your click, with your credential"
-                if binding is None
-                else (
-                    f"an agent you scope to {name} reads it while you're working with it — "
-                    "never on its own schedule, where it reads landed files only"
-                    if reach_on
-                    else "no direct platform access — agents read the landed capture files only"
-                )
-            )
-            # ADR-642 D5 — the write half, derived from the LIVE surface: a
-            # composed write tool lands in the queue as a proposal; with none
-            # composed an agent cannot send at all — and the door that can is
-            # NAMED, so "check Settings" is never the remedy an agent offers.
-            + (
-                f". An agent's {name} post never goes out on its own — it lands in your queue as a proposal for your decision"
-                if agent_writes
-                else (
-                    f". It cannot {verb} there — that is your click, from the file's own pane"
-                    if (can_export and binding is not None)
-                    else ""
-                )
-            )
-        ),
-    }
-
-_DEFAULT_SELECTOR = "inbox"
-
-
+# `connector_does` is DELETED (ADR-644, 2026-09-07). It rendered the member's
+# reads/writes/chat/agents sentences from three sources and was the fourth
+# face of one fact — the first Reach click-pass caught it claiming an agent
+# write path the lane never held. The facts now derive ONCE in
+# `services/reach_status.py` (`platform_reach`), and the sentences are a
+# renderer of that structure (`describe`); the lane frame renders the same
+# structure (`frame_paragraph`). Do not reintroduce a prose function here.
 def _slugify_selector(value: str) -> str:
     """One safe path segment from a channel/page/repo id. Mirrors the historic
     inbound sub-lane convention so pre-582 raw and post-582 raw file together
@@ -544,7 +400,7 @@ __all__ = [
     "connection_target",
     "CONNECTOR_CAPTURE_BINDINGS",
     "capture_destination",
-    "connector_does",
+    "platform_display_name",
     "connection_row",
     "parse_stamp",
     "read_landed_snapshots",

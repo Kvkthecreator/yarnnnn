@@ -147,16 +147,11 @@ from services.platform_tools import (
 
 LIST_INTEGRATIONS_TOOL = {
     "name": "list_integrations",
-    "description": """List the user's connected platform integrations and their metadata.
+    "description": """List the member's connected platforms — the SAME facts as the reach section of your frame, at any time.
 
-Call this first when about to use a platform tool, to get:
-- Which platforms are active (slack, notion, github, commerce, trading)
-- Slack: authed_user_id — use as channel_id when sending DMs to self
-- Trading: provider, paper mode, account_number
-- Notion: designated_page_id — use as page_id when writing to user's YARNNN page
+Each row: platform, status, target (where it points), captures (what a capture reads), reads (the platform_* read tools you hold for it), agent_writes (write tools you can post with — empty means you cannot post there), member_doors (where THEY send or publish from: verb, door, pane).
 
-AGENTIC BEHAVIOR: Don't ask "are you connected to Slack?" — call list_integrations and find out.
-If not connected, suggest connecting in Settings.""",
+Call this instead of asking "are you connected to Slack?". Seeing a connection is not reaching it: only the platform_* tools you hold read through one. A platform that is not connected is connected in Settings → Connectors. Asked to send or publish somewhere, you cannot — point them to the door named in member_doors.""",
     "input_schema": {
         "type": "object",
         "properties": {},
@@ -166,36 +161,31 @@ If not connected, suggest connecting in Settings.""",
 
 
 async def handle_list_integrations(auth: Any, input: dict) -> dict:
-    """List user's connected platform integrations."""
-    result = auth.client.table("platform_connections")\
-        .select("id, platform, status, metadata, created_at, updated_at")\
-        .eq("user_id", auth.user_id)\
-        .execute()
+    """The member's binding inventory (ADR-535 D2) — the SAME rows the frame's
+    reach section was rendered from (ADR-644), so the runtime answer cannot
+    drift from the frame. Seeing is not reaching: metadata only, never a
+    credential, never a provider call. Scope (which of these THIS turn may
+    read through) is the frame's fact; the inventory does not claim it."""
+    from services.reach_status import connection_rows, is_attached, reach_status
+    from services.turn_reach import is_turn_reach_enabled
 
-    integrations = result.data or []
+    rows = connection_rows(auth.client, auth.user_id)
+    facts_by = {
+        f["platform"]: f
+        for f in reach_status(rows, reach_on=is_turn_reach_enabled(), scoped_platforms=None)
+    }
     items = []
-    for i in integrations:
-        metadata = i.get("metadata") or {}
+    for r in rows:
+        plat = str(r["platform"])
+        metadata = r.get("metadata") or {}
         item = {
-            "platform": i["platform"],
-            "status": i["status"],
-            "connected_at": i["created_at"],
-            "last_updated": i["updated_at"],
+            "platform": plat,
+            "status": r["status"],
+            "connected_at": r.get("created_at"),
+            "last_updated": r.get("updated_at"),
             "workspace_name": metadata.get("team_name") or metadata.get("workspace_name"),
-            "email": metadata.get("email"),
         }
-        if i["platform"] == "slack" and metadata.get("authed_user_id"):
-            item["authed_user_id"] = metadata["authed_user_id"]
-        if i["platform"] == "notion" and metadata.get("designated_page_id"):
-            item["designated_page_id"] = metadata["designated_page_id"]
-        if i["platform"] == "commerce":
-            item["provider"] = metadata.get("provider", "")
-            item["store_name"] = metadata.get("store_name", "")
-        if i["platform"] == "trading":
-            item["provider"] = metadata.get("provider", "")
-            item["paper"] = metadata.get("paper", True)
-            item["account_number"] = metadata.get("account_number", "")
-        if str(i["platform"]).startswith("mcp:"):
+        if is_attached(plat):
             # ADR-635 — an ATTACHED connector: the inventory names the server
             # and how much of it the member exposed. Seeing it is still not
             # reaching it: only tools in the aperture are on the surface.
@@ -207,6 +197,15 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
             item["tools_exposed"] = sorted(
                 t for t, m in aperture.items() if m in ("direct", "propose")
             )
+        else:
+            f = facts_by.get(plat.lower()) or {}
+            for k in ("name", "target", "captures", "reads", "agent_writes", "member_doors"):
+                item[k] = f.get(k)
+            # Row facts a system-infrastructure tool still reads by name.
+            if plat.lower() == "slack" and metadata.get("authed_user_id"):
+                item["authed_user_id"] = metadata["authed_user_id"]
+            if plat.lower() == "notion" and metadata.get("designated_page_id"):
+                item["designated_page_id"] = metadata["designated_page_id"]
         items.append(item)
 
     return {
