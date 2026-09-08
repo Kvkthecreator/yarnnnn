@@ -4,97 +4,69 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
-# Part X — ADR-645: Reach owns connections; reach follows the member (2026-09-08)
+# Part X — ADR-646, the server scopes the type (2026-09-08)
 
-Operator, after the Reach click-pass: *"the reach, what is its scope; is it
-user level or workspace level? and thus, how should the manage connections
-occur?"* — putting two models: (A) the workspace ADOPTS the owner's
-credentials for system-level agents, possibly mirrored; (B) pure per-member.
-Then, on the analysis: *"aligned in full … delegate implementation."*
+`70fb229`. Landed and pushed. Everything below is what is NOT done.
 
-## The ruling
+## OWED — the browser click-pass
 
-**(A) is CLOSED, and it was not an open option.** It was built, shipped and
-withdrawn — the withdrawal recorded in three ADRs and no surface, which is why
-it keeps being re-proposed. ADR-566 D2 forbade it behind a guard keyed on a
-`principal_grants` role **zero rows hold**, so **until ADR-577 production
-actually did it**; ADR-566 D5's workspace store was unfillable, mis-filled by
-migration 201's owner-fill trigger, and unreadable under `user_id` RLS — the
-pane it fed rendered the owner's personal tokens as workspace agent
-credentials. **Mirroring is that withdrawal with a copy step.** The reason is
-that a credential carries IDENTITY: adoption breaks attribution AT THE
-BOUNDARY, invisibly, on the far side no yarnnn surface can show.
+⚠️ **Nothing here has been LOOKED AT.** Gates green (11 suites, all falsified),
+tsc clean, `next build` green — and this arc's own lesson is that none of that
+can see a wrong pane. Three things need a real click:
 
-**(B) ratified** — it is what `resolve_platform_credential` already enforces.
-The layman sentence it has to meet: *you connected your Slack; things you do
-here reach through it; when you leave, your reach leaves with you.*
+1. **Blogger's Open… is no longer empty.** This was the sharpest defect (its
+   picker admitted nothing at all). Open Blogger → Open… and confirm posts list.
+2. **Slides' Open… no longer lists posts/stages.** The inverse.
+3. **⚠️ D5 is BEHAVIOUR-VISIBLE and will look like a regression.** Untyped HTML
+   stops opening in Slides and lands in the generic viewer — correct per
+   ADR-473 D6, but the affected population is REAL: every `compose/engine.py`
+   output ships no `data-template`. Find one and confirm it renders (the
+   generic HTML viewer), rather than erroring. If the operator has such files
+   in production, they will notice this change.
 
-**D3 — Reach owns the connection acts**, amending ADR-642's own "lists and
-doors, never acts". Three of four connection decisions (what this workspace
-reads · the aperture · agent scope) were WORKSPACE decisions wearing a Settings
-costume, and a redirect from the boundary's front door institutionalised that.
+Also unlooked-at: Blogger's band gallery (D3 — it had NOTHING to offer before,
+so this is the first time it can render) and the `post` glyph in studioShapes
+(D6 — emerald `LayoutTemplate`, previously the neutral File mark).
 
-## Shipped (`fae9218`, docs `cfd482c`)
+## OPEN — the finding recorded but not fixed (ADR-646 §6)
 
-- `ReachConnected` gains the acts by mounting the EXISTING drill-ins unforked.
-- **Deleted**: `ConnectedIntegrationsSection` (688) + `ConnectorCard` (121) —
-  the registry-driven list is superseded by the integrations-driven rows
-  carrying the ADR-644 reach facts. Their two live capabilities carried over
-  explicitly: an **Available** section (the finder covers attached MCP only)
-  and an inline **Disconnect** for a held row with no drill-in (both api-key
-  connectors are `retired`; retiring must not orphan an existing fact).
-- Settings pane deleted, default → Notifications; the inbound MCP half moved
-  to Reach (inbound is reach).
-- `connectors` row → `stage: internal`, `pane_of`/`pane_group` stripped.
-- ⚠️ A sweep found **two stale return paths** (reconnect's `back`, the
-  section's default `redirectTo`) that would have landed a member on the
-  deleted pane.
+**There is no `flow` layout registered any more.** deck · post · image are all
+`mode: "paged"`. So the h1-is-a-title branch of `set_artifact_title` — guard 1,
+`set_h1=True`, the whole flow half of the name-is-one-fact rule — has NO caller
+in production. `test_studio_name_is_one_fact` now says so out loud and keeps the
+behaviour pinned.
 
-## Verification
+**And there is a concrete disagreement behind it, found while writing this
+up and NOT yet acted on:** `post` is declared
 
-`test_adr645` (24) — D1 EXECUTES the refusal through the real resolver; D3
-asserts the retirement contract BOTH halves and sweeps the whole FE for a
-caller of the retired slug. **Falsified both ways**: restoring the owner-reuse
-fall-through reds D1; re-serving `connectors` reds D3. 642 (53, clause
-amended) · 644 · 577 · 592 · 636 · 635 · 582 · 417 · 340/346/349 · 297 · 628 ·
-nav_no_cross green. Build exit 0.
+  - `mode: "paged"`   — server, `services/apps/blogger.py:33`
+  - `objectModel: 'flow'` — client, `web/lib/apps/registry.ts:101`
 
-**Click-passed live**: `/connectors` → Connected; the subtitle states the rule;
-rows drill in; `?reach.connector=slack` deep-links straight to the drill-in
-(scopes, Test connection, Configure, Refresh, ⋮ Disconnect all intact); the
-inbound MCP half renders; `/settings` is Notifications · Account with no
-Connectors. ⚠️ A stale MOUNTED window painted Reach at `/settings` on an SPA
-transition — a reload showed the truth. Windows stay mounted while
-backgrounded; verify a surface on a COLD load.
+Two independent facts drive the chrome from those two declarations
+(`layoutMode`/`isPaged` off the served mode at `StudioSurface.tsx:954`; the
+left rail and the object noun off `objectModel`, ADR-633 D2). For every other
+app they agree (deck: paged/pages · image: paged/layers). For Blogger they do
+not, and ADR-627 describes a post as ONE CONTINUOUS DOCUMENT — which is what
+the client says and the server contradicts.
 
-## ⚠️ Method note that cost real time
+So the likely reading is that **`post` is mis-declared server-side as `paged`**,
+not that the flow branch is dead. If that is right, correcting it to `flow`
+would restore a caller to `set_artifact_title`'s h1 guard AND fix whatever
+paged chrome (page rail, per-page focus) is currently mounting on a document
+that has no pages. NOT changed here: it alters the Blogger pane's chrome and
+the h1/kicker naming rule together, both behaviour-visible, and it wants a
+click-pass of its own rather than riding this commit. Verify by driving the
+Blogger pane before deciding.
 
-**`test_claude_md_ratchet` is PYTEST-shaped**: run as a script it exits 0
-having executed nothing. It reported green at 50,477 chars — 477 OVER its
-asserted ceiling. Only `python -m pytest` showed the failure. "Read exit
-codes" is not enough: confirm the gate RAN something. Script gates print
-`✓`/`✗` and a count; a pytest module prints nothing. (`test_adr643` is the
-same shape.)
+## NOT done, deliberately (named in the ADR §4)
 
-CLAUDE.md is back under 50,000 (49,974) by deleting an EXPIRED to-do (the
-ADR-417 note to strip `RENDER_SERVICE_*` from two dashboards for a
-long-decommissioned service) — verified nothing reads those vars; the only
-references left are inside `test_adr417`, the gate that enforces their absence.
-
-## Still owed
-
-1. **§7 — workspace identity for unattended reach** (a bot token, additive,
-   never adoption). ⭐**Drive the N>1 member case FIRST**: every Connected row
-   is the owner's today, and "Read by" only becomes load-bearing at two
-   members. That case is asserted in gates and has never been looked at — the
-   same gap that hid the deep-link defect.
-2. One real Slack send (Part W's B3) — the operator's click, a named channel.
-3. The remote binding ADR; WordPress's D8 read-back; ADR-635 distribution.
-4. Baseline-red, untouched: `test_adr297_navigation_enactment` ·
-   `test_adr340_p2_settings_fold` · `test_adr422_files_legibility` — the same
-   stale-roster family, each needing its own ruling.
-
----
+- The `application/vnd.yarnnn.deck+html` conformance DAG. ADR-473 §4's deferral
+  still holds; the cheaper fix was asking the question the kernel already
+  answers.
+- The denormalized `kind` column. Worth doing — it removes `list_artifacts`'
+  fetch-200-filter-to-20 truncation, where an app with >20 artifacts silently
+  loses ownership resolution — but it is not what caused these bugs, and the
+  backfill needs a cache-column write with no content revision (ADR-209).
 
 # Part W — the click-pass Reach was owed, and what looking found (2026-09-07)
 
