@@ -4,6 +4,98 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part X — ADR-645: Reach owns connections; reach follows the member (2026-09-08)
+
+Operator, after the Reach click-pass: *"the reach, what is its scope; is it
+user level or workspace level? and thus, how should the manage connections
+occur?"* — putting two models: (A) the workspace ADOPTS the owner's
+credentials for system-level agents, possibly mirrored; (B) pure per-member.
+Then, on the analysis: *"aligned in full … delegate implementation."*
+
+## The ruling
+
+**(A) is CLOSED, and it was not an open option.** It was built, shipped and
+withdrawn — the withdrawal recorded in three ADRs and no surface, which is why
+it keeps being re-proposed. ADR-566 D2 forbade it behind a guard keyed on a
+`principal_grants` role **zero rows hold**, so **until ADR-577 production
+actually did it**; ADR-566 D5's workspace store was unfillable, mis-filled by
+migration 201's owner-fill trigger, and unreadable under `user_id` RLS — the
+pane it fed rendered the owner's personal tokens as workspace agent
+credentials. **Mirroring is that withdrawal with a copy step.** The reason is
+that a credential carries IDENTITY: adoption breaks attribution AT THE
+BOUNDARY, invisibly, on the far side no yarnnn surface can show.
+
+**(B) ratified** — it is what `resolve_platform_credential` already enforces.
+The layman sentence it has to meet: *you connected your Slack; things you do
+here reach through it; when you leave, your reach leaves with you.*
+
+**D3 — Reach owns the connection acts**, amending ADR-642's own "lists and
+doors, never acts". Three of four connection decisions (what this workspace
+reads · the aperture · agent scope) were WORKSPACE decisions wearing a Settings
+costume, and a redirect from the boundary's front door institutionalised that.
+
+## Shipped (`fae9218`, docs `cfd482c`)
+
+- `ReachConnected` gains the acts by mounting the EXISTING drill-ins unforked.
+- **Deleted**: `ConnectedIntegrationsSection` (688) + `ConnectorCard` (121) —
+  the registry-driven list is superseded by the integrations-driven rows
+  carrying the ADR-644 reach facts. Their two live capabilities carried over
+  explicitly: an **Available** section (the finder covers attached MCP only)
+  and an inline **Disconnect** for a held row with no drill-in (both api-key
+  connectors are `retired`; retiring must not orphan an existing fact).
+- Settings pane deleted, default → Notifications; the inbound MCP half moved
+  to Reach (inbound is reach).
+- `connectors` row → `stage: internal`, `pane_of`/`pane_group` stripped.
+- ⚠️ A sweep found **two stale return paths** (reconnect's `back`, the
+  section's default `redirectTo`) that would have landed a member on the
+  deleted pane.
+
+## Verification
+
+`test_adr645` (24) — D1 EXECUTES the refusal through the real resolver; D3
+asserts the retirement contract BOTH halves and sweeps the whole FE for a
+caller of the retired slug. **Falsified both ways**: restoring the owner-reuse
+fall-through reds D1; re-serving `connectors` reds D3. 642 (53, clause
+amended) · 644 · 577 · 592 · 636 · 635 · 582 · 417 · 340/346/349 · 297 · 628 ·
+nav_no_cross green. Build exit 0.
+
+**Click-passed live**: `/connectors` → Connected; the subtitle states the rule;
+rows drill in; `?reach.connector=slack` deep-links straight to the drill-in
+(scopes, Test connection, Configure, Refresh, ⋮ Disconnect all intact); the
+inbound MCP half renders; `/settings` is Notifications · Account with no
+Connectors. ⚠️ A stale MOUNTED window painted Reach at `/settings` on an SPA
+transition — a reload showed the truth. Windows stay mounted while
+backgrounded; verify a surface on a COLD load.
+
+## ⚠️ Method note that cost real time
+
+**`test_claude_md_ratchet` is PYTEST-shaped**: run as a script it exits 0
+having executed nothing. It reported green at 50,477 chars — 477 OVER its
+asserted ceiling. Only `python -m pytest` showed the failure. "Read exit
+codes" is not enough: confirm the gate RAN something. Script gates print
+`✓`/`✗` and a count; a pytest module prints nothing. (`test_adr643` is the
+same shape.)
+
+CLAUDE.md is back under 50,000 (49,974) by deleting an EXPIRED to-do (the
+ADR-417 note to strip `RENDER_SERVICE_*` from two dashboards for a
+long-decommissioned service) — verified nothing reads those vars; the only
+references left are inside `test_adr417`, the gate that enforces their absence.
+
+## Still owed
+
+1. **§7 — workspace identity for unattended reach** (a bot token, additive,
+   never adoption). ⭐**Drive the N>1 member case FIRST**: every Connected row
+   is the owner's today, and "Read by" only becomes load-bearing at two
+   members. That case is asserted in gates and has never been looked at — the
+   same gap that hid the deep-link defect.
+2. One real Slack send (Part W's B3) — the operator's click, a named channel.
+3. The remote binding ADR; WordPress's D8 read-back; ADR-635 distribution.
+4. Baseline-red, untouched: `test_adr297_navigation_enactment` ·
+   `test_adr340_p2_settings_fold` · `test_adr422_files_legibility` — the same
+   stale-roster family, each needing its own ruling.
+
+---
+
 # Part W — the click-pass Reach was owed, and what looking found (2026-09-07)
 
 Parts U (Reach) and V both ended "⚠️ the browser click-pass is OWED — the
