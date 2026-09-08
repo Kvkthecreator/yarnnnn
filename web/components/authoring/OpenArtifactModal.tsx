@@ -22,7 +22,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileText } from 'lucide-react';
-import { isArtifactCandidate, knownKind, resolveSurfaceApplication } from '@/lib/file-types';
+import { isArtifactCandidate, knownKind, rememberKind, resolveSurfaceApplication } from '@/lib/file-types';
 import { servesArtifactIndex } from '@/lib/apps/registry';
 import { documentName } from '@/components/text/TextSurface';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
@@ -75,7 +75,16 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
     api.studio
       .artifacts(appSlug)
       .then((res) => {
-        if (live) setOwned(new Set(res.artifacts.map((a) => a.path)));
+        if (!live) return;
+        // ADR-646 D4 (click-pass) — SEED THE KIND CACHE from the served rows.
+        // The index already carries each artifact's server-lifted `kind`, and
+        // without this nothing populates `PATH_KIND` for a picker: only the
+        // Files surface calls `rememberKind`, and it does so when it READS a
+        // file's content. The picker renders a TREE it never reads, so every
+        // row resolved to an unknown kind — which is why passing `knownKind`
+        // alone was not enough to make Blogger's picker non-empty.
+        for (const a of res.artifacts) rememberKind(a.path, a.kind);
+        setOwned(new Set(res.artifacts.map((a) => a.path)));
       })
       .catch(() => {
         /* Fall back to "every artifact candidate": a failed scoping call must
@@ -91,20 +100,25 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
    *  registry (ADR-451, ADR-473 D2), never to a local extension test. */
   const isOpenable = (node: WorkspaceTreeNode): boolean => {
     if (node.type !== 'file' || !isArtifactCandidate(node.path)) return false;
-    // The registry's answer first: the app that OWNS this file's type must be
-    // the app asking. Without this an html-authoring app would offer prose
-    // (and Text would offer decks) the moment `isArtifactCandidate` widened.
+    // The app that OWNS this file's type must be the app asking. Without this
+    // an html-authoring app would offer prose (and Text would offer decks) the
+    // moment `isArtifactCandidate` widened.
     //
     // ADR-646 D4 — the KIND is the third argument, and dropping it was the
     // bug. `resolveSurfaceApplication(path)` alone cannot see a file's type
     // (it lives in the file's own bytes), so every `.html` resolved to the
     // default app: in Slides the test became `'slides' !== 'slides'` and
     // admitted every artifact in the tree, while in Blogger it rejected every
-    // one — the picker was permanently empty. `knownKind` reads the shared
-    // PATH_KIND cache the tree fills as it reads content.
-    if (resolveSurfaceApplication(node.path, undefined, knownKind(node.path))?.surface !== appSlug)
-      return false;
-    return owned ? owned.has(node.path) : true;
+    // one — the picker was permanently empty.
+    //
+    // ⭐ THE SERVED INDEX IS THE ANSWER, and it is asked FIRST. `owned` is the
+    // set of paths the KERNEL says this app owns, kinds lifted server-side
+    // from each artifact's own bytes — strictly better than anything the
+    // client can derive from a path. The type-registry route below is the
+    // fallback for the two cases `owned` cannot cover: an app with no served
+    // index (a prose app, ADR-571), and a failed fetch.
+    if (owned) return owned.has(node.path);
+    return resolveSurfaceApplication(node.path, undefined, knownKind(node.path))?.surface === appSlug;
   };
 
   return (

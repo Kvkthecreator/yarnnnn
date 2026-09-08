@@ -180,6 +180,29 @@ def run() -> bool:
         "extractTemplate" in _read("web/app/(authenticated)/files/page.tsx"),
     )
 
+    # ── ADR-646 D4 (click-pass) — the picker asks the SERVED index ───────
+    # Found by DRIVING the browser, which no gate had caught: passing
+    # `knownKind` was necessary and NOT sufficient. Nothing populates the
+    # PATH_KIND cache for a picker — only the Files surface calls
+    # `rememberKind`, and it does so when it READS a file's content, while the
+    # picker renders a tree it never reads. So every row resolved to an
+    # unknown kind and Blogger's Open… stayed empty even after the fix.
+    #
+    # Two halves, both required: seed the cache from the served rows (which
+    # already carry the server-lifted kind), and ask `owned` FIRST — it is the
+    # kernel's own answer, and the registry route is the fallback for an app
+    # with no served index or a failed fetch.
+    modal = _read("web/components/authoring/OpenArtifactModal.tsx")
+    _check(
+        "the picker SEEDS the kind cache from the served index (nothing else does)",
+        "rememberKind(a.path, a.kind)" in modal,
+    )
+    _check(
+        "…and the served ownership set is asked BEFORE the path-derived route",
+        modal.index("if (owned) return owned.has(node.path);")
+        < modal.index("resolveSurfaceApplication(node.path"),
+    )
+
     # ── ADR-646 D2 — the WRITE door enforces ownership ───────────────────
     # A scoped palette that no write door checks is a suggestion: the palette
     # is client-rendered, so nothing stopped a hand-built POST minting a
