@@ -3086,3 +3086,60 @@ scope only from a canvas click. `Enter` must go through
   the receipt). Decide whether a page-grain card earns its place.
 - **Text has no Compose** — the verb is medium-agnostic but only Slides declares
   a door. A section-grain compose in Text is the obvious sibling.
+
+---
+
+# Part Z2 — the build was green and the deploy was broken (2026-09-08)
+
+**Shipped: `02b0611`. Vercel deploy success — confirmed on the commit status,
+not inferred from a local build.**
+
+Two deploys failed with
+
+    Error: ENOENT: no such file or directory, lstat
+      '/vercel/path0/web/.next/server/chunks/2511.js.map'
+
+`b64c7f0` had deleted `.next/**/*.js.map` through Sentry's post-upload cleanup
+to fix Vercel Function Storage at 100%. Next collects each function's manifest
+into `*.nft.json` **before** any post-build hook runs, so the maps were traced
+and then removed — 2797 dangling refs across 73 manifests. Vercel `lstat`s
+every path while packing and dies on the first one gone, which is why the error
+lands *after* the route table and reads like a platform problem.
+
+**The verification lesson.** `next build` exits 0 either way, because nothing
+local reads a trace. `b64c7f0` checked "77 functions traced before and after"
+— it counted the manifests without checking the paths inside them resolved.
+Counting is not checking. Same family as
+`feedback_a_primitive_nothing_calls_is_a_green_gate_over_a_live_bug`.
+
+**The fix** stops generation instead of deleting after the fact. Sentry only
+assigns a devtool when the config leaves one unset (`if (!newConfig.devtool)`);
+our webpack hook runs first, so setting it there wins. ⚠️The value must be
+**TRUTHY** — the obvious `config.devtool = false` is falsy and gets overwritten
+with `source-map`, producing exactly what we were avoiding.
+
+Measured over the traces (the only thing reflecting what Vercel packs):
+
+    baseline                      2146 MB packed, 1714 MB maps, 42.3 MB max fn
+    devtool 'eval'                1189 MB packed,    0 MB maps, 23.1 MB max fn
+    hidden-nosources-source-map   1020 MB packed,  561 MB maps, 19.7 MB max fn
+
+`eval` shows zero map files but is BIGGER — it inlines them into the JS. The
+chosen option more than doubles `b64c7f0`'s intended win (2146 → 1020 MB).
+⚠️Never measure this with `du` on `.next`; measure over the traces.
+
+The 1826/1441 MB in `b64c7f0`'s message were from a partial build; 2146/1714
+supersede them. Its claim that symbolication was unaffected held only for the
+CLIENT — the server maps it deleted were the traced ones.
+
+**Gate added.** `web/scripts/check-build-traces.mjs` lstat()s every traced path
+as Vercel does; wired into the `web` lane in `docs/evaluations/VERIFICATION.md`
+(exit criterion now requires it *falsified*, not merely passed). Green here;
+red at 2812 refs with maps moved aside. ⚠️Falsify IN PLACE — copying `.next`
+elsewhere breaks relative `node_modules` refs and reddens for the wrong reason
+(7291 bogus failures vs the real 2812).
+
+**Owed:** nothing blocking. Function Storage was at 100% of the 10 GB free tier;
+this stops new deploys being fat but does NOT reclaim existing usage — that
+needs Vercel's deployment retention policy (still unset, carried over from
+`b64c7f0`).
