@@ -280,6 +280,19 @@ export function ReachConnected() {
 
   return (
     <div className="space-y-4">
+      {/* ADR-645 D3 — the new-connection act, on the boundary surface. Placed
+          at the head of the pane: a create affordance belongs where a reader
+          arrives, above the roster it adds to, not trailing it. */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setFinderOpen(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New connection
+        </button>
+      </div>
       <ul className="space-y-3">
         {rows.map((i) => {
           const attached = i.kind === 'attached';
@@ -452,22 +465,13 @@ export function ReachConnected() {
         </div>
       )}
 
-      {/* ADR-645 D3 — the new-connection act, on the boundary surface. */}
-      <div className="flex items-center justify-between gap-3 pt-1">
-        <p className="text-[11px] leading-snug text-muted-foreground/70">
-          {/* ADR-645 D4 — the rule the whole surface embodies, said once. */}
-          Each connection is held under your account and travels with you. What this workspace
-          reads through it, and what its tools may do, is set on the connection&rsquo;s own page.
-        </p>
-        <button
-          type="button"
-          onClick={() => setFinderOpen(true)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New connection
-        </button>
-      </div>
+      {/* ADR-645 D4 — the rule the whole surface embodies, said once. The act
+          itself sits at the TOP of the pane (the create affordance a reader
+          looks for before scanning the list), not below the roster. */}
+      <p className="pt-1 text-[11px] leading-snug text-muted-foreground/70">
+        Each connection is held under your account and travels with you. What this workspace
+        reads through it, and what its tools may do, is set on the connection&rsquo;s own page.
+      </p>
 
       {/* ADR-645 D3 / ADR-496 D1 — the INBOUND half of the boundary: external
           AI assistants that reach IN over MCP. It sat on the account door
