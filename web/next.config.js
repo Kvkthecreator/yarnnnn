@@ -48,6 +48,52 @@ const nextConfig = {
       { source: '/freddie', destination: '/', permanent: false },
     ];
   },
+
+  // Vercel Function Storage (2026-09-08). `hideSourceMaps` covers the BROWSER
+  // bundle only — `.next/static` carries zero `.map` files. The SERVER bundle
+  // was untouched, and 78 of 80 `.nft.json` traces pulled those maps into their
+  // function, so every route in the `(authenticated)` group shipped the same
+  // maps behind the shared layout's client shell. Measured over the traces at
+  // the pre-fix baseline: 2146 MB packed across 77 functions, 1714 MB (80%) of
+  // it source maps, largest function 42.3 MB — and the 10 GB free tier held
+  // roughly four deployments.
+  //
+  // The fix has to stop the maps being GENERATED, not delete them afterwards.
+  // Next traces each entry's dependencies into `*.nft.json` BEFORE any
+  // post-build cleanup hook runs, so a `sourcemaps.filesToDeleteAfterUpload`
+  // glob leaves 2797 references to `.js.map` files that no longer exist across
+  // 73 manifests. Vercel lstat()s every path it is handed while packing the
+  // function and fails the deploy on the first one missing:
+  //   ENOENT: no such file or directory, lstat '.next/server/chunks/2511.js.map'
+  // `next build` still exits 0 locally, because nothing but Vercel's packing
+  // step ever reads a trace — so the traces must be checked directly.
+  //
+  // Sentry only assigns a devtool when the config leaves one unset
+  // (`if (!newConfig.devtool)` in @sentry/nextjs config/webpack.js), picking
+  // `source-map` for the server. Our webpack hook runs first (the plugin calls
+  // the user's webpack fn at the top of constructWebpackConfigFunction), so a
+  // devtool set here wins that check. The CLIENT devtool is untouched, so
+  // `hideSourceMaps` still governs browser symbolication — `.next/static`
+  // keeps zero `.map` files.
+  //
+  // The value must be TRUTHY: the guard is `!newConfig.devtool`, so the
+  // obvious `false` (webpack's own "no source maps") is falsy and gets
+  // overwritten with `source-map`, generating exactly what we are avoiding.
+  //
+  // Measured over the traces, which is the only thing that reflects what
+  // Vercel actually packs:
+  //   baseline                       2146 MB packed, 1714 MB maps, 42.3 MB max fn
+  //   devtool 'eval'                 1189 MB packed,    0 MB maps, 23.1 MB max fn
+  //   hidden-nosources-source-map    1020 MB packed,  561 MB maps, 19.7 MB max fn
+  // `eval` emits no separate maps but INLINES them into the JS, so it is
+  // bigger overall. `hidden-nosources` keeps the mappings and drops the source
+  // text, which is both the smallest and the one that stays symbolicatable.
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.devtool = 'hidden-nosources-source-map';
+    }
+    return config;
+  },
 };
 
 module.exports = withBundleAnalyzer(withSentryConfig(nextConfig, {
@@ -61,24 +107,6 @@ module.exports = withBundleAnalyzer(withSentryConfig(nextConfig, {
   widenClientFileUpload: true,
   hideSourceMaps: true,
   disableLogger: true,
-  // Vercel Function Storage (2026-09-08). `hideSourceMaps` covers the BROWSER
-  // bundle only — `.next/static` carries zero `.map` files. The SERVER bundle
-  // was untouched, and 78 of 80 `.nft.json` traces pulled those maps into their
-  // function, so every route in the `(authenticated)` group shipped ~29 MB of
-  // maps behind the shared layout's client shell. Measured: 1826 MB packed
-  // across 77 functions, 1441 MB (79%) of it source maps — a 325-byte ADR-308
-  // redirect stub was a 36 MB function, and the 10 GB free tier held ~5
-  // deployments.
-  //
-  // Sentry's `deleteSourcemapsAfterUpload` already defaults to true, but it
-  // only fires AFTER a successful upload, which is gated on SENTRY_AUTH_TOKEN
-  // above — so any build without the token kept every map. This states the
-  // deletion unconditionally: maps are still generated and still uploaded when
-  // the token is present (symbolication is unaffected), they just never reach
-  // the deployed function.
-  sourcemaps: {
-    filesToDeleteAfterUpload: ['.next/**/*.js.map'],
-  },
   // ADR-250: Sentry init is now handled via instrumentation.ts (Next.js 15 API).
   // Disable auto-instrumentation of middleware to prevent edge runtime crashes
   // when the old sentry.edge.config.ts no longer exists.

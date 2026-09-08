@@ -66,10 +66,18 @@ nothing.
 
 - **Verify**: `cd web && pnpm build` (tsc alone is NOT verification — dirty-tree
   lesson). UI-visible changes → a browser click-pass (E2E lane below).
+  Anything touching BUILD OUTPUT (next.config.js, the Sentry plugin, source
+  maps, bundling) → also `node scripts/check-build-traces.mjs`. A green
+  `pnpm build` is NOT verification there: Next writes the `*.nft.json` traces
+  Vercel packs from, nothing local reads them, so a build that deletes a traced
+  file exits 0 and dies on Vercel with `ENOENT ... lstat '.../2511.js.map'`
+  after the route table has already printed. That shipped twice on 2026-09-08.
 - **Guardrails**: redirect stubs stay pure server transport (ADR-308); surface
   slugs against the live `SurfaceRegistry`, never from memory.
-- **Exit**: build green; for UI changes, a click-pass session record with BOTH a
-  DOM observation and a substrate receipt where the click writes.
+- **Exit**: build green — plus, for build-output changes, `check-build-traces.mjs`
+  green AND falsified (move the files aside, watch it go red) before its pass is
+  believed; for UI changes, a click-pass session record with BOTH a DOM
+  observation and a substrate receipt where the click writes.
 - **Method**: [BROWSER-CLICK-PASS-PLAYBOOK.md](BROWSER-CLICK-PASS-PLAYBOOK.md) —
   feature-agnostic. Chrome nuances (tools freeze at session start; one isolated
   context PER principal or the second login overwrites the first; an a11y
