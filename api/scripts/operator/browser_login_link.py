@@ -64,26 +64,52 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(_API_ROOT / ".env.alpha-ops")
 load_dotenv(_API_ROOT.parent / ".env")
 
-#: The ONLY emails this script will mint a browser session for. Every entry is a
-#: declared test principal (the owner/member instrument + the rigs). Adding a
-#: real user here is the same category error as adding one to personas.yaml.
-ALLOWED_EMAILS = {
+#: The ONLY emails this script will mint a browser session for, each with a
+#: DECLARED REASON. Adding a real user here is the same category error as
+#: adding one to personas.yaml.
+#:
+#: ⚠️ 2026-09-09 — WHY THE REASON IS PART OF THE DATA, not a comment.
+#: The playbook (§3) states "never add a real external address to the roster;
+#: verify the guard refuses one as part of setup." Run as setup during the
+#: ADR-645 pass, the guard MINTED A WORKING LINK for `seulkim88@gmail.com` —
+#: a real Gmail address. The guard was not broken; the roster simply listed it,
+#: and `test_browser_lane_playbook_wired` only asserted that ALLOWED_EMAILS
+#: EXISTS. A guard whose roster nobody can audit is a guard that passes while
+#: admitting anyone.
+#:
+#: The two gmail.com entries are legitimate and stay: both are accounts the
+#: OPERATOR controls (their own, and the alpha-trader persona instrument whose
+#: second workspace is literally named "seulkim tester"). Neither is an
+#: unwitting third party. But that fact lived in one person's head, which is
+#: exactly how a real stranger's address gets added next to them and nothing
+#: goes red.
+#:
+#: THE RULE, now machine-checked (`test_browser_lane_playbook_wired.py`):
+#: every entry declares WHY it is mintable, and only two reasons are valid —
+#:   "rig"      a disposable test principal on a @yarnnn.com rig address
+#:   "operator" an account the operator personally controls, named as such
+#: A `gmail.com`/external address with no `operator` reason FAILS THE GATE.
+#: If you are adding an address because you need a pass to cover a principal
+#: you do not control, the answer is a rig, not a roster entry.
+ALLOWED_EMAILS: dict[str, str] = {
     # --- the click-pass pair (rig-only, fully disposable) ---------------
-    "kvkthecreator@yarnnn.com",  # OWNER principal — kvk-yarnnn rig, ws bf5b25a9
-    "testacct@yarnnn.com",       # GUEST principal — owns NO workspace, never signed in
+    "kvkthecreator@yarnnn.com": "rig",   # OWNER principal — kvk-yarnnn rig, ws bf5b25a9
+    "testacct@yarnnn.com": "rig",        # GUEST principal — owns NO workspace, never signed in
     # --- other rig principals (persona workspaces) ---------------------
-    "alpha-trader-2@yarnnn.com",
-    "yarnnn-author@yarnnn.com",
-    "netflix-script-author@yarnnn.com",
-    "korea-thriller-shorts@yarnnn.com",
-    "bare-kernel@yarnnn.com",
-    "anr-scout@yarnnn.com",
-    # --- live-workspace principals -------------------------------------
-    # Retained for read-mostly passes on d5b9029b. PREFER the rig pair above:
-    # rigs are disposable, so mutating steps can run for real instead of being
-    # attempted-and-restored against live substrate.
-    "kvkthecreator@gmail.com",   # owner of d5b9029b
-    "seulkim88@gmail.com",       # member of d5b9029b + owner of 4ca9c664
+    "alpha-trader-2@yarnnn.com": "rig",
+    "yarnnn-author@yarnnn.com": "rig",
+    "netflix-script-author@yarnnn.com": "rig",
+    "korea-thriller-shorts@yarnnn.com": "rig",
+    "bare-kernel@yarnnn.com": "rig",
+    "anr-scout@yarnnn.com": "rig",
+    # --- operator-controlled accounts ----------------------------------
+    # Retained for read-mostly passes on d5b9029b, and because some instruments
+    # only exist here: the five platform connections in the entire database are
+    # held by kvkthecreator@gmail.com, so a connection-scoping pass (ADR-645)
+    # cannot run on a rig until a rig owner connects something.
+    # PREFER the rig pair above wherever the subject exists there.
+    "kvkthecreator@gmail.com": "operator",  # the operator's own account, owner of d5b9029b
+    "seulkim88@gmail.com": "operator",      # alpha-trader persona instrument (owns "seulkim tester"); MEMBER of d5b9029b
 }
 
 #: The canonical origin. MUST match the origin the app actually serves on —
@@ -135,9 +161,11 @@ def mint_browser_link(email: str, redirect_to: str) -> str:
     if email not in ALLOWED_EMAILS:
         raise SystemExit(
             f"REFUSED: {email!r} is not on the declared test roster.\n"
-            f"Allowed: {sorted(ALLOWED_EMAILS)}\n"
-            "Minting a browser session for a non-test principal is an account "
-            "takeover, not an evaluation."
+            + "Allowed:\n"
+            + "".join(f"  {e:34} ({why})\n" for e, why in sorted(ALLOWED_EMAILS.items()))
+            + "Minting a browser session for a non-test principal is an account "
+            "takeover, not an evaluation. If you need a principal you do not "
+            "control, the answer is a RIG, not a new roster entry."
         )
     supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
     service_key = os.environ.get("SUPABASE_SERVICE_KEY", "")

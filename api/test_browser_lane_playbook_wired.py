@@ -99,3 +99,59 @@ def test_roster_guard_is_still_enforced_in_code() -> None:
         "the roster guard is gone from browser_login_link.py — the refusal must "
         "be enforced in code, not left to the author's care"
     )
+
+
+def test_every_roster_entry_declares_why_it_is_mintable() -> None:
+    """The assertion above passes with EVERY REAL USER IN THE WORLD listed.
+
+    2026-09-09, found during the ADR-645 pass: the playbook says "never add a
+    real external address; verify the guard refuses one as part of setup", and
+    the guard cheerfully minted a working link for a `gmail.com` address. The
+    guard was not broken — the roster listed it, and nothing could tell a
+    legitimate operator-controlled account from a stranger's.
+
+    So the ROSTER is now the thing under test, not merely the guard's presence.
+    Every entry declares a reason; only `rig` and `operator` are valid; and an
+    external address without an explicit `operator` declaration fails here.
+
+    Imported, not grepped — a regex over the literal cannot tell a live entry
+    from one inside a comment or a docstring.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_browser_login_link", LOGIN)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    roster = mod.ALLOWED_EMAILS
+
+    assert isinstance(roster, dict), (
+        "ALLOWED_EMAILS must map email -> reason. A bare set carries no "
+        "justification, which is how an unaccountable entry survives review."
+    )
+    assert roster, "the roster is empty — the instrument cannot mint anything"
+
+    VALID = {"rig", "operator"}
+    for email, why in roster.items():
+        assert why in VALID, (
+            f"{email!r} declares reason {why!r}; valid reasons are {sorted(VALID)}. "
+            "A principal you do not control belongs on a RIG, not in this roster."
+        )
+        # A @yarnnn.com address is a rig by construction. Anything else is a
+        # real mailbox somewhere, and may only be here as an account the
+        # operator personally controls — stated, not assumed.
+        if not email.endswith("@yarnnn.com"):
+            assert why == "operator", (
+                f"{email!r} is an EXTERNAL address declared {why!r}. An address "
+                "outside @yarnnn.com may only carry reason 'operator', and only "
+                "when the operator personally controls that account. If a pass "
+                "needs a principal the operator does not control, the answer is "
+                "a rig — or the person's recorded consent, which is not this file."
+            )
+
+    # The refusal must name the reasons, so an operator reading it can audit the
+    # roster at the moment they are being refused.
+    src = LOGIN.read_text()
+    assert "sorted(ALLOWED_EMAILS.items())" in src, (
+        "the refusal no longer prints each entry's reason — the roster becomes "
+        "unauditable exactly when someone is looking at it"
+    )
