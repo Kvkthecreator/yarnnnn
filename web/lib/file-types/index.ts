@@ -177,10 +177,13 @@ const KIND_TO_APP = new Map<string, string>();
  *  which catch a forgotten deletion and never a forgotten addition; a new app
  *  that forgot this row routed its own artifacts to Slides.
  *
- *  ADR-599 — `docs` is DELETED with its app (was `stage: internal`, ADR-592);
- *  a legacy `document`/`article` artifact falls back to DEFAULT_ARTIFACT_APP
- *  (Slides), which still renders it — the kernel CSS survives the type
- *  registry (creation stopped; reading did not).
+ *  ADR-599 — `docs` is DELETED with its app (was `stage: internal`, ADR-592).
+ *  ADR-646 D5 — a legacy `document` artifact is therefore UNOWNED, and opens
+ *  in the generic HTML viewer rather than in Slides. It used to fall back to
+ *  the default app, which rendered it (the kernel CSS survives the type
+ *  registry) but filed it under an app that never owned it. `article`/`page`/
+ *  `web` are different: they alias FORWARD to `post` at the kind lift
+ *  (`canonical_layout_slug`), so they are owned by Blogger and route there.
  *
  *  Only apps that OWN artifact types appear (every app today, since ADR-639
  *  deleted the declarations-only strings app).
@@ -208,12 +211,18 @@ function appSurfaces(): Record<string, SurfaceApplication> {
 /** The prose class the Text app owns (ADR-571 D2 / ADR-570 D4's format class). */
 const PROSE_EXT_RE = /\.(md|markdown|txt)$/i;
 
-const DEFAULT_ARTIFACT_APP = 'slides';
-
-/** Publish the served association (call once with the vocabulary's layouts). */
+/** Publish the served association (call once with the vocabulary's layouts).
+ *
+ *  ADR-646 D5 — no client-side default. `DEFAULT_ARTIFACT_APP = 'slides'` used
+ *  to live here and fill in for a row that arrived without an `app`; the
+ *  server has ALWAYS sent one (`l.get("app") or DEFAULT_APP`, routes/studio.py),
+ *  so it was a second home for a rule the kernel already owns — and the shape
+ *  that let an unowned type quietly become a Slides artifact. A row without an
+ *  app is now simply not registered, and `appForKind` returns null for it,
+ *  which is ADR-473 D6's ruling. */
 export function registerKindApps(rows: Array<{ slug: string; app?: string }>): void {
   for (const r of rows) {
-    if (r.slug) KIND_TO_APP.set(r.slug, r.app || DEFAULT_ARTIFACT_APP);
+    if (r.slug && r.app) KIND_TO_APP.set(r.slug, r.app);
   }
 }
 
@@ -389,8 +398,18 @@ export function resolveSurfaceApplication(
   // ADR-473 D2: the OWNING app comes from the artifact's declared type. The
   // ADR-451 hardcode (every html → Studio) is replaced, not supplemented —
   // it would send an IMAGES stage into Studio.
-  const app = appForKind(kind) ?? DEFAULT_ARTIFACT_APP;
-  return appSurfaces()[app] ?? appSurfaces()[DEFAULT_ARTIFACT_APP];
+  // ADR-646 D5 — an UNOWNED type degrades to the generic viewer, never to an
+  // app. This line read `appForKind(kind) ?? DEFAULT_ARTIFACT_APP`, which is
+  // ADR-473 D6 stated and then contradicted three lines below its own comment:
+  // "Absence of an owner is a fallback, not a failure" means the HTML viewer,
+  // not whichever app happened to ship first. The default sent every untyped
+  // `.html` to Slides — a bundle-shipped type, a hand-authored file, and every
+  // compose-engine report (which emits no `data-template` at all).
+  //
+  // Returning null is the honest answer and the caller already handles it:
+  // ArtifactCard falls to its in-chat modal, the Finder to the inline viewer.
+  const app = appForKind(kind);
+  return app ? appSurfaces()[app] ?? null : null;
 }
 
 /**

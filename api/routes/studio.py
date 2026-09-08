@@ -44,7 +44,14 @@ import services.apps.images  # noqa: F401  (import for registration side-effect)
 # use these at request time, so a function-local import in ONE handler would
 # leave the others with a NameError — which is exactly what shipped and broke
 # /studio/templates + /studio/vocabulary in prod (2026-07-20).
-from services.authoring import all_layouts, all_templates, resolve_layout
+from services.authoring import (
+    DEFAULT_APP,
+    all_arrangements,
+    all_layouts,
+    all_templates,
+    kinds_for_app,
+    resolve_layout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +78,33 @@ class CreateArtifactRequest(BaseModel):
     preset: Optional[str] = None
     width: Optional[int] = None
     height: Optional[int] = None
+    # ADR-646 D2 — WHICH APP IS ASKING. The create door validated `template`
+    # against the CROSS-APP registry, so nothing stopped a Slides surface
+    # POSTing `template: "post"` and minting a Blogger artifact inside another
+    # app's chrome. Optional because the door predates the field and a
+    # cross-app creation surface is legitimate; when PRESENT it is enforced.
+    app: Optional[str] = None
 
 
 @router.get("/studio/templates")
-async def list_templates(auth: UserClient) -> dict:
+async def list_templates(auth: UserClient, app: Optional[str] = None) -> dict:
+    """The creation palette. ``app=`` scopes it to the types that app OWNS.
+
+    ADR-646 D1: the SERVER scopes. Before this the endpoint returned every
+    registered app's templates tagged with an ``app`` field and left the
+    filtering to whoever called it — which meant exactly one client line
+    (`StudioSurface.tsx`'s `.filter(t => t.app === app.slug)`) stood between
+    a Slides member and Blogger's `post`. `kinds_for_app` — the primitive
+    written for this in ADR-473 D2 — had ZERO production callers; the answer
+    existed and was never asked for.
+
+    Omitted → every template, which is what a cross-app creation surface
+    would want. The `app` field stays on each row: the association is still
+    served (ADR-473 D3), so a client can still resolve kind→app without
+    hardcoding a slug.
+    """
     _templates = all_templates()
+    _owned = kinds_for_app(app) if app else None
 
     return {
         "templates": [
@@ -83,9 +112,10 @@ async def list_templates(auth: UserClient) -> dict:
                 "slug": slug,
                 "label": t["label"],
                 "description": t["description"],
-                "app": t.get("app") or "slides",  # ADR-473 D2
+                "app": t.get("app") or DEFAULT_APP,  # ADR-473 D2
             }
             for slug, t in _templates.items()
+            if _owned is None or slug in _owned
         ]
     }
 
@@ -226,7 +256,6 @@ async def get_vocabulary(auth: UserClient) -> dict:
     from services.authoring import (
         HEADING_RUNGS,
         MEDIA_BLOCK_KINDS,
-        STUDIO_ARRANGEMENTS,
         STUDIO_BLOCKS,
         STUDIO_KERNEL_CSS_VERSION,
         block_group,
@@ -333,7 +362,7 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 # ADR-473 D2/D3: which app OWNS this type. Served so the FE
                 # resolves kind→app at runtime and never hardcodes a slug — a
                 # program-shipped type stays routable with no frontend deploy.
-                "app": l.get("app") or "slides",
+                "app": l.get("app") or DEFAULT_APP,
             }
             for s, l in all_layouts().items()
         ],
@@ -349,7 +378,10 @@ async def get_vocabulary(auth: UserClient) -> dict:
                 }
                 for s, a in arrangements.items()
             ]
-            for layout, arrangements in STUDIO_ARRANGEMENTS.items()
+            # ADR-646 D3 — the CROSS-APP registry, like every sibling key
+            # here. `STUDIO_ARRANGEMENTS` is Studio's own table; reading it
+            # withheld Blogger's and Images' rosters from the client entirely.
+            for layout, arrangements in all_arrangements().items()
         },
     }
 
@@ -1105,6 +1137,23 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
             status_code=422,
             detail=f"Unknown template: {req.template!r} (one of {sorted(_templates)})",
         )
+
+    # ADR-646 D2 — the asking app must OWN the type it is minting. The same
+    # `kinds_for_app` answer the palette is scoped by, asked again at the
+    # WRITE door: a scoped list that no write door enforces is a suggestion,
+    # and the palette is client-rendered. Refuses rather than silently
+    # re-homing — the member asked for a specific type and a quiet
+    # substitution is the worse answer.
+    if req.app:
+        _owned = kinds_for_app(req.app)
+        if req.template not in _owned:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Template {req.template!r} is not owned by {req.app!r} "
+                    f"(it owns {sorted(_owned)})"
+                ),
+            )
 
     # ── Placement (ADR-549 D1/D2) ──────────────────────────────────────────
     # A creation act NAMES ITS OBJECT. There is no pathless door any more: the

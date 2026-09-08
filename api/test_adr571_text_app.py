@@ -197,14 +197,31 @@ const _load = (spec) => {
 };
 new Function('module', 'exports', 'require', js)(mod, mod.exports, _load);
 const { isArtifactCandidate, resolveSurfaceApplication } = mod.exports;
-const surfaceOf = (p) => (resolveSurfaceApplication(p) || {}).surface || null;
+const surfaceOf = (p, kind) => (resolveSurfaceApplication(p, undefined, kind) || {}).surface || null;
+// ADR-646 D5 — routing an .html needs its KIND (the type lives in the file's
+// own bytes). `registerKindApps` is how the served association arrives; the
+// probe publishes the same rows the vocabulary endpoint serves.
+mod.exports.registerKindApps([
+  { slug: 'deck', app: 'slides' },
+  { slug: 'post', app: 'blogger' },
+  { slug: 'image', app: 'images' },
+]);
 const out = {
   prose_is_candidate: isArtifactCandidate('/workspace/marketing/notes.md'),
   prose_routes_text: surfaceOf('/workspace/marketing/notes.md') === 'text',
   txt_routes_text: surfaceOf('/workspace/Documents/log.txt') === 'text',
   arrival_not_claimed: surfaceOf('/workspace/inbound/mcp/observed.md') === null,
   machine_leaf_not_claimed: surfaceOf('/workspace/x/_feedback.md') === null,
-  html_still_authoring: ['slides', 'images'].includes(surfaceOf('/workspace/x/document.html')), // ADR-599: docs deleted, studio→slides
+  // ADR-646 D5: a TYPED .html routes to the app that OWNS its type — the
+  // prose claim did not steal it. This used to assert an UNTYPED one landed
+  // on an authoring app, which passed only because of the `?? 'slides'`
+  // default: it proved the default, not the claim, and would have stayed
+  // green if every type had been mis-routed to Slides.
+  html_still_authoring: surfaceOf('/workspace/x/deck.html', 'deck') === 'slides'
+    && surfaceOf('/workspace/x/post.html', 'post') === 'blogger',
+  // …and an UNTYPED .html is UNOWNED (ADR-473 D6): the generic viewer, never
+  // whichever app happened to ship first.
+  untyped_html_unowned: surfaceOf('/workspace/x/document.html') === null,
   image_unclaimed: surfaceOf('/workspace/x/shot.png') === null,
 };
 console.log(JSON.stringify(out));
@@ -235,8 +252,10 @@ check("3l an ARRIVAL is never claimed (a retained observation is not a canvas)",
       _probe.get("arrival_not_claimed") is True, str(_probe))
 check("3m an `_`-leaf is never claimed (machine-tended state, ADR-254)",
       _probe.get("machine_leaf_not_claimed") is True, str(_probe))
-check("3n .html still routes to its authoring app (the prose claim did not steal it)",
+check("3n a TYPED .html routes to the app owning its type (the prose claim did not steal it)",
       _probe.get("html_still_authoring") is True, str(_probe))
+check("3n' an UNTYPED .html is unowned — the generic viewer, never a default app (ADR-646 D5)",
+      _probe.get("untyped_html_unowned") is True, str(_probe))
 check("3o a non-document is still unclaimed", _probe.get("image_unclaimed") is True, str(_probe))
 
 

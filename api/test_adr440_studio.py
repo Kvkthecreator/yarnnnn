@@ -31,7 +31,9 @@ def run() -> bool:
         STUDIO_ARTIFACT_REGION,
         STUDIO_LANE_MAX_TOKENS,
         STUDIO_TEMPLATES,
+        all_layouts,
         all_templates,
+        app_for_kind,
         build_studio_posture,
         extract_outline,
         extract_template,
@@ -39,12 +41,15 @@ def run() -> bool:
 
     # ADR-459 D3: kernel SEEDS, never BOUNDS — `⊇` so a bundle-shipped layout
     # (ADR-222 "programs ship the templates") doesn't turn the ratchet red.
-    # ADR-505 D1: THREE types — document (capture) · deck (present) · web
-    # (publish). ADR-518: the housing is per-app (document lives in
-    # services/docs.py), so the three-type set is a REGISTRY fact — Studio's
-    # own table carries only its layout media.
-    _check("registry serves three types: document/deck/web (ADR-505 D1, ADR-518 housings)",
-           set(all_templates()) >= {"document", "deck", "web"})
+    # ADR-505 D1 named three types (document · deck · web) and ALL THREE
+    # spellings are now gone: `document` died with the Docs app and `web`
+    # re-homed as Blogger's `post` (ADR-599 D5 → ADR-627 D1). ADR-646 —
+    # the durable fact is not a roster of slugs but the RELATION: the registry
+    # is the union of what the apps declare, and every app that owns types
+    # contributes. Pinning the spellings is what left this red for months.
+    _check("the registry IS the union of every app's declared types (no hand roster)",
+           set(all_templates()) == set(all_layouts())
+           and {app_for_kind(k) for k in all_templates()} == {"slides", "blogger", "images"})
     _check("Studio's own table is the layout media only (document moved house)",
            {"deck"} <= set(STUDIO_TEMPLATES))  # ADR-599: web deleted; ⊇ per ADR-459 D3
     for slug, t in all_templates().items():

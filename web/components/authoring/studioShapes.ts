@@ -29,13 +29,18 @@ export interface StudioShapeStyle {
 
 /** Icon + accent per known shape slug. Presentation only — never a label. */
 const SHAPE_STYLES: Record<string, StudioShapeStyle> = {
-  document: { icon: FileText, color: 'text-sky-500' },
   deck: { icon: Presentation, color: 'text-amber-500' },
-  // ADR-505 D2: `web` absorbed `article` + `page`. The two retired slugs keep NO
-  // rows — the server resolves them to `web` before the FE ever sees them
-  // (`canonical_layout_slug` at the kind lift), so a row here would be dead code
-  // pretending a legacy artifact still has its own identity.
-  web: { icon: LayoutTemplate, color: 'text-emerald-500' },
+  // ADR-627 — the Blogger app's publish medium. ADR-646 D6: this row was
+  // MISSING while `document` and `web` sat here dead, so every post drew the
+  // neutral glyph and the one live outward type was the only one unstyled.
+  //
+  // `web` (and `article`/`page` behind it) resolve FORWARD to `post` at the
+  // kind lift (`canonical_layout_slug`, ADR-505 D2 → ADR-627 D1), so the FE
+  // never sees them and a row for one would be dead code pretending a legacy
+  // artifact still has its own identity. `document` went the other way — it
+  // was deleted with the Docs app (ADR-599 D5) and aliases to NOTHING, so it
+  // is unowned and never reaches this table either.
+  post: { icon: LayoutTemplate, color: 'text-emerald-500' },
   // ADR-482 D7: the IMAGES stage (ADR-472) had no row, so it fell to the
   // neutral glyph everywhere this table is read — correct by the fallback's
   // design, but the shape is known and deserves its own mark.

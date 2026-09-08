@@ -22,7 +22,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileText } from 'lucide-react';
-import { isArtifactCandidate, resolveSurfaceApplication } from '@/lib/file-types';
+import { isArtifactCandidate, knownKind, resolveSurfaceApplication } from '@/lib/file-types';
 import { servesArtifactIndex } from '@/lib/apps/registry';
 import { documentName } from '@/components/text/TextSurface';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
@@ -94,7 +94,16 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
     // The registry's answer first: the app that OWNS this file's type must be
     // the app asking. Without this an html-authoring app would offer prose
     // (and Text would offer decks) the moment `isArtifactCandidate` widened.
-    if (resolveSurfaceApplication(node.path)?.surface !== appSlug) return false;
+    //
+    // ADR-646 D4 — the KIND is the third argument, and dropping it was the
+    // bug. `resolveSurfaceApplication(path)` alone cannot see a file's type
+    // (it lives in the file's own bytes), so every `.html` resolved to the
+    // default app: in Slides the test became `'slides' !== 'slides'` and
+    // admitted every artifact in the tree, while in Blogger it rejected every
+    // one — the picker was permanently empty. `knownKind` reads the shared
+    // PATH_KIND cache the tree fills as it reads content.
+    if (resolveSurfaceApplication(node.path, undefined, knownKind(node.path))?.surface !== appSlug)
+      return false;
     return owned ? owned.has(node.path) : true;
   };
 

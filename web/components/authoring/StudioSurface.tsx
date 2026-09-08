@@ -39,7 +39,7 @@ import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layou
 import { formatAiReference, relPath as relPathShared } from '@/lib/interop/fileHandle';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useDeclareFocus, type SurfaceFocus } from '@/lib/shell/useSurfaceFocus';
-import { LearnFromFlowModal } from './LearnFromFlowModal';
+import { LearnFromFlowModal, type LearnTarget } from './LearnFromFlowModal';
 import { NewDesignSystemModal } from './NewDesignSystemModal';
 import { NewArtifactModal, slugify } from './NewArtifactModal';
 import { defaultDestinationFor } from './artifactNaming';
@@ -1093,6 +1093,16 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         //
         // `apps: null` = every app (the served default). Absent for all but
         // the two rows Docs does not offer.
+        //
+        // ⚠️ ADR-646 D7 — `layouts` is deliberately NOT scoped here, and that
+        // is not an oversight in the rule above. It is the type→app ROUTING
+        // table (`registerKindApps` two lines up reads the same array), so
+        // narrowing it to this app would make every OTHER app's type unowned
+        // and route its artifacts to the generic viewer. Its consumers here
+        // are lookups by the open artifact's OWN slug (`.find(l => l.slug ===
+        // template)`), never enumerations, so a cross-app array offers the
+        // member nothing. A layout PICKER built off it would need
+        // `kinds_for_app` at the server, like the palette — not a filter here.
         const scoped: StudioVocabulary = {
           ...v,
           blocks: v.blocks.filter((b) => !b.apps || b.apps.includes(app.slug)),
@@ -4586,17 +4596,18 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 /** The landing's Learn-from targets (ADR-452 D2) — studio-shaped only.
  *  `recipe` names the kernel DERIVE_RECIPES row; `template` the artifact
  *  skeleton (null → the target is a folder, not a canvas → chat lane). */
-const LEARN_TARGETS: Array<{
-  skill: string;
-  template: 'document' | 'deck' | null;
-  label: string;
-  description: string;
-}> = [
+// ADR-646 D6 — the shape is `LearnTarget` (imported, not restated: the type
+// had TWO homes and both had gone stale). `writing-a-spec` targeted
+// `document`, which died with the Docs app — `appForKind` returned null, so
+// the row was filtered out of every app and no member could reach it. It
+// targets `post`, the live prose artifact type, and Blogger now has a Learn
+// entry where it had none.
+const LEARN_TARGETS: LearnTarget[] = [
   {
     skill: 'writing-a-spec',
-    template: 'document',
-    label: 'Document',
-    description: 'A grounded document (PRD-style) derived from the source.',
+    template: 'post',
+    label: 'Post',
+    description: 'A grounded piece (PRD-style) derived from the source.',
   },
   {
     skill: 'presenting-from-sources',
@@ -4719,12 +4730,14 @@ function StudioStart({
 
   useEffect(() => {
     api.studio
-      .templates()
-      // ADR-473 D3: ownership is SERVED (`t.app`), never restated here. This
-      // replaces ADR-472's hardcoded slug lists — no FE file holds a list of
-      // "which types are Studio's", so a program-shipped type routes with no
-      // frontend deploy.
-      .then((res) => setTemplates(res.templates.filter((t) => t.app === app.slug)))
+      // ADR-646 D1 — scoped at the SERVER. The client filter that stood here
+      // (`.filter(t => t.app === app.slug)`) was the ONLY thing between a
+      // member and another app's types, on a payload that shipped all of them.
+      .templates(app.slug)
+      // ADR-473 D3: ownership stays SERVED, never restated here — no FE file
+      // holds a list of "which types are Studio's", so a program-shipped type
+      // routes with no frontend deploy.
+      .then((res) => setTemplates(res.templates))
       .catch(() => setError('Could not load templates.'));
     loadRecents();
     loadSystems();
@@ -4836,7 +4849,14 @@ function StudioStart({
     dims?: { width: number; height: number },
   ) => {
     // ADR-472 D3: a stage is born at its real size; a document ignores dims.
-    const res = await api.studio.createArtifact(templateSlug, { path, name, ...(dims ?? {}) });
+    // ADR-646 D2: `app` names WHO is minting, and the server refuses a type
+    // this app does not own — the palette is scoped, and now so is the write.
+    const res = await api.studio.createArtifact(templateSlug, {
+      path,
+      name,
+      app: app.slug,
+      ...(dims ?? {}),
+    });
     onOpen(res.path);
   };
 

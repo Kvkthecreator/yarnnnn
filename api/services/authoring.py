@@ -2511,6 +2511,24 @@ def resolve_arrangements(slug: str) -> dict:
     return _ARRANGEMENT_REGISTRY.get(canonical_layout_slug(slug), {})
 
 
+def all_arrangements() -> dict[str, dict]:
+    """Every registered app's arrangements — the sibling of `all_layouts()`.
+
+    ADR-646 D3. The vocabulary endpoint read `STUDIO_ARRANGEMENTS` (Studio's
+    OWN table) where every neighbouring key read the cross-app registry, so
+    `BLOGGER_ARRANGEMENTS` and `IMAGES_ARRANGEMENTS` — both registered through
+    `register_layouts` — never reached the client at all. Blogger's `post` is
+    `mode: "paged"`, so its paged chrome mounted and then had nothing to
+    offer: an empty band gallery, with no error anywhere to read.
+
+    The asymmetry was invisible while Studio was the only app with
+    arrangements. It stopped being invisible the moment a second app
+    registered some, which is precisely the ADR-472 D2 case `register_layouts`
+    exists to serve.
+    """
+    return dict(_ARRANGEMENT_REGISTRY)
+
+
 # Studio registers its document types with the shared resolver (ADR-472 D2)
 # and its AI configuration with the app registry (ADR-562 D2). Both are the
 # same act: the app declares what it owns, through one door.

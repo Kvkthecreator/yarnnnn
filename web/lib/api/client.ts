@@ -855,8 +855,12 @@ export const api = {
   // through existing machinery (bound lanes + GET /api/workspace/file).
   studio: {
     /** ADR-473 D2/D3: each row carries the app that OWNS the type, so a
-     *  surface offers only its own shapes without hardcoding a slug list. */
-    templates: () =>
+     *  surface offers only its own shapes without hardcoding a slug list.
+     *
+     *  ADR-646 D1 — and `app` now scopes SERVER-side, the same answer
+     *  `artifacts(app)` gets. Omitted → every template, for a cross-app
+     *  creation surface. */
+    templates: (app?: string) =>
       request<{
         templates: Array<{
           slug: string;
@@ -864,7 +868,7 @@ export const api = {
           description: string;
           app: string;
         }>;
-      }>("/api/studio/templates"),
+      }>(`/api/studio/templates${app ? `?app=${encodeURIComponent(app)}` : ""}`),
     // ADR-459: `name` + `kind` are COMPUTED server-side, never stored — the
     // kind lifted from the artifact's own `data-template`, the name titleized
     // from its meaning folder. `kind` is an opaque slug (a bundle may ship one
@@ -1014,6 +1018,10 @@ export const api = {
         preset?: string;
         width?: number;
         height?: number;
+        /** ADR-646 D2 — WHICH APP is minting. The server refuses a template
+         *  the named app does not own, so a scoped palette cannot be walked
+         *  around by a hand-built POST. */
+        app?: string;
       },
     ) =>
       request<{ success: boolean; path: string; template: string }>(

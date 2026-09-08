@@ -70,10 +70,25 @@ def run() -> bool:
 
     # ── The structural cause, pinned so it cannot recur ──────────────────
     src = Path(__file__).resolve().parent.joinpath("routes/studio.py").read_text()
-    module_import = "\nfrom services.authoring import all_layouts, all_templates, resolve_layout"
+    # ADR-646 — assert the RELATION, not a spelling. This pinned the exact
+    # import LINE, so adding a name to it (`DEFAULT_APP`, `kinds_for_app`)
+    # went red while the rule it guards was more satisfied than before. A gate
+    # that pins a spelling pins the defect: it cannot tell a regression from a
+    # correct edit. What it MEANS is that every cross-app resolver the handlers
+    # call resolves at module scope — so ask the imported module.
+    _resolvers = (
+        "all_layouts",
+        "all_templates",
+        "resolve_layout",
+        "kinds_for_app",
+        "all_arrangements",
+        "DEFAULT_APP",
+    )
+    _missing = [n for n in _resolvers if not hasattr(rs, n)]
     _check(
-        "the cross-app resolver is imported at MODULE level, not inside a handler",
-        module_import in src,
+        "every cross-app resolver is bound at MODULE level, not inside a handler"
+        + (f" — missing {_missing}" if _missing else ""),
+        not _missing,
     )
     _check(
         "the IMAGES registration import is present (else the stage 404s at create)",

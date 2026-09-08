@@ -19,6 +19,7 @@ Run:  python3 api/test_adr473_document_types.py   (NOT pytest — check()-gate.)
 """
 
 import asyncio
+import re
 import sys
 from pathlib import Path
 
@@ -48,6 +49,7 @@ def run() -> bool:
         all_layouts,
         app_for_kind,
         kinds_for_app,
+        resolve_arrangements,
     )
 
     # ── §1 The declaration ───────────────────────────────────────────────
@@ -87,12 +89,33 @@ def run() -> bool:
         rows = {t["slug"]: t.get("app") for t in templates["templates"]}
         _check("GET /studio/templates EXECUTES and carries `app` per row", all(rows.values()))
         _check(
-            "…and every app's types are present (the picker filters client-side on it)",
+            "…and UNSCOPED it serves every app's types (the cross-app palette)",
             rows.get("deck") == "slides" and rows.get("image") == "images",
+        )
+        # ADR-646 D1 — the SERVER scopes. This assertion used to read "the
+        # picker filters client-side on it", and that was the whole defense:
+        # one `.filter()` in StudioSurface stood between a member and another
+        # app's types, on a payload that shipped all of them.
+        _scoped = {
+            a: {t["slug"] for t in asyncio.run(rs.list_templates(auth, app=a))["templates"]}
+            for a in ("slides", "blogger", "images")
+        }
+        _check(
+            "…and `app=` scopes it server-side to exactly that app's types",
+            _scoped["slides"] == {"deck"}
+            and _scoped["blogger"] == {"post"}
+            and _scoped["images"] == {"image"},
+        )
+        _check(
+            "…the scoped palettes PARTITION — no type reachable from two apps",
+            not (_scoped["slides"] & _scoped["blogger"])
+            and not (_scoped["slides"] & _scoped["images"]),
         )
     except Exception as exc:  # noqa: BLE001
         _check(f"GET /studio/templates EXECUTES — raised {type(exc).__name__}: {exc}", False)
-        _check("…and every app's types are present", False)
+        _check("…and UNSCOPED it serves every app's types", False)
+        _check("…and `app=` scopes it server-side", False)
+        _check("…the scoped palettes PARTITION", False)
 
     try:
         vocab = asyncio.run(rs.get_vocabulary(auth))
@@ -101,8 +124,21 @@ def run() -> bool:
             "GET /studio/vocabulary EXECUTES and serves the association (D3)",
             layouts.get("deck") == "slides" and layouts.get("image") == "images",
         )
+        # ADR-646 D3 — the arrangements key read STUDIO_ARRANGEMENTS (Studio's
+        # OWN table) where every sibling read the cross-app registry, so
+        # Blogger's and Images' rosters never reached the client at all. `post`
+        # is `mode: "paged"`, so its paged chrome mounted onto an EMPTY band
+        # gallery with no error anywhere to read. Assert the relation: every
+        # served layout that HAS arrangements registered gets them served.
+        _arr = vocab["arrangements"]
+        _expected = {s for s in layouts if resolve_arrangements(s)}
+        _check(
+            "…and arrangements are served CROSS-APP, for every layout that has them",
+            _expected.issubset(set(_arr)) and {"deck", "post", "image"} <= set(_arr),
+        )
     except Exception as exc:  # noqa: BLE001
         _check(f"GET /studio/vocabulary EXECUTES — raised {type(exc).__name__}: {exc}", False)
+        _check("…and arrangements are served CROSS-APP", False)
 
     # The artifact list's SCOPING logic, exercised without a DB: the filter is
     # `app_for_kind(kind) != app`, so prove the decision, not the query.
@@ -142,6 +178,53 @@ def run() -> bool:
     _check(
         "the Finder's open verb resolves the artifact's KIND before routing",
         "extractTemplate" in _read("web/app/(authenticated)/files/page.tsx"),
+    )
+
+    # ── ADR-646 D2 — the WRITE door enforces ownership ───────────────────
+    # A scoped palette that no write door checks is a suggestion: the palette
+    # is client-rendered, so nothing stopped a hand-built POST minting a
+    # Blogger `post` from the Slides surface. DRIVEN, not grepped — the point
+    # is the REFUSAL, and only calling it proves that.
+    from fastapi import HTTPException
+
+    def _create(template: str, app: str):
+        """The create door's status for (template, app). `None` = it got PAST
+        the ownership check (this harness has no DB, so an accepted call dies
+        later on `auth.client`, which is the signal we want)."""
+        req = rs.CreateArtifactRequest(template=template, app=app, path=f"x/{template}.html")
+        try:
+            asyncio.run(rs.create_artifact(req, _FakeAuth()))
+            return None
+        except HTTPException as e:
+            return e.status_code
+        except Exception:  # noqa: BLE001 — reached the DB ⇒ ownership passed
+            return None
+
+    _check(
+        "the create door REFUSES a template the asking app does not own (422)",
+        _create("post", "slides") == 422 and _create("deck", "blogger") == 422,
+    )
+    # The negative's twin: a gate that only proves refusal would also pass if
+    # the door refused EVERYTHING. An owned type must get past ownership — it
+    # fails later (no DB in this harness), and "not 422" is exactly that line.
+    _check(
+        "…and lets an OWNED type past the ownership check",
+        _create("deck", "slides") != 422 and _create("post", "blogger") != 422,
+    )
+
+    # ── ADR-646 D5 — an unowned type degrades to NO app (D6), not to Slides ──
+    _check(
+        "an unowned kind resolves to no app — the generic viewer, never a default",
+        app_for_kind("document") is None and app_for_kind("tearsheet") is None,
+    )
+    # Strip comments BEFORE the substring check. This went red against the
+    # epitaph in the very comment explaining the deletion — the recurring
+    # "a gate check that matches its own documentation" fault. Code, not prose.
+    _ftypes_code = re.sub(r"/\*.*?\*/", "", ftypes, flags=re.S)
+    _ftypes_code = re.sub(r"^\s*//.*$", "", _ftypes_code, flags=re.M)
+    _check(
+        "…and the FE holds no default-app fallback either",
+        "DEFAULT_ARTIFACT_APP" not in _ftypes_code,
     )
 
     ok = all(c for _, c in _results)

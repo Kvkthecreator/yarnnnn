@@ -63,12 +63,17 @@ def _title(html: str) -> str | None:
 def run() -> bool:
     root = Path(__file__).resolve().parent.parent
     sys.path.insert(0, str(root / "api"))
-    import services.apps.docs  # noqa: F401 — registers the document row (ADR-518)
+    # ADR-599 D5 deleted the Docs app, and this import crashed the gate at
+    # collection from that day — it has not run since. ADR-646: the package
+    # import registers EVERY app (services/apps/__init__.py is the one door),
+    # so it cannot go stale again when an app is added or deleted.
+    import services.apps  # noqa: F401 — registers every app's layouts
     from services.authoring import (
         all_layouts,
         all_templates,
         artifact_name,
         set_artifact_title,
+        _SCAFFOLD_TITLES,
     )
 
     web = root / "web"
@@ -109,7 +114,29 @@ def run() -> bool:
                _title(out) == "Q3 board review")
 
     # ── 3. the guards ───────────────────────────────────────────────────────
-    authored = all_templates()["document"]["skeleton"].replace("Untitled document", "My real title")
+    _DECK_SK = all_templates()["deck"]["skeleton"]
+    # ADR-646 — derive the placeholder from the scaffold. Spelling it
+    # ("Untitled document") is what silently un-tested this check when the
+    # flow medium changed hands: `.replace()` on an absent string is a no-op,
+    # so the "authored" fixture was still the placeholder and the guard it
+    # meant to exercise was never reached.
+    #
+    # ⚠️ ADR-646 FOUND: there is NO `flow` layout registered any more. Docs'
+    # `document` died with its app (ADR-599 D5) and `web` re-homed as Blogger's
+    # `post`, which is `mode: "paged"` — so every live type is paged and the
+    # h1-is-a-title branch of `set_artifact_title` (guard 1, `set_h1=True`) has
+    # no caller in production. That is a real dead-code finding, recorded here
+    # rather than hidden: this section keeps exercising the guard DIRECTLY so
+    # the behaviour stays pinned for whenever a flow type returns, and the
+    # `next(...)` that used to pick one is gone because it now raises.
+    _flow_slug = next((s for s, l in all_layouts().items() if l["mode"] == "flow"), None)
+    _check(
+        "NOTE: no `flow` layout is registered — the h1-is-a-title branch is "
+        "unreachable in production (ADR-646; behaviour still pinned below)",
+        _flow_slug is None,
+    )
+    _flow_sk = all_templates()[_flow_slug]["skeleton"] if _flow_slug else _DECK_SK
+    authored = _flow_sk.replace(_h1(_flow_sk), "My real title")
     out = set_artifact_title(authored, "Something Else", set_h1=True)
     _check("an AUTHORED title is never overwritten (their words win)", _h1(out) == "My real title")
     _check("…but the <title> still follows (it is metadata)", _title(out) == "Something Else")
@@ -117,11 +144,19 @@ def run() -> bool:
         # ADR-518 D3: maintained at REGISTRATION (register_layouts extracts
         # each incoming scaffold's title), so every app's scaffolds are
         # covered — a scaffold edit or a new app still can't orphan it.
+        # ADR-646 — assert the RELATION. This pinned the initializer's exact
+        # spelling (`= set()`), so seeding it with the legacy placeholders
+        # (`= set(_LEGACY_SCAFFOLD_TITLES)`) went red while the derivation it
+        # guards was untouched. What it MEANS is that every registered
+        # scaffold's h1 is IN the set — so ask the set.
         "the placeholder set is DERIVED at registration (a scaffold edit can't orphan it)",
-        "_SCAFFOLD_TITLES: set[str] = set()" in (root / "api/services/authoring.py").read_text()
-        and "_SCAFFOLD_TITLES.add(title)" in (root / "api/services/authoring.py").read_text(),
+        "_SCAFFOLD_TITLES.add(title)" in (root / "api/services/authoring.py").read_text()
+        and all(
+            _h1(all_templates()[slug]["skeleton"]) in _SCAFFOLD_TITLES
+            for slug in all_layouts()
+        ),
     )
-    out = set_artifact_title(all_templates()["document"]["skeleton"], "<script>alert(1)</script>")
+    out = set_artifact_title(_flow_sk, "<script>alert(1)</script>")
     _check("the title is escaped (it lands in html)", "<script>" not in out.split("</head>")[1])
 
     # ── 4. RENAME retitles ──────────────────────────────────────────────────
@@ -214,9 +249,13 @@ def run() -> bool:
         and "if (e.key === 'Enter') {" in surface,
     )
     _check(
+        # ADR-646 — assert the RELATION, not two exact spellings. `rename: () =>
+        # setRenaming(true),` had drifted to an `onClick` handler while the rule
+        # (both entrances arm the crumb; neither opens a second rename UI) held
+        # throughout. A gate that pins a spelling pins the defect.
         "ONE rename path: the Design tab + the landing both reach the crumb",
-        "rename: () => setRenaming(true)," in surface
-        and "onRenameRequest: (path: string) => void;" in surface,
+        surface.count("setRenaming(true)") >= 2
+        and "onRenameRequest" in surface,
     )
     _check(
         "the shared LEAF-rename modal is no longer wired for the Studio",

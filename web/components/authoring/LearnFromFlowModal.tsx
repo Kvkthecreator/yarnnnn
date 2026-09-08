@@ -22,7 +22,12 @@ import { api } from '@/lib/api/client';
 
 export interface LearnTarget {
   skill: string;
-  template: 'document' | 'deck' | null;
+  /** The artifact type this target mints, or null for a non-canvas target
+   *  (a design system is a FOLDER). ADR-646 D6 — an OPAQUE SLUG: the pinned
+   *  `'document' | 'deck'` union was a hand-kept cross-app type list, and it
+   *  had gone stale in BOTH of its homes (`document` died with the Docs app,
+   *  ADR-599 D5). Membership is decided by `appForKind` at the filter site. */
+  template: string | null;
   label: string;
   description: string;
 }
