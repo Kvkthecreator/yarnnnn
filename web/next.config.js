@@ -61,6 +61,24 @@ module.exports = withBundleAnalyzer(withSentryConfig(nextConfig, {
   widenClientFileUpload: true,
   hideSourceMaps: true,
   disableLogger: true,
+  // Vercel Function Storage (2026-09-08). `hideSourceMaps` covers the BROWSER
+  // bundle only — `.next/static` carries zero `.map` files. The SERVER bundle
+  // was untouched, and 78 of 80 `.nft.json` traces pulled those maps into their
+  // function, so every route in the `(authenticated)` group shipped ~29 MB of
+  // maps behind the shared layout's client shell. Measured: 1826 MB packed
+  // across 77 functions, 1441 MB (79%) of it source maps — a 325-byte ADR-308
+  // redirect stub was a 36 MB function, and the 10 GB free tier held ~5
+  // deployments.
+  //
+  // Sentry's `deleteSourcemapsAfterUpload` already defaults to true, but it
+  // only fires AFTER a successful upload, which is gated on SENTRY_AUTH_TOKEN
+  // above — so any build without the token kept every map. This states the
+  // deletion unconditionally: maps are still generated and still uploaded when
+  // the token is present (symbolication is unaffected), they just never reach
+  // the deployed function.
+  sourcemaps: {
+    filesToDeleteAfterUpload: ['.next/**/*.js.map'],
+  },
   // ADR-250: Sentry init is now handled via instrumentation.ts (Next.js 15 API).
   // Disable auto-instrumentation of middleware to prevent edge runtime crashes
   // when the old sentry.edge.config.ts no longer exists.
