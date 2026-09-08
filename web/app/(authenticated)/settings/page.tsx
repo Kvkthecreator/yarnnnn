@@ -4,14 +4,12 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
-  ArrowRight,
   Loader2,
   User,
   RefreshCw,
   LogOut,
   Bell,
   Mail,
-  Link2,
   Shield,
   History,
 } from "lucide-react";
@@ -36,12 +34,10 @@ import { SurfaceLink } from "@/components/shell/SurfaceLink";
 // ADR-425 — the Connectors pane (a human's platform credentials) lives in the
 // account door now. The section is location-agnostic; it was formerly mounted
 // under Workspace Settings → Perception.
-import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 // ADR-496 — the inbound half of a member's own connections. This is the SAME
 // component the workspace door renders, in `scope="mine"` + `readOnly` — not a
 // look-alike. One roster, one row renderer, so the two surfaces are identical
 // by construction rather than by careful copying.
-import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 // ADR-491 D1 — Billing + Usage LEFT this door (again, finally) for Workspace
 // Settings: with members real (seats live, ADR-490), billing is role-gated
 // workspace governance, and the enterprise convention (ChatGPT/Claude Team)
@@ -96,21 +92,17 @@ type NotificationKind = {
 // with members real, billing is authority-gated workspace governance (the
 // ChatGPT/Claude Team convention). Supersedes ADR-429 §13.3's account-door
 // placement.
-type SettingsTab = "account" | "connectors" | "notification-settings";
+type SettingsTab = "account" | "notification-settings";
 
-// Connections LEADS (2026-08-21, operator ruling). This door is opened to
-// manage a connection far more often than to reset an account, and Account's
-// contents are destructive verbs — a danger zone is a poor landing pane. The
-// nav order and the default pane move together; a sidebar whose first item is
-// not what loads reads as a bug.
+// ADR-645 D3 (2026-09-08) — the Connections pane is DELETED from this door.
+// It LED here from 2026-08-21 on the reasoning that this door is opened to
+// manage a connection far more often than to reset an account. That reasoning
+// held and is why the pane moved rather than closed: connection management is
+// now Reach → Connected, the boundary's own surface, where the workspace half
+// of each decision (what this workspace reads, what its tools may do) can
+// actually name the workspace it is deciding for. `/connectors` is a redirect
+// stub into that pane. Notifications now leads.
 const PANE_GROUPS: PaneGroup[] = [
-  // ADR-425 — a human's platform connections are their own credentials, in
-  // their account. (The workspace does not present "its connectors"; it
-  // presents who has a grant + what they authored.)
-  {
-    label: "Connections",
-    panes: [{ key: "connectors", label: "Connectors", icon: Link2 }],
-  },
   // ADR-593 D5 — the Notifications pane: how this workspace reaches you.
   // Personal question (member-experience scope), per-workspace store.
   {
@@ -155,7 +147,7 @@ export default function SettingsPage() {
   // data while rendering another's.
   const activeTab: SettingsTab = ALL_PANES.includes(requestedPane as SettingsTab)
     ? (requestedPane as SettingsTab)
-    : "connectors";
+    : "notification-settings";
 
   // ADR-531 — the OAuth outcome params. The callback has always encoded these
   // (`provider`, `status`, and on failure `error` + `error_reason`); until now
@@ -381,84 +373,6 @@ export default function SettingsPage() {
           Settings (authority-gated workspace governance). Legacy links redirect
           via the effect above; no cases here. */}
 
-      {/* Connectors — ADR-425: a human's platform connections are account
-          objects (their own credential, keyed user_id). Moved here from
-          Workspace Settings → Perception. Reuses ConnectedIntegrationsSection
-          (location-agnostic); the connector drill-in rides settings.connector. */}
-      {pane === "connectors" && (
-        <section className="mb-8">
-          {!accountParam.get("connector") && (
-            <PaneHeader
-              icon={Link2}
-              title="Connectors"
-              subtitle="Your connections — platforms you reach out to, and AI assistants that reach in. Each is authorized by you, and yours to disconnect."
-              bordered={false}
-            />
-          )}
-          <ConnectedIntegrationsSection
-            redirectTo="/settings?settings.pane=connectors"
-            showFreshness
-            activeConnector={accountParam.get("connector")}
-            onManageConnection={(provider) => accountParam.set({ connector: provider })}
-            onBackFromManage={() => accountParam.set({ connector: null })}
-            // ADR-531 — the OAuth outcome, surfaced. The section owns the
-            // banner because that is where the failed connector's own row is.
-            oauthOutcome={
-              oauthStatus === "error"
-                ? {
-                    status: "error",
-                    provider: oauthProvider,
-                    error: oauthError,
-                    reason: oauthErrorReason,
-                  }
-                : null
-            }
-            onDismissOauthOutcome={() => {
-              // Clear the flat OAuth params without touching pane state — a
-              // dismissed banner must not survive a reload (it would report a
-              // failure the operator has already retried past).
-              const next = new URLSearchParams(searchParams.toString());
-              ["provider", "status", "error", "error_reason"].forEach((k) => next.delete(k));
-              const qs = next.toString();
-              router.replace(qs ? `/settings?${qs}` : "/settings", { scroll: false });
-            }}
-          />
-
-          {/* ADR-496 D1 — the INBOUND half of this member's own connections.
-              An MCP connection is a member's connection (ADR-431 §2:
-              `connected_by`), so "what have I connected?" belongs on the
-              account door next to the outbound credentials — not only inside a
-              workspace-governance roster whose job is governing other people.
-              READ-ONLY: governance stays singular in WorkspaceMembersCard.
-              Hidden during a connector drill-in so the subsurface stays alone. */}
-          {!accountParam.get("connector") && (
-            <div className="mt-8 border-t border-border pt-8">
-              <h3 className="mb-1 text-sm font-medium">Your AI connections</h3>
-              <p className="mb-3 text-xs text-muted-foreground">
-                External AI assistants you&apos;ve connected over MCP. Each
-                reaches in as itself and writes under your authorization, so a
-                connection goes away when you do — and each one reaches ONE
-                workspace, so connecting here grants nothing in another.
-              </p>
-              <WorkspaceMembersCard
-                variant="compact"
-                scope="mine"
-                readOnly
-                footer={
-                  <SurfaceLink
-                    to="workspace-settings"
-                    params={{ pane: "members" }}
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    Manage access for everyone in the workspace
-                    <ArrowRight className="h-3 w-3" />
-                  </SurfaceLink>
-                }
-              />
-            </div>
-          )}
-        </section>
-      )}
 
       {/* Account Tab - Data & Privacy */}
       {pane === "account" && (
@@ -671,7 +585,7 @@ export default function SettingsPage() {
       <SettingsPaneShell
         windowSlug="settings"
         paneGroups={PANE_GROUPS}
-        defaultPane="connectors"
+        defaultPane="notification-settings"
         renderPane={renderPane}
       />
 

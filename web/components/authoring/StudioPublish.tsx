@@ -175,7 +175,7 @@ export function StudioPublish({
                     red on it.) */}
                 <button
                   type="button"
-                  onClick={() => navigateToSurface('connectors')}
+                  onClick={() => navigateToSurface('reach', { pane: 'connected' })}
                   className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 >
                   Connect WordPress →

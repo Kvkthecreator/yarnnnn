@@ -1,6 +1,6 @@
 # ADR-645 — Reach is the connection surface, and reach follows the member
 
-**Status**: Proposed (doc-first — no implementation until ratified)
+**Status**: Accepted (ratified by the operator 2026-09-08; D1 + D3 implemented same day)
 **Date**: 2026-09-08
 **Amends**: ADR-642 ("consent, selection and aperture stay Settings acts; Reach
 lists and doors") · ADR-425 D1 / ADR-577 D1 (re-affirmed, not changed)
@@ -157,7 +157,19 @@ The acting machinery already exists and is not in question (~2,300 lines):
 rows.
 
 The components move to the Reach pane; the Settings mount is deleted. **Do not
-fork them** — a mirrored design is a second write path (recorded lesson). The
+fork them** — a mirrored design is a second write path (recorded lesson).
+
+**Implementation note (2026-09-08).** Two of the five did NOT move and were
+DELETED instead: `ConnectedIntegrationsSection` (688) and its only consumer
+`ConnectorCard` (121). The section rendered a REGISTRY-driven list; Connected
+renders an INTEGRATIONS-driven list carrying the ADR-644 reach facts, which is
+the better row for a boundary surface — keeping both would have been the
+parallel path this ADR exists to close. Their two live capabilities were
+carried over explicitly: an **Available** section (OAuth platforms not yet
+held) because the finder covers attached MCP servers only, and an inline
+**Disconnect** for a held connection with no drill-in, because both api-key
+connectors are `status: retired` and retiring must never orphan an existing
+fact (ADR-494 D2). 809 lines net deleted. The
 `describe()` face from ADR-644 stays the reading half: **acts may join Connected,
 but no new reach SENTENCE may be written there.** Anything telling a member what
 a connection lets a turn do still renders `reach_status` — a sentence anywhere
@@ -235,13 +247,16 @@ Constraints recorded now so the next session does not re-derive them:
 - Unattended outbound stays impossible until §7 is decided. **Do not close that
   gap by relaxing D1.**
 
-## Gates (on ratification)
+## Gates (implemented)
 
-- `test_adr645_reach_owns_connections.py` — the `connectors` slug is off the
-  served roster; `/connectors` is a redirect stub; `middleware.ts` hand-lists
-  it; **no caller navigates to the retired slug** (assert the relation both
-  directions — a negative check catches a forgotten deletion and never a
-  forgotten addition, ADR-636's lesson).
+- `test_adr645_reach_owns_connections.py` (24 checks) — D1 **EXECUTES** the
+  refusal through the real resolver (an agent gets None, a member gets their
+  own row, an unreadable headless caller fails closed); D3 asserts the ADR-592
+  retirement contract in BOTH halves (off the served roster AND the row
+  surviving for its stub), that no caller anywhere in the FE points at the
+  retired slug, and that the machinery MOVED rather than forked.
+  **Falsified both ways**: restoring the owner-reuse fall-through reds D1;
+  putting `connectors` back on the served roster reds D3.
 - `test_adr577_credential_claim.py` — unchanged and re-run: the agent refusal
   is D1's enforcement point. Note it carries **TWO** allowlists
   (`PRINCIPAL_LESS_CREDENTIAL_READS` and `ENUMERATION_ONLY`); a new enumeration

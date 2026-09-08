@@ -69,7 +69,7 @@ import { WorkspaceGeneralPane } from "@/components/workspace-concepts/WorkspaceG
 import { WorkspaceCreatePane } from "@/components/workspace-concepts/WorkspaceCreatePane";
 // ADR-425 — the Perception group (Connectors · Sources) left this door:
 // Connectors → the account door (a credential is a human's account object),
-// Sources → hidden. ConnectedIntegrationsSection now mounts in settings/page.tsx;
+// Sources → hidden. ADR-645 D3: connection management is Reach → Connected;
 // SourcesCard is retained but has no operator mount (ADR-425 D2).
 // ADR-426 (2026-07-09) carved the System Agent group into its own door;
 // ADR-454 D4 (2026-07-13) reversed it — the two dials render here again via

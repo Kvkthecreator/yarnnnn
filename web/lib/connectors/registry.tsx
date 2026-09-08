@@ -11,7 +11,7 @@
  * one more hardcoded card block (Singular Implementation).
  *
  * This REPLACES the 5 hardcoded per-platform card IIFEs that previously lived in
- * `ConnectedIntegrationsSection.tsx`. The universal `ConnectorCard` renders one
+ * `components/reach/ReachConnected.tsx` (ADR-645 D3). Each connected row renders one
  * entry; the section maps over `CONNECTOR_REGISTRY`.
  *
  * Precedent / pattern match: `web/components/workspace-concepts/WorkspaceMembersCard.tsx`
@@ -68,7 +68,7 @@ export interface ConnectorMeta {
 
 // ---------------------------------------------------------------------------
 // Brand glyphs — lifted VERBATIM from the prior inline SVGs in
-// ConnectedIntegrationsSection.tsx (pixel-identical, so icons don't shift).
+// ReachConnected.tsx (pixel-identical, so icons don't shift).
 // ---------------------------------------------------------------------------
 
 const SlackIcon = (

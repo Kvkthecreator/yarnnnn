@@ -812,21 +812,32 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "building",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Workspace Settings — what this operation is and how it runs. Program, Access (members), Billing/Usage. (ADR-426 moved the System Agent dials to their own door; ADR-425 moved Connectors to the account door + hid Sources.)",
+        "summary": "Workspace Settings — what this operation is and how it runs. Program, Access (members), Billing/Usage. (ADR-426 moved the System Agent dials to their own door; ADR-645 moved Connectors to Reach.)",
     },
     {
+        # ADR-645 D3 (2026-09-08) — RETIRED as a pane. Connection management is
+        # Reach → Connected: three of the four connection decisions (which
+        # sources this workspace reads, the per-tool aperture, agent scope) are
+        # WORKSPACE decisions that were wearing a Settings costume, and a
+        # redirect from the boundary's own front door institutionalised that.
+        #
+        # `stage: internal` is the retirement contract, not a hide: the row
+        # leaves the SERVED roster (nav is backend-driven, so that IS the
+        # removal) while the slug still resolves for its /connectors redirect
+        # stub. `pane_of`/`pane_group` are STRIPPED — a pane of a door that no
+        # longer lists it would render nowhere while still claiming a home.
+        # The ADR-592 obligation is discharged: /connectors is a stub and is
+        # hand-listed in middleware.ts (it already was).
         "slug": "connectors",
-        "launcher_tier": "search-only",  # ADR-340 P3
+        "stage": "internal",
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "settings",  # ADR-425 — a platform credential is an account object; the Connectors pane lives in the account door (the UserMenu window), not Workspace Settings. Re-homed from workspace-settings (ADR-415) → settings.
-        "pane_group": "Connections",
         "title": "Connectors",
         "archetype": "dashboard",
         "substrate_paths": [],  # platform_connections DB table (account-scoped, user_id — ADR-425)
         "icon_key": "link-2",
         "default_pinned": False,
-        "route": "/connectors",
-        "summary": "Your platform connections (Slack, Notion, GitHub, Alpaca, Lemon Squeezy, etc.) — each is your own credential, in your account. Connect, see status, disconnect.",
+        "route": "/connectors",  # redirect stub → /reach?reach.pane=connected (ADR-645 D3)
+        "summary": "RETIRED (ADR-645 D3) — connection management is Reach → Connected. The slug survives for its redirect stub; the substrate (platform_connections, account-scoped per ADR-425) is untouched.",
     },
     {
         # ADR-593 D5 (2026-08-21) — the Notifications settings pane, on the

@@ -15,11 +15,17 @@
  *               its boundary lens, receipts attached.
  *
  * A kernel surface, not an app (ADR-639 D4's cut: it owns no file type).
- * Nothing here is stored (DP29) and nothing here authors: the only writes
- * reachable are the two proposal decisions the queue already carried.
- * Consent, selection and apertures stay Settings acts — this window lists
- * and doors. No pane presents an agent's record (ADR-640): an agent appears
- * only as the character on a receipt.
+ * Nothing here is stored (DP29). No pane presents an agent's record
+ * (ADR-640): an agent appears only as the character on a receipt.
+ *
+ * ADR-645 D3 (2026-09-08) amends the original "consent, selection and
+ * apertures stay Settings acts — this window lists and doors" clause. Three
+ * of the four connection decisions were WORKSPACE decisions wearing a
+ * Settings costume, and doors from the boundary's own front door
+ * institutionalised that. Connected OWNS the connection acts; Settings →
+ * Connectors is deleted. The acts stay CONNECTION acts: no publish, no
+ * run/pause, no agent record — those still belong to the artifact's pane,
+ * Notifications and the agent page respectively.
  *
  * Mounts the shared SettingsPaneShell in fullBleed mode (the Notifications
  * shape — one shell, N mounts).
@@ -68,8 +74,7 @@ export default function ReachPage() {
             <PaneHeader
               icon={Cable}
               title="Connected"
-              subtitle="Your connections — held under your account, reachable wherever you work; other members hold and see their own. What each reads and writes, and who in this workspace reads through it."
-              action={<DoorLink label="Manage connections" onClick={() => navigateToSurface('connectors')} />}
+              subtitle="Your connections — held under your account, reachable wherever you work; other members hold and see their own. The credential is yours; what this workspace reads through it is set here."
             />
             <div className="flex-1 overflow-y-auto p-6">
               <ReachConnected />

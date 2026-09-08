@@ -180,7 +180,7 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
                     manager, never a raw href (the nav gate). */}
                 <button
                   type="button"
-                  onClick={() => navigateToSurface('connectors')}
+                  onClick={() => navigateToSurface('reach', { pane: 'connected' })}
                   className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 >
                   Connect Slack →

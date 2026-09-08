@@ -299,8 +299,21 @@ check("Reach reaches no run / pause switch (they stay in Notifications → Stand
 check("Reach carries no publish act (the act stays on the artifact's pane, ADR-628 D2)",
       "api.publish." not in _reach_src and "SendToSlack" not in _reach_src and "StudioPublish" not in _reach_src)
 check("Reach presents no agent record (ADR-640)", "api.agents" not in _reach_src)
-check("Reach doors to Settings → Connectors for consent, never connects itself",
-      "navigateToSurface('connectors')" in _reach_src and "getAuthorizationUrl" not in _reach_src)
+# ADR-645 D3 (2026-09-08) AMENDS the clause this line used to assert ("Reach
+# lists and doors, never acts"). Three of the four connection decisions were
+# WORKSPACE decisions wearing a Settings costume, and a redirect from the
+# boundary's own front door institutionalised that. Reach now OWNS the acts;
+# Settings -> Connectors is deleted. What survives of the old rule is the part
+# that was always right and is asserted above: Reach carries no publish act, no
+# run/pause switch, no agent record. Its acts are CONNECTION acts only.
+check("Reach owns the connection acts (ADR-645 D3 — it no longer doors out)",
+      "getAuthorizationUrl" in _reach_src
+      and "navigateToSurface('connectors')" not in _reach_src)
+check("the retired Connectors pane is not re-mounted anywhere (Singular Implementation)",
+      "ConnectedIntegrationsSection" not in _read("app/(authenticated)/settings/page.tsx"))
+check("Reach mounts the MOVED machinery, not a fork (ADR-645 D3.a)",
+      all(c in _read("components/reach/ReachConnected.tsx") for c in
+          ("ManageConnectionSubsurface", "AttachedConnectorSubsurface", "FindConnectorModal")))
 _ws_src = (API / "routes" / "workspace.py").read_text()
 _tl = _ws_src.split("async def get_workspace_timeline", 1)[1]
 check("the lens selects no cost column", "cost_usd" not in _tl and "input_tokens" not in _tl)

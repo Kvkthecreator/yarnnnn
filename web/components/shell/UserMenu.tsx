@@ -205,7 +205,7 @@ export function UserMenu({ email }: UserMenuProps) {
     // ADR-425 — Connectors is an account-door pane now (a credential is a
     // human's account object). foregroundSurface resolves pane_of=settings
     // from the registry, so this follows the surface registry automatically.
-    foregroundSurface('connectors');
+    foregroundSurface('reach');
   };
 
   // Get initials from email

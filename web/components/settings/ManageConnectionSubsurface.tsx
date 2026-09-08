@@ -279,9 +279,9 @@ export function ManageConnectionSubsurface({
   // page-by-page on the provider's consent screen.
   const reconnect = async () => {
     try {
-      // ADR-425: connectors live on the account door; the round-trip returns
-      // to this drill-in.
-      const back = `/settings?settings.pane=connectors&settings.connector=${provider}`;
+      // ADR-645 D3: connections live on Reach → Connected; the round-trip
+      // returns to THIS drill-in (`reach.connector` selects it).
+      const back = `/reach?reach.pane=connected&reach.connector=${provider}`;
       const result = await api.integrations.getAuthorizationUrl(provider, back);
       window.location.href = result.authorization_url;
     } catch (e) {
