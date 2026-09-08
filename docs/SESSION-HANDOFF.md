@@ -4,6 +4,199 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part Y — ADR-645 probed at N>1; the roster becomes auditable (2026-09-08/09)
+
+Operator: *"do the click pass by referencing existing information in our eval
+suite"*, then *"do the roster handling as you suggest, or your best judgment."*
+
+## The pass (`402a9e9`, corrected `c68fbfd`)
+
+Ran through the EXISTING instruments — BROWSER-CLICK-PASS-PLAYBOOK §1/§3/§7 and
+the 2026-08-26 membership pass's principals. Record:
+`docs/evaluations/2026-09-08-adr645-reach-scope-click-pass-run1.md`.
+
+**ADR-645 D1 is now PROBED, not reasoned.** Two facts reshaped the plan before
+a single step ran:
+
+- **The rig could not be the instrument.** Rig `bf5b25a9`'s owner holds **0
+  platform connections**; all five in the database belong to the live owner.
+  "Prefer the rig" is about REVERSIBILITY, not coverage — query for the OBJECT
+  under test, not just the grants.
+- **N>1 was already true in production.** `d5b9029b` has carried a
+  `member/active` grant since 2026-07-29, so nothing needed minting; the plan's
+  "drive the N>1 case first" asked for something that already existed.
+
+| Principal | connection_rows |
+|---|---|
+| owner | **5** (github · linear · notion · slack · wordpress) |
+| real member | **0** |
+
+Non-vacuity, because a bare zero proves nothing: `connection_rows` takes **no
+workspace parameter**, so a member's view provably cannot vary by where they
+stand (they own two other workspaces); and the owner's rows DO carry
+`workspace_id` — present, not the selector: ADR-425 AD1's "routing, never
+ownership" OBSERVED rather than asserted.
+
+The refusal grid, all six shapes: owner ✓ · owner's AI-driven lane ✓ ·
+**member ✗ · member's lane ✗** · agent ✗ · agent-with-unreadable-identity ✗.
+The member rows had never been executed — at N=1 they were pure inference.
+
+## The roster (`ab5535c`) — and a correction worth reading
+
+Running the playbook's own setup step (*"verify the guard refuses a real
+external address"*), the guard **minted a working link** for a `gmail.com`
+address. It was discarded unused.
+
+⚠️ **My first conclusion — "two real external humans" — was WRONG**, and the
+correction is the more useful result. Both gmail entries are accounts the
+operator personally controls: their own, and the alpha-trader persona
+instrument whose second workspace is named *"seulkim tester"*. I inferred "real
+person" from the address SHAPE without checking what the account IS — the same
+error class as reading a registry row as a live path.
+
+**The real defect was underneath and worse: the roster could not be audited.**
+`test_roster_guard_is_still_enforced_in_code` asserted only that
+`ALLOWED_EMAILS` EXISTS — green with every real user in the world listed.
+
+Fixed: `ALLOWED_EMAILS` is `email -> reason` (`rig` | `operator`); the refusal
+prints every entry with its reason, so the roster is auditable at the moment
+someone is refused; the gate IMPORTS the module (a regex cannot tell a live
+entry from a commented one) and fails when an external address is declared
+anything but `operator`. **Falsified four ways.**
+
+## Method notes
+
+- **The instrument a pass needs may only exist on live.** Check the rig holds
+  the SUBJECT before honouring the rig preference.
+- **Check what an account IS, not what its address looks like.**
+- A guard whose ROSTER nobody can audit passes while admitting anyone. Assert
+  the DATA, not the mechanism's presence.
+- ⚠️ Two sessions appending to this file need distinct Part letters — my
+  ADR-645 Part X was overwritten (recovered below as Part Y0).
+
+## Still open (nothing half-built; my paths are clean)
+
+1. **§7 — workspace identity for unattended reach.** The real successor: a
+   standing declaration is refused a credential (correctly), so unattended work
+   has no outbound reach; the answer is a workspace-owned bot token, additive,
+   never adoption.
+2. **The member DOM half** — NOT RUN for an honest reason: the rig owner holds
+   0 connections, so the pane is empty there, and the operator's second account
+   shows the same empty pane the substrate half already proved. Worth running
+   when a rig owner connects a platform, or when two principals each hold their
+   own — Connected showing different NON-EMPTY sets.
+3. **"Read by"** — NOT RUNNABLE: zero `_standing.yaml` exist database-wide.
+4. One real Slack send (Part W B3); the remote binding ADR; WordPress D8
+   read-back; ADR-635 distribution.
+5. Baseline-red, untouched: `test_adr297_navigation_enactment` ·
+   `test_adr340_p2_settings_fold` · `test_adr422_files_legibility` ·
+   `test_eval_suite_gate` (an ADR-518 manifest missing a `restore:`).
+
+⚠️ A parallel session shipped ADR-646/647 here during this work. Uncommitted
+ADR-648 changes (`routes/lanes.py`, `services/primitives/workspace.py`,
+`test_adr648_bounded_context.py`) are NOT mine — untouched; I staged only my
+own paths.
+
+---
+
+# Part Y0 — ADR-645: Reach owns connections; reach follows the member (2026-09-08)
+
+> Recovered 2026-09-09: this Part was written as "Part X" and OVERWRITTEN by
+> the parallel session's ADR-646 Part X the same day. The ADR, ledger entry
+> and code all survived in git; only this narrative was lost. Two sessions
+> appending to one file need distinct Part letters — check `grep '^# Part '`
+> before choosing one.
+
+Operator, after the Reach click-pass: *"the reach, what is its scope; is it
+user level or workspace level? and thus, how should the manage connections
+occur?"* — putting two models: (A) the workspace ADOPTS the owner's
+credentials for system-level agents, possibly mirrored; (B) pure per-member.
+Then, on the analysis: *"aligned in full … delegate implementation."*
+
+## The ruling
+
+**(A) is CLOSED, and it was not an open option.** It was built, shipped and
+withdrawn — the withdrawal recorded in three ADRs and no surface, which is why
+it keeps being re-proposed. ADR-566 D2 forbade it behind a guard keyed on a
+`principal_grants` role **zero rows hold**, so **until ADR-577 production
+actually did it**; ADR-566 D5's workspace store was unfillable, mis-filled by
+migration 201's owner-fill trigger, and unreadable under `user_id` RLS — the
+pane it fed rendered the owner's personal tokens as workspace agent
+credentials. **Mirroring is that withdrawal with a copy step.** The reason is
+that a credential carries IDENTITY: adoption breaks attribution AT THE
+BOUNDARY, invisibly, on the far side no yarnnn surface can show.
+
+**(B) ratified** — it is what `resolve_platform_credential` already enforces.
+The layman sentence it has to meet: *you connected your Slack; things you do
+here reach through it; when you leave, your reach leaves with you.*
+
+**D3 — Reach owns the connection acts**, amending ADR-642's own "lists and
+doors, never acts". Three of four connection decisions (what this workspace
+reads · the aperture · agent scope) were WORKSPACE decisions wearing a Settings
+costume, and a redirect from the boundary's front door institutionalised that.
+
+## Shipped (`fae9218`, docs `cfd482c`)
+
+- `ReachConnected` gains the acts by mounting the EXISTING drill-ins unforked.
+- **Deleted**: `ConnectedIntegrationsSection` (688) + `ConnectorCard` (121) —
+  the registry-driven list is superseded by the integrations-driven rows
+  carrying the ADR-644 reach facts. Their two live capabilities carried over
+  explicitly: an **Available** section (the finder covers attached MCP only)
+  and an inline **Disconnect** for a held row with no drill-in (both api-key
+  connectors are `retired`; retiring must not orphan an existing fact).
+- Settings pane deleted, default → Notifications; the inbound MCP half moved
+  to Reach (inbound is reach).
+- `connectors` row → `stage: internal`, `pane_of`/`pane_group` stripped.
+- ⚠️ A sweep found **two stale return paths** (reconnect's `back`, the
+  section's default `redirectTo`) that would have landed a member on the
+  deleted pane.
+
+## Verification
+
+`test_adr645` (24) — D1 EXECUTES the refusal through the real resolver; D3
+asserts the retirement contract BOTH halves and sweeps the whole FE for a
+caller of the retired slug. **Falsified both ways**: restoring the owner-reuse
+fall-through reds D1; re-serving `connectors` reds D3. 642 (53, clause
+amended) · 644 · 577 · 592 · 636 · 635 · 582 · 417 · 340/346/349 · 297 · 628 ·
+nav_no_cross green. Build exit 0.
+
+**Click-passed live**: `/connectors` → Connected; the subtitle states the rule;
+rows drill in; `?reach.connector=slack` deep-links straight to the drill-in
+(scopes, Test connection, Configure, Refresh, ⋮ Disconnect all intact); the
+inbound MCP half renders; `/settings` is Notifications · Account with no
+Connectors. ⚠️ A stale MOUNTED window painted Reach at `/settings` on an SPA
+transition — a reload showed the truth. Windows stay mounted while
+backgrounded; verify a surface on a COLD load.
+
+## ⚠️ Method note that cost real time
+
+**`test_claude_md_ratchet` is PYTEST-shaped**: run as a script it exits 0
+having executed nothing. It reported green at 50,477 chars — 477 OVER its
+asserted ceiling. Only `python -m pytest` showed the failure. "Read exit
+codes" is not enough: confirm the gate RAN something. Script gates print
+`✓`/`✗` and a count; a pytest module prints nothing. (`test_adr643` is the
+same shape.)
+
+CLAUDE.md is back under 50,000 (49,974) by deleting an EXPIRED to-do (the
+ADR-417 note to strip `RENDER_SERVICE_*` from two dashboards for a
+long-decommissioned service) — verified nothing reads those vars; the only
+references left are inside `test_adr417`, the gate that enforces their absence.
+
+## Still owed
+
+1. **§7 — workspace identity for unattended reach** (a bot token, additive,
+   never adoption). ⭐**Drive the N>1 member case FIRST**: every Connected row
+   is the owner's today, and "Read by" only becomes load-bearing at two
+   members. That case is asserted in gates and has never been looked at — the
+   same gap that hid the deep-link defect.
+2. One real Slack send (Part W's B3) — the operator's click, a named channel.
+3. The remote binding ADR; WordPress's D8 read-back; ADR-635 distribution.
+4. Baseline-red, untouched: `test_adr297_navigation_enactment` ·
+   `test_adr340_p2_settings_fold` · `test_adr422_files_legibility` — the same
+   stale-roster family, each needing its own ruling.
+
+---
+
 # Part X — ADR-646, the server scopes the type (2026-09-08)
 
 `70fb229` (the arc) + `047769e` (what the click-pass found). **The click-pass
