@@ -17685,3 +17685,27 @@ fell 177 → 63 words with no length rule asked for.
   fresh input $50.27 (67%), output $18.13, cache write $4.67, cache read $3.06.
   40% of lane calls read ZERO cache; fresh input p90 was 38K tokens against a
   ~4K frame. ADR-634's premise (the frame is the re-sent bulk) had expired.
+
+## [2026.09.08.2] - ADR-647 D4/D5/D8: the member's engine preference, and a dark engine says why
+
+### Changed
+- services/lane_runner.py: `resolve_member_engine()` reads the member's
+  `default_engine` from `member_state` (workspace + principal scoped) and
+  NARROWS it through the chooser's own two questions — still offered? available
+  right now? A stale, retired, unpriced, keyless or refusing engine resolves to
+  None and the app's own default stands. Total: any read failure is None.
+- services/lane_runner.py: `upstream_refusal_detail()` exposes the provider's
+  own refusal words, which `note_upstream_refusal` has stored since ADR-559 and
+  nothing ever read.
+- routes/lanes.py: the CREATION door consults the preference (explicit request >
+  preference > agent default). The TURN path deliberately does not — a lane's
+  engine is what actually ran and is rendered into every revision's attribution
+  (ADR-460 D4).
+- routes/lanes.py: the capability envelope serves `default_engine` (resolved)
+  and per-engine `unavailable_detail`.
+- web: the chooser marks "your default" distinctly from this browser's "last
+  used", and a greyed row shows the provider's own words.
+- Expected behavior: no prompt or model-instruction change. A member with a
+  preference set gets it as the default engine for NEW conversations, including
+  app-bound lanes which previously had no engine question at all. Existing
+  lanes are untouched.

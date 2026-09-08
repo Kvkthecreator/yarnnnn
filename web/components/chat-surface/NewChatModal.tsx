@@ -54,6 +54,11 @@ export interface ChatEngineChoice {
    *  (an older envelope that predates the field must not grey everything out). */
   available?: boolean;
   unavailable_reason?: string | null;
+  /** ADR-647 D8 — the PROVIDER's own words for a refusal, when we have them.
+   *  Absent for the reasons we derive ourselves. Shown verbatim under the
+   *  greyed row: "provider unavailable" cannot tell an unfunded account from
+   *  an exceeded quota, and those need different actions from the operator. */
+  unavailable_detail?: string | null;
 }
 
 /** Why an engine is dark, in the member's terms. The server sends a REASON CODE
@@ -105,13 +110,20 @@ interface NewChatModalProps {
   /** The colleagues on offer — the PRIMARY answer (ADR-614 D1). */
   agents: ChatAgentChoice[];
   engines: ChatEngineChoice[];
+  /** ADR-647 D4 — the member's standing engine preference for this workspace,
+   *  already resolved server-side. Marked on its row, NOT auto-submitted: this
+   *  door starts a conversation on click, so pre-selecting would be picking for
+   *  them. Distinct from `last used`, which is this browser's memory — a
+   *  preference follows the member across devices and is what an APP lane will
+   *  use, where there is no chooser at all. */
+  defaultEngine?: string | null;
   /** Exactly one of the two is given. The caller turns that into the right
    *  create call; this door never assembles a request body itself. */
   onPick: (choice: { agent?: string; model?: string }) => Promise<void>;
   onClose: () => void;
 }
 
-export function NewChatModal({ agents, engines, onPick, onClose }: NewChatModalProps) {
+export function NewChatModal({ agents, engines, defaultEngine, onPick, onClose }: NewChatModalProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<string | null>(null);
@@ -263,12 +275,22 @@ export function NewChatModal({ agents, engines, onPick, onClose }: NewChatModalP
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm">{e.label}</span>
                           {dark && (
-                            <span className="block text-xs text-muted-foreground truncate">
+                            <span
+                              className="block text-xs text-muted-foreground truncate"
+                              title={e.unavailable_detail ?? undefined}
+                            >
                               {UNAVAILABLE_COPY[e.unavailable_reason ?? ''] ?? 'unavailable'}
+                              {e.unavailable_detail ? ` — ${e.unavailable_detail}` : ''}
                             </span>
                           )}
                         </span>
-                        {last === e.id && !busy && !dark && (
+                        {defaultEngine === e.id && !busy && !dark && (
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                            <Check className="w-3 h-3" />
+                            your default
+                          </span>
+                        )}
+                        {last === e.id && defaultEngine !== e.id && !busy && !dark && (
                           <span className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
                             <Check className="w-3 h-3" />
                             last used

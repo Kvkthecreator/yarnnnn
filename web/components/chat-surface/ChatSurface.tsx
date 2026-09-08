@@ -92,7 +92,14 @@ interface LaneData {
   models: Array<{ id: string; label: string; vision?: boolean;
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */
-          available?: boolean; unavailable_reason?: string | null }>;
+          available?: boolean; unavailable_reason?: string | null;
+          /** ADR-647 D8 — the provider's own words for a refusal, when we have
+           *  them, so a greyed row says WHICH kind of dark it is. */
+          unavailable_detail?: string | null }>;
+  /** ADR-647 D4 — the member's standing engine preference for this workspace,
+   *  resolved server-side (so a stale value reads as null rather than marking
+   *  an engine the door would refuse). Null = no preference. */
+  default_engine?: string | null;
   /** id → label for EVERY engine, retired included. The NAMING table (see
    *  `modelLabel`). Optional so an older envelope degrades, never crashes. */
   model_names?: Record<string, string>;
@@ -711,6 +718,7 @@ export function ChatSurface() {
         <NewChatModal
           agents={data?.agents ?? []}
           engines={data?.models ?? []}
+          defaultEngine={data?.default_engine ?? null}
           onPick={createLane}
           onClose={() => setCreating(false)}
         />

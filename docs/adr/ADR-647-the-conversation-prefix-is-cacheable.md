@@ -180,3 +180,21 @@ on must say which reason.
   defect) reds 4.
 - `api/test_adr634_prompt_caching.py` — 29 checks, §3 re-cut to the relation.
   Falsified: reverting one door to its inline assembly reds it.
+- `api/test_adr647_member_engine.py` — 39 checks covering D4/D5/D6/D7/D8.
+  Falsified both ways: removing the narrowing reds 4 (§2), and making the turn
+  path consult the preference reds the attribution check (§4).
+- `api/test_adr557_router_hardening.py` — 18 checks. Repointed off the deleted
+  `services/radar.py` (see below) and §4 now EXECUTES the flag-off degrade.
+- `cd web && next build` exit 0.
+
+### A stale gate found on the way
+
+`test_adr557` read `services/radar.py`, deleted seven weeks earlier in
+`15403f1`. It crashed on the `open()` — taking its entire §4 with it, so the
+D1 flag-off degrade had been unverified since. Repointed to
+`services/standing_work.py` (ADR-639), the live standing lane carrying the
+same contract, and §4 now genuinely executes instead of skipping.
+
+⭐ Same family as the ADR-634 §3 check above: **a gate anchored to a name
+rather than a relation decays in both directions** — one crashed on a deleted
+file, the other would have failed on a fixed one.

@@ -628,7 +628,19 @@ export const api = {
         models: Array<{ id: string; label: string; vision?: boolean;
           /** ADR-559 D3 — false when the engine cannot run right now.
            *  Served (not filtered) so the door can grey it WITH a reason. */
-          available?: boolean; unavailable_reason?: string | null }>;
+          available?: boolean; unavailable_reason?: string | null;
+          /** ADR-647 D8 — the provider's OWN words for a refusal, when we have
+           *  them (absent for reasons we derive ourselves). A greyed row must
+           *  say WHICH kind of dark it is: an unfunded account and an exceeded
+           *  quota need different actions, and only the provider knows which. */
+          unavailable_detail?: string | null }>;
+        /** ADR-647 D4 — the member's standing engine preference for this
+         *  workspace, already RESOLVED server-side against the same two
+         *  questions the chooser asks (still offered? available right now?).
+         *  So a stale value reads as null here rather than pre-selecting an
+         *  engine the door would refuse. Null = no preference; an app lane
+         *  uses its resident's own engine. */
+        default_engine?: string | null;
         /** id → label for EVERY engine, retired included — the NAMING table.
          *  `models` above is the CHOOSER (offered rows only), so a lane pinned
          *  to a retired engine has no row there and used to render its RAW ID.
