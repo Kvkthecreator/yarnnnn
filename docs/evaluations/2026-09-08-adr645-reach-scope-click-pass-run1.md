@@ -77,33 +77,45 @@ executed — only reasoned about.
   **0**. The line has nothing to render anywhere. It is asserted in the ADR and
   remains unexercised; do not record it as verified.
 
-## ⚠️ BLOCKER — the roster guard admits two real external humans
+## ⚠️ BLOCKER → RESOLVED 2026-09-09 (`ab5535c`), with a correction
 
-The playbook §3 states the rule as enforced in code: *"Never add a real
-external address to the roster. Verify the guard refuses one as part of
-setup."* Run as setup, the guard **minted a working magic link** for
-`seulkim88@gmail.com`.
+**As first written, this section overstated the finding, and the correction is
+the more useful result** (§7: correct in place, name the cause).
 
-It is not a code defect — `browser_login_link.ALLOWED_EMAILS` lists
-`kvkthecreator@gmail.com` and `seulkim88@gmail.com` under a
-"live-workspace principals" comment, added deliberately. So the roster and the
-playbook disagree, and the roster wins silently.
+What was observed stands: run as the playbook's setup step, the guard **minted
+a working magic link** for `seulkim88@gmail.com`. The link was discarded unused.
 
-`seulkim88@gmail.com` is a **real person's Google account**, not a rig. Minting
-a session for it is the account takeover the rule exists to prevent, regardless
-of intent. **The link was not used.** The member's DOM half is blocked behind
-an operator ruling:
+What was wrong was the conclusion — "two real external humans". Checked
+afterwards, **both gmail entries are accounts the operator personally
+controls**: their own, and the alpha-trader persona instrument, whose second
+workspace is literally named *"seulkim tester"* and which has served as a
+principal in prior passes (the 2026-08-25 mentions run). Neither is an
+unwitting third party. The cause of the misread: I inferred "real person" from
+the address shape (`gmail.com`) without checking what the account IS — the same
+error class as reading a registry row as a live path.
 
-1. **Remove both live addresses from `ALLOWED_EMAILS`** (playbook-consistent),
-   and give the rig owner a connection so Connected has rows to render there;
-   or
-2. Keep `kvkthecreator@gmail.com` (the operator's own account — self-service,
-   not takeover) and **remove `seulkim88@gmail.com`**, leaving the member DOM
-   half permanently unrunnable without that person's participation; or
-3. The operator obtains that person's consent, recorded.
+**The real defect was underneath, and it was worse than the symptom.** The
+roster could not be audited. `test_roster_guard_is_still_enforced_in_code`
+asserted only that `ALLOWED_EMAILS` *exists* — an assertion that stays green
+with every real user in the world listed. The fact distinguishing a legitimate
+operator account from a stranger's lived in one person's head, so a genuinely
+wrong entry would sit beside the right ones and nothing would go red.
 
-Option 1 is the only one that makes the member DOM half repeatably runnable.
-It costs one OAuth connect on the rig.
+**Fixed** (`ab5535c`): `ALLOWED_EMAILS` is now `email -> reason` with two valid
+reasons (`rig`, `operator`); the refusal prints every entry with its reason, so
+the roster is auditable at the moment someone is refused; and the gate IMPORTS
+the module (a regex cannot tell a live entry from a commented one) and fails
+when an external address is declared anything but `operator`. Falsified four
+ways — `"someone.real@gmail.com": "rig"` reds it, with a message naming a rig
+as the correct answer.
+
+**The member DOM half stays NOT RUN**, but for an honest reason rather than a
+blocked one: the rig owner still holds 0 connections, so Connected renders
+empty there, and driving the operator's own second account would show the same
+empty pane the substrate half already proved. It becomes worth running when a
+rig owner connects a platform, or when a second principal holds their own
+connection — the case where Connected must show two principals different
+NON-EMPTY sets.
 
 ## Guardrails re-asserted
 
