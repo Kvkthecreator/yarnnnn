@@ -4,6 +4,75 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part Z — ADR-648: the message-handling audit, and two gaps (2026-09-09)
+
+Operator: *"any improvements … to our message handling themselves, or session
+conversation management? first, audit to see if against just conventional
+industry best practices are implemented … then, we can look for incremental
+gains. the refactoring should be reflected in full both in codebase and
+documentation, with singular implementation discipline stated in hooks."*
+
+## The audit verdict: mostly at par
+
+Already right, and now ASSERTED rather than merely true: caching at both
+levels, 2 of 4 breakpoints, tool traffic out of the stored transcript, and
+⭐**stable-prefix ordering** — the most commonly botched item in this area. The
+frame's volatile `posture_section` (it embeds the bound artifact, so it changes
+every edit) sits at **position 15 of 16 with 18 chars after it**. That fell out
+of ADR-606's composition rule, not luck — but nothing guarded it.
+
+Two gaps, the same shape: **bounding in a unit nobody bills in.**
+
+## Shipped (`b2b91b7`)
+
+- **D1** `ReadFile` had no cap while `ListFiles` always has. Files reach 178,206
+  chars (~45K tokens); lane calls peaked at 86,799 prompt tokens vs a 19,999
+  median. Capped at 100K, BOTH scopes, p90 files still whole.
+  ⭐**The clip is not the feature, the NOTICE is** — and `offset` is a REAL
+  param, because "request more" without a mechanism is unfollowable.
+- **D2** a 120K-char ceiling ALONGSIDE the 20-message count, dropping
+  **oldest-first**. ⚠️Not a free choice: the cache matches a PREFIX, so a
+  middle-drop re-writes at 1.25x and costs MORE than it saves.
+
+## Refused, with reasons (§5)
+
+**Summarisation/compaction** — the industry-standard next move, refused because
+the workspace is the shared memory and the transcript is not (ADR-408 D6); it
+would mint a second lossy memory no principal authored. **Aggressive trimming**
+— refused on measurement, not taste.
+
+## Singular-implementation discipline, as asked
+
+ONE home per rule, stated in CLAUDE.md and **enforced by a new
+`context-budget` verification-radar lane** over the four files that decide what
+enters a prompt: `model_router._build_messages` · `workspace._clip_read` ·
+`lanes._clamp_history_chars` (+ `lane_runner`). A second home IS the defect.
+
+CLAUDE.md stayed under its ceiling (49,892) by deleting a row whose entire
+content was "this module does not exist" — verified unreferenced first.
+
+## ⚠️ Method note — second instance the same day
+
+**A gate that crashes reports nothing, and nothing looks like passing.**
+Falsifying D1 printed NO OUTPUT: the gate caught the silent-clip defect, then
+raised `KeyError` on a raw index and died before its verdict. Every field read
+is now `.get()`. The other instance was `test_adr557` crashing on a deleted
+`radar.py` for seven weeks. **When falsifying, confirm the gate PRINTED a
+failure — read the count line, not the exit code.**
+
+## Still owed
+
+1. ⭐**The ADR-647 re-measure.** Every cost number in 647/648 is pre-change.
+   One query, a week out, is the only thing that confirms any of it.
+2. No browser click-pass on a truncated read (an agent hitting the 100K bound
+   and continuing with `offset`). Gates pass; nobody has looked.
+3. Gemini's automatic cache is NOT equivalent (53% vs 97%, frozen at the frame)
+   — a named, unclosed gap; its explicit cache is a different API.
+4. Still open from Part Y: no door to SET the engine preference; DeepSeek
+   funding; GLM via `openrouter/z-ai/glm-4.6`.
+
+---
+
 # Part Y — ADR-645 probed at N>1; the roster becomes auditable (2026-09-08/09)
 
 Operator: *"do the click pass by referencing existing information in our eval
