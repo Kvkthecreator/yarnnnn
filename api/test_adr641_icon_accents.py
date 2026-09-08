@@ -342,6 +342,109 @@ def test_agent_accent_is_class_wide() -> None:
     )
 
 
+def test_the_face_fallback_carries_the_class_accent() -> None:
+    """§7 — the FACE fallback (ADR-641 amendment, 2026-09-08).
+
+    THE DEFECT THIS PINS. ADR-641 shipped green at 23/23 while Designer
+    rendered a grey "D" in the Slides chat pane and violet two surfaces away
+    on Agents. The gate could not see it: it asserted the REGISTRIES agree,
+    and nothing asserted that the chat surfaces consult them at all. ⭐ A
+    green gate is not a look — and the checks below are the structural half
+    of that lesson, because the visual half cannot be automated.
+
+    WHY THE CHECK IS ON THE PROP, NOT THE COLOUR. The cause was never CSS:
+    `AgentFace` took `name` + `avatarUrl` (both display STRINGS), so all five
+    call sites threw away a `member_kind` they already held, and no styling
+    inside the component could have coloured the fallback correctly because
+    the information never arrived. The fix is that `kind` is REQUIRED — a new
+    chat surface cannot compile without answering "who is this?". So this
+    asserts the CONTRACT (required prop, every call site passes it), which is
+    what actually prevents the drift; asserting the hue would pin a spelling
+    and still let a sixth silent call site appear.
+
+    ⭐ ASSERT BOTH DIRECTIONS (ADR-636 §9). The negative — "no call site omits
+    kind" — cannot catch a NEW component that hand-rolls its own initial disc,
+    which is exactly the second home found and deleted in ConversationDetail's
+    invite list. So the second check sweeps the chat surfaces for a rounded
+    initial rendered OUTSIDE AgentFace.
+    """
+    print("\n[7] the face fallback carries the class accent")
+
+    face = _read(WEB / "components/agents/AgentFace.tsx")
+
+    # REQUIRED, no `?`, no default — the ADR-633 rule. An optional kind with
+    # an `?? 'human'` fallback restores the exact silence this deletes.
+    _assert(
+        re.search(r"^\s*kind:\s*PrincipalKind;", face, re.M) is not None,
+        "AgentFace REQUIRES a `kind` (no `?`, no default — an optional class "
+        "would let a new call site silently render grey again)",
+    )
+    _assert(
+        not re.search(r"kind\s*\?\s*:", face)
+        and not re.search(r"kind\s*=\s*['\"]", face),
+        "AgentFace declares no default for `kind` (a declaration nothing "
+        "declares is not a declaration — ADR-592's inert `stage`)",
+    )
+    # The picture stays unaccented: the 2026-07-16 operator ruling that a face
+    # is an uploaded IMAGE, not a colour swatch, survives this amendment.
+    _assert(
+        "faceAccent(kind)" in face,
+        "The fallback resolves its accent through the shared `faceAccent` "
+        "(one vocabulary with authorAccent, not a second palette)",
+    )
+
+    attribution = _read(WEB / "lib/workspace/attribution.ts")
+    _assert(
+        "export function faceAccent" in attribution
+        and "export type PrincipalKind" in attribution,
+        "`faceAccent` + `PrincipalKind` live BESIDE authorAccent (the dots, "
+        "the glyph and the face cannot disagree about an agent)",
+    )
+    # Returns bg AND text together — a caller that must remember to pair them
+    # is a caller that can forget, and violet-on-violet is how that reads.
+    body = attribution.split("export function faceAccent", 1)[1]
+    agent_row = re.search(r"case 'agent':\s*\n\s*return '([^']+)'", body)
+    _assert(
+        agent_row is not None
+        and "bg-" in agent_row.group(1)
+        and "text-" in agent_row.group(1),
+        "faceAccent returns ground AND ink as one string (never a bare hue a "
+        "caller has to pair correctly)",
+    )
+
+    # EVERY call site passes it. tsc enforces this too, but a gate that states
+    # the rule survives a `any`-cast or a loosened prop type.
+    chat_dir = WEB / "components/chat-surface"
+    sites = 0
+    for f in sorted(chat_dir.glob("*.tsx")):
+        src = _read(f)
+        for m in re.finditer(r"<AgentFace\b[^>]*?/>", src, re.S):
+            sites += 1
+            _assert(
+                "kind=" in m.group(0),
+                f"{f.name}: every <AgentFace> names the principal's kind",
+            )
+    _assert(sites >= 5, f"the sweep actually found the call sites ({sites} >= 5)")
+
+    # THE ADDITION DIRECTION — a hand-rolled initial disc beside AgentFace is
+    # a second home for the same rule. One was found and deleted in
+    # ConversationDetail's invite list; this stops the next one.
+    for f in sorted(chat_dir.glob("*.tsx")):
+        src = _read(f)
+        stripped = re.sub(r"<AgentFace\b.*?/>", "", src, flags=re.S)
+        _assert(
+            not re.search(
+                r"rounded-full[^\"']*"
+                r"(?=[^\"']*\bbg-muted\b)",
+                stripped,
+            )
+            or "slice(0, 1).toUpperCase()" not in stripped,
+            f"{f.name}: no hand-rolled initial disc outside AgentFace "
+            "(a second home is how the first one drifted)",
+        )
+
+
+
 if __name__ == "__main__":
     test_resolvers_exist_and_degrade()
     test_surface_accents_match_declared_surfaces()
@@ -349,6 +452,7 @@ if __name__ == "__main__":
     test_accent_never_speaks_state_or_alarm()
     test_the_path_string_ladder_stays_deleted()
     test_agent_accent_is_class_wide()
+    test_the_face_fallback_carries_the_class_accent()
 
     print(f"\n{'='*60}")
     print(f"ADR-641 icon accent gate: {_passed} passed, {_failed} failed")

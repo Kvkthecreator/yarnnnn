@@ -45,6 +45,7 @@
 
 import { MoreHorizontal, UserPlus } from 'lucide-react';
 import { AgentFace } from '@/components/agents/AgentFace';
+import type { PrincipalKind } from '@/lib/workspace/attribution';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { cn } from '@/lib/utils';
@@ -55,6 +56,13 @@ export interface HeaderFace {
   name: string;
   /** Resolved avatar reference (Agents); people have none today. */
   avatarUrl?: string | null;
+  /**
+   * WHO this face stands for — required, and carried from the cast that built
+   * it (ADR-641 amendment). The builder in ChatSurface already branches on
+   * `member_kind` to decide the name and the picture; the accent rides the
+   * same branch rather than being re-guessed here.
+   */
+  kind: PrincipalKind;
 }
 
 interface ConversationHeaderProps {
@@ -107,6 +115,7 @@ function FaceStack({ faces }: { faces: HeaderFace[] }) {
           <AgentFace
             name={f.name}
             avatarUrl={f.avatarUrl}
+            kind={f.kind}
             size={shown.length > 1 ? 'sm' : 'md'}
             className={shown.length > 1 ? 'ring-2 ring-background' : undefined}
           />

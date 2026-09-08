@@ -227,3 +227,51 @@ export function authorAccent(authored_by: string | null | undefined): string {
       return 'bg-muted-foreground/40';
   }
 }
+
+/**
+ * The class of principal a FACE stands for (ADR-641 amendment, 2026-09-08).
+ *
+ * Deliberately NARROWER than `authorClass`: that one classifies an
+ * `authored_by` STRING on a revision (and knows `mcp`, `platform`, the retired
+ * `reviewer`, …), which is a question about provenance. This one is the
+ * question a chat surface can actually answer about a participant it is
+ * rendering — is this an agent, or a person? — and it maps 1:1 onto the
+ * `member_kind` the cast already serves. Widening it later is additive; a face
+ * that had to guess `mcp` vs `agent` would be inventing, not reading.
+ */
+export type PrincipalKind = 'agent' | 'human' | 'you';
+
+/**
+ * The accent for a FACE FALLBACK (the initial), as full Tailwind classes.
+ *
+ * ⭐ Returns background AND foreground together, never a bare hue: the caller
+ * that had to remember to pair `bg-violet-500/10` with `text-violet-600` is a
+ * caller that can forget, and a violet letter on a violet ground is the way
+ * this breaks. One string, applied whole.
+ *
+ * The hues are `authorAccent`'s own, restated as tinted-ground pairs rather
+ * than solid dots — a 9×9 dot and a 36px lettered disc want different weights
+ * of the same colour. Agent violet and member teal MATCH the dots exactly, so
+ * the roster, the attribution dots and the faces cannot disagree about what an
+ * agent looks like. `you` stays NEUTRAL: you know which one is you, and the
+ * ADR-641 D3 reserve holds — a face is identity, never state.
+ */
+export function faceAccent(kind: PrincipalKind): string {
+  switch (kind) {
+    // Violet — the same hue `authorAccent` gives an agent-authored revision
+    // and `AgentIcon` gives the agent glyph (ADR-641 D4). ONE hue for the
+    // class, never one per agent: since ADR-601 D1 an agent may serve several
+    // apps, so an app-derived face hue has no single answer.
+    case 'agent':
+      return 'bg-violet-500/10 text-violet-600 dark:text-violet-400';
+    // Teal — `authorAccent`'s member. A person in the commons.
+    case 'human':
+      return 'bg-teal-500/10 text-teal-700 dark:text-teal-400';
+    // You are not a colour. Every messaging app omits you from its own group
+    // avatar for the same reason: you are the fixed point, not a participant
+    // to tell apart.
+    case 'you':
+    default:
+      return 'bg-muted text-muted-foreground';
+  }
+}

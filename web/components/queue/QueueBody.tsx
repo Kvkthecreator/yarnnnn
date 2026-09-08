@@ -6,8 +6,8 @@
  * Extracted from /queue/page.tsx so the SAME body mounts in two places
  * (the ADR-340 D8 "one body, two mounts" rule, mirroring the shared
  * ActivityLog):
- *   - the /queue mirror surface (QueuePage wraps this in SurfacePage)
- *   - the Operation composition's Resolve pane (mounts this bare)
+ *   - Reach → what is leaving / crossed (ADR-642 absorbed the /queue surface)
+ *   - Notifications
  *
  * Both read the same action_proposals over the same ADR-307 gate (one
  * gate, one queue). The body owns its own data-load + modal + refresh;

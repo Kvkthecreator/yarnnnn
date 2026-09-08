@@ -236,7 +236,15 @@ export function ConversationDetail({
         key={key}
         className="flex items-center gap-2.5 px-3 py-2 border-b border-border/50 group"
       >
-        <AgentFace name={a?.name || label(p)} avatarUrl={a?.avatar_url} size="md" />
+        {/* The row already knows all three cases — the cast's `member_kind`
+            and the `isSelf` test above. You read neutral; everyone else
+            carries their class hue (ADR-641 amendment). */}
+        <AgentFace
+          name={a?.name || label(p)}
+          avatarUrl={a?.avatar_url}
+          kind={isSelf ? 'you' : p.member_kind === 'agent' ? 'agent' : 'human'}
+          size="md"
+        />
         <span className="flex-1 min-w-0">
           <span className="block text-sm truncate">{label(p)}</span>
           <span className="block text-[10px] text-muted-foreground truncate">
@@ -363,9 +371,12 @@ export function ConversationDetail({
                         }
                         className="w-full flex items-center gap-2 text-left px-2 py-1 rounded text-xs hover:bg-muted disabled:opacity-50"
                       >
-                        <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-medium text-muted-foreground shrink-0">
-                          {p.label.slice(0, 1).toUpperCase()}
-                        </span>
+                        {/* Was a hand-rolled initial disc — a SECOND home for
+                            the same rule, and the reason the agent row beside
+                            it could drift away from this one unnoticed. It is
+                            AgentFace now, so both invite rows resolve their
+                            mark through the one component. */}
+                        <AgentFace name={p.label} kind="human" size="sm" />
                         <span className="truncate flex-1">{p.label}</span>
                         {busy === p.principal_id && (
                           <Loader2 className="w-3 h-3 animate-spin text-muted-foreground shrink-0" />
@@ -399,7 +410,12 @@ export function ConversationDetail({
                         }
                         className="w-full flex items-center gap-2 text-left px-2 py-1 rounded text-xs hover:bg-muted disabled:opacity-50"
                       >
-                        <AgentFace name={a.name} avatarUrl={a.avatar_url} size="sm" />
+                        <AgentFace
+                          name={a.name}
+                          avatarUrl={a.avatar_url}
+                          kind="agent"
+                          size="sm"
+                        />
                         <span className="truncate flex-1">{a.name}</span>
                         {busy === a.slug && (
                           <Loader2 className="w-3 h-3 animate-spin text-muted-foreground shrink-0" />

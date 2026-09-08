@@ -161,7 +161,7 @@ export function MentionMenu({
                 i === highlight ? 'bg-muted' : 'hover:bg-muted/60',
               )}
             >
-              <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
+              <AgentFace name={c.name} avatarUrl={c.avatarUrl} kind={c.kind} size="sm" />
               {/* The NAME alone. The blurb was here and it was noise at the
                   moment of choosing: the member is picking a colleague they
                   already know, mid-sentence, and a two-line row pushed the
@@ -200,7 +200,7 @@ export function MentionMenu({
                   idx === highlight ? 'bg-muted' : 'hover:bg-muted/60',
                 )}
               >
-                <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
+                <AgentFace name={c.name} avatarUrl={c.avatarUrl} kind={c.kind} size="sm" />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
               </button>
             );
@@ -224,7 +224,7 @@ export function MentionMenu({
               }}
               className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm opacity-70 hover:opacity-100 hover:bg-muted/60 transition-all"
             >
-              <AgentFace name={c.name} avatarUrl={c.avatarUrl} size="sm" />
+              <AgentFace name={c.name} avatarUrl={c.avatarUrl} kind={c.kind} size="sm" />
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
               <span className="shrink-0 text-[10px] text-muted-foreground">add…</span>
             </button>

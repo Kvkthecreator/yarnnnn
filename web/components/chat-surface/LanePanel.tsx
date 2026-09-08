@@ -1271,6 +1271,11 @@ export function LanePanel({
                         <AgentFace
                           name={authorLabel || '?'}
                           avatarUrl={agentFace?.avatarUrl}
+                          // The bubble already knows: an assistant turn is an
+                          // agent, and an attributed non-own user turn is
+                          // another member (the viewer's own rows are never
+                          // attributed, so 'you' cannot reach here).
+                          kind={m.role === 'assistant' ? 'agent' : 'human'}
                           size="sm"
                         />
                       )}

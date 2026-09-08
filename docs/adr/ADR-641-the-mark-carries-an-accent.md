@@ -180,3 +180,109 @@ in **both themes**, harness deleted. That pass is what produced D5: the gates
 were green on a Files spine that read as a rainbow, because no assertion can
 tell you eleven hues in a column distinguish nothing. ⭐ **A colour decision has
 to be looked at; a green gate is not a look.**
+
+---
+
+# Amendment — the face fallback carries the class accent (2026-09-08)
+
+**Status**: Accepted. Amends D3/D4; the 2026-07-16 face ruling is UNTOUCHED.
+
+## What the operator observed
+
+*"Check that the icons are consistently applied across the service — the chat
+surface in full, and in-app chat surfaces as well, even chat message bubbles."*
+
+Driven on production, they were not. The Dock, the Launcher, the Agents page,
+the Slides breadcrumb and the app chips were all correct. But **Designer
+rendered a grey "D" in the Slides chat pane while the same agent wore violet
+two surfaces away on Agents** — and the same grey initials led every row of the
+chat list, every message bubble, the header face stack and the mention menu.
+
+**The gate was green at 23/23 the entire time.** It asserted the two registries
+agree; nothing asserted that the chat surfaces consult them at all. This is the
+ADR's own ⭐ recurring one section down: *a colour decision has to be looked at;
+a green gate is not a look.*
+
+## Why the original exemption was right, and where it stopped being right
+
+D4 exempted the face deliberately, drawing the line at *"a glyph is not a
+face"*: a face is an uploaded PICTURE (the 2026-07-16 ruling), and per-agent
+colour swatches were shipped once, judged debt, and deleted.
+
+That holds. What it did not cover is the **initial fallback**, which is neither
+a picture nor a mark — it was the one element in the shell that NAMED a
+principal while saying nothing about their class. That is the ADR-258 fault
+(colour disagreeing with itself across surfaces), not the ADR-641 one the face
+was exempted for.
+
+## Decision
+
+**A1 — the fallback carries the class accent; the picture never does.**
+`faceAccent(kind)` in `attribution.ts`, beside `authorAccent` and drawing on
+its hues: **agent violet, member teal, you neutral**. A member who sees a violet
+dot beside an agent-authored file in Files now meets the same violet on that
+agent's face in chat. One vocabulary, three renderings — dot, glyph, face.
+
+`you` is deliberately NEUTRAL: you are the fixed point, not a participant to
+tell apart, and the D3 reserve (red/amber mean *something is wrong*) holds.
+
+**A2 — ⭐ `kind` is a REQUIRED prop, and that is the whole fix.**
+The cause was never CSS. `AgentFace` took `name` + `avatarUrl` — both display
+STRINGS — so all five call sites threw away a `member_kind` they **already
+held**, and no styling inside the component could have coloured the fallback
+correctly because *the information never arrived*.
+
+So the accent is not the durable part; the **contract** is. A required `kind`
+means a new chat surface cannot compile without answering *"who is this?"* — the
+question the accent depends on. No `?`, no default: an optional `kind` with an
+`?? 'human'` fallback would restore the exact silence this deletes (ADR-633's
+"REQUIRED: no `?`, no default"; ADR-592's `stage`, inert for five days because
+it back-derived itself).
+
+**A3 — a hand-rolled initial disc is a second home, and is deleted.**
+`ConversationDetail`'s invite list drew its own grey circle for people while
+calling `AgentFace` for agents one branch below — so the two could drift apart
+unnoticed, which is precisely how the first drift happened. Both now resolve
+through the one component.
+
+**A4 — `SurfacePage.tsx` is DELETED.** It resolved a glyph and hard-coded it
+`text-muted-foreground`, bypassing the accent — and had **zero render sites**.
+Its only mention was a stale comment describing a `/queue` surface ADR-642
+absorbed. Dead code that would have read as a real inconsistency to the next
+reader (the ADR-641 D5 lesson: the dead code was the colourful code).
+
+## Consequences
+
+- Faces are accented in all five chat surfaces: the chat list, the message
+  bubbles (in-app panes included), the header stack, the participants drill-in
+  and the mention menu.
+- `PrincipalKind` is deliberately NARROWER than `authorClass`: agent | human |
+  you, mapping 1:1 onto the `member_kind` the cast already serves. A face that
+  had to guess `mcp` vs `agent` would be inventing, not reading. Widening is
+  additive.
+- `faceAccent` returns ground AND ink as one string. A caller that must pair
+  `bg-violet-500/10` with `text-violet-600` itself is a caller that can forget,
+  and violet-on-violet is how that reads.
+
+### Gate
+
+`test_adr641_icon_accents.py` §7 — 46 checks total (was 23). Three falsifiers
+driven, each red:
+
+| Falsifier | Result |
+|---|---|
+| make `kind` optional (`kind?:`) | FAIL ×2 |
+| a call site drops `kind` (LanePanel) | FAIL |
+| re-add a hand-rolled initial disc | FAIL |
+
+⭐ The sweep asserts BOTH directions (ADR-636 §9): every `<AgentFace>` names a
+kind (catches a deletion), AND no chat surface hand-rolls a rounded initial
+outside it (catches an ADDITION — the check tsc cannot make).
+
+### Driven
+
+Rendered through a temporary harness mounting the real `AgentFace` at all three
+sizes and both stacked, screenshotted in **both themes**, harness deleted — the
+same method that produced D5. The look is what confirmed the tinted-ground pair
+reads as quiet identity rather than a second rainbow, and that the `dark:` ink
+variants earn their place.

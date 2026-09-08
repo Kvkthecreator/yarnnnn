@@ -39,6 +39,7 @@ import { LanePanel } from './LanePanel';
 import { ConversationHeader, type HeaderFace } from './ConversationHeader';
 import { ConversationDetail } from './ConversationDetail';
 import { AgentFace } from '@/components/agents/AgentFace';
+import type { PrincipalKind } from '@/lib/workspace/attribution';
 import { NewChatModal } from './NewChatModal';
 import { useWorkspaceMembers } from '@/lib/workspace/viewer';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -501,6 +502,22 @@ export function ChatSurface() {
     [data, activeLaneId],
   );
 
+  // The row's face KIND, from the SAME cast read as its name and picture
+  // (ADR-641 amendment). A room led by exactly one agent wears the agent hue;
+  // anything else — a group, a person, an engine-only chat — is a human room.
+  // Deliberately mirrors `laneAvatarUrl`'s branch rather than inventing a
+  // second rule: if the two ever disagree, the face and the name would be
+  // describing different participants.
+  const laneFaceKind = useCallback(
+    (lane: { agent?: string | null; participants?: Participant[] }): PrincipalKind => {
+      const agents = (lane.participants ?? []).filter((p) => p.member_kind === 'agent');
+      if (agents.length === 1) return 'agent';
+      if (agents.length) return 'human'; // a mixed/multi-agent group is a room
+      return laneAgent(lane) ? 'agent' : 'human';
+    },
+    [laneAgent],
+  );
+
   // §6.10a — WHO the open conversation is with. Null for pre-registry and
   // Studio/derive lanes, which fall back to their engine label (honest: that
   // IS what those lanes are).
@@ -521,17 +538,24 @@ export function ChatSurface() {
     for (const p of cast) {
       if (p.member_kind === 'agent') {
         const a = agentBySlug(p.agent_slug);
-        faces.push({ name: a?.name || p.agent_slug || 'agent', avatarUrl: a?.avatar_url });
+        faces.push({
+          name: a?.name || p.agent_slug || 'agent',
+          avatarUrl: a?.avatar_url,
+          kind: 'agent',
+        });
       } else if (p.principal_id && p.principal_id !== userId) {
         faces.push({
           name:
             people.find((x) => x.principal_id === p.principal_id)?.label ||
             'A member',
+          kind: 'human',
         });
       }
     }
     if (!faces.length && activeAgent) {
-      faces.push({ name: activeAgent.name, avatarUrl: activeAgent.avatar_url });
+      // The pre-cast (Studio/derive) fall-back — the lane's own resident, which
+      // is an agent by construction.
+      faces.push({ name: activeAgent.name, avatarUrl: activeAgent.avatar_url, kind: 'agent' });
     }
     return faces;
   }, [activeLane, data, people, userId, activeAgent]);
@@ -884,6 +908,7 @@ export function ChatSurface() {
               <AgentFace
                 name={laneLabel(lane)}
                 avatarUrl={laneAvatarUrl(lane)}
+                kind={laneFaceKind(lane)}
                 size="md"
                 className="mt-0.5"
               />
