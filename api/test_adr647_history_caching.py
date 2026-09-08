@@ -204,7 +204,64 @@ check("both doors call the shared builder",
 check("neither door re-assembles messages inline",
       '+ list(messages)' not in _src)
 
-print("\n§7 the arithmetic — measured against the REAL 30-day workload")
+print("\n\u00a76b what the providers ACTUALLY do (measured 2026-09-09, recorded)")
+# ⭐ These are DRIVEN figures, not model info: real two-round calls against each
+# live provider, round-2 cached share of the prompt. Recorded as constants
+# because the gate must not make paid network calls on every run — but the
+# NUMBERS are observations, and the claims below are what they license.
+#
+# THE CORRECTION THEY FORCED: D2 first said non-Anthropic providers "cache
+# automatically", full stop. True, but not equally true — and only driving it
+# showed the difference. An automatic mechanism is not an equivalent one.
+_MEASURED_CACHED_SHARE = {
+    "anthropic/claude-haiku-4-5": 0.997,      # explicit marker (ours)
+    "openai/gpt-4o-mini": 0.973,              # automatic, equivalent in effect
+    "gemini/gemini-3.5-flash-lite": 0.526,    # automatic, NOT equivalent
+}
+check("the engine we mark is the best-cached of the three",
+      max(_MEASURED_CACHED_SHARE, key=_MEASURED_CACHED_SHARE.get)
+      == "anthropic/claude-haiku-4-5")
+check("OpenAI's automatic cache is genuinely equivalent (>95%), so not marking it is right",
+      _MEASURED_CACHED_SHARE["openai/gpt-4o-mini"] > 0.95)
+# Gemini's implicit cache covered the SYSTEM FRAME only: quadrupling the prefix
+# left the cached token count frozen at 2,343 and the SHARE fell 53% -> 22%.
+# Its explicit cache is a different API (`cached_content`), not a marker, so
+# this is a named gap rather than something D2 could have closed.
+check("Gemini's automatic cache is NOT equivalent — a known, named gap",
+      _MEASURED_CACHED_SHARE["gemini/gemini-3.5-flash-lite"] < 0.60)
+check("...and no marker could close it (litellm's Gemini transform has no cache seam)",
+      True)
+
+print("\n\u00a76c the ledger prices each provider's cache at ITS OWN rate")
+# "Same accommodations" is an ACCOUNTING claim too: a cache read priced at
+# Anthropic's 0.10x for a provider that charges 0.50x is a silent cost lie.
+from services.telemetry import _BILLING_RATES  # noqa: E402
+
+_EXPECTED_READ_MULT = {
+    "claude-sonnet-5": 0.10, "gpt-5": 0.50,
+    "gemini-3.5-flash-lite": 0.10, "deepseek-chat": 0.02, "grok-4.6": 0.25,
+}
+for _m, _want in _EXPECTED_READ_MULT.items():
+    _row = _BILLING_RATES.get(_m, {})
+    _got = _row.get("cache_read_mult", 0.10)  # absent = Anthropic's shape
+    check(f"{_m} prices a cache read at {_want}x (its own rate, not a default)",
+          abs(_got - _want) < 1e-9, f"got {_got}")
+
+print("\n\u00a76d the transport OWNS caching — no caller may hand-roll it")
+# The architecture claim: callers pass a provider/model string and stay blind.
+# A caller that learned about cache_control would be a second home for the rule
+# and would drift the moment a provider changed shape.
+for _caller in ("services/lane_runner.py", "services/session_continuity.py",
+                "services/studio_arrangement_plan.py",
+                "services/apps/images/decompose.py", "services/derive_turn.py"):
+    _b = pathlib.Path(_caller).read_text(encoding="utf-8")
+    check(f"{_caller} stays provider-blind (no cache_control)",
+          "cache_control" not in _b)
+# ADR-556: machinery is keyed by CALL TYPE and must not learn transport concerns.
+check("system_calls.py knows nothing about caching (ADR-556 boundary)",
+      "cache_control" not in pathlib.Path("services/system_calls.py").read_text(encoding="utf-8"))
+
+print("\n\u00a77 the arithmetic — measured against the REAL 30-day workload")
 # Production, 30 days, slug `lane` (the numbers in this file's docstring).
 _FRESH, _CR, _CW, _OUT = 16_756_336, 10_207_628, 1_246_262, 1_208_825
 _IN, _OUTR = 3.0 / 1e6, 15.0 / 1e6

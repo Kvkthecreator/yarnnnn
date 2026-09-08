@@ -90,10 +90,35 @@ against litellm 1.83.9, not by reading them:
 | openai · deepseek · xai | stripped by `OpenAIGPTConfig.remove_cache_control_flag_from_messages_and_tools`, inherited through the MRO |
 | gemini | dropped by the Vertex transform (parts carry no such key) |
 
-So the marker is inert rather than dangerous off-Anthropic — and those
-providers cache automatically without one. Marking there would be dead weight
-that still has to be reasoned about at every future transform change.
+So the marker is inert rather than dangerous off-Anthropic.
 `_prefix_is_cacheable` narrows to the provider that needs it.
+
+**D2.a — what "they cache automatically" is actually worth, MEASURED
+(2026-09-09, driven two-round calls against each live provider).** The claim
+above was first written as "those providers cache automatically without one",
+which is true but not equally true, and the difference matters:
+
+| engine | round-2 prompt served from cache |
+|---|---|
+| `anthropic/claude-haiku-4-5` (marked) | **99.7%** |
+| `openai/gpt-4o-mini` (automatic) | **97.3%** |
+| `gemini/gemini-3.5-flash-lite` (automatic) | **52.6%**, and it does not scale |
+| `deepseek/deepseek-chat` | unfunded — could not be driven |
+| `xai/grok-4.6` | no key on this deployment — could not be driven |
+
+Anthropic and OpenAI are equivalent in effect: one asks, one does it for you,
+both end up ~98%+ cached. **Gemini is not.** Quadrupling the prefix left its
+cached figure frozen at 2,343 tokens — the system frame only — so the cached
+SHARE fell from 53% to 22%. Its implicit cache covers a stable prefix, not a
+growing conversation.
+
+⭐ The honest read: **an automatic mechanism is not the same as an equivalent
+one, and only driving it says which.** Gemini's explicit cache is a different
+API (`cached_content`: upload, receive a handle, reference it), not a message
+marker — so this is a real gap in Gemini's accommodation, NOT something the
+marker could have closed. Named here rather than papered over; unbuilt because
+it is a separate mechanism with its own lifecycle, and Gemini is 0.2% of spend.
+Revisit if a member's engine preference ever makes Gemini a primary lane.
 
 **D3 — one composition site.** `route_completion` and `route_completion_stream`
 each built the request list inline, identically. A caching rule applied in one
@@ -186,6 +211,19 @@ on must say which reason.
 - `api/test_adr557_router_hardening.py` — 18 checks. Repointed off the deleted
   `services/radar.py` (see below) and §4 now EXECUTES the flag-off degrade.
 - `cd web && next build` exit 0.
+- **DRIVEN against the live provider (2026-09-09), not modelled.** A real
+  two-round Anthropic call: round 1 wrote 6,353 cache tokens, round 2 read
+  6,353 and paid fresh for **3** — **89.3% cheaper on that round**. The
+  STREAMING door was driven separately and caches identically (5,573 read),
+  which is the door that matters: it is the one members use.
+- Cross-provider parity driven the same way (see D2.a). The ledger prices each
+  provider's cache at its own published multiplier — Anthropic 0.10x, OpenAI
+  0.50x, Gemini 0.10x, DeepSeek 0.02x, xAI 0.25x — verified against LiteLLM's
+  model info, so the accounting is per-provider rather than Anthropic-shaped.
+- Architecture audit: `cache_control` appears NOWHERE outside
+  `model_router.py` (the five routed callers score 0 — they stay
+  provider-blind, and the transport owns the concern), and `system_calls.py`
+  is untouched, so the ADR-556 machinery boundary holds.
 
 ### A stale gate found on the way
 
