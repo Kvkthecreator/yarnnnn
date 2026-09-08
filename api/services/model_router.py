@@ -269,6 +269,125 @@ def _system_payload(system: Optional[str], model: str) -> Any:
     }]
 
 
+#: ADR-647 — THE CONVERSATION PREFIX IS CACHEABLE TOO.
+#:
+#: ADR-634 cached the system frame and stopped there, on the reasoning that the
+#: ~16KB frame was the re-sent bulk. Measured 30 days later on production
+#: (`execution_events`, slug `lane`), that is no longer the shape:
+#:
+#:     fresh (uncached) input   16.76M tok   $50.27   67% of lane spend
+#:     output                    1.21M tok   $18.13   24%
+#:     cache write               1.25M tok    $4.67    6%
+#:     cache read               10.21M tok    $3.06    4%
+#:
+#: 40% of lane calls read ZERO cache, and fresh input runs a p90 of 38K tokens
+#: per call. The frame is now the SMALL half: what dominates is the growing
+#: message prefix — every prior assistant turn and every tool RESULT, re-sent
+#: verbatim on each of up to 8 rounds. A tool result is the expensive kind:
+#: a ReadFile of a real artifact is thousands of tokens that never change again
+#: for the rest of the turn.
+#:
+#: The prefix is append-only and byte-stable, which is exactly what an
+#: ephemeral cache breakpoint wants. Marking the LAST message of the prefix
+#: caches everything before it, so round N+1 reads what round N wrote.
+#:
+#: WHY A BREAKPOINT ON THE LAST MESSAGE, AND ONLY ONE.
+#: Anthropic allows at most 4 cache breakpoints per request and caches the
+#: whole prefix UP TO each one. The system frame already holds one (ADR-634).
+#: One more on the tail of the messages covers the entire conversation prefix
+#: in a single marker — a breakpoint per message would spend the budget on
+#: round 4 and start silently dropping the earliest, which is the failure this
+#: single-marker rule avoids. Two markers total, well inside the limit.
+#:
+#: PROVIDER SAFETY — VERIFIED AGAINST litellm 1.83.9, NOT ASSUMED:
+#:   anthropic          keeps it (into `tool_result` and `text` blocks alike)
+#:   openai / deepseek  stripped by `OpenAIGPTConfig.
+#:                      remove_cache_control_flag_from_messages_and_tools`,
+#:                      which xai + deepseek inherit through the MRO
+#:   gemini             dropped by the Vertex transform (parts carry no key)
+#: So the marker is inert rather than dangerous off-Anthropic, and those
+#: providers cache automatically without a marker anyway.
+#:
+#: The floor is the same reason as the frame's: below the provider minimum a
+#: breakpoint buys nothing, and Anthropic refuses to cache a short prefix.
+_HISTORY_CACHE_MIN_CHARS = 4_000
+
+
+def _prefix_is_cacheable(model: str) -> bool:
+    """Does marking the message prefix DO anything on this engine?
+
+    Anthropic only. Every other live provider either strips the marker
+    (OpenAI-compatible, Gemini) or caches automatically without one, so
+    marking there is dead weight that still has to be reasoned about at every
+    future transform change. Narrow to the provider that needs it.
+
+    Pure and total — any doubt is False, so a caching miss is the failure mode
+    and a broken call never is (the `_system_payload` posture).
+    """
+    return (model or "").split("/", 1)[0] == "anthropic"
+
+
+def _measure_messages(messages: list[dict]) -> int:
+    """Rough character size of the message list — the cache-floor test.
+
+    Deliberately crude: this decides whether a breakpoint is worth setting,
+    not what anything costs. Tokens are the ledger's job.
+    """
+    total = 0
+    for m in messages:
+        c = m.get("content")
+        if isinstance(c, str):
+            total += len(c)
+        elif isinstance(c, list):
+            for part in c:
+                if isinstance(part, dict):
+                    total += len(part.get("text") or "")
+        for tc in (m.get("tool_calls") or []):
+            fn = tc.get("function") or {}
+            total += len(str(fn.get("arguments") or ""))
+    return total
+
+
+def _cache_marked_messages(messages: list[dict], model: str) -> list[dict]:
+    """The message list with ONE ephemeral breakpoint on its last message.
+
+    Returns the list unchanged when the engine cannot use a breakpoint, when
+    the prefix is below the floor, or when the tail already carries a marker
+    (idempotent — a caller that marked its own messages is left alone).
+
+    COPIES the message it marks. The lane loop appends to its own `messages`
+    list across rounds and re-sends it; mutating a message in place would
+    leave a stale breakpoint buried mid-prefix on the NEXT round, spending a
+    breakpoint on a boundary nothing reads. Every round marks its own tail and
+    only its own tail.
+    """
+    if not messages or not _prefix_is_cacheable(model):
+        return messages
+    if _measure_messages(messages) < _HISTORY_CACHE_MIN_CHARS:
+        return messages
+    tail = messages[-1]
+    if not isinstance(tail, dict) or tail.get("cache_control"):
+        return messages
+    return list(messages[:-1]) + [{**tail, "cache_control": {"type": "ephemeral"}}]
+
+
+def _build_messages(
+    system: Optional[str], messages: list[dict], model: str
+) -> list[dict]:
+    """The full request message list: cache-marked system frame (ADR-634) plus
+    the cache-marked conversation prefix (ADR-647).
+
+    THE ONE COMPOSITION SITE for both doors. `route_completion` and
+    `route_completion_stream` built this identically inline; a caching rule
+    applied in one and not the other is a silent 2x on whichever path the
+    surface happens to take, and the streaming door is the one members use.
+    """
+    marked = _cache_marked_messages(messages, model)
+    if not system:
+        return list(marked)
+    return [{"role": "system", "content": _system_payload(system, model)}] + list(marked)
+
+
 async def route_completion(
     model: str,
     messages: list[dict],
@@ -310,10 +429,7 @@ async def route_completion(
     _assert_router_enabled(model)  # ADR-557 D1 — the chokepoint, before the import
     import litellm  # lazy: ~3s cold import must not tax API boot
 
-    full_messages = (
-        [{"role": "system", "content": _system_payload(system, model)}] + list(messages)
-        if system else list(messages)
-    )
+    full_messages = _build_messages(system, messages, model)
 
     kwargs: dict[str, Any] = {
         "model": model,
@@ -443,10 +559,7 @@ async def route_completion_stream(
     import json
     import litellm  # lazy: same cold-import discipline as route_completion
 
-    full_messages = (
-        [{"role": "system", "content": _system_payload(system, model)}] + list(messages)
-        if system else list(messages)
-    )
+    full_messages = _build_messages(system, messages, model)
 
     kwargs: dict[str, Any] = {
         "model": model,

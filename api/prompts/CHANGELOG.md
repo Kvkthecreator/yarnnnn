@@ -17659,3 +17659,29 @@ ADR-365 ratified and validated this rule in June 2026; it died with the steward
 `scripts/operator/probe_adr638_register_ab.py`, 2 runs (3+6 trials/arm, Sonnet 5):
 clause present 0.00 leaks/reply and 9/9 clean; stripped 2.08 and 1/9. Replies also
 fell 177 → 63 words with no length rule asked for.
+
+## [2026.09.08.1] - ADR-647: the conversation prefix is cacheable, not just the frame
+
+### Changed
+- services/model_router.py: `_build_messages` is now the ONE composition site for
+  both router doors (`route_completion` + `route_completion_stream`), replacing
+  two inline assemblies. It carries ADR-634's system-frame breakpoint plus a new
+  single ephemeral breakpoint on the tail of the message list, caching the whole
+  conversation prefix (prior assistant turns + every tool result).
+- Anthropic only (`_prefix_is_cacheable`): OpenAI-compatible and Gemini strip the
+  marker and cache automatically, so marking there is dead weight. Verified by
+  executing all four LiteLLM transforms, not by reading them.
+- test_adr634_prompt_caching.py §3: the "both doors" check now asserts the
+  RELATION (one payload site, two callers of the builder) instead of pinning the
+  old duplicated literal, which would have failed the moment the duplication it
+  complained about was removed.
+- Expected behavior: no change to what any model is told or how it replies. Lane
+  turns of >=2 rounds bill the re-sent prefix as cache reads at 0.10x instead of
+  fresh input at 1.0x. A ONE-round turn costs ~25% more (the unamortized write) —
+  the same honest trade ADR-634 stated.
+
+### Why now
+- 30 days of production `execution_events` (slug `lane` = $74.63 of $75.98):
+  fresh input $50.27 (67%), output $18.13, cache write $4.67, cache read $3.06.
+  40% of lane calls read ZERO cache; fresh input p90 was 38K tokens against a
+  ~4K frame. ADR-634's premise (the frame is the re-sent bulk) had expired.

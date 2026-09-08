@@ -145,10 +145,22 @@ check("GEMINI: cache_control is STRIPPED before the wire", "cache_control" not i
 print("\n§3 both router doors carry it — they are twins and a one-door fix works half the time")
 
 _src = pathlib.Path("services/model_router.py").read_text(encoding="utf-8")
+# ADR-647 folded both doors into ONE composition site (`_build_messages`),
+# which also carries the conversation-prefix breakpoint. The invariant this
+# check protects is unchanged — both doors compose the same way — but it is
+# now asserted as a RELATION rather than a spelling: pinning the old literal
+# would have failed the moment the duplication it complained about was
+# actually removed (the recorded "a gate that pins a spelling pins the
+# defect" lesson).
 check(
-    "the payload helper is used at BOTH assembly sites",
-    _src.count('"content": _system_payload(system, model)') == 2,
+    "the system payload is assembled at exactly ONE site",
+    _src.count('"content": _system_payload(system, model)') == 1,
     f'found {_src.count(chr(34) + "content" + chr(34) + ": _system_payload(system, model)")}',
+)
+check(
+    "BOTH router doors compose through that one site",
+    _src.count("_build_messages(system, messages, model)") == 2,
+    f'found {_src.count("_build_messages(system, messages, model)")}',
 )
 check(
     "no site still hard-codes the bare string payload",

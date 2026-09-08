@@ -170,62 +170,48 @@ for path, kind in ROUTED_CALLERS.items():
 turn_body = pathlib.Path("services/derive_turn.py").read_text()
 check("the shared derive turn pre-checks the transport flag (the D1 guard's home)",
       "model_router_enabled" in turn_body)
-radar = pathlib.Path("services/radar.py").read_text()
-check("radar routes its derive through the shared turn",
-      "run_bounded_derive_turn" in radar)
-check("radar meters router-off as its own reason, not a failed derive",
-      "router_disabled" in radar)
+# ⚠️ radar was this section's exemplar and was DELETED (`15403f1`, ADR-592 —
+# an app with a clock is deleted, not staged). The gate kept reading
+# `services/radar.py` and crashed on the open() for seven weeks, taking §4 with
+# it — a stale literal that hid every check BELOW it. The invariant is not
+# radar's; it belongs to whatever standing lane routes today. That is
+# `standing_work.py` (ADR-639), and it carries the same contract unchanged.
+_standing = pathlib.Path("services/standing_work.py").read_text()
+check("the standing lane routes its derive through the shared turn",
+      "run_bounded_derive_turn" in _standing)
+check("the standing lane meters router-off as its own reason, not a failed derive",
+      "router_disabled" in _standing)
 
-print("\n4. radar's flag-off sweep degrades honestly (EXECUTED)")
+print("\n4. the standing lane's flag-off run degrades honestly (EXECUTED)")
 
 
-def _exercise_radar_sweep():
-    """EXECUTE the real `run_radar_sweep` with the flag off.
+def _exercise_standing_run():
+    """EXECUTE the real bounded derive turn with the transport flag OFF.
 
-    `record_execution_event` is a FUNCTION-LOCAL import inside the sweep, so it
-    is patched on `services.telemetry` (its source module) rather than on
-    `services.radar` — patching the latter would silently no-op and this whole
-    section would prove nothing.
+    This replaces the deleted radar sweep. It exercises the SAME contract at
+    the place the D1 guard actually lives now: with the flag off,
+    `run_bounded_derive_turn` must report `router_disabled` rather than let a
+    routed call escape to a provider on whatever key is in env.
     """
-    import services.radar as R
-    import services.telemetry as T
+    from services.derive_turn import run_bounded_derive_turn
 
-    rows: list[dict] = []
-    orig = T.record_execution_event
-    T.record_execution_event = lambda c, **kw: rows.append(kw) or "id"
     _set_flags(None, None)
-
-    class Hub:
-        slug, topic, root = "h", "t", "/workspace/radar/h"
-        signal_path = f"{root}/signal.md"
-        options: dict = {}
-        sources: list = []
-        schedule = None
-
     try:
-        out = asyncio.run(R.run_radar_sweep(object(), "user-1234", Hub()))
+        turn = asyncio.run(run_bounded_derive_turn(
+            model="anthropic/claude-haiku-4-5", system="s", user_msg="p",
+            max_tokens=16, timeout=5,
+        ))
+        return {"status": getattr(turn, "status", None)}
     except Exception as exc:  # noqa: BLE001
-        out = {"raised": type(exc).__name__, "detail": str(exc)[:120]}
-    finally:
-        T.record_execution_event = orig
-    return out, rows
+        return {"raised": type(exc).__name__, "detail": str(exc)[:120]}
 
 
-out, rows = _exercise_radar_sweep()
-# The sweep may not reach derive (no substrate in this harness). What must NEVER
-# happen is a routed call escaping: with the flag off, nothing may reach a
-# provider, and any metered row must not blame a failed derive.
-check("flag-off sweep never reports a routed derive failure",
-      not (isinstance(out, dict) and out.get("error_reason") == "derive_raised"),
-      f"got {out}")
-check("flag-off sweep records no successful routed call",
-      not any(r.get("model") for r in rows),
-      f"rows={rows}")
-if isinstance(out, dict) and out.get("error_reason") == "router_disabled":
-    check("radar returns router_disabled explicitly", True)
-    check("radar meters the skip", any(r.get("error_reason") == "router_disabled" for r in rows))
-else:
-    print(f"  --   sweep stopped before derive ({out}); D1 contract covered in §1+§3")
+_out = _exercise_standing_run()
+# What must NEVER happen is a routed call escaping with the flag off. A
+# RouterDisabled raise and a `router_disabled` status are both honest; reaching
+# a provider is not.
+check("the shared turn returns router_disabled with the flag off",
+      _out.get("status") == "router_disabled", f"got {_out}")
 
 _set_flags(None, None)
 
