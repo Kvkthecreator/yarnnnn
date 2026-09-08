@@ -95,6 +95,11 @@ Independent reads batch: when reading several known paths (sibling files, a
 report's sections), issue the ReadFile calls together in a single turn rather
 than one per turn.
 
+Large files return a BOUNDED WINDOW, not the whole file. When that happens the
+result says so (`truncated`, with `total_chars` and `next_offset`) — treat it
+as a portion, and call ReadFile again with `offset=next_offset` if you need
+the rest. Never answer as though you have seen a part you were not given.
+
 For semantic search across accumulated context domains, use QueryKnowledge.""",
     "input_schema": {
         "type": "object",
@@ -107,6 +112,13 @@ For semantic search across accumulated context domains, use QueryKnowledge.""",
                 "type": "string",
                 "enum": ["workspace", "agent"],
                 "description": "Read scope. 'workspace' (default for chat) reaches operator-shared substrate. 'agent' (default for headless agents) reaches the calling agent's workspace.",
+            },
+            # ADR-648 — the continuation half of the bounded read. A truncated
+            # result names the exact offset to pass here, so "read the rest" is
+            # a call the model can make rather than advice it cannot act on.
+            "offset": {
+                "type": "integer",
+                "description": "Character offset to start reading from (default 0). A large file returns a bounded window; when it does, the result carries `next_offset` — pass it here to continue.",
             },
         },
         "required": ["path"]
@@ -688,6 +700,73 @@ def _scope_filter(auth: Any):
     return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))
 
 
+#: ADR-648 — A READ IS BOUNDED, AND SAYS SO.
+#:
+#: `ListFiles` has capped its output since it was written; `ReadFile` never did,
+#: so ONE read of one large file could inject more than twice the median entire
+#: prompt. Measured on production (2026-09-09): workspace files run to 178,206
+#: chars (~45K tokens) with 6.4% over 40K, and lane calls peaked at 86,799
+#: prompt tokens against a 19,999 median — the tail IS the large read.
+#:
+#: 25K tokens ~= 100K chars at the ~4 chars/token rule of thumb. That covers
+#: every file at p90 (34,125 chars) whole and clips only the largest few
+#: percent, so the common case is BYTE-IDENTICAL to before.
+#:
+#: ⭐⭐⭐ THE CLIP IS NOT THE FEATURE — THE NOTICE IS. A silently truncated read
+#: is the worst outcome available here: the model answers confidently from a
+#: fragment it believes is the whole file, and nothing downstream can tell.
+#: That is the recorded `feedback_silence_is_the_most_dangerous_wrong_answer`
+#: failure, and it is why `_binary_file_notice` exists three functions up — the
+#: same lesson, already learned once in this file for binary reads.
+#:
+#: So a clipped read carries `truncated`, the byte counts, and the EXACT call
+#: that continues it. `offset` is a real parameter, not a suggestion: telling a
+#: model to "request more" without a mechanism to do so is an instruction it
+#: cannot follow.
+READ_FILE_MAX_CHARS = 100_000
+
+
+def _clip_read(content: str, *, offset: int = 0) -> dict:
+    """The bounded window over one file's text, plus the facts about the clip.
+
+    Returns the `content` key every caller already returns, and — only when the
+    read is actually clipped — the fields that make the clip legible and
+    continuable. An unclipped read gains NOTHING, so the overwhelmingly common
+    case is unchanged on the wire.
+
+    Total and pure: a negative or over-long offset clamps rather than raising,
+    because a bad offset is a model mistake and an exception here would fail
+    the whole turn over an arithmetic slip.
+    """
+    text = content or ""
+    total = len(text)
+    start = max(0, min(int(offset or 0), total))
+    window = text[start:start + READ_FILE_MAX_CHARS]
+    end = start + len(window)
+
+    out: dict = {"content": window}
+    if start == 0 and end >= total:
+        return out  # the whole file — byte-identical to the pre-ADR-648 result
+
+    out["truncated"] = True
+    out["total_chars"] = total
+    out["returned_chars"] = len(window)
+    out["offset"] = start
+    if end < total:
+        out["next_offset"] = end
+        out["message"] = (
+            f"Showing characters {start:,}-{end:,} of {total:,}. "
+            f"This is a PORTION of the file, not all of it — do not answer as "
+            f"though you have seen the rest. To continue, call ReadFile again "
+            f"with offset={end}."
+        )
+    else:
+        out["message"] = (
+            f"Showing characters {start:,}-{end:,} of {total:,} (the end of the file)."
+        )
+    return out
+
+
 async def handle_read_file(auth: Any, input: dict) -> dict:
     """Handle ReadFile primitive (ADR-168: renamed from ReadWorkspace; ADR-235 Option A: scope='workspace').
 
@@ -758,7 +837,7 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
             "found": True,
             "scope": "workspace",
             "path": path,
-            "content": content,
+            **_clip_read(content, offset=input.get("offset") or 0),
         }
 
     agent = getattr(auth, "agent", None)
@@ -793,7 +872,7 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
         "found": True,
         "scope": "agent",
         "path": path,
-        "content": content,
+        **_clip_read(content, offset=input.get("offset") or 0),
     }
 
 

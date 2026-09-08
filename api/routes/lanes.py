@@ -34,6 +34,27 @@ router = APIRouter()
 _MAX_ACTIVE_LANES = 20     # UX bound, not policy (ADR-408 D6)
 _MAX_NAME_LEN = 60
 _HISTORY_WINDOW = 20       # messages sent to the model per turn
+#: ADR-648 — AND A SECOND CEILING, IN THE UNIT THAT COSTS MONEY.
+#:
+#: 20 messages is a bound on COUNT, and count is not what a provider charges
+#: for: the same 20 messages are 2K tokens in one conversation and 200K in
+#: another, so the budget was unpredictable by construction. Measured on
+#: production (2026-09-09): lane prompts ran a 19,999-token median against an
+#: 86,799 max — a 4.3x spread under a "fixed" window.
+#:
+#: ~120K chars ~= 30K tokens at the ~4 chars/token rule of thumb. Deliberately
+#: generous: this is a TAIL GUARD against the pathological turn, not a
+#: tightening of the normal one — the median conversation never approaches it,
+#: so the common case is byte-identical.
+#:
+#: ⚠️ IT DROPS FROM THE FRONT, OLDEST FIRST, AND NEVER FROM THE MIDDLE.
+#: The prompt cache matches on a PREFIX: dropping a message from the middle
+#: invalidates everything after it, so a "smart" trim that kept an interesting
+#: old turn would force a full re-write at 1.25x and cost MORE than the tokens
+#: it saved. Oldest-first keeps the surviving tail contiguous. (82% of
+#: consecutive calls land inside the 5-minute cache TTL, so this is not
+#: hypothetical — it is the common path.)
+_HISTORY_MAX_CHARS = 120_000
 _MAX_MESSAGE_LEN = 32_000
 # Phase-A chassis (ADR-457 D6 as amended): a lane created without a name gets
 # this placeholder and is auto-named from the first message's head.
@@ -1420,7 +1441,57 @@ def _fetch_history(
             out.append({"role": "user", "content": parts if len(parts) > 1 else text})
         else:
             out.append({"role": r["role"], "content": text})
-    return out
+    return _clamp_history_chars(out)
+
+
+def _message_chars(m: dict) -> int:
+    """Rough character size of one history message (ADR-648).
+
+    Crude on purpose: this decides what to DROP, not what anything costs.
+    Image parts count as their text only — the pixels are billed by the
+    provider on their own terms and are not what this ceiling is guarding.
+    """
+    c = m.get("content")
+    if isinstance(c, str):
+        return len(c)
+    if isinstance(c, list):
+        return sum(len(p.get("text") or "") for p in c if isinstance(p, dict))
+    return 0
+
+
+def _clamp_history_chars(msgs: list[dict]) -> list[dict]:
+    """The history tail that fits under `_HISTORY_MAX_CHARS` (ADR-648).
+
+    ⚠️ DROPS FROM THE FRONT, OLDEST FIRST. The prompt cache matches on a
+    PREFIX, so removing a message from the middle invalidates every cached
+    token after it — a "smarter" trim that kept one interesting old turn would
+    force a full re-write at 1.25x and cost more than the tokens it saved.
+    Oldest-first is the only shape that leaves the survivors contiguous.
+
+    ⭐ THE NEWEST MESSAGE IS NEVER DROPPED, even alone over the ceiling: it is
+    the thing being answered. A ceiling that can eat the question is not a
+    ceiling, it is a bug that only appears on the largest input.
+    """
+    if not msgs:
+        return msgs
+    total = sum(_message_chars(m) for m in msgs)
+    if total <= _HISTORY_MAX_CHARS:
+        return msgs  # the common path — byte-identical to before
+    kept: list[dict] = []
+    running = 0
+    for m in reversed(msgs):          # newest first
+        size = _message_chars(m)
+        if kept and running + size > _HISTORY_MAX_CHARS:
+            break
+        kept.append(m)
+        running += size
+    dropped = len(msgs) - len(kept)
+    if dropped:
+        logger.info(
+            "[LANE] history clamped: dropped %d oldest message(s), %d chars -> %d",
+            dropped, total, running,
+        )
+    return list(reversed(kept))
 
 
 def _delete_transcript_tail(auth: UserClient, lane_id: str, from_sequence: int) -> None:

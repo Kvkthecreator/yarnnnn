@@ -17709,3 +17709,28 @@ fell 177 → 63 words with no length rule asked for.
   preference set gets it as the default engine for NEW conversations, including
   app-bound lanes which previously had no engine question at all. Existing
   lanes are untouched.
+
+## [2026.09.09.1] - ADR-648: a read is bounded and says so; history bounded in chars
+
+### Changed
+- services/primitives/workspace.py: `_clip_read()` bounds ReadFile at
+  `READ_FILE_MAX_CHARS = 100_000` (~25K tokens) at BOTH scopes. An unclipped
+  read is byte-identical to before (no new keys). A clipped one carries
+  `truncated`, `total_chars`, `returned_chars`, `next_offset` and a message
+  that FORBIDS answering as though the rest was seen.
+- services/primitives/workspace.py: ReadFile's schema gains `offset` (optional
+  integer) and its DESCRIPTION documents the bounded window — the continuation
+  is a mechanism the model can call, not advice it cannot act on.
+- routes/lanes.py: `_clamp_history_chars()` adds `_HISTORY_MAX_CHARS = 120_000`
+  ALONGSIDE the existing 20-message count. Drops OLDEST-FIRST, never from the
+  middle (the cache matches a prefix); the newest message is never dropped.
+- Expected behavior: LLM-VISIBLE for large files only. A file over ~100K chars
+  now returns its first window plus an explicit notice; the agent must call
+  ReadFile again with `offset=next_offset` to continue. Files at p90 (34K
+  chars) and below are unchanged. Conversations under 120K chars are unchanged.
+
+### Why now
+- Measured 2026-09-09: workspace files reach 178,206 chars (~45K tokens) with
+  6.4% over 40K; lane calls peaked at 86,799 prompt tokens against a 19,999
+  median. ReadFile had no cap while ListFiles beside it always has. The
+  20-message window bounded COUNT, which is not what a provider bills.

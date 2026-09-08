@@ -30,6 +30,23 @@ LANES = {
                    "staleness gates (test_probe_staleness_gate + test_eval_suite_gate)"),
     "claude-md":  (["CLAUDE.md"],
                    "test_claude_md_ratchet + reference sweep"),
+    # ADR-647/648 — THE CONTEXT BUDGET. These four files decide what enters a
+    # prompt and what it costs, and every one of their invariants is invisible
+    # at review: a caching rule that silently applies to one router door, a
+    # clip that forgets its notice, a trim that drops from the middle and
+    # re-writes the cache at 1.25x. All are green-on-read and wrong in
+    # production. SINGULAR IMPLEMENTATION: caching lives ONLY in
+    # model_router._build_messages (callers stay provider-blind), the read cap
+    # ONLY in workspace._clip_read, the history ceiling ONLY in
+    # lanes._clamp_history_chars. A second home for any of them is the defect.
+    "context-budget": (["api/services/model_router.py",
+                        "api/services/primitives/workspace.py",
+                        "api/routes/lanes.py",
+                        "api/services/lane_runner.py"],
+                       "python3 test_adr647_history_caching.py + test_adr648_bounded_context.py "
+                       "+ test_adr634_prompt_caching.py (ALL script-shaped — read the count, not "
+                       "the exit code); a caching/clip/trim change must be FALSIFIED, and a gate "
+                       "that crashes reports nothing"),
 }
 
 def sh(*args):
