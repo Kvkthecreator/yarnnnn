@@ -44,10 +44,29 @@ _DEFAULT_LANE_NAME = "New chat"
 #: deployment's problem, so it must not read as something they did wrong or
 #: could fix. The reason code still rides on the envelope for the operator.
 _UNAVAILABLE_ENGINE_DETAIL = {
-    "no_provider_key": "{label} isn't connected on this deployment yet.",
-    "unpriced": "{label} has no billing rate configured and cannot run.",
-    "upstream_refused": "{label} is unavailable right now — the provider declined the last request.",
+    "no_provider_key": "{label} isn't connected on this deployment yet.{detail}",
+    "unpriced": "{label} has no billing rate configured and cannot run.{detail}",
+    # ADR-647 D8 — the provider's OWN words ride along when we have them
+    # (`{detail}`), because "insufficient balance" and "quota exceeded" call for
+    # different actions and only the provider knows which happened. An engine
+    # dark for a reason the operator can act on must say WHICH reason.
+    "upstream_refused": "{label} is unavailable right now — the provider declined the last request.{detail}",
 }
+
+
+def _refusal_suffix(model: str) -> str:
+    """The provider's own refusal words as a trailing clause, or "" (ADR-647 D8).
+
+    Every `_UNAVAILABLE_ENGINE_DETAIL` template takes `{detail}` so a caller
+    can format them uniformly; only `upstream_refused` actually places it. The
+    empty string is the normal case — the reasons we derive ourselves
+    (`no_provider_key`, `unpriced`) are already fully explained by their own
+    sentence and have no third party to quote.
+    """
+    from services.lane_runner import upstream_refusal_detail
+
+    said = (upstream_refusal_detail(model) or "").strip()
+    return f' The provider said: "{said}"' if said else ""
 
 
 class CreateLaneRequest(BaseModel):
@@ -607,10 +626,24 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         LANE_MODELS,
         lane_model_availability,
         offered_lane_models,
+        resolve_member_engine,
+        upstream_refusal_detail,
     )
+    from services.supabase import get_service_client
 
     return {
         "enabled": enabled,
+        # ADR-647 D4 — the member's standing engine preference, RESOLVED (so a
+        # stale row naming a retired or unavailable engine reads as None here
+        # exactly as it does at the creation door — one resolver, one answer).
+        # The FE pre-selects the chooser with it and shows it as the default
+        # an app lane will use. Absent = no preference; the app's resident
+        # engine stands.
+        "default_engine": resolve_member_engine(
+            get_service_client(),
+            _acting_workspace(auth),
+            getattr(auth, "principal_id", None) or auth.user_id,
+        ),
         # ADR-558 D1 — `models` IS THE CHAT CHOOSER now. Starting a conversation
         # is picking an ENGINE; the door asks which one. (ADR-460's "the member
         # picks WHO" is preserved where it belongs — `/agents` and app residents
@@ -630,6 +663,10 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
                 "vision": bool(meta.get("vision", True)),
                 "available": (_avail := lane_model_availability(mid))[0],
                 "unavailable_reason": _avail[1],
+                # ADR-647 D8 — the provider's own words for a refusal, so a
+                # greyed row says WHICH kind of dark it is. None for the
+                # reasons we derive ourselves.
+                "unavailable_detail": upstream_refusal_detail(mid),
             }
             for mid, meta in offered_lane_models().items()
         ],
@@ -757,8 +794,13 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
 @router.post("/lanes")
 async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     from services.agents_registry import resolve_agent
-    from services.lane_runner import LANE_MODELS, lane_model_availability
+    from services.lane_runner import (
+        LANE_MODELS,
+        lane_model_availability,
+        resolve_member_engine,
+    )
     from services.model_router import lanes_enabled
+    from services.supabase import get_service_client
 
     if not lanes_enabled():
         raise HTTPException(status_code=403, detail="Lanes are not enabled (router off)")
@@ -839,11 +881,36 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         if not agent:
             # The ADR-450 precedent: an unknown skill is a caller bug, not a lane.
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
-        # A BOUND lane's engine always follows its resident. A CHAT lane's
-        # follows the colleague too, unless the member also named an engine —
-        # the two questions stay separable (ADR-558's surviving insight), so
-        # "Editor, on GPT-5" is expressible rather than silently overridden.
-        model = model if (chat_agent and model) else agent["model"]
+        # ADR-647 D4 — THE PRECEDENCE, and it is the whole feature:
+        #
+        #   1. what the member asked for AT THE DOOR (chat lanes only — a bound
+        #      lane's colleague is its app's, refused above)
+        #   2. the member's standing engine preference for this workspace
+        #   3. the agent's own declared engine
+        #
+        # (2) is what makes engine choice first-class for APP lanes, which had
+        # no engine question at all: Studio/Text/Slides/Images all run bound
+        # lanes, so the surface carrying most of the spend was the one surface
+        # a member could not re-point. The preference NARROWS to what the door
+        # already offers (`resolve_member_engine` re-asks the chooser's own two
+        # questions), so this can only ever select something the member could
+        # have picked themselves.
+        #
+        # ⚠️ NEW conversations only. A lane's engine is persisted at creation
+        # and is a HISTORICAL FACT (ADR-460 D4) — it is what ACTUALLY ran, and
+        # it is rendered into every revision's attribution. A preference that
+        # re-pointed existing lanes would rewrite what a past revision claims
+        # about itself. That is why this sits at the creation door and nowhere
+        # near the turn path.
+        if chat_agent and model:
+            pass  # (1) the member named an engine explicitly — it stands
+        else:
+            _pref = resolve_member_engine(
+                get_service_client(),
+                _acting_workspace(auth),
+                getattr(auth, "principal_id", None) or auth.user_id,
+            )
+            model = _pref or agent["model"]
     if not model:
         raise HTTPException(status_code=422, detail="model is required")
     if model not in LANE_MODELS:
@@ -868,8 +935,8 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         raise HTTPException(
             status_code=422,
             detail=_UNAVAILABLE_ENGINE_DETAIL.get(
-                _why, f"{_meta['label']} is not available right now."
-            ).format(label=_meta["label"]),
+                _why, f"{_meta['label']} is not available right now.{{detail}}"
+            ).format(label=_meta["label"], detail=_refusal_suffix(model)),
         )
     # Phase-A hygiene: a nameless lane is fine — it auto-names on first turn.
     name = (req.name or "").strip()[:_MAX_NAME_LEN] or _DEFAULT_LANE_NAME

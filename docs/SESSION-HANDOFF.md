@@ -6,67 +6,83 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 # Part X — ADR-646, the server scopes the type (2026-09-08)
 
-`70fb229`. Landed and pushed. Everything below is what is NOT done.
+`70fb229` (the arc) + `047769e` (what the click-pass found). **The click-pass
+is DONE**, driven on production. Everything below is what remains.
 
-## OWED — the browser click-pass
+## The click-pass — 5 decisions verified in the browser
 
-⚠️ **Nothing here has been LOOKED AT.** Gates green (11 suites, all falsified),
-tsc clean, `next build` green — and this arc's own lesson is that none of that
-can see a wrong pane. Three things need a real click:
+API live on `490a256`, web on `047769e`. Receipts in
+`memory/project_adr646_click_pass.md`.
 
-1. **Blogger's Open… is no longer empty.** This was the sharpest defect (its
-   picker admitted nothing at all). Open Blogger → Open… and confirm posts list.
-2. **Slides' Open… no longer lists posts/stages.** The inverse.
-3. **⚠️ D5 is BEHAVIOUR-VISIBLE and will look like a regression.** Untyped HTML
-   stops opening in Slides and lands in the generic viewer — correct per
-   ADR-473 D6, but the affected population is REAL: every `compose/engine.py`
-   output ships no `data-template`. Find one and confirm it renders (the
-   generic HTML viewer), rather than erroring. If the operator has such files
-   in production, they will notice this change.
+- **D1** Slides' New menu offers only Deck; the network shows
+  `templates?app=slides`. Blogger's returns `["post:blogger"]`.
+- **D2** the create door, DRIVEN both ways on prod:
+  `422 Template 'post' is not owned by 'slides' (it owns ['deck'])`, and the
+  mirror. **Twin verified** — `deck`+`slides` returns 200, so the door refuses
+  selectively rather than universally. The probe artifact was trashed after.
+- **D3** vocabulary `arrangements: ["deck","post","image"]` — was deck-only.
+- **D4** Blogger's Open… lists its post; Slides' lists exactly 5 decks — no
+  post, no image, none of the three legacy `document`s.
+- **D5** an unowned `document.html` renders FULLY in the generic viewer
+  (headings, colours, images). Nothing is lost; only the false Slides
+  attribution is gone. ⭐**A deep link still opens it in Slides** — D5 removed
+  it from DISCOVERY (pickers, recents), never from REACH, which is ADR-481 D5's
+  "legacy renders, never migrates" holding.
+- **D6** recents read amber "Deck" vs emerald "Post" — the glyph fix rendering
+  for the first time.
 
-Also unlooked-at: Blogger's band gallery (D3 — it had NOTHING to offer before,
-so this is the first time it can render) and the `post` glyph in studioShapes
-(D6 — emerald `LayoutTemplate`, previously the neutral File mark).
+## What looking found that no gate could
+
+**D4's first fix was insufficient**, and both my own read and a parallel
+agent's concluded "fixed" from the call site. Passing `knownKind` is useless
+when nothing POPULATES the cache: only the Files surface calls `rememberKind`,
+and it does so when it READS a file's content — a picker renders a tree it
+never reads. So every row resolved to an unknown kind.
+
+⚠️ And D5 made it *worse-looking* first: before, an unknown kind fell through
+to `DEFAULT_ARTIFACT_APP`, so **Slides worked by accident** and only Blogger
+was visibly broken. Removing the wrong default turned an asymmetric bug into a
+symmetric one. Fixed at `047769e` by seeding the cache from the served index
+and asking `owned` FIRST (it is the kernel's answer; the path-derived route is
+the fallback for a prose app or a failed fetch).
+
+Method notes worth keeping: a `curl` of an authed page returns a **15-byte
+redirect**, so grepping it for chunks is an empty-corpus false negative —
+verify the deployed bundle from INSIDE the browser (47 chunks scanned). And a
+stale MOUNTED window paints the previous surface on SPA nav; cold-load before
+judging (hit twice this session).
 
 ## OPEN — the finding recorded but not fixed (ADR-646 §6)
 
 **There is no `flow` layout registered any more.** deck · post · image are all
 `mode: "paged"`. So the h1-is-a-title branch of `set_artifact_title` — guard 1,
-`set_h1=True`, the whole flow half of the name-is-one-fact rule — has NO caller
-in production. `test_studio_name_is_one_fact` now says so out loud and keeps the
-behaviour pinned.
+`set_h1=True` — has NO caller in production. `test_studio_name_is_one_fact`
+says so out loud and keeps the behaviour pinned.
 
-**And there is a concrete disagreement behind it, found while writing this
-up and NOT yet acted on:** `post` is declared
+**And there is a concrete disagreement behind it, still NOT acted on:** `post`
+is declared
 
   - `mode: "paged"`   — server, `services/apps/blogger.py:33`
   - `objectModel: 'flow'` — client, `web/lib/apps/registry.ts:101`
 
-Two independent facts drive the chrome from those two declarations
-(`layoutMode`/`isPaged` off the served mode at `StudioSurface.tsx:954`; the
-left rail and the object noun off `objectModel`, ADR-633 D2). For every other
-app they agree (deck: paged/pages · image: paged/layers). For Blogger they do
-not, and ADR-627 describes a post as ONE CONTINUOUS DOCUMENT — which is what
-the client says and the server contradicts.
+Every other app agrees across those two (deck: paged/pages · image:
+paged/layers). ADR-627 describes a post as ONE CONTINUOUS DOCUMENT — what the
+client says and the server contradicts. Likely reading: **`post` is
+mis-declared server-side**, and correcting it would restore a caller to the h1
+guard AND stop paged chrome mounting on a document with no pages. It moves the
+Blogger chrome and the naming rule together, so it wants its own click-pass.
 
-So the likely reading is that **`post` is mis-declared server-side as `paged`**,
-not that the flow branch is dead. If that is right, correcting it to `flow`
-would restore a caller to `set_artifact_title`'s h1 guard AND fix whatever
-paged chrome (page rail, per-page focus) is currently mounting on a document
-that has no pages. NOT changed here: it alters the Blogger pane's chrome and
-the h1/kicker naming rule together, both behaviour-visible, and it wants a
-click-pass of its own rather than riding this commit. Verify by driving the
-Blogger pane before deciding.
+*Observed during this pass, consistent with that:* the Blogger pane's inspector
+reads `ARTIFACT document` for a legacy file and offers an OUTLINE + WIDTH
+(flow-shaped controls), not a page rail.
 
 ## NOT done, deliberately (named in the ADR §4)
 
 - The `application/vnd.yarnnn.deck+html` conformance DAG. ADR-473 §4's deferral
-  still holds; the cheaper fix was asking the question the kernel already
-  answers.
+  still holds.
 - The denormalized `kind` column. Worth doing — it removes `list_artifacts`'
-  fetch-200-filter-to-20 truncation, where an app with >20 artifacts silently
-  loses ownership resolution — but it is not what caused these bugs, and the
-  backfill needs a cache-column write with no content revision (ADR-209).
+  fetch-200-filter-to-20 truncation — but it is not what caused these bugs, and
+  the backfill needs a cache-column write with no content revision (ADR-209).
 
 # Part W — the click-pass Reach was owed, and what looking found (2026-09-07)
 

@@ -475,6 +475,23 @@ def clear_upstream_refusal(model: str) -> None:
         logger.info("[LANE] %s is available again (a call succeeded)", model)
 
 
+def upstream_refusal_detail(model: str) -> Optional[str]:
+    """The provider's OWN words for why it refused this engine, or None.
+
+    ADR-647 D8. `note_upstream_refusal` has stored this string since ADR-559
+    and nothing ever read it, so every account-level refusal reached the member
+    as one generic sentence — "the provider declined the last request" — no
+    matter whether the account was unfunded, over quota, or suspended. Those
+    call for different actions by the operator, and only the provider knows
+    which one it is.
+
+    ⚠️ This is a DISPLAY string carrying third-party text. It is never parsed,
+    never branched on, and never authorization: `lane_model_availability`
+    already decided the engine is dark: this only says why.
+    """
+    return _upstream_refused.get(model)
+
+
 def lane_model_availability(model: str) -> tuple[bool, Optional[str]]:
     """`(available, reason)` for one engine. Pure apart from env + the
     observed-refusal map. `reason` is None when available."""
@@ -489,6 +506,74 @@ def lane_model_availability(model: str) -> tuple[bool, Optional[str]]:
     if model in _upstream_refused:
         return False, "upstream_refused"
     return True, None
+
+
+# ---------------------------------------------------------------------------
+# The member's engine preference (ADR-647 D4/D5)
+# ---------------------------------------------------------------------------
+
+#: The `member_state` key holding one member's preferred engine for THIS
+#: workspace. Presentation-scoped state (ADR-407), never authorization — which
+#: is exactly the right shelf: a preference must not be able to grant anything.
+MEMBER_ENGINE_KEY = "default_engine"
+
+
+def resolve_member_engine(client: Any, workspace_id: Optional[str],
+                          principal_id: Optional[str]) -> Optional[str]:
+    """The member's preferred engine for this workspace, or None.
+
+    ⚠️ THE PREFERENCE NARROWS, IT NEVER GRANTS (ADR-647 D5). It is resolved
+    through the SAME two questions the chooser asks — is this engine still
+    offered, and is it available right now — so a preference can only ever
+    select from what the member could already have picked at the door. A stored
+    value naming a retired, unpriced, keyless or refusing engine resolves to
+    None and the caller's own default stands.
+
+    This is ADR-573's posture for the connector workspace stamp, applied to a
+    different stored fact: a stamp routes, it does not authorize. Without it a
+    row in `member_state` — presentation state, deliberately writable by the
+    member — would be a way to reach an engine the door refuses, which is a
+    preference doing authorization's job.
+
+    Total: any read failure is None (the app's own default), because a
+    preference that fails must never fail a turn.
+    """
+    if not workspace_id or not principal_id:
+        return None
+    try:
+        result = (
+            client.table("member_state")
+            .select("value")
+            .eq("workspace_id", workspace_id)
+            .eq("principal_id", principal_id)
+            .eq("key", MEMBER_ENGINE_KEY)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows:
+            return None
+        raw = rows[0].get("value")
+        # The PUT door stores whatever JSON the member sent. Accept the two
+        # honest shapes and refuse everything else rather than guessing.
+        model = raw.get("model") if isinstance(raw, dict) else raw
+        if not isinstance(model, str) or not model.strip():
+            return None
+        model = model.strip()
+    except Exception as exc:  # noqa: BLE001 — a preference never fails a turn
+        logger.warning("[LANE] member engine preference unreadable: %s", exc)
+        return None
+
+    if model not in offered_lane_models():
+        # Retired or unknown. Not an error: an engine leaving the door is
+        # exactly when a stale preference should stop applying.
+        logger.info("[LANE] member engine %r is not offered — using the default", model)
+        return None
+    ok, why = lane_model_availability(model)
+    if not ok:
+        logger.info("[LANE] member engine %r unavailable (%s) — using the default", model, why)
+        return None
+    return model
 
 
 def _anthropic_to_openai_tool(tool: dict) -> dict:
@@ -2005,6 +2090,9 @@ async def run_lane_turn_stream(
 
 __all__ = [
     "LANE_MODELS",
+    "upstream_refusal_detail",
+    "MEMBER_ENGINE_KEY",
+    "resolve_member_engine",
     "LANE_TOOL_NAMES",
     "LANE_SURFACE_EXTRA",
     "lane_tools_openai",
