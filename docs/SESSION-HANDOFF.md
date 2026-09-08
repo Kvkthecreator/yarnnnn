@@ -4,6 +4,72 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part Z1 — the face fallback carries the class accent (ADR-641 amendment, 2026-09-08)
+
+Operator: *"can you check that the icons (colorful ones under agents pane) are
+consistently applied across the service like the chat surface (in full), and
+in-app chat surfaces as well (even chat message bubbles, etc.)"* — then, on the
+finding: *"anyway we can implement this in a singular, streamlined manner that
+will be future proof, scalable, and architecturally long standing?"*
+
+## What looking found
+
+Driven on production: the Dock, Launcher, Agents page, Slides breadcrumb and
+app chips were all correct. But **Designer rendered a grey "D" in the Slides
+chat pane while the same agent wore violet on Agents**, and the same grey
+initials led every chat-list row, message bubble, header stack and mention
+menu — **while `test_adr641` sat green at 23/23**. It asserted the two
+registries AGREE; nothing asserted the chat surfaces CONSULT them.
+
+⭐ The recurrence of that ADR's own lesson, one section below where it is
+written down: *a colour decision has to be looked at.*
+
+## Shipped (`4edc6f1`)
+
+- **A1** `faceAccent(kind)` beside `authorAccent` — agent violet, member teal,
+  **you NEUTRAL**. One vocabulary, three renderings: dot, glyph, face.
+- **A2** ⭐⭐⭐**`kind` is a REQUIRED prop, and THAT is the fix, not the colour.**
+  The cause was never CSS: `AgentFace` took `name`+`avatarUrl`, both display
+  STRINGS, so all five call sites threw away a `member_kind` they **already
+  held** — the information never arrived. A required kind means a new chat
+  surface cannot compile without answering *who is this*.
+- **A3** the hand-rolled initial disc in ConversationDetail's invite list —
+  a SECOND HOME one branch above an `AgentFace` call — folded into the one
+  component.
+- **A4** `SurfacePage.tsx` DELETED: hard-coded past the accent, **zero render
+  sites**, its only mention a stale comment for the ADR-642-absorbed `/queue`.
+
+D4's exemption survives: the picture is still unaccented, still no per-agent
+hue. The **initial** is what it never covered.
+
+## Verification
+
+46/46 (was 23), 3 falsifiers driven red (optional `kind` ×2 · a call site drops
+it · a re-added disc). Both directions asserted per ADR-636 §9. tsc clean,
+`next build` exit 0, **looked at in both themes** through a temporary harness
+(deleted).
+
+## ⚠️ Method note — a `git checkout` reverted the session's whole tree
+
+Falsifier 3 was reverted with `git checkout <file>`; the tree came back with
+**every** edit gone, including files never named. Recovered intact from an
+auto-stash (`session-stale-worktree-*`) and **everything re-verified from the
+recovered state** rather than trusting the pre-revert runs. ⭐ Prefer a
+`cp` backup/restore for falsification; `git checkout` is not surgical here.
+Second trap the same session: a stale `.pyc` reported the OLD count (23) for a
+gate already edited to 46 — `python3 -B` when a gate's count looks wrong.
+
+## Open / owed
+
+- **The click-pass** — deploy propagation was still pending at hand-off
+  (bundle scanned, accent token absent). The accents only show on the live
+  chat surfaces once Vercel serves the new build; local dev has chat behind a
+  flag, so the harness is what proved the colours.
+- Pre-existing, NOT touched, identical at baseline: `test_adr631` (2 failures)
+  and two `test_adr297` gates.
+
+---
+
 # Part Z — ADR-648: the message-handling audit, and two gaps (2026-09-09)
 
 Operator: *"any improvements … to our message handling themselves, or session
