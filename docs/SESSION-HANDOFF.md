@@ -4,6 +4,63 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part Z3 — an agent has a REAL face (ADR-641 am.2, 2026-09-08)
+
+Operator, on seeing letters where the Agents page shows glyphs: *"i'm seeing
+letters and not their actual icons?"* → *"the long standing, future proof
+resolution and implementation is actually real avatars."*
+
+## The finding
+
+`AgentFace.tsx` was built for the 2026-07-16 ruling (a face is an uploaded
+PICTURE) with the whole URL chain wired — and **nothing ever supplied one**.
+`avatar_url` lived in two FE type declarations and **nowhere in the backend**.
+Every agent fell to its initial forever.
+
+⭐⭐⭐ **A field declared on one side of a boundary and never populated on the
+other is not a feature; it is a shape that looks like one.** Four months
+undetected, because the fallback is legible — letters look deliberate.
+
+Of the three options only real faces HONOR the ruling; rendering the craft
+glyph in chat quietly redefines a face as a glyph, the exact line D4 drew.
+
+## Shipped (`177bad1`)
+
+Faces ship as CODE from Lucide's own geometry (A5) · a face is a FILE IN THE
+COMMONS, not a static asset (A6) · it MIRRORS like ADR-630's skills (A7) ·
+⭐⭐⭐**the MEMBER's face WINS** — two paths, and the lookup order IS the policy
+(A8) · `AgentMark` is the ONE component; the disc was spelled FOUR times (A9).
+
+## ⚠️ The bug the driven pass caught
+
+`_read_manifest` read the workspace-RELATIVE path while rows store ABSOLUTE, so
+the version check never matched: the mirror would rewrite all three faces **on
+every scheduler tick forever**. ⭐**Invisible to inspection because the faces
+were present and correct — a mirror's correctness is not "the files are right",
+it is "the second run does nothing."**
+
+## Verification
+
+66/66 (was 46), 3 falsifiers driven. Driven on production across 3 workspaces:
+every served URL fetched and **sha-matched the shipped bytes**, a member face
+shown to override the kernel's and then cleaned up, idempotence confirmed after
+the fix. Faces **looked at** at 512/56/36/24px, light and dark.
+
+⭐ Two of the gate's OWN checks went red against CORRECT code first (a rank
+regex missing an f-string wrapper; a disc sweep that flagged an ENGINE brand
+mark correctly neutral by ADR-431). *A gate that bans a shape must name the
+shape it means.*
+
+## Open
+
+- **The click-pass.** Faces reach the chat list, bubbles, header stack, mention
+  menu, Agents page and new-chat door. Note the parallel session's Part Z2:
+  the earlier deploy was failing on ENOENT (fixed at `02b0611`).
+- Pre-existing, untouched, identical at baseline: `test_adr209` (4 history-
+  helper refs) and the two `test_adr297` nav gates.
+
+---
+
 # Part Z1 — the face fallback carries the class accent (ADR-641 amendment, 2026-09-08)
 
 Operator: *"can you check that the icons (colorful ones under agents pane) are
