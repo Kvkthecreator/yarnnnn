@@ -49,7 +49,7 @@ import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
-import { AgentIcon } from './AgentIcon';
+import { AgentMark } from './AgentIcon';
 import { cn } from '@/lib/utils';
 
 // Provenance, rendered from the field. A member-authored agent simply lacks
@@ -101,6 +101,10 @@ type AgentRow = {
   name: string;
   blurb: string;
   icon: string;
+  /** ADR-641 amendment — the agent's face, when one exists (a mirrored kernel
+   *  face, or the member's own upload, which wins). Absent is ordinary: the
+   *  mark falls back to the craft glyph. */
+  avatar_url?: string | null;
   offered: boolean;
   kernel: boolean;
   /** The apps this agent works in, as the APP's own identity — title +
@@ -283,9 +287,12 @@ function AgentDetail({
       </button>
 
       <header className="flex items-start gap-3">
-        <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-muted">
-          <AgentIcon icon={agent.icon} />
-        </div>
+        <AgentMark
+          icon={agent.icon}
+          avatarUrl={agent.avatar_url}
+          name={agent.name}
+          className="mt-0.5"
+        />
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <h1 className="text-sm font-medium">{agent.name}</h1>
@@ -523,9 +530,13 @@ export function AgentsSurface() {
                     onClick={() => open(b.slug)}
                     className="flex w-full items-start gap-3 rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
                   >
-                  <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
-                    <AgentIcon icon={b.icon} />
-                  </div>
+                  <AgentMark
+                    icon={b.icon}
+                    avatarUrl={b.avatar_url}
+                    name={b.name}
+                    size="sm"
+                    className="mt-0.5"
+                  />
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="text-sm font-medium">{b.name}</span>
@@ -565,9 +576,13 @@ export function AgentsSurface() {
                     onClick={() => open(b.slug)}
                     className="flex w-full items-start gap-3 rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-muted/50"
                   >
-                  <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted">
-                    <AgentIcon icon={b.icon} />
-                  </div>
+                  <AgentMark
+                    icon={b.icon}
+                    avatarUrl={b.avatar_url}
+                    name={b.name}
+                    size="sm"
+                    className="mt-0.5"
+                  />
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="text-sm font-medium">{b.name}</span>

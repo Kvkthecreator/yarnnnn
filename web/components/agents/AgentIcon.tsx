@@ -54,3 +54,50 @@ export function AgentIcon({ icon, className }: { icon: string; className?: strin
   const Glyph = BEING_ICONS[icon] ?? Bot;
   return <Glyph className={cn('h-4 w-4', AGENT_ACCENT, className)} />;
 }
+
+/**
+ * AgentMark — an agent's FACE if it has one, its glyph if it does not.
+ *
+ * ADR-641 amendment. The Agents page and the roster both drew
+ * `<div class="…rounded-full bg-muted"><AgentIcon/></div>` — the same disc,
+ * spelled twice, and neither could show a picture. One component now answers
+ * "how does this agent appear?" so the face reaches every roster site at once
+ * and a third site cannot quietly render only the glyph.
+ *
+ * The FACE (an uploaded picture, the 2026-07-16 ruling) is the identity; the
+ * GLYPH is the fallback, and it keeps the class violet because a glyph is a
+ * class marker, not a face. `AgentFace` is deliberately NOT reused here: it
+ * falls back to an INITIAL, which is the right fallback in a conversation
+ * (where a letter reads as a speaker) and the wrong one on the roster (where
+ * the craft glyph says more than "B").
+ */
+export function AgentMark({
+  icon,
+  avatarUrl,
+  name,
+  size = 'md',
+  className,
+}: {
+  icon: string;
+  avatarUrl?: string | null;
+  name: string;
+  size?: 'sm' | 'md';
+  className?: string;
+}) {
+  const box = size === 'sm' ? 'h-8 w-8' : 'h-10 w-10';
+  if (avatarUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={avatarUrl}
+        alt={name}
+        className={cn('shrink-0 rounded-full object-cover', box, className)}
+      />
+    );
+  }
+  return (
+    <span className={cn('grid shrink-0 place-items-center rounded-full bg-muted', box, className)}>
+      <AgentIcon icon={icon} />
+    </span>
+  );
+}

@@ -42,7 +42,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
-import { AgentIcon } from '@/components/agents/AgentIcon';
+import { AgentMark } from '@/components/agents/AgentIcon';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
 
@@ -79,6 +79,9 @@ export interface ChatAgentChoice {
   name: string;
   blurb: string;
   icon: string;
+  /** ADR-641 amendment — the agent's face, when one exists. Optional: the
+   *  mark falls back to the craft glyph, which is a complete rendering. */
+  avatar_url?: string | null;
 }
 
 /** Where the member's last choice is remembered — a colleague slug OR an
@@ -206,9 +209,7 @@ export function NewChatModal({ agents, engines, defaultEngine, onPick, onClose }
                 onClick={() => void pick(b.slug, { agent: b.slug })}
                 className="w-full flex items-center gap-3 p-2 rounded-md text-left transition-colors hover:bg-muted disabled:opacity-50"
               >
-                <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                  <AgentIcon icon={b.icon} />
-                </span>
+                <AgentMark icon={b.icon} avatarUrl={b.avatar_url} name={b.name} size="sm" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm">{b.name}</span>
                   <span className="block text-xs text-muted-foreground truncate">

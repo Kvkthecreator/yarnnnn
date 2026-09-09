@@ -547,7 +547,10 @@ def _apps_payload() -> list[dict]:
     ]
 
 
-def _agents_payload(tending_by_slug: Optional[dict[str, list[dict]]] = None) -> list[dict]:
+def _agents_payload(
+    tending_by_slug: Optional[dict[str, list[dict]]] = None,
+    face_urls: Optional[dict[str, str]] = None,
+) -> list[dict]:
     """Every agent, FE-shaped, with provenance and the apps it works in.
 
     ADR-631 — ONE roster. Before it the envelope served two: `agents` (the
@@ -582,6 +585,14 @@ def _agents_payload(tending_by_slug: Optional[dict[str, list[dict]]] = None) -> 
             "name": r["name"],
             "blurb": r["blurb"],
             "icon": r["icon"],
+            # ADR-641 amendment — an agent's FACE, when one exists. The
+            # 2026-07-16 ruling is that a face is an uploaded PICTURE; this is
+            # the field that was declared on the FE and never supplied by
+            # anything, so every agent fell to its initial forever. Resolved
+            # ONCE for the whole roster (batched) and passed in, never queried
+            # per row. Absent when there is no face — the FE's accented initial
+            # is a complete rendering, not a degraded one.
+            "avatar_url": (face_urls or {}).get(r["slug"]),
             "offered": bool(r.get("offered")),
             "kernel": bool(r.get("kernel")),
             "apps": apps_for_agent(r["slug"]),
@@ -607,6 +618,28 @@ def _agents_payload(tending_by_slug: Optional[dict[str, list[dict]]] = None) -> 
         for r in AGENTS.values()
         if is_promoted(r["slug"])
     ]
+
+
+def _face_urls(auth: UserClient) -> dict[str, str]:
+    """ADR-641 amendment — each agent's face URL, resolved ONCE per envelope.
+
+    Batched deliberately: a per-row lookup would be an N+1 against the
+    substrate on every capability read, and the member's-face-wins rule needs
+    to see both candidate paths together anyway. Presentation never fails the
+    envelope — any failure is an empty map and every agent renders its
+    accented initial, which is a complete face in its own right.
+    """
+    try:
+        from services.agent_faces import resolve_face_urls
+        from services.agents_registry import AGENTS
+
+        return resolve_face_urls(
+            auth.client,
+            list(AGENTS.keys()),
+            workspace_id=getattr(auth, "workspace_id", None) or None,
+        )
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def _tending_by_agent(auth: UserClient) -> dict[str, list[dict]]:
@@ -720,7 +753,7 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # ADR-600 D6 / ADR-631 — every agent, with the apps it works in. ONE
         # roster: `offered` rides each row, so the door that lists candidates
         # filters it rather than reading a second key.
-        "agents": _agents_payload(_tending_by_agent(auth)),
+        "agents": _agents_payload(_tending_by_agent(auth), _face_urls(auth)),
         # ADR-450 D5 / ADR-630: the Learn-from chooser payload — yarnnn's
         # skills, served on the capability envelope (no new endpoint).
         "skills": list_skills(),

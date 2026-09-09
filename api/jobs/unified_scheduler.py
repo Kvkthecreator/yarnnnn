@@ -124,6 +124,23 @@ async def run_unified_scheduler():
         logger.warning("[SCHED] kernel skills mirror raised: %s", exc)
 
     # -------------------------------------------------------------------------
+    # ADR-641 amendment — kernel agent FACES mirror. Same shape as the skills
+    # lane above and for the same reason: a face changes in CODE, so seeding it
+    # at genesis would freeze every existing workspace on the face it was born
+    # with. Manifest-cheap, sha-compared, idempotent.
+    # -------------------------------------------------------------------------
+    try:
+        from services.agent_faces import mirror_kernel_faces_for_all_workspaces
+        _fc = mirror_kernel_faces_for_all_workspaces(supabase)
+        if _fc.get("written") or _fc.get("failed"):
+            logger.info(
+                f"[SCHED] kernel faces: {_fc['written']} written across "
+                f"{_fc['workspaces']} workspace(s), {_fc['failed']} failed"
+            )
+    except Exception as exc:
+        logger.warning("[SCHED] kernel faces mirror raised: %s", exc)
+
+    # -------------------------------------------------------------------------
     # ADR-393 — the capture lane (its own flag; ADR-632 unwrapped it from the
     # retired steward gate).
     # -------------------------------------------------------------------------

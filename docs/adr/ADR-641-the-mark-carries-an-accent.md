@@ -286,3 +286,116 @@ sizes and both stacked, screenshotted in **both themes**, harness deleted — th
 same method that produced D5. The look is what confirmed the tinted-ground pair
 reads as quiet identity rather than a second rainbow, and that the `dark:` ink
 variants earn their place.
+
+---
+
+# Amendment 2 — an agent has a REAL face (2026-09-08)
+
+**Status**: Accepted. Completes the 2026-07-16 ruling rather than eroding it.
+
+## What the operator observed
+
+*"I'm seeing letters and not their actual icons?"* — and, on the options:
+*"my opinion is that the long standing, future proof resolution and
+implementation is actually real avatars."*
+
+Agreed, and for a stronger reason than looks. Amendment 1 made the fallback
+**correct**; it did not make it **rare**. The three options on the table were
+(1) render the craft glyph in chat, (2) ship real faces, (3) leave it. Only (2)
+honors the ruling: (1) quietly redefines a face as a glyph — the exact line D4
+drew — and (3) leaves the ruling true on paper and dead in practice.
+
+## The finding underneath the question
+
+`AgentFace.tsx` was built for the ruling and shipped with the whole URL chain
+wired — manifest path → registry `content_url` → signed URL exchange. And
+**nothing ever supplied a picture.** `avatar_url` appeared in exactly two FE
+type declarations and **nowhere in the backend**: not in `agents_registry`, not
+in a route, not in a payload. Every agent fell to its initial forever.
+
+⭐ **A field declared on one side of a boundary and never populated on the other
+is not a feature; it is a shape that looks like one.** It survived four months
+because the fallback is legible: letters look deliberate.
+
+## Decision
+
+**A5 — yarnnn's kernel agents ship WITH faces, as code.**
+`api/services/agent_faces/{slug}.png`, versioned and deployed, beside the
+`_generate.py` that makes them from **Lucide's own path geometry** — the same
+glyphs the Agents page renders, so a face and its roster mark cannot drift.
+A hand-drawn asset nobody can reproduce ossifies at the first palette change.
+(The generator is pure-Python — pillow + svgpathtools. The first cut used
+cairosvg, which needs a native libcairo the API image does not carry: an asset
+regenerable only on a machine with a system library stops being regenerable.)
+
+**A6 — a face is a FILE IN THE COMMONS, not a bundled static asset.**
+A face served from `/static/` would be invisible to the substrate: unreadable
+by a lane, unlistable in Files, unreachable by a connected principal,
+unattributable, unreplaceable. Everything a principal can SEE here is a file
+(ADR-209), so faces land as ordinary `write_revision` rows on the binary lane
+(ADR-427's CAS seam).
+
+**A7 — it MIRRORS, exactly as ADR-630's skills do.** Seeding at genesis would
+freeze each workspace on the face it was born with, so a re-drawn glyph would
+reach new workspaces and never old ones. Manifest-cheap, sha-compared,
+idempotent, on the same scheduler tick.
+
+**A8 — ⭐ THE MEMBER'S FACE WINS, and that is the point.**
+`agents/{slug}/face.png` (the member's own, in the agent's home — ADR-624's
+freely-writable half) outranks `system/agents/{slug}/face.png` (ours, locked).
+The two are different files and **the lookup order is the entire policy**.
+*"An agent you HIRED having a face you CHOSE"* is the ruling; this is what
+makes choosing possible, and the mirror can never fight it.
+
+**A9 — `AgentMark` is the ONE component answering "how does this agent
+appear?"** The disc wrapping `<AgentIcon/>` was spelled **four times** across
+the Agents detail, the Agents roster, the offered list and the new-chat door —
+four places a face would have had to be added, and four places a fifth could
+quietly render only the glyph. `AgentFace` is deliberately NOT reused: it falls
+back to an INITIAL, which is right in a conversation (a letter reads as a
+speaker) and wrong on a roster (the craft glyph says more than "B").
+
+## Consequences
+
+- Faces reach the chat list, the bubbles, the header stack, the mention menu,
+  the Agents page and the new-chat door. The accented initial from Amendment 1
+  remains the fallback — for people, and for any agent without a picture.
+- `PrincipalKind`'s violet stays the CLASS marker; a face is per-agent, which
+  is why per-agent colour is legitimate there and nowhere else.
+
+### ⚠️ The bug the driven pass caught
+
+`_read_manifest` queried the workspace-**relative** path while rows are stored
+**absolute** (`/workspace/…`), so the version check never matched: the mirror
+reported `written: 3` on every run and would have rewritten all three faces
+**on every scheduler tick, forever**, minting a fresh revision each time.
+
+⭐ **It was invisible to inspection because the faces were present and
+correct.** Only re-running the mirror and watching `written` fail to fall to 0
+exposed it. A mirror's correctness is not "the files are right"; it is "the
+second run does nothing."
+
+### Gate
+
+`test_adr641_icon_accents.py` §8 — **66 checks total** (was 46). Three
+falsifiers driven, each red: kernel outranks member (the ruling inverted) ·
+a face missing for one agent · the scheduler stops mirroring.
+
+⭐ The gate asserts the **supply**, not the pixels: that a face exists for every
+registered agent (both directions — a new agent with no face is the
+regression), that something SERVES it, batched, and that the member's upload
+outranks ours. Two of its own checks were WRONG on the first run and went red
+against correct code — the rank regex missed an f-string wrapper, and the
+disc sweep banned every `rounded-full bg-muted`, flagging an **engine** brand
+disc that correctly stays neutral by ADR-431. ⭐ *A gate that bans a shape must
+name the shape it means.*
+
+### Driven
+
+On production data, against three real workspaces: mirror wrote 3 faces each,
+second run `skipped: True` (after the path fix), every served URL fetched and
+**sha-matched the shipped bytes**, and a member-uploaded face was shown to
+override the kernel's and then be cleaned up. The faces themselves were
+**looked at** at 512/56/36/24px on light and dark grounds — which is what
+caught the palette's wells rendering as sub-pixel specks at `r=.5` (Lucide's
+own value) and nudged them to `.9`.

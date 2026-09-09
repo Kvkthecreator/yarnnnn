@@ -40,6 +40,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 WEB = REPO / "web"
+API = REPO / "api"
 
 SURFACE_ICONS = WEB / "lib/shell/surface-icons.tsx"
 ROOT_ICONS = WEB / "lib/workspace/root-icons.tsx"
@@ -445,6 +446,130 @@ def test_the_face_fallback_carries_the_class_accent() -> None:
 
 
 
+def test_an_agent_has_a_real_face() -> None:
+    """§8 — the faces are REAL (ADR-641 amendment, 2026-09-08).
+
+    THE DEFECT THIS PINS. `AgentFace.tsx` was built for the 2026-07-16 ruling
+    (a face is an uploaded PICTURE) with the whole URL chain wired — and
+    NOTHING EVER SUPPLIED ONE. `avatar_url` did not exist anywhere in the
+    backend: not in the registry, not in a route, not in a payload. So every
+    agent fell to its initial forever and the ruling was true on paper and
+    dead in practice. The operator saw letters and asked why.
+
+    ⭐ ASSERT THE SUPPLY, NOT THE PIXELS. A gate cannot say whether a face is
+    a GOOD picture — that is what looking is for. What it can hold is that a
+    face EXISTS for every kernel agent, that something SERVES it, and that the
+    member's own upload outranks ours. Those are the three ways this silently
+    reverts to letters.
+    """
+    print("\n[8] an agent has a real face")
+
+    faces_dir = API / "services" / "agent_faces"
+    _assert(faces_dir.is_dir(), "the kernel faces ship as code (services/agent_faces/)")
+
+    # EVERY kernel agent has one. The ADDITION direction (ADR-636 §9): a new
+    # agent with no face is the regression, and only a both-ways check sees it.
+    reg = _read(API / "services" / "agents_registry.py")
+    slugs = set(re.findall(r'^    "([a-z0-9-]+)": \{$', reg, re.M))
+    shipped = {p.stem for p in faces_dir.glob("*.png")}
+    _assert(len(slugs) >= 3, f"the registry sweep found the agents ({len(slugs)})")
+    _assert(
+        slugs <= shipped,
+        f"every registered agent ships a face (missing: {sorted(slugs - shipped)})",
+    )
+    _assert(
+        shipped <= slugs,
+        f"no orphan face for a retired agent (extra: {sorted(shipped - slugs)})",
+    )
+
+    # The generator stays beside its output — an asset nobody can reproduce is
+    # an asset that ossifies at the first palette change.
+    _assert(
+        (faces_dir / "_generate.py").exists(),
+        "the generator ships beside the PNGs (a face is reproducible, not hand-drawn)",
+    )
+
+    mod = _read(faces_dir / "__init__.py")
+
+    # ⭐ THE MEMBER'S FACE WINS — the ruling's whole point ("a face you CHOSE").
+    # Asserted on the RANK, which is the mechanism, not on a comment saying so.
+    _assert(
+        "member_face_path" in mod and "kernel_face_path" in mod,
+        "both a member path and a kernel path exist (the choice is representable)",
+    )
+    resolver = mod.split("def resolve_face_urls", 1)[-1].split("\ndef ")[0]
+    _assert(
+        "member_face_path" in resolver and "kernel_face_path" in resolver,
+        "the resolver considers BOTH paths",
+    )
+    m_rank = re.search(r"member_face_path\(slug\)[^\n]*=\s*\(slug,\s*(\d+)\)", resolver)
+    k_rank = re.search(r"kernel_face_path\(slug\)[^\n]*=\s*\(slug,\s*(\d+)\)", resolver)
+    _assert(
+        m_rank is not None and k_rank is not None
+        and int(m_rank.group(1)) > int(k_rank.group(1)),
+        "the MEMBER's face outranks the kernel's (an agent you hired has a face you chose)",
+    )
+    # A trashed face is not a face — `delete` archives by design, and two index
+    # readers already shipped this bug once (2026-09-07).
+    _assert(
+        "lifecycle" in resolver,
+        "the resolver skips trashed rows (delete ARCHIVES; a trashed face must not serve)",
+    )
+
+    # ⭐ THE MIRROR IS IDEMPOTENT, and its manifest read must match the path
+    # form actually STORED. The first cut read the workspace-RELATIVE path
+    # while rows are stored ABSOLUTE, so the version check never fired and
+    # every tick rewrote all three faces forever — invisible, because the
+    # faces were present and correct the whole time.
+    reader = mod.split("def _read_manifest", 1)[-1].split("\ndef ")[0]
+    _assert(
+        '"/workspace/{KERNEL_MANIFEST_PATH}"' in reader.replace("f'", '"').replace("'", '"')
+        or "/workspace/" in reader,
+        "the manifest read uses the ABSOLUTE stored path (a relative one matches nothing)",
+    )
+    _assert(
+        "substrate_scope_filter" in reader,
+        "the manifest read uses the shared scope filter (the same one skills use)",
+    )
+
+    # SOMETHING SERVES IT. A face nobody puts on a payload is a file, not a face.
+    lanes = _read(API / "routes" / "lanes.py")
+    _assert('"avatar_url"' in lanes, "the agent roster SERVES avatar_url")
+    _assert(
+        "resolve_face_urls" in lanes,
+        "the roster resolves faces through the ONE resolver (never a second lookup)",
+    )
+    # BATCHED: a per-row lookup is an N+1 on every capability read.
+    payload = lanes.split("def _agents_payload", 1)[-1].split("\ndef ")[0]
+    _assert(
+        "resolve_face_urls" not in payload,
+        "[FALSIFIER] the per-row builder does NOT query (faces resolve once, batched)",
+    )
+
+    # The scheduler carries it, or no existing workspace ever gets a new face.
+    sched = _read(API / "jobs" / "unified_scheduler.py")
+    _assert(
+        "mirror_kernel_faces_for_all_workspaces" in sched,
+        "the scheduler mirrors faces (a face changes in CODE; genesis-seeding would freeze it)",
+    )
+
+    # The FE renders a picture when there is one, in ONE place.
+    mark = _read(WEB / "components" / "agents" / "AgentIcon.tsx")
+    _assert("export function AgentMark" in mark, "ONE component answers how an agent appears")
+    # The sweep looks for an AGENT disc specifically — a disc wrapping
+    # `<AgentIcon/>`. An ENGINE brand disc in the same file is a different
+    # mark and stays neutral by ADR-431; a check that banned every
+    # `rounded-full bg-muted` would red-flag correct code (and did).
+    for f in ("components/agents/AgentsSurface.tsx", "components/chat-surface/NewChatModal.tsx"):
+        src = _read(WEB / f)
+        _assert("AgentMark" in src, f"{Path(f).name}: renders agents through AgentMark")
+        _assert(
+            not re.search(r"rounded-full[^>]*>\s*<AgentIcon", src, re.S),
+            f"{Path(f).name}: no hand-rolled agent disc wrapping AgentIcon",
+        )
+
+
+
 if __name__ == "__main__":
     test_resolvers_exist_and_degrade()
     test_surface_accents_match_declared_surfaces()
@@ -453,6 +578,7 @@ if __name__ == "__main__":
     test_the_path_string_ladder_stays_deleted()
     test_agent_accent_is_class_wide()
     test_the_face_fallback_carries_the_class_accent()
+    test_an_agent_has_a_real_face()
 
     print(f"\n{'='*60}")
     print(f"ADR-641 icon accent gate: {_passed} passed, {_failed} failed")
