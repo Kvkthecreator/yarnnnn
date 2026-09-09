@@ -1040,6 +1040,15 @@ async def list_citable(auth: UserClient) -> dict:
             auth.client.table("workspace_files")
             .select("path, updated_at, head_version_id")
             .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
+            # A trashed file is not citable. The same predicate the Recents
+            # listing uses (see `list_artifacts` above) and for the same reason:
+            # `lifecycle` is NULL on rows written before the column had a
+            # default, so `.neq` alone would drop them. Without this the picker
+            # offered images the member had already thrown away — and a
+            # citation, once made, is a durable edge to a trashed path.
+            .or_("lifecycle.is.null,lifecycle.neq.archived")
+            # ADR-588 — a folder is a MARKER row, never a citable object.
+            .neq("content_type", "inode/directory")
             .order("updated_at", desc=True)
             .limit(24)
         )

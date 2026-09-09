@@ -4602,6 +4602,17 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 // the row was filtered out of every app and no member could reach it. It
 // targets `post`, the live prose artifact type, and Blogger now has a Learn
 // entry where it had none.
+//
+// ⚠️ THE ROSTER IS FILTERED PER APP, so a MISSING row is invisible rather than
+// broken: the landing filters by `appForKind(t.template) === app.slug`, and an
+// app with no surviving row still renders the "Learn from…" button — it just
+// opens a modal that can only produce someone else's artifact. That was IMAGES
+// until 2026-09-08 (it owns exactly one kind, `image`, and no row named it), so
+// its only reachable target was the app-free design system, which navigates
+// AWAY to /chat. The invariant this list must hold: **every app that serves the
+// landing has at least one row whose template it owns.** Adding an app without
+// adding its row reproduces the ADR-646 D6 defect one app over — which is
+// exactly how it recurred. Gate: `test_adr473_document_types.py` §6.
 const LEARN_TARGETS: LearnTarget[] = [
   {
     skill: 'writing-a-spec',
@@ -4614,6 +4625,12 @@ const LEARN_TARGETS: LearnTarget[] = [
     template: 'deck',
     label: 'Deck',
     description: 'Slides that argue the source’s claims, evidence cited.',
+  },
+  {
+    skill: 'composing-an-image',
+    template: 'image',
+    label: 'Image',
+    description: 'A composed visual — layers placed on a sized stage.',
   },
   {
     skill: 'deriving-a-design-system',

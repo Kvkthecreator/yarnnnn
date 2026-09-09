@@ -127,6 +127,34 @@ Two were found and both had gone stale:
 The union is now an opaque slug, declared once and imported. Membership is
 decided by `appForKind` at the filter site: a slug no app owns never renders.
 
+#### D6 amendment (2026-09-08) — the roster must COVER, not merely resolve
+
+D6 fixed the two stale rows it found and swept **one** app. The same defect
+was live in IMAGES the whole time, and the sweep did not reach it because
+D6 asked the wrong question: it checked that every rostered template
+*resolves* to an app, never that every app *has* a row.
+
+IMAGES owns exactly one kind (`image`) and `LEARN_TARGETS` named none. So the
+per-app filter — the very mechanism D6 introduced — left the roster **empty**
+for that app, and the failure was **silent**: the landing still renders its
+"Learn from…" button, and the modal still opens. The only surviving row was
+the app-free design system, which mints no artifact and navigates AWAY to
+`/chat`. A door that leaves the app reads to the operator as a broken
+redirect, which is how it was reported.
+
+⭐ **A filter makes a MISSING row invisible rather than broken.** D6's own
+mechanism converted an absent declaration into a dead-but-plausible door —
+so the fix for a filtered list is never only "make the entries valid", it is
+**"assert the filtered result is non-empty for every consumer"**. That is the
+`a-watcher-scanning-an-empty-set-reports-a-confident-negative` shape, one rung
+up: here the empty set was the *product*, and nothing asserted against it.
+
+`composing-an-image` (an images-scoped skill that already existed, ADR-630)
+now backs an `image` row. The invariant is gated **derived from the layout
+registry, never hand-spelled** — registering an app without giving it a Learn
+row turns `test_adr473_document_types.py` §6 red, in both directions (an
+uncovered app, and a rostered template no app owns). Falsified in place.
+
 ### D7 — `vocabulary.layouts` stays cross-app, deliberately
 
 It is the type→app ROUTING table (`registerKindApps` reads the same array).

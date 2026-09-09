@@ -250,6 +250,45 @@ def run() -> bool:
         "DEFAULT_ARTIFACT_APP" not in _ftypes_code,
     )
 
+    # ── §6 The Learn-from roster covers every app that serves the landing ──
+    # ADR-646 D6 fixed `writing-a-spec` (it targeted the dead `document` kind)
+    # and swept ONE app. IMAGES stayed broken for the same reason and nobody
+    # saw it, because the failure mode here is SILENT: the roster is filtered
+    # per app (`appForKind(t.template) === app.slug`), so an app with no
+    # surviving row still renders its "Learn from…" button — the modal just
+    # cannot produce anything the app owns. Images' only reachable target was
+    # the app-free design system, which navigates AWAY to /chat.
+    #
+    # Derived, never hand-spelled: the app list comes from the layout registry
+    # (the same declaration §1 checks), so registering an app without giving it
+    # a Learn row turns this red instead of shipping a dead door.
+    targets = re.search(
+        r"const LEARN_TARGETS: LearnTarget\[\] = \[(.*?)\n\];", surface, re.S
+    )
+    _check("the LEARN_TARGETS roster is readable from the surface", bool(targets))
+    if targets:
+        rostered = set(re.findall(r"template: '([a-z-]+)'", targets.group(1)))
+        # Every app that OWNS a document type serves the landing, so every one
+        # of them needs a row whose template it owns.
+        owning_apps = {
+            (row.get("app") or "studio") for row in all_layouts().values()
+        }
+        uncovered = sorted(
+            app for app in owning_apps
+            if not (kinds_for_app(app) & rostered)
+        )
+        _check(
+            f"every app owning a type has a Learn-from row (uncovered: {uncovered})",
+            not uncovered,
+        )
+        # The twin: a roster naming a type NOBODY owns is the ADR-646 D6 defect
+        # itself (`document` outlived the Docs app), filtered out of every app.
+        orphans = sorted(t for t in rostered if app_for_kind(t) is None)
+        _check(
+            f"…and every rostered template is still owned (orphans: {orphans})",
+            not orphans,
+        )
+
     ok = all(c for _, c in _results)
     print()
     print(f"{'PASS' if ok else 'FAIL'}: {sum(c for _, c in _results)}/{len(_results)} checks")
