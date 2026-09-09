@@ -85,6 +85,9 @@ export interface TemplateChoice {
   slug: string;
   label: string;
   description: string;
+  /** Dimension presets for the shapes that have them (the IMAGES stage).
+   *  Absent elsewhere — `dimensionsFirst` and this travel together. */
+  presets?: StagePreset[];
 }
 
 interface NewArtifactModalProps {
@@ -112,17 +115,22 @@ interface NewArtifactModalProps {
   dimensionsFirst?: boolean;
 }
 
-/** The stage presets (ADR-472 D3) — real pixel boxes, mirroring
- *  services/images.py::STAGE_PRESETS. Kept in step with the Python: the kernel
- *  owns the numbers, this is the picker's copy of the same table. */
-export const STAGE_PRESETS = [
-  { slug: 'square', label: 'Square', width: 1080, height: 1080, hint: 'Instagram / LinkedIn post' },
-  { slug: 'story', label: 'Story', width: 1080, height: 1920, hint: 'Story / Reel, 9:16' },
-  { slug: 'wide', label: 'Wide', width: 1600, height: 900, hint: 'Slide still, thumbnail, 16:9' },
-  { slug: 'ad', label: 'Ad', width: 1200, height: 628, hint: 'Meta / LinkedIn link ad' },
-  { slug: 'portrait', label: 'Portrait', width: 1080, height: 1350, hint: 'Instagram portrait, 4:5' },
-  { slug: 'banner', label: 'Banner', width: 1500, height: 500, hint: 'X / site header' },
-] as const;
+/** A dimension preset — a real pixel box (ADR-472 D3).
+ *
+ *  SERVED, never restated. This table used to be hand-duplicated here from
+ *  `services/apps/images/stage.py::STAGE_PRESETS` "kept in step with the
+ *  Python" by comment — and the two had already drifted (its hints read
+ *  "Story / Reel, 9:16" where the kernel said "Instagram / TikTok story"),
+ *  while the sync comment pointed at `services/images.py`, a path that
+ *  stopped existing when IMAGES became a package. The kernel owns the
+ *  numbers; `GET /studio/templates` carries them on the row that has them. */
+export interface StagePreset {
+  slug: string;
+  label: string;
+  width: number;
+  height: number;
+  hint: string;
+}
 
 export function NewArtifactModal({
   templates,
@@ -172,13 +180,21 @@ export function NewArtifactModal({
     ? `${dest.replace(/^\/workspace\//, '')}/${slugify(name)}/${template.slug}.html`
     : '';
 
+  // The boxes this shape offers, as SERVED with it. Empty when the template
+  // carries none — which is every shape but the stage.
+  const presets = template.presets ?? [];
+
   // The resolved box — a preset's numbers, or the typed custom pair.
   const dims = dimensionsFirst
     ? presetSlug === 'custom'
       ? { width: Number(customW) || 0, height: Number(customH) || 0 }
       : (() => {
-          const p = STAGE_PRESETS.find((x) => x.slug === presetSlug) ?? STAGE_PRESETS[0];
-          return { width: p.width, height: p.height };
+          const p = presets.find((x) => x.slug === presetSlug) ?? presets[0];
+          // A served row is the only source of a box. If the server sent none,
+          // there is nothing to invent here — the create door applies its own
+          // default (`resolve_dimensions`, the square preset), so 0 lets
+          // `dimsValid` refuse rather than shipping a made-up size.
+          return p ? { width: p.width, height: p.height } : { width: 0, height: 0 };
         })()
     : undefined;
   const dimsValid =
@@ -250,7 +266,7 @@ export function NewArtifactModal({
             <div className="mt-3">
               <div className="text-xs font-medium text-muted-foreground">Size</div>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Size">
-                {STAGE_PRESETS.map((p) => (
+                {presets.map((p) => (
                   <button
                     key={p.slug}
                     type="button"

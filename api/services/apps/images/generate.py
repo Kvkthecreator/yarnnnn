@@ -382,120 +382,12 @@ def set_backend(backend: GenerationBackend) -> None:
 # invents no geometry vocabulary — it consumes the kernel's, which is exactly
 # what ADR-472 D2 bought by making the object layer shared rather than forked.
 
-
-def _esc(text: str) -> str:
-    """Escape for HTML text content + double-quoted attribute values.
-
-    Composition writes member prose and MEMBER-SUPPLIED PROMPTS into markup
-    that other principals read; an unescaped quote would break out of an
-    attribute and an unescaped angle bracket out of a text node. The substrate
-    is a multi-principal commons (ADR-373), so this is a boundary, not a
-    nicety.
-    """
-    return (
-        (text or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-
-def _geometry(layer: Layer) -> tuple[str, list[str]]:
-    """The block's geometry as (attribute markers, style properties).
-
-    The ATTRIBUTE is the marker a reader/migration/renderer keys on; the
-    custom PROPERTY is the value CSS consumes. Writing one without the other
-    is the bug the ADR-461 measures are shaped to prevent, so they are emitted
-    here together or not at all.
-
-    Returned SPLIT rather than pre-joined so a caller that also has its own
-    style to contribute (a surface's CSS wash) folds into ONE style attribute
-    instead of emitting a second one that the browser silently drops.
-    """
-    attrs: list[str] = []
-    props: list[str] = []
-    # `h` is here for the reason ADR-475 records: a POSITIONED, EMPTY element
-    # resolves `height: auto` to ZERO, so a background or a cut-out without it
-    # is placed perfectly and renders as nothing.
-    for key, var in (("x", "--yx"), ("y", "--yy"), ("w", "--yw"), ("h", "--yh")):
-        val = layer.get(key)
-        if val is not None:
-            attrs.append(f'data-{key}="{int(val)}"')
-            props.append(f"{var}:{int(val)}%")
-    z = layer.get("z")
-    if z is not None:
-        attrs.append(f'data-z="{int(z)}"')
-        props.append(f"--yz:{int(z)}")
-    return (" " + " ".join(attrs) if attrs else ""), props
-
-
-def _provenance(asset: GeneratedAsset) -> str:
-    """The generation facts, on the element (ADR-468 D4).
-
-    A generated leaf says what made it and from what, in the markup itself —
-    the `data-ref` pattern's generation sibling. This is what makes per-object
-    re-rolling native and attributed: the prompt that made this leaf is ON the
-    leaf, so regenerating is reading an attribute, not remembering a session.
-    """
-    return (
-        f' data-gen-prompt="{_esc(asset["prompt"])}"'
-        f' data-gen-model="{_esc(asset["model"])}"'
-    )
-
-
-def compose_layers(layers: list[Layer], assets: dict[str, tuple[str, str, GeneratedAsset]]) -> str:
-    """The layer plan → the staged frame's inner markup.
-
-    `assets` maps a layer's role to its (path, revision_id, asset) triple for
-    raster leaves — cited by path + head revision (ADR-440 D5), never inlined
-    as bytes, which is the D2 rule that keeps the document text substrate.
-    """
-    out: list[str] = []
-    for i, layer in enumerate(layers):
-        bid = f"g{i + 1}"
-        role = _esc(layer.get("role", f"layer-{i + 1}"))
-        attrs, props = _geometry(layer)
-        kind = layer.get("kind", "text")
-
-        if kind == "text":
-            # Real text, always (ADR-468 D2). The block is a `heading` because
-            # that is the kernel's text-block kind; the TAG carries the
-            # typographic level, and the design system's tokens dress it.
-            tag = layer.get("tag", "p")
-            style = f' style="{";".join(props)}"' if props else ""
-            out.append(
-                f'<{tag} data-block="heading" data-block-id="{bid}" '
-                f'data-role="{role}"{attrs}{style}>'
-                f'{_esc(layer.get("text", ""))}</{tag}>'
-            )
-        elif kind == "surface":
-            # Expressible → CSS, and NO rented call is made. The cheapest
-            # correct production wins; a gradient is not an image model's job.
-            # The wash folds into the SAME style attribute as the measures —
-            # a second style attribute would be silently dropped.
-            wash = layer.get("style", "")
-            joined = ";".join(props + ([wash] if wash else []))
-            style = f' style="{_esc(joined)}"' if joined else ""
-            out.append(
-                f'<div data-block="figure" data-block-id="{bid}" '
-                f'data-role="{role}" data-surface="css"{attrs}{style}></div>'
-            )
-        else:  # subject — a cited, generated raster leaf
-            cited = assets.get(layer.get("role", ""))
-            if not cited:
-                # A leaf whose generation failed is SKIPPED, not faked: the
-                # composition lands one object lighter and honestly, rather
-                # than carrying a broken citation the renderer would 404 on.
-                logger.warning("[IMAGES] no asset for subject layer %r — skipped", role)
-                continue
-            path, rev, asset = cited
-            style = f' style="{";".join(props)}"' if props else ""
-            out.append(
-                f'<figure data-block="figure" data-block-id="{bid}" '
-                f'data-role="{role}"{attrs}{style}>'
-                f'<img data-ref="{_esc(path)}" data-ref-rev="{_esc(rev)}" '
-                f'alt="{_esc(layer.get("prompt", role))}"{_provenance(asset)}>'
-                f"</figure>"
-            )
-    return "\n  ".join(out)
+# ── The markup half is DELETED (2026-09-08, with routes/images.py's compose) ──
+# `compose_layers` + `_geometry`/`_provenance`/`_esc` turned a layer plan into
+# the staged frame's inner markup. They had exactly one caller — the deleted
+# `apps/images/compose.py` — because writing the stage's markup is the LANE's
+# act: Designer composes through the ordinary uniform verbs (driven, not
+# argued: three layers, each placed and depth-stamped, the declared ground
+# honoured, via `WriteFile`). What survives here is the half nothing else
+# does — the raster BACKENDS (`StubBackend`/`GeminiBackend`), which
+# `services/capabilities.py` resolves for the lane's `GenerateImage`.

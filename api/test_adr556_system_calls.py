@@ -211,23 +211,33 @@ for rel in MIGRATED:
 
 print("\n6. no user-facing input reaches a systematic call (ADR-556 D3)")
 
-import inspect
+import inspect  # noqa: F401 — kept for the sections above
 
-from services.apps.images.decompose import plan_layers
-
-check(
-    "plan_layers takes no caller engine",
-    "model" not in inspect.signature(plan_layers).parameters,
-)
+# ⚠️ The `plan_layers` / `ComposeRequest` checks are DELETED with their subject
+# (2026-09-08). They asserted that IMAGES' compose door exposed no caller-
+# supplied `model`, which was the right rule for a door that no longer exists:
+# `POST /api/images/compose` and `apps/images/decompose.py` are gone, because
+# composing is the LANE's act and the lane's engine is resolved server-side
+# from the app's resident (ADR-562). Re-pointing them at a surviving symbol
+# would have been a gate kept green by finding new work, not the rule holding.
+#
+# The rule itself is NOT weakened — it is enforced where the engine is actually
+# chosen. `routes/images.py` is the whole remaining IMAGES surface, so assert
+# structurally that nothing on it takes an engine from the wire.
 img = pathlib.Path("routes/images.py").read_text()
-compose_req = next(
-    n for n in ast.walk(ast.parse(img))
-    if isinstance(n, ast.ClassDef) and n.name == "ComposeRequest"
-)
-fields = [
-    t.target.id for t in compose_req.body if isinstance(t, ast.AnnAssign)
+_img_tree = ast.parse(img)
+_wire_models = [
+    t.target.id
+    for n in ast.walk(_img_tree)
+    if isinstance(n, ast.ClassDef)
+    for t in n.body
+    if isinstance(t, ast.AnnAssign) and getattr(t.target, "id", "") == "model"
 ]
-check("ComposeRequest exposes no `model` field", "model" not in fields, f"fields={fields}")
+check(
+    "no IMAGES request model takes an engine from the wire",
+    not _wire_models,
+    f"request models exposing `model`: {_wire_models}",
+)
 
 print(f"\n{N - len(FAILS)}/{N} checks passed")
 if FAILS:

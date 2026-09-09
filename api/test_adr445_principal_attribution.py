@@ -53,7 +53,12 @@ COSTED_SITES = [
     ("services/context_inference.py", "identity/brand authoring"),
     # Found BY this gate, not by the audit walk — it postdated the manual count.
     # Exactly what a structural check is for.
-    ("services/apps/images/compose.py", "image generation (cost_override_usd)"),
+    # Re-pointed 2026-09-08: was `apps/images/compose.py`, deleted with
+    # `POST /api/images/compose`. The costed act did not disappear — image
+    # generation is now the LANE's `GenerateImage`, so the rule follows the
+    # act to where it actually bills. (Dropping the row instead would have
+    # made a costed site unwatched by deleting its watcher.)
+    ("services/primitives/generate_image.py", "image generation (cost_override_usd)"),
 ]
 
 COST_MARKERS = ("input_tokens", "output_tokens", "cost_override_usd")

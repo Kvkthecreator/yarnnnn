@@ -159,75 +159,19 @@ def run() -> bool:
     _check("no key → a TYPED REFUSAL, never a silent placeholder (ADR-568 D2.b)",
            keyless_refused)
 
-    # ── 6: compose_stage ledgers one row per costed leaf ─────────────────
-    from services.apps.images.compose import compose_stage
-
-    class _CostedBackend(StubBackend):
-        name = "costed"
-
-        def generate(self, *, prompt, width, height, cutout=False):
-            a = super().generate(prompt=prompt, width=width, height=height, cutout=cutout)
-            a["cost_usd"] = 0.08
-            a["model"] = "gemini-test-model"
-            return a
-
-    layers = [
-        {"role": "headline", "kind": "text", "text": "Hi", "tag": "h1"},
-        {"role": "hero", "kind": "subject", "prompt": "a hero", "x": 10, "y": 10, "w": 50, "h": 40},
-        {"role": "logo", "kind": "subject", "prompt": "a logo", "x": 70, "y": 70, "w": 20, "h": 20},
-    ]
-    stage_html = '<html><body><section class="slide"><h1>ph</h1></section></body></html>'
-
-    gen.set_backend(_CostedBackend())
-    try:
-        # `get_service_client` is patched because the two privileged writes
-        # (binary leaf → private CAS bucket; ledger → service-role-only
-        # execution_events) resolve it themselves as of 2026-07-21. Before
-        # that they used the caller's client and 403'd in production.
-        with patch("services.authored_substrate.write_revision", return_value="rev-1"), \
-             patch("services.supabase.get_service_client", return_value=MagicMock()), \
-             patch("services.telemetry.record_execution_event") as ledger:
-            out = compose_stage(
-                MagicMock(),
-                user_id="u1",
-                stage_path="/workspace/operation/ad/image.html",
-                layers=layers,
-                width=1200,
-                height=628,
-                authored_by="operator",
-                stage_html=stage_html,
-            )
-        calls = ledger.call_args_list
-        _check(
-            "one ledger row per costed leaf (2 subjects → 2 rows, text free)",
-            len(calls) == 2 and out["generated"] == 2,
-        )
-        _check(
-            "the row carries the rented figure + model + the images slug",
-            all(
-                c.kwargs["cost_override_usd"] == 0.08
-                and c.kwargs["model"] == "gemini-test-model"
-                and c.kwargs["slug"] == "images-generate"
-                and c.kwargs["mode"] == "mechanical"
-                for c in calls
-            ),
-        )
-        with patch("services.authored_substrate.write_revision", return_value="rev-1"), \
-             patch("services.telemetry.record_execution_event") as ledger2:
-            gen.set_backend(StubBackend())
-            compose_stage(
-                MagicMock(),
-                user_id="u1",
-                stage_path="/workspace/operation/ad/image.html",
-                layers=layers,
-                width=1200,
-                height=628,
-                authored_by="operator",
-                stage_html=stage_html,
-            )
-        _check("the free stub ledgers nothing (zero-cost rows are noise)", ledger2.call_count == 0)
-    finally:
-        gen._BACKEND = None
+    # ── 6 DELETED (2026-09-08) — `compose_stage` is gone ─────────────────
+    # It asserted the ORCHESTRATOR ledgered one execution_events row per
+    # costed leaf. That orchestrator (`apps/images/compose.py`) is deleted with
+    # `POST /api/images/compose`: composing a stage is the LANE's act, driven
+    # and confirmed before the deletion. Per-generation metering did NOT go
+    # with it — it lives on the lane's `GenerateImage` path, which is where a
+    # costed draw now originates, and `test_adr568_capability_resolver.py`
+    # covers that resolver. Re-pointing these assertions at a surviving symbol
+    # would have kept a number green without keeping a rule.
+    #
+    # What this file still earns: §1–§5, the RENTED BACKEND itself — the one
+    # half of `generate.py` production still imports (services/capabilities.py
+    # resolves it for the lane).
 
     ok = all(c for _, c in _results)
     print()

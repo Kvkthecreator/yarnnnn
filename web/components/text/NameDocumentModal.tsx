@@ -16,8 +16,26 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
+import { STUDIO_ARTIFACT_REGION } from '@/components/authoring/artifactNaming';
 
-const DEFAULT_FOLDER = 'Documents';
+/** The default destination — the Documents home.
+ *
+ * ⚠️ The SUBSTRATE path (`operation/`), not the told-name. This was the literal
+ * string 'Documents', which the picker never corrects because it only reports a
+ * folder the member actually clicks — so an untouched default composed
+ * `/workspace/Documents/<slug>.md` and created a PHANTOM ROOT beside the real
+ * home. Two such files exist on production (`adr575-canvas-clickpass.md`,
+ * `adr572-click-pass.md`), invisible to anything that walks `operation/`.
+ *
+ * `HOME_ALIASES` resolves told-names at `parse_file_reference`, but the
+ * `PATCH /api/workspace/file` door this modal writes through does not run that
+ * pass — so the told-name must never reach a composed path. The display stays
+ * "Documents" via the picker's own `display_name`, exactly as the artifact
+ * dialog does it (ADR-588). */
+const DEFAULT_FOLDER = STUDIO_ARTIFACT_REGION.replace(/^\/workspace\//, '').replace(/\/+$/, '');
+
+/** The operator-facing name of that home — display only, never a path. */
+const DOCUMENTS_LABEL = 'Documents';
 
 export function NameDocumentModal({
   open,
@@ -96,7 +114,7 @@ export function NameDocumentModal({
           </label>
           <div className="mt-1 flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate rounded-md border border-border bg-muted/20 px-3 py-2 font-mono text-xs">
-              {folder}/{slug || 'untitled'}.md
+              {folder === DEFAULT_FOLDER ? DOCUMENTS_LABEL : folder}/{slug || 'untitled'}.md
             </span>
             <button
               type="button"

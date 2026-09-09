@@ -106,6 +106,15 @@ async def list_templates(auth: UserClient, app: Optional[str] = None) -> dict:
     _templates = all_templates()
     _owned = kinds_for_app(app) if app else None
 
+    # The dimension presets ride the TEMPLATE that has them (ADR-472 D3), so
+    # the picker reads its boxes from the kernel that owns the numbers instead
+    # of keeping a copy. `NewArtifactModal` hand-duplicated this table and the
+    # two had already drifted ("Instagram / TikTok story, 9:16" vs "Story /
+    # Reel, 9:16") — a second home for the same fact, kept in step by comment.
+    # Absent on every other row: a document has no pixel box, and inventing one
+    # would be the aspect-token mistake ADR-472 D3 deleted.
+    from services.apps.images import STAGE_PRESETS, STAGE_SLUG
+
     return {
         "templates": [
             {
@@ -113,6 +122,7 @@ async def list_templates(auth: UserClient, app: Optional[str] = None) -> dict:
                 "label": t["label"],
                 "description": t["description"],
                 "app": t.get("app") or DEFAULT_APP,  # ADR-473 D2
+                **({"presets": STAGE_PRESETS} if slug == STAGE_SLUG else {}),
             }
             for slug, t in _templates.items()
             if _owned is None or slug in _owned

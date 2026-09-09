@@ -1,25 +1,23 @@
 """IMAGES — the composition app (ADR-472), as a package.
 
-The module became a package when generation arrived (ADR-475): the stage's
-constants and the generation workflow are different concerns with different
-dependencies (one is pure data, the other reaches a rented engine), and a
-single 700-line module would have fused them.
-
     stage.py     — the stage: presets, real dimensions, scaffold, skin.
                    Pure data + pure functions. No I/O, no engine.
-    generate.py  — decomposed generation (ADR-475): a prompt becomes a NAMED
-                   LAYER PLAN, each leaf routed by kind, composed into the
-                   layered stage. The engine is RENTED behind a seam.
-    decompose.py — the plan: brief → named layer plan (resident or heuristic).
-    compose.py   — the orchestrator: generate per leaf, land N+1 revisions.
+    generate.py  — the RASTER BACKENDS (ADR-475): the rented engine behind a
+                   seam, resolved by `services/capabilities.py` for the lane's
+                   `GenerateImage`.
+
+`decompose.py` + `compose.py` are DELETED (2026-09-08). They planned a brief
+into layers and wrote the stage's markup server-side, for a `POST
+/api/images/compose` that had zero client callers its whole life — while
+`decompose.py` itself said the judgment "belongs to an agent, not to a rule
+table". It does: Designer composes a stage through the ORDINARY uniform lane
+verbs, driven before deleting (three layers, each placed and depth-stamped,
+the declared ground honoured, via `WriteFile`). Keeping both would have been
+two implementations of one act.
 
 (There is no render.py. Export to a flat PNG is CLIENT-SIDE — the browser
-rasterizes the stage it already displays — a fast-follow, not a server concern;
-the removed server rasterizer only ever 503'd in prod. See ADR-475 §13.)
-
-Everything the pre-package module exported is re-exported here, so
-``from services.apps.images import STAGE_SLUG`` reads exactly as it did before the
-split — the file moved, the import surface did not.
+rasterizes the stage it already displays; the removed server rasterizer only
+ever 503'd in prod. See ADR-475 §13.)
 
 Canonical reference: docs/adr/ADR-472-images-as-a-first-class-app.md
                      docs/adr/ADR-475-decomposed-generation.md

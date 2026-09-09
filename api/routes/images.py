@@ -1,15 +1,31 @@
-"""IMAGES routes — decomposed generation (ADR-475).
+"""IMAGES routes — the raster derivation (ADR-475 §13).
 
-Two endpoints, because IMAGES has exactly two acts Studio's machinery does not
+ONE endpoint, because IMAGES has exactly one act Studio's machinery does not
 already cover:
 
-    POST /api/images/compose — a brief becomes a LAYERED COMPOSITION on an
-                               existing stage. The stage is created by the
-                               shared `POST /api/studio/artifacts` (dimensions
-                               and all); composing is a separate act ON it.
     POST /api/images/export  — the browser's raster of the stage, LANDED in the
                                workspace beside the artboard as a derivation of
                                it (ADR-475 §13's opt-in, built 2026-09-07).
+
+COMPOSE IS DELETED (2026-09-08). `POST /api/images/compose` decomposed a brief
+into layers server-side and had ZERO client callers for its whole life, while
+its own decomposition module said the work belonged to an agent:
+
+    `plan_layers` is JUDGMENT: the resident (Designer) reads the brief and
+    decides what objects a good ad has. That is a real design act and belongs
+    to an agent, not to a rule table.
+
+It does. DRIVEN on the real lane before deleting (never argued): a blank stage
+built exactly as the create door builds one, handed to Designer with a brief,
+produced a correct composition through the ORDINARY uniform verbs — three
+layers, every one placed (`data-x`/`data-y`) and depth-stamped (`data-z`), the
+declared dark ground honoured, the scaffold gone. `WriteFile`, nothing bespoke.
+
+That result also retires this module's old "WHY COMPOSE IS NOT A LANE TOOL"
+argument, which reasoned that a Designer-only verb would re-open ADR-467 D4's
+uniform lane surface. The premise was right and the conclusion inverted: the
+lane needs NO new verb, so the uniform surface was never the obstacle — it was
+the answer. Keeping both paths would have been the dual implementation.
 
 RENDER-TO-RASTER IS NOT HERE (removed 2026-07-22, ADR-475 §13). The server
 render path — a headless browser rasterizing the composition to a PNG — never
@@ -17,8 +33,7 @@ ran in production: the Render container has no Chrome, so `/images/render` only
 ever returned 503. Rasterizing is CLIENT-SIDE (the browser rasterizes the stage
 it already displays); the composition stays the traceable source regardless of
 who produces the flat file, so nothing about the moat depended on a server
-rasterizer. The seam, the endpoint, and `render.py` are deleted rather than left
-returning 503 — a broken feature removed beats a broken feature kept.
+rasterizer.
 
 `/images/export` does NOT reopen that: the server never rasterizes. It receives
 bytes the member's browser produced and records them — the same act the deleted
@@ -30,16 +45,8 @@ workspace PATH, and there was no path).
 
 Everything else IMAGES does flows through existing machinery, exactly as the
 Studio does: creation is the shared create endpoint (ADR-472 D2 registered the
-stage with it), the bound lane mutates the stage, the FE reads it via
-GET /api/workspace/file, and the powerbox gates every path.
-
-WHY COMPOSE IS NOT A LANE TOOL: ADR-467 D4 ratified a UNIFORM lane surface —
-every lane gets the same verbs, and per-agent reach is unrepresentable. A
-`GenerateImage` verb only Designer-in-IMAGES could use would be that
-settlement being re-opened. Composition is instead a SERVER-SIDE act the
-member (or a lane, via the same HTTP surface) invokes, which is where ADR-472
-D5 already put rendering. The lane still edits the result with the five verbs
-it always had.
+stage with it), the bound lane composes and mutates the stage, the FE reads it
+via GET /api/workspace/file, and the powerbox gates every path.
 
 Canonical reference: docs/adr/ADR-475-decomposed-generation.md
 """
@@ -60,170 +67,10 @@ from services.workspace_paths import operator_can_organize
 # 2026-07-20 (a35d085's parent): every gate stayed green because the symbol was
 # PRESENT in the source, and the endpoint still raised NameError at runtime.
 # The gate for this module CALLS its handler for the same reason.
-from services.apps.images import STAGE_SLUG, stage_dimensions
-from services.apps.images.compose import compose_stage
-from services.apps.images.decompose import plan_layers
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-class ComposeRequest(BaseModel):
-    #: The stage to compose onto — an existing IMAGES artifact.
-    path: str
-    #: The member's one-line brief. This is the whole input; decomposition is
-    #: what turns it into objects (ADR-468 D3).
-    brief: str
-    # ADR-556 D3 / ADR-557 D3 — the engine override is REMOVED, and the reason
-    # is NOT that IMAGES is machinery. IMAGES is a user-facing APP (ADR-467
-    # residency: Designer resides here), so its engine is a PRODUCT question —
-    # it just is not answered by a raw model string on the wire. This field let
-    # a client name any engine straight into `route_completion` with neither
-    # the `LANE_MODELS` membership check nor the ADR-439 §4 billing gate that
-    # every other routed path enforces, so an unpriced model priced silently at
-    # the Sonnet default. An app's engine follows its RESIDENT (declared
-    # server-side by the app's own `register_app`, ADR-562 —
-    # `web/lib/apps/authoring.ts` is DELETED), resolved through
-    # `agents_registry.resolve_agent`, never a caller-supplied id — the same
-    # rule that made Designer exist instead of `models[0]`.
-    # Whether a member may CHOOSE that resident is the open Phase-2 question.
-
-
-@router.post("/images/compose")
-async def compose(req: ComposeRequest, auth: UserClient) -> dict:
-    """Decompose a brief into named layers and compose them onto a stage.
-
-    The four steps (ADR-468 D3), run once: decompose → route by kind →
-    generate per raster leaf → compose. Lands N+1 attributed revisions (one
-    per generated leaf, one for the stage) — per-object provenance requires
-    per-object revisions, which is the point.
-    """
-    from services.authored_substrate import write_revision
-    from services.authoring import STUDIO_ARTIFACT_REGION
-    from services.workspace_context import substrate_scope_filter
-
-    path = req.path if req.path.startswith("/") else f"/workspace/{req.path}"
-    if ".." in path or not path.endswith(".html"):
-        raise HTTPException(status_code=422, detail="Invalid stage path")
-    if not path.startswith(STUDIO_ARTIFACT_REGION):
-        raise HTTPException(
-            status_code=403,
-            detail=f"IMAGES stages live under {STUDIO_ARTIFACT_REGION} (ADR-440 D6).",
-        )
-    # ADR-643 D2 — a compose REWRITES the stage, so it owes the same question
-    # every other write owes. The region check above is placement, not
-    # permission: `operation/` is inside every class's ceiling, so it says
-    # nothing about a member narrowed to a folder within it.
-    from services.access import resolve_access
-
-    _write = resolve_access(auth, path, "write")
-    if not _write.allowed:
-        raise HTTPException(status_code=403, detail=_write.reason)
-
-    brief = (req.brief or "").strip()
-    if not brief:
-        raise HTTPException(status_code=422, detail="A brief is required to compose")
-
-    # THE draw gate (ADR-445 §9 closed / ADR-491 Phase 3) — a compose is a
-    # costed, member-attributed draw (planning call + per-image engine cost);
-    # gate before any model work launches.
-    from services.platform_limits import check_draw
-    draw_ok, draw_reason, _draw_detail = check_draw(
-        auth.client,
-        auth.user_id,
-        workspace_id=getattr(auth, "workspace_id", None),
-        principal_id=getattr(auth, "principal_id", None) or auth.user_id,
-    )
-    if not draw_ok:
-        raise HTTPException(
-            status_code=402,
-            detail=(
-                "This workspace's balance is exhausted — top up to continue."
-                if draw_reason == "balance_exhausted"
-                else "You've reached your spend cap on this workspace — ask the owner to raise it."
-            ),
-        )
-
-    rows = (
-        auth.client.table("workspace_files")
-        .select("path,content")
-        .eq(*substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None)))
-        .eq("path", path)
-        .limit(1)
-        .execute()
-    ).data or []
-    if not rows:
-        raise HTTPException(status_code=404, detail=f"{path} does not exist")
-    stage_html = rows[0].get("content") or ""
-
-    # Composition is an IMAGES act. Refusing a document here is not pedantry:
-    # the layers carry `block-staged` geometry, which is inert on a flow
-    # layout — the objects would stack in document order and the member would
-    # get a garbled document instead of an error (ADR-473's type→app rule made
-    # the artifact's own declared type the authority, so this reads it).
-    if f'data-template="{STAGE_SLUG}"' not in stage_html:
-        raise HTTPException(
-            status_code=422,
-            detail="Composition targets an IMAGES stage — this artifact is not one.",
-        )
-
-    width, height = stage_dimensions(stage_html)
-    layers = await plan_layers(brief)
-
-    result = compose_stage(
-        auth.client,
-        user_id=auth.user_id,
-        stage_path=path,
-        layers=layers,
-        width=width,
-        height=height,
-        # The member asked; the member is the author. The engine that produced
-        # a leaf is recorded ON the leaf (`data-gen-model`), which is the
-        # ADR-460 D2 split: the face is the member, the fact is on the object.
-        authored_by="operator",
-        stage_html=stage_html,
-        # ADR-373/445: generation cost is attributed to the acting principal.
-        principal_id=resolve_principal_id(auth),
-    )
-
-    write_revision(
-        auth.client,
-        user_id=auth.user_id,
-        path=path,
-        content=result["html"],
-        authored_by="operator",
-        author_identity_uuid=auth.user_id,
-        message=f"IMAGES: compose '{brief[:100]}' ({result['layers']} layers)",
-        summary=f"Composed {result['layers']} layers from a brief",
-        # `derived_from` is LIFTED at the write door from the `data-ref`
-        # citations this composition just wrote (ADR-448) — the stage's
-        # reference edge to its own generated leaves is recorded without this
-        # caller restating it.
-    )
-    logger.info(
-        "[IMAGES] composed path=%s layers=%d generated=%d",
-        path, result["layers"], result["generated"],
-    )
-    return {
-        "success": True,
-        "path": path,
-        "layers": result["layers"],
-        "generated": result["generated"],
-        "assets": result["assets"],
-    }
-
-
-# =============================================================================
-# ADR-475 §13 — the raster POST-back (built 2026-09-07)
-# =============================================================================
-
-#: A PNG is the only shape the browser's rasterizer produces; anything else is
-#: a caller error, refused at the door rather than landed as a mislabelled blob.
-_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-#: 2× pixel ratio on the largest stage is well under this; the cap exists so a
-#: bad client cannot land arbitrary bytes at will.
-_MAX_EXPORT_BYTES = 25 * 1024 * 1024
 
 
 def export_path_for(artifact_path: str) -> str:

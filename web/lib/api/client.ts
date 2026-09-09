@@ -6,6 +6,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { sseEvents } from "@/lib/sse";
 import type { StudioVocabulary } from "@/components/authoring/StudioToolbar";
+import type { StagePreset } from "@/components/authoring/NewArtifactModal";
 import type {
   Memory,
   MemoryCreate,
@@ -879,6 +880,10 @@ export const api = {
           label: string;
           description: string;
           app: string;
+          /** Dimension presets, on the template that HAS them (ADR-472 D3 —
+           *  the IMAGES stage). Absent on every other row: a document has no
+           *  pixel box. Served so the picker never keeps its own copy. */
+          presets?: StagePreset[];
         }>;
       }>(`/api/studio/templates${app ? `?app=${encodeURIComponent(app)}` : ""}`),
     // ADR-459: `name` + `kind` are COMPUTED server-side, never stored — the
