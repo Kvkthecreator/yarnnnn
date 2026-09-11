@@ -4,6 +4,123 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part Z4 — the IMAGES audit: no broken redirects, two dead doors, one fork deleted (2026-09-08)
+
+Operator: *"can you audit the existing images APP. there are many brokend
+re-directs, and separately can we discuss how we can refactor the existing
+create new flow … i think we need a similar just create new start from scratch
+where we designate a directory path for (blank) like creation"*
+
+## The premise was wrong in one direction and right in the other
+
+**There are no broken redirects in IMAGES.** `images/page.tsx` has no
+`redirect()`; `StudioSurface.tsx` (5,478 lines) has **zero** `router.push`/
+`router.replace`; `/images` is auth-gated by derivation; every traced
+destination resolves. What reads as a broken redirect is a **door that goes
+nowhere** — and two of those were real.
+
+**And the create flow the operator asked for ALREADY EXISTED.** Blank creation
+with a picked directory is the *same component* Text uses
+(`WorkspacePickerModal`), and ADR-555 D2 had already removed the `operation/`
+fence — *"the region survives as the DEFAULT home, not as a gate"*. The
+operator's own inference (*"similar to a text app create new … same, similar
+mechanism"*) was correct. Nothing needed building; the flow only FELT broken
+because of the two dead doors. ⭐**When the ask is "refactor X", check whether X
+already does the thing — the reported symptom may belong to a neighbour.**
+
+## Shipped `1133dbf` — the two dead doors
+
+- **ADR-646 D6 amendment.** D6 fixed the stale `LEARN_TARGETS` rows and swept
+  ONE app. IMAGES owns exactly one kind (`image`) and no row named it, so the
+  per-app filter D6 introduced left the roster **EMPTY** — the "Learn from…"
+  button still rendered, and its only surviving row (the app-free design
+  system) navigated AWAY to `/chat`. ⭐⭐⭐**A filter makes a MISSING row
+  INVISIBLE rather than broken**; the fix for a filtered list is never only
+  "make the entries valid", it is **"assert the filtered result is non-empty
+  for every consumer"**. `composing-an-image` (already existed, ADR-630) backs
+  the new row. Gate `test_adr473_document_types.py` §6, **derived from the
+  layout registry** so a new app without a Learn row goes red, falsified BOTH
+  directions.
+- **ADR-440 v1.1 amendment.** `GET /studio/citable` filtered on scope alone —
+  offering **trashed** images and (post-ADR-588) folder markers. The Recents
+  listing 850 lines earlier in the SAME FILE had the predicate and a comment
+  explaining why; this one never got it. ⚠️**NOT the limit-ordering bug the
+  first pass diagnosed** — PostgREST applies `limit` as a query param AFTER
+  filters (`params.add("limit")`, postgrest 2.27.3). Recorded in the ADR so the
+  wrong theory is not rediscovered as fact.
+
+## Shipped `0b9920f` — the fork deleted, net −253 lines
+
+`POST /api/images/compose` was fully built (access-checked, draw-gated,
+type-refusing, N+1 revisions) with **zero client callers for its entire life**,
+while `decompose.py` itself said the judgment *"belongs to an agent, not to a
+rule table"*.
+
+⭐⭐⭐**DRIVEN before deleting, never argued** (`probe_images_lane_composes.py`,
+kept): a blank stage built exactly as the create door builds one, handed to
+Designer in its bound lane, produced a correct composition through the
+**ORDINARY uniform verbs** — 3 layers, each placed AND depth-stamped, declared
+dark ground honoured, scaffold replaced, via `WriteFile`. That **inverts** the
+module's old "why compose is not a lane tool" argument: it reasoned a
+Designer-only verb would re-open ADR-467 D4's uniform lane surface — premise
+right, conclusion backwards. The lane needs NO new verb, so the uniform surface
+was the ANSWER, not the obstacle.
+
+⭐**The gate rule applied**: RE-POINT a gate whose RULE survives, DELETE one
+whose SUBJECT is gone. `test_adr445`'s costed-site row moved to
+`primitives/generate_image.py` (the act moved, its watcher moves with it —
+dropping it would leave a costed site unwatched); `test_adr475_gemini_driver`
+kept §1–§5 and lost only §6; `test_adr475_decomposed_generation.py` deleted
+whole. **KEPT deliberately**: the rented backends (`capabilities.py` resolves
+them for the lane's `GenerateImage`) and `/images/export` (live caller).
+
+Two duplications closed: `STAGE_PRESETS` (hand-copied, already DRIFTED, sync
+comment citing a path deleted when images became a package) now served on the
+template row that has it; and **Text's create modal wrote the literal told-name
+`Documents` into the path** — the PATCH door runs no `HOME_ALIASES` pass, so it
+created a **PHANTOM ROOT**. ⚠️Two files still sit at `/workspace/Documents/` on
+prod (`adr575-canvas-clickpass.md`, `adr572-click-pass.md`), visible in the
+Learn-from picker; left in place deliberately — moving a member's files is the
+operator's call.
+
+## The click-pass — DRIVEN on prod, all three fixes confirmed
+
+Rig `kvkthecreator@yarnnn.com` / ws `bf5b25a9`, isolated browser context.
+
+1. **Learn from… → "WHAT SHOULD IT MAKE?" now shows Image** beside Design
+   system. Ran end to end: created `operation/desk-e2e/criterion/image.html`
+   (`data-template="image"`, beside its source), opened with the **Layers rail,
+   Artboard 1 1080×1080**, Artifact = "Image". ⚠️The Properties panel reads
+   `document` for ~1s DURING load, then resolves — pre-load state, not a bug.
+2. **All six presets render from the SERVER**, and the hints prove it: the
+   kernel's *"Instagram / TikTok story, 9:16"*, not the client copy's drifted
+   *"Story / Reel"*. Created at the **Ad** preset → substrate carries
+   `data-w="1200" data-h="628"`, landed in `operation/`, NOT `Documents/`.
+   Destination field reads "Documents" with a Change picker — the operator's
+   original mental model, already true.
+3. **The reference picker lists only live images** (3, no archived, no folder
+   markers). Inserted one: **it resolved and PAINTED on the canvas**, and
+   landed as `data-ref="system/agents/designer/face.png"` + `data-ref-rev`,
+   **not** inlined base64 — ADR-440 D5 exactly. ⭐Worth noting against
+   [[a-gate-can-assert-a-surface-the-app-demoted-the-day-before]]: that note
+   recorded Text's canvas never drawing an image; the IMAGES canvas **does**.
+
+Click-pass artifacts purged (2 rows).
+
+## Open / owed
+
+- ⚠️**`test_adr472_images.py` is 24/27 AT BASELINE** — verified by stash-test,
+  identical with and without this session's changes. It pins ADR-488's *hidden*
+  state, which **ADR-629 D3 reversed** (images is `stage: primary` + beta
+  badge). A gate red for a week trains people to ignore red: update it to pin
+  the beta state, or retire it. A DECISION, not a cleanup.
+- The two phantom `/workspace/Documents/` files (above).
+- The IMAGES tagline still promises *"describe the image in plain words — it
+  renders live on the canvas."* Now true via Designer in the lane rather than a
+  button. Whether that wants an explicit affordance is a product call.
+
+---
+
 # Part Z — ADR-648: the message-handling audit, and two gaps (2026-09-09)
 
 Operator: *"any improvements … to our message handling themselves, or session
