@@ -4,6 +4,100 @@ Delete a PART in the commit that absorbs it — not the whole file. Parts A–F 
 
 ---
 
+# Part Z5 — a new account could not open a chat: TWO bugs in cold sign-up (2026-09-12)
+
+Operator: *"there was a new account and they couldn't open a new agent"* —
+with a Sentry `ValueError: a participant needs the CONVERSATION's
+workspace_id` and a Slack signup notification for `kkim2yj@gmail.com`.
+
+## Both shipped and DRIVEN on prod. `cb76165` + `b8453b0`.
+
+**Bug 1 — genesis had no live door.** ADR-465 D2 placed the cold-user
+workspace mint on `GET /api/workspace/state`. **ADR-437 Phase A (`58308c9`,
+2026-07-10) deleted `/setup`, the last surface that fetched it on login.**
+The route kept its call; nothing called the route. The `auth/callback`
+comment saying *"the shell does it"* survived naming a caller that no longer
+existed. Moved to `get_user_client` — the ONE dependency every authenticated
+request passes. Join-only (D2's crux) preserved by the same predicate,
+driven over all four principal shapes. ⭐⭐⭐**A genesis door placed on a
+ROUTE is only as live as that route's caller.**
+
+**Bug 2 — a workspace nobody could reach.** The probe written to verify bug 1
+failed immediately: genesis fired and `POST /api/lanes` STILL 500'd.
+`workspaces.owner_id` says who OWNS; `principal_grants` says who may REACH,
+and `is_workspace_member()` (mig 221) reads ONLY the second — it has no
+`owner_id` arm. Migration 236's lane SELECT policy ANDs it. **Neither mint
+site ever wrote the owner grant**: the grants were backfilled ONCE (ADR-373
+D2) and the code never learned the rule. **8 of 19 prod workspaces had none**,
+with an exact cut at 2026-06-13. Both mint sites now write it;
+`owner-grant` is a declared `_GENESIS_STEPS` entry.
+
+⚠️**This corrects `cb76165`'s own commit message**: `youngsup1214` (07-11)
+and `nickyandnicholas` (07-04) were broken too. There was no "last good
+signup" — bug 1 alone would have left every new account still unable to chat.
+
+## Why it hid for two months
+
+⭐⭐⭐**A resource minted without reach is INVISIBLE, not forbidden.** Every
+substrate read returns empty rather than erroring — which is exactly what a
+new empty workspace should look like. The first hard failure was three layers
+away: `chat_sessions` INSERT ... RETURNING, whose read-back trips the policy
+and surfaces as postgrest **42501 "new row violates row-level security
+policy"** — an INSERT's error message for a READ-BACK problem. Migration
+236's own header documents that same confusion for a different cause.
+
+## The gate had pinned the defect
+
+`test_adr465_join_only_genesis.py` §2d asserted *"the only caller is
+`routes/workspace.py`"* — an **ENUMERATION** of the door rather than the rule
+it protected. It stayed green for two months **because it named the dead
+door**. Now 15/15: §2c asserts the door is the auth dependency, §2d asserts
+the RULE (no accept/invite path mints), §2b-ii/iii assert BOTH mint sites
+write the owner grant, §2e asserts a workspace-less lane is refused and
+cleaned up before the cast. All falsified both directions. (Two `.index()`
+calls made the gate CRASH rather than report under falsification — now
+`.find()`.)
+
+## ⭐⭐⭐ The probe found what the gate structurally could not
+
+`cb76165`'s gate was 12/12 green, its reasoning sound, and every new account
+still broken. A structural gate reads SOURCE; it cannot prove a real
+principal with a real JWT ends up able to work.
+`scripts/operator/probe_cold_user_genesis.py` creates a throwaway account,
+drives the deployed API, asserts the four claims that actually failed, and
+tears itself down. **ALL PASS 6/6 on prod, three consecutive runs.**
+
+⚠️**A post-deploy failure lied.** The first run, 9s after Render reported
+`live`, hit an instance still serving the OLD build and failed convincingly
+in exactly the spot the fix targeted. Proven from logs (a `principal_grants`
+SELECT with no INSERT after it) BEFORE touching code. **"Deploy is live" ≠
+"every instance serves the new code" — re-run before believing either a pass
+or a fail.**
+
+## Live data healed (operator-approved)
+
+3 workspaces minted + **7 owner grants backfilled** (incl. `seulkim88`'s
+August "seulkim tester", also broken) + 1 orphan NULL-workspace lane deleted
+after confirming 0 cast rows and 0 messages. Final audit: **18 workspaces, 0
+without an owner grant, 0 accounts with no workspace, 0 orphan lanes, 0 probe
+leftovers.**
+
+## Owed / open
+
+- ⚠️`test_adr614_cast_follows_the_registration.py` is **3 RED at baseline**
+  (creator + colleague cast seeding, persisted engine) — confirmed
+  pre-existing at `d65e2fb`, untouched. Same area of code; worth a look.
+- ⚠️**No live workspace on prod has the governance dials**, so
+  `initialize_workspace` is effectively dead the same way the state route was.
+  `budget.py` degrades to kernel defaults, so a bare workspace row IS usable —
+  consistent with ADR-414 D4 (genesis is pure). Decide whether that function
+  should be deleted or re-reached.
+- The FE never calls `api.workspace.getState` except in `/settings` behind a
+  `.catch(() => null)`. Genesis no longer needs it, but the endpoint's other
+  payload (program lifecycle, substrate_status) now has no live reader.
+
+---
+
 # Part Z4 — the IMAGES audit: no broken redirects, two dead doors, one fork deleted (2026-09-08)
 
 Operator: *"can you audit the existing images APP. there are many brokend
