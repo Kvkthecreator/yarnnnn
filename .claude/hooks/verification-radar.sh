@@ -48,6 +48,19 @@ except Exception:
     print(f"[verification-radar] ledger unreadable at {LEDGER} — treat ALL lanes as due; see docs/evaluations/VERIFICATION.md")
     raise SystemExit(0)
 
+def diff_base(lane, sha):
+    """The recorded sha is HEAD at marking time — one commit BEFORE the validation
+    commit that carries both the change and the ledger. Diffing from it reports every
+    lane DUE by exactly one commit forever. Walk forward to the commit that recorded
+    this mark and diff from there; fall back to the recorded sha."""
+    for c in sh("git", "log", "--reverse", "--format=%h", f"{sha}..HEAD", "--", LEDGER).splitlines():
+        try:
+            if json.loads(sh("git", "show", f"{c}:{LEDGER}"))["lanes"][lane]["sha"] == sha:
+                return c
+        except Exception:
+            continue
+    return sha
+
 head = sh("git", "rev-parse", "--short", "HEAD")
 due, clean = [], []
 for lane, (specs, nudge) in LANES.items():
@@ -55,7 +68,7 @@ for lane, (specs, nudge) in LANES.items():
     if not sha:
         due.append(f"  DUE {lane} — never validated (no ledger entry) -> {nudge}")
         continue
-    committed = sh("git", "diff", "--name-only", f"{sha}..HEAD", "--", *specs)
+    committed = sh("git", "diff", "--name-only", f"{diff_base(lane, sha)}..HEAD", "--", *specs)
     uncommitted = sh("git", "status", "--porcelain", "--", *specs)
     files = [l for l in (committed.splitlines()
                          + [u[2:].strip() for u in uncommitted.splitlines()]) if l]
