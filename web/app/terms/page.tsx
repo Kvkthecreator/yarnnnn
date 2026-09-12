@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
+import { Wordmark } from "@/components/shared/Wordmark";
 
 export const metadata = getMarketingMetadata({
   title: "Terms of Service",
@@ -21,8 +22,8 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border py-4 px-6">
-        <Link href="/" className="text-xl font-brand">
-          yarnnn
+        <Link href="/">
+          <Wordmark className="text-xl" />
         </Link>
       </header>
 

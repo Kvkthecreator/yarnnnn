@@ -5,7 +5,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { getMarketingMetadata } from "@/lib/metadata";
+import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA } from "@/lib/cta";
 
 interface FaqItem {
@@ -62,11 +62,6 @@ const faqSections: FaqSection[] = [
         answer:
           "Any that speak MCP — ChatGPT, Claude, and others. It's neutral on purpose: it isn't tied to any one model, which is exactly why it can sit across all of them.",
       },
-      {
-        question: "What's the 'second set of eyes' I've seen mentioned?",
-        answer:
-          "That's the optional checker (in beta): an assistant that reviews important work before it goes out, against rules you set, and keeps a record of every call it makes. The memory is valuable on its own; the checker is an upgrade you turn on when you're ready.",
-      },
     ],
   },
   {
@@ -117,6 +112,16 @@ const faqSections: FaqSection[] = [
         answer:
           "Connect the two AIs you use most, and save one thing in one of them. Open the other and recall it. That round-trip — write once, there everywhere, fully traceable — is the whole idea in about thirty seconds.",
       },
+      // ADR-629 D4 — derived from the ONE stage declaration; gone when it is.
+      ...(BRAND.stage
+        ? [
+            {
+              question: `Is ${BRAND.name} in ${BRAND.stage}?`,
+              answer:
+                "Yes. It works and we run our own work on it every day, but it will keep changing, and some things will break along the way. None of that touches your files: every version is kept, every change is signed, and the whole workspace exports as a plain git repo whenever you like. If something breaks or confuses you, use Send feedback in your account menu.",
+            },
+          ]
+        : []),
     ],
   },
 ];

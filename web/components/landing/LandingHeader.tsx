@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
+import { Wordmark } from "@/components/shared/Wordmark";
 
 interface LandingHeaderProps {
   inverted?: boolean;
@@ -38,7 +39,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
           height={32}
           className={inverted ? "invert" : ""}
         />
-        <span className={`text-xl font-brand ${inverted ? "text-white" : ""}`}>yarnnn</span>
+        <Wordmark className={`text-xl ${inverted ? "text-white" : ""}`} />
       </Link>
 
       {/* Desktop nav */}

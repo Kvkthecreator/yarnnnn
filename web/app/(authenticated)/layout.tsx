@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from "next";
 import { createClient } from '@/lib/supabase/server';
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
+import { Wordmark } from '@/components/shared/Wordmark';
 
 export const metadata: Metadata = {
   title: {
@@ -51,7 +52,7 @@ function LayoutFallback() {
   return (
     <div className="h-screen flex items-center justify-center bg-background">
       <div className="text-center">
-        <h1 className="text-xl font-brand mb-2">yarnnn</h1>
+        <h1 className="mb-2"><Wordmark className="text-xl" /></h1>
         <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
     </div>

@@ -21,6 +21,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AuthForm } from "@/components/auth/AuthForm";
+import { Wordmark } from "@/components/shared/Wordmark";
 
 function MCPAuthInner() {
   const searchParams = useSearchParams();
@@ -61,7 +62,7 @@ function MCPAuthInner() {
     <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center">
-          <h1 className="text-3xl font-brand text-[#1a1a1a]">yarnnn</h1>
+          <h1 className="text-[#1a1a1a]"><Wordmark className="text-3xl" /></h1>
         </div>
 
         <AuthForm
@@ -90,7 +91,7 @@ export default function MCPAuthPage() {
       fallback={
         <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
           <div className="text-center">
-            <h1 className="text-3xl font-brand text-[#1a1a1a]">yarnnn</h1>
+            <h1 className="text-[#1a1a1a]"><Wordmark className="text-3xl" /></h1>
             <p className="mt-2 text-[#1a1a1a]/60">Loading…</p>
           </div>
         </div>

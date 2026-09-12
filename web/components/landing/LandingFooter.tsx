@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { Wordmark } from "@/components/shared/Wordmark";
+import { FEEDBACK_FORM } from "@/lib/cta";
 
 interface LandingFooterProps {
   inverted?: boolean;
@@ -90,7 +92,7 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
               </li>
               <li>
                 <button
-                  data-tally-open="pbD88B"
+                  data-tally-open={FEEDBACK_FORM.id}
                   data-tally-width="400"
                   data-tally-overlay="1"
                   data-tally-emoji-animation="none"
@@ -160,8 +162,8 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
             inverted ? "border-white/10" : "border-border"
           }`}
         >
-          <Link href="/" className={`font-brand text-lg hover:opacity-80 transition-opacity ${inverted ? "text-white" : ""}`}>
-            yarnnn
+          <Link href="/" className={`hover:opacity-80 transition-opacity ${inverted ? "text-white" : ""}`}>
+            <Wordmark className="text-lg" />
           </Link>
           <div className={`text-xs ${mutedClass}`}>
             Donggyo-Ro 272-8 3F, Seoul, Korea

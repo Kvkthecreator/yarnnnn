@@ -1,4 +1,4 @@
-import { BRAND } from "@/lib/metadata";
+import { BRAND, STAGE_NOTICE } from "@/lib/metadata";
 // ADR-445 §6 — prices interpolate from the single source.
 import { PRICE_COPY } from "@/lib/subscription/usage";
 import { getAllPosts } from "@/lib/blog";
@@ -27,10 +27,9 @@ export async function GET() {
     `- MCP connector URL: ${MCP_URL}`,
     "- Auth: OAuth 2.1",
     "- Discovery: " + `${BRAND.url}/.well-known/mcp.json`,
-    "- Three verbs:",
-    "  - remember — save something worth keeping (a decision, fact, preference). Durable, attributed, available on the next recall.",
-    "  - recall — pull what you already know about a subject. yarnnn returns the material; the host AI explains it.",
-    "  - trace — show how a recorded fact changed over time (who changed it, when, what changed) — the capability a plain storage connector cannot show.",
+    // ADR-635 D9 — the roster is the server's own tools/list; a copy here drifts
+    // (this file advertised three retired verbs for months after ADR-543).
+    "- Tools: file verbs over the shared workspace — read, search, write, move and share files, with history — every write signed as the connecting AI. The roster is the server's own tools/list; this file does not copy it.",
     "",
     "## Developer resources",
     "",
@@ -48,7 +47,6 @@ export async function GET() {
     "",
     `- [Home](${BRAND.url}): Shared memory for AI + human work`,
     `- [How It Works](${BRAND.url}/how-it-works): The substrate loop — capture, recall, trace`,
-    `- [Freddie](${BRAND.url}/freddie): The agent that tends your memory — reads what you connect, keeps it in order, records every change (in beta)`,
     `- [Pricing](${BRAND.url}/pricing): Free for two people; a paid seat per extra teammate + pay-as-you-go usage`,
     `- [FAQ](${BRAND.url}/faq): Product model, integrations, and pricing`,
     `- [Developers](${BRAND.url}/developers): API, MCP connector, OpenAPI spec, and OAuth`,
@@ -71,10 +69,8 @@ export async function GET() {
     "- Full change history you can trace, not a flat key-value store",
     "- Yours to own and export, not locked inside one platform",
     "",
-    "## Freddie — the agent that tends your memory (in beta)",
-    "",
-    "Beyond plain memory, yarnnn runs an agent named Freddie who tends your substrate. Today he reads what you connect (Slack, Notion, files), keeps your memory in order, checks work against rules you write, and records every change so you can trace it — all reversible, attributed, and yours to verify. He only ever does as much as you allow: he goes ahead within your rules, asks first when it's bigger than that, and waits for more when something's missing. Taking action out in the world on your behalf is the next horizon, earned on the record rather than switched on. This is an optional upgrade, currently in beta — the memory layer is valuable on its own. See " + `${BRAND.url}/freddie` + ".",
-    "",
+    // ADR-629 D4 — the product's stage, from the ONE declaration.
+    ...(STAGE_NOTICE ? ["## Status", "", STAGE_NOTICE, ""] : []),
     "## Platforms supported",
     "",
     "- Any MCP-capable AI (ChatGPT, Claude, and others)",

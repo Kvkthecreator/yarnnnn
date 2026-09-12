@@ -56,3 +56,16 @@ export const PRIMARY_CTA_LABEL = "Start free";
  * button carry the "which AIs" work.
  */
 export const LEAD_DOOR_CTA_LABEL = "Connect your AI";
+
+/**
+ * The ONE feedback form (Tally). The landing footer opens it as an overlay
+ * (`data-tally-open={FEEDBACK_FORM.id}`); the in-app account menu links to it
+ * (`FEEDBACK_FORM.url`). One form, two doors, so what a visitor and a member
+ * report lands in the same place. ADR-629 D4: a stage annotation without a
+ * door is a label — this is the door, and it outlives the stage.
+ */
+const FEEDBACK_FORM_ID = "pbD88B";
+export const FEEDBACK_FORM = {
+  id: FEEDBACK_FORM_ID,
+  url: `https://tally.so/r/${FEEDBACK_FORM_ID}`,
+} as const;

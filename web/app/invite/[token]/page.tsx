@@ -23,6 +23,7 @@ import { Loader2, Users, AlertTriangle } from "lucide-react";
 
 import { api, APIError, setActiveWorkspace } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
+import { Wordmark } from "@/components/shared/Wordmark";
 
 type Preview = {
   workspace_name: string | null;
@@ -125,7 +126,7 @@ export default function InviteAcceptPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
-      <p className="mb-6 font-brand text-2xl">yarnnn</p>
+      <p className="mb-6"><Wordmark className="text-2xl" /></p>
       <div className="w-full max-w-md rounded-xl border border-border/60 bg-card p-8 text-center shadow-sm">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
           <Users className="h-6 w-6 text-muted-foreground" />

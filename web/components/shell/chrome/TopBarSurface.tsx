@@ -74,6 +74,7 @@ import { AttentionCenter } from '../AttentionCenter';
 import { useShellChrome } from '../ShellChromeContext';
 import type { Surface } from '@/lib/compositor/types';
 import { cn } from '@/lib/utils';
+import { Wordmark } from '@/components/shared/Wordmark';
 
 // 2026-07-22 — the Dock's semantic BANDS. The five primary apps are not five
 // peers: they are three acts (matching DEFAULT_KEPT_SURFACES' order + the
@@ -377,9 +378,8 @@ export function TopBarSurface() {
           title="Desktop"
           className="rounded-md px-2 py-1 transition-opacity hover:opacity-70"
         >
-          <span className="font-brand text-2xl text-foreground leading-none">
-            yarnnn
-          </span>
+          {/* ADR-629 D4 — the ONE Wordmark; the stage annotation rides it. */}
+          <Wordmark className="text-2xl text-foreground leading-none" />
         </button>
       </div>
 

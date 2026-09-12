@@ -33,6 +33,7 @@ import { FileText } from "lucide-react";
 
 import { AttributionWalk, JoinAction } from "./ShareClient";
 import { artifactName, fetchSharePreview } from "./share-preview";
+import { Wordmark } from "@/components/shared/Wordmark";
 
 /** A capability link is served fresh or not at all — revocation must be the end
  *  of it (ADR-513 D4). Never statically rendered, never revalidated. */
@@ -220,7 +221,7 @@ export default async function SharePublicPage({ params }: PageProps) {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col items-center bg-background px-4 py-10">
-      <p className="mb-8 font-brand text-2xl">yarnnn</p>
+      <p className="mb-8"><Wordmark className="text-2xl" /></p>
       {children}
     </div>
   );

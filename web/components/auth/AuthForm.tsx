@@ -22,6 +22,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
+import { STAGE_NOTICE } from "@/lib/metadata";
 
 function GoogleIcon() {
   return (
@@ -129,6 +130,12 @@ export function AuthForm({
       <p className="mt-2 text-[#1a1a1a]/60 text-center">
         {mode === "login" ? loginSubheading : signupSubheading}
       </p>
+      {mode === "signup" && STAGE_NOTICE && (
+        // ADR-629 D4 — the ONE place the stage is said out loud: where a
+        // person decides to make an account. Everywhere else it is a quiet
+        // annotation beside the mark.
+        <p className="mt-2 text-center text-xs text-[#1a1a1a]/50">{STAGE_NOTICE}</p>
+      )}
 
       <div className="glass-card-light p-8 space-y-6 mt-8">
         <Button

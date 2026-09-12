@@ -69,6 +69,8 @@ import {
   Link2,
   Settings,
   ChevronRight,
+  MessageSquare,
+  ExternalLink,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
@@ -85,6 +87,8 @@ import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useShellChrome } from './ShellChromeContext';
 import { useViewport } from '@/lib/shell/useViewport';
 import { cn } from '@/lib/utils';
+import { StageAnnotation } from '@/components/shared/Wordmark';
+import { FEEDBACK_FORM } from '@/lib/cta';
 
 interface UserMenuProps {
   email?: string;
@@ -239,7 +243,13 @@ export function UserMenu({ email }: UserMenuProps) {
           {email && (
             <div className="px-3 py-2 border-b border-border">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium truncate">{email}</p>
+                <div className="min-w-0 flex items-baseline gap-1.5">
+                  <p className="text-sm font-medium truncate">{email}</p>
+                  {/* ADR-629 D4 — the stage's mobile home: the top bar hides
+                      the Wordmark below `sm`; this header renders on every
+                      viewport. The same quiet shape, never the app chip. */}
+                  <StageAnnotation className="shrink-0" />
+                </div>
                 <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5 shrink-0">
                   <button
                     onClick={() => setTheme('light')}
@@ -470,6 +480,24 @@ export function UserMenu({ email }: UserMenuProps) {
               </button>
             </div>
           )}
+
+          {/* ADR-629 D4 — the feedback door. A stage annotation without a door
+              is a label; this is the door, and it is the SAME form the landing
+              footer opens (FEEDBACK_FORM in lib/cta.ts), so a visitor's and a
+              member's report land together. A plain link — no Tally embed
+              script inside the shell. Permanent: the stage graduates, the door
+              stays. */}
+          <a
+            href={FEEDBACK_FORM.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setIsOpen(false)}
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+          >
+            <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="flex-1">Send feedback</span>
+            <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+          </a>
 
           {/* Menu items — 2026-07-08: the Workspace Settings item is REMOVED
               (Manage access → above already opens that window at the Members

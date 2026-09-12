@@ -14,7 +14,29 @@ import type { Metadata } from "next";
 // BRAND CONFIGURATION
 // =============================================================================
 
-export const BRAND = {
+/**
+ * The product's release stage — ADR-629 D4 (2026-09-12).
+ *
+ * ONE home. `Wordmark` renders it as a quiet annotation beside the mark on
+ * every surface; `AuthForm` says it in one sentence at the sign-up door; the
+ * FAQ and llms.txt derive from it. Presentation only — no route, capability,
+ * price or gate may branch on it (ADR-629 D1's rule, now at product grain).
+ * Graduating is deleting the `stage` line on BRAND; the field is optional so
+ * that deletion compiles. Gate: api/test_adr629_the_product_wears_beta.py.
+ */
+export type ProductStage = "beta";
+
+interface Brand {
+  name: string;
+  tagline: string;
+  description: string;
+  url: string;
+  ogImage: string;
+  /** Absent once the product graduates. */
+  stage?: ProductStage;
+}
+
+export const BRAND: Brand = {
   name: "yarnnn",
   tagline: "Shared memory for AI + human work",
   description:
@@ -29,7 +51,18 @@ export const BRAND = {
   // naming the apex here hands crawlers the blocked host.
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
+  stage: "beta",
 };
+
+/**
+ * The one sentence that says what the stage means to a person: the sign-up
+ * door, the annotation's tooltip, llms.txt. Every claim in it is enforced
+ * behavior (ADR-561 D1) — versions are kept (ADR-209), the workspace exports
+ * as git (ADR-510). Null once there is no stage.
+ */
+export const STAGE_NOTICE: string | null = BRAND.stage
+  ? `${BRAND.name} is in ${BRAND.stage}. Things will change — your files stay yours, and they export any time.`
+  : null;
 
 interface MarketingMetadataOptions {
   title: string;

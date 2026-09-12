@@ -16,6 +16,7 @@ import {
   getWebSiteSchema,
 } from "@/lib/metadata";
 import { CTA, LEAD_DOOR_CTA_LABEL } from "@/lib/cta";
+import { Wordmark } from "@/components/shared/Wordmark";
 
 /**
  * Landing page — CANON-LOCK-2026-07-30 (working canon).
@@ -75,7 +76,12 @@ export default function LandingPage() {
           <div className="max-w-6xl mx-auto w-full">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-12 lg:gap-20">
               <div className="text-center lg:text-left flex-1 max-w-2xl mx-auto lg:mx-0">
-                <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">yarnnn</div>
+                {/* The mark, BARE (ADR-629 D4): the hero sequence below is the
+                    canon lock's §1 arc verbatim, and the header above already
+                    carries the stage annotation. The ONE `bare` call site. */}
+                <div className="mb-8">
+                  <Wordmark bare className="text-4xl md:text-5xl text-[#1a1a1a]" />
+                </div>
 
                 {/* The hook (Slot 3) */}
                 <p className="text-sm md:text-base font-mono text-[#1a1a1a]/40 uppercase tracking-wider mb-5">

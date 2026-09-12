@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { api } from "@/lib/api/client";
+import { Wordmark } from "@/components/shared/Wordmark";
 
 /**
  * MCP OAuth login handoff + CONSENT — ADR-310 D4 (Auth Piece 2).
@@ -139,7 +140,7 @@ function MCPAuthorizeHandler() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center max-w-md px-6">
-        <h1 className="text-2xl font-brand mb-4">yarnnn</h1>
+        <h1 className="mb-4"><Wordmark className="text-2xl" /></h1>
 
         {error ? (
           <p className="text-red-600">{error}</p>
@@ -300,7 +301,7 @@ export default function MCPAuthorizePage() {
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
-            <h1 className="text-2xl font-brand mb-2">yarnnn</h1>
+            <h1 className="mb-2"><Wordmark className="text-2xl" /></h1>
             <p className="text-gray-600">Loading…</p>
           </div>
         </div>
