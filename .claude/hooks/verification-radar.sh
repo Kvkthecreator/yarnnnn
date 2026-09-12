@@ -55,10 +55,14 @@ def diff_base(lane, sha):
     this mark and diff from there; fall back to the recorded sha."""
     for c in sh("git", "log", "--reverse", "--format=%h", f"{sha}..HEAD", "--", LEDGER).splitlines():
         try:
-            if json.loads(sh("git", "show", f"{c}:{LEDGER}"))["lanes"][lane]["sha"] == sha:
-                return c
+            recorded = json.loads(sh("git", "show", f"{c}:{LEDGER}"))["lanes"][lane]["sha"] == sha
         except Exception:
             continue
+        # Only a commit whose PARENT is the recorded sha is the validation commit. A
+        # retroactively seeded entry (or an interleaved foreign commit) fails this and
+        # falls back to the recorded sha: a false DUE is noise, a false clean is a lie.
+        if recorded and sh("git", "rev-parse", "--short", f"{c}^") == sha:
+            return c
     return sha
 
 head = sh("git", "rev-parse", "--short", "HEAD")
