@@ -1,6 +1,9 @@
-# Design Docs — Changelog
+# Design Docs — Changelog (frozen 2026-08-21)
 
-Track changes to design documentation structure and active principles.
+Frozen. The last entry is 2026-08-21; the September design changes (ADR-633 the Images chrome,
+ADR-641 icon accents, ADR-646 artifact types) were recorded in their ADRs and never here, so the
+record already lives in `docs/adr/` and the per-surface contracts (`PANES.md`, `WORKSPACE.md`).
+Do not append. A design change is recorded in its ADR; a surface contract change in the contract.
 
 ---
 

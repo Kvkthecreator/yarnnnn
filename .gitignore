@@ -116,3 +116,6 @@ docs/database/ACCESS.local.md
 
 # Staging area for files awaiting manual deletion
 _to_delete/
+
+# Investor decks stay on disk, out of git (18MB of .pptx in a code repo; 2026-09-12)
+docs/working_docs/investors/*.pptx
