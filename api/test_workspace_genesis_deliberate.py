@@ -50,20 +50,57 @@ def _load_genesis():
     captured: dict = {}
 
     class _Ins:
-        def __init__(self, payload):
-            captured["payload"] = payload
+        # `payload` is the WORKSPACE insert only. The owner-grant step inserts
+        # into a second table, and recording that here would clobber the
+        # workspace payload every check below reads (observed 2026-09-12: four
+        # checks went red asserting the GRANT's fields against the workspace's
+        # names). The table decides where the write is recorded.
+        def __init__(self, payload, table="workspaces"):
+            self.payload = payload
+            self.table = table
+            if table == "workspaces":
+                captured["payload"] = payload
 
         def execute(self):
-            row = dict(captured["payload"])
+            row = dict(self.payload)
             row["id"] = "ws-new"
             return types.SimpleNamespace(data=[row])
 
     class _Tbl:
+        # The owner-grant step (2026-09-12) makes genesis touch a SECOND table:
+        # `ensure_principal_grant` SELECTs for an existing active grant before
+        # inserting. The fake must model that or it crashes on `.select` and
+        # the whole gate reports nothing — which is exactly what happened when
+        # the step landed. Grant writes are recorded separately so the checks
+        # below can assert the grant WITHOUT the workspace insert's `captured`
+        # being clobbered by the second table's payload.
         def __init__(self, name):
-            captured["table"] = name
+            self.name = name
+            if name == "workspaces":
+                captured["table"] = name
 
         def insert(self, payload):
-            return _Ins(payload)
+            if self.name == "principal_grants":
+                captured.setdefault("grants", []).append(payload)
+            return _Ins(payload, self.name)
+
+        # The grant lookup chain: select().eq().eq().eq().is_/eq().limit().execute()
+        def select(self, *a, **k):
+            return self
+
+        def eq(self, *a, **k):
+            return self
+
+        def is_(self, *a, **k):
+            return self
+
+        def limit(self, *a, **k):
+            return self
+
+        def execute(self):
+            class R:
+                data = []  # no existing grant -> ensure_principal_grant INSERTs
+            return R()
 
     class _Cli:
         def table(self, name):
@@ -113,6 +150,21 @@ check(
     "2g. the oldest-first owner resolver cache is cleared (it may hold a stale answer)",
     fake._resolve_owner_workspace_id_cached.cache_clear.called,
 )
+# 2h ⭐⭐⭐ A WORKSPACE IS NOT MINTED UNTIL ITS OWNER CAN REACH IT (2026-09-12).
+#
+# `is_workspace_member()` (migration 221) reads `principal_grants` ONLY — it
+# has no arm for `workspaces.owner_id` — and migration 236's lane SELECT
+# policy ANDs it. A workspace minted without this row is reachable by NOBODY,
+# and says so only as a postgrest 42501 on the first lane INSERT ... RETURNING:
+# a read-back failure wearing an INSERT's error message. 8 of 19 production
+# workspaces were in that state. Driven here (the real body runs), not grepped.
+_grants = captured.get("grants") or []
+check(f"2h. genesis also grants the OWNER reach (exactly one grant, got {len(_grants)})", len(_grants) == 1)
+_g = _grants[0] if _grants else {}
+check("2i. the grant is role=owner for the authenticated caller",
+      _g.get("role") == "owner" and _g.get("principal_id") == "user-1")
+check("2j. the grant points at the workspace just minted",
+      _g.get("workspace_id") == "ws-new")
 
 print("\n[3] Name normalization is real")
 check("3a. internal whitespace collapses (no two look-alike rows)", mod.normalize_workspace_name("  Acme   Research ") == "Acme Research")
