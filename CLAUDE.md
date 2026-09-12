@@ -116,7 +116,9 @@ The live frame is `build_lane_conventions` in `api/services/lane_runner.py` (wit
 `api/services/apps/*.py`, the participant constants in `api/services/workspace_paths.py`, the skills in
 `api/services/skills/*/SKILL.md`, and the tool definitions in `api/services/primitives/*.py`. Changing any of them:
 
-1. Add an entry to `api/prompts/CHANGELOG.md` naming the **repeated, observed** failure it fixes and the expected behavior change.
+1. Prepend an entry (newest first) to `api/prompts/CHANGELOG.md` naming the **repeated, observed** failure it
+   fixes and the expected behavior change. The file holds the newest two months; older months are frozen in
+   `api/prompts/archive/`, held by `api/test_prompt_changelog_discipline.py`.
 2. Run the size ratchets: `api/test_adr632_the_seat_retires.py` §5 and `api/test_adr630_skills.py`.
 3. Adding is the last resort (ADR-306, FOUNDATIONS DP22). Rules of judgment → `principles.md`; substrate semantics →
    the workspace guide; craft with a contract → a skill; anything a gate enforces → no prose. agent-composition.md
@@ -131,6 +133,10 @@ The live frame is `build_lane_conventions` in `api/services/lane_runner.py` (wit
 ### Changed
 - file.py: what changed and why
 - Expected behavior: how this affects behavior
+### Why
+The repeated, observed failure, with its receipt.
+### Gate
+The ratchets run and the ADR's gate.
 ```
 
 ## Where things live

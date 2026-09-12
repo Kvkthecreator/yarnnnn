@@ -111,6 +111,10 @@ def _is_allowed(path: Path) -> bool:
     rel = path.relative_to(REPO_ROOT).as_posix()
     if rel in ALLOWED_FILES:
         return True
+    # Prompt changelog archive — frozen month files rolled out of CHANGELOG.md
+    # (test_prompt_changelog_discipline.py); the same historical record.
+    if rel.startswith("api/prompts/archive/"):
+        return True
     # Exclude paths under any excluded dir
     parts = set(rel.split("/"))
     if parts & EXCLUDED_DIRS:

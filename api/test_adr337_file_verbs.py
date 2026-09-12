@@ -212,8 +212,8 @@ matrix = (REPO_ROOT / "docs" / "architecture" / "primitives-matrix.md").read_tex
 check("matrix has EditFile/DeleteFile/MoveFile rows", all(f"`{v}` | file" in matrix for v in ("EditFile", "DeleteFile", "MoveFile")))
 check("matrix has the repo-analogy mapping table", "Repo-analogy mapping (ADR-337)" in matrix)
 check("ADR-337 exists", (REPO_ROOT / "docs" / "adr" / "ADR-337-file-layer-verb-completion.md").exists())
-changelog = (API_ROOT / "prompts" / "CHANGELOG.md").read_text()
-check("prompts CHANGELOG has the ADR-337 entry", "ADR-337: working-tree verbs" in changelog)
+changelog = (API_ROOT / "prompts" / "archive" / "2026-06.md").read_text()  # rolled out of CHANGELOG.md 2026-09-12
+check("prompts CHANGELOG (2026-06 archive) has the ADR-337 entry", "ADR-337: working-tree verbs" in changelog)
 
 
 print(f"\n{PASS} passed, {FAIL} failed")
