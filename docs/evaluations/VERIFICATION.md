@@ -39,7 +39,7 @@ nothing.
 
 ---
 
-## prompt — `api/agents/` · `api/services/primitives/` · `api/prompts/`
+## prompt — `api/services/lane_runner.py` · `api/services/authoring.py` · `api/services/apps/` · `api/services/standing_work.py` · `api/services/workspace_paths.py` · `api/services/skills/` · `api/services/primitives/` · `api/prompts/`
 
 - **Verify**: `cd api && python3 -m pytest test_adr632_the_seat_retires.py test_adr630_skills.py test_envelope_scaffold_ratchet.py -q`
 - **Guardrails**: Prompt Change Protocol (CLAUDE.md) — CHANGELOG entry naming the
@@ -111,6 +111,21 @@ nothing.
 - **Guardrails**: instruction vs reference split — reference detail goes to
   ADR-LEDGER/SCHEMA-NOTES, not here; ceiling raise needs the evidence bar.
 - **Exit**: ratchet green; edited rows' pointers verified live.
+
+---
+
+## context-budget — `api/services/model_router.py` · `api/services/primitives/workspace.py` · `api/routes/lanes.py` · `api/services/lane_runner.py`
+
+- **Verify**: `cd api && python3 test_adr647_history_caching.py && python3 test_adr648_bounded_context.py && python3 test_adr634_prompt_caching.py` — all script-shaped: read the printed count, not the exit code.
+- **Guardrails** (ADR-634/647/648): these files decide what enters a prompt and what it
+  costs, and every invariant is invisible at review — green on read, wrong in production.
+  SINGULAR IMPLEMENTATION: caching lives ONLY in `model_router._build_messages` (callers
+  stay provider-blind); the read cap ONLY in `workspace._clip_read` (the notice is the
+  feature, `offset` is real); the history ceiling ONLY in `lanes._clamp_history_chars`,
+  oldest-first (a middle-drop invalidates the cached prefix and costs more than it saves).
+  A second home for any of them is the defect. Summarisation is refused (ADR-408 D6).
+- **Exit**: the three gates green; a caching/clip/trim change FALSIFIED (the gate proven
+  red against the broken form); a gate that crashes reports nothing, so confirm it printed.
 
 ---
 

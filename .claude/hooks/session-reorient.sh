@@ -1,7 +1,6 @@
 #!/bin/bash
-# Session start hook: git orientation only.
-# Static doctrine (docs map, content ops, conventions) lives in CLAUDE.md, which is
-# already loaded — don't re-echo it here. Keep this to dynamic state git can't load.
+# SessionStart hook: git orientation + the open-items file. DYNAMIC STATE ONLY —
+# doctrine lives in CLAUDE.md (already loaded); do not re-echo it here.
 
 echo "SESSION ORIENTATION (auto-injected via hook):"
 echo ""
@@ -17,14 +16,17 @@ if [ -n "$STATUS" ]; then
   echo ""
 fi
 
-BRANCH=$(git -C "$CLAUDE_PROJECT_DIR" branch --show-current 2>/dev/null)
-echo "Current branch: $BRANCH"
+echo "Current branch: $(git -C "$CLAUDE_PROJECT_DIR" branch --show-current 2>/dev/null)"
 echo ""
 
-# Session handoff file — surfaces an explicit handoff left by the previous session.
-# Delete docs/SESSION-HANDOFF.md after absorbing it to silence this banner.
-if [ -f "$CLAUDE_PROJECT_DIR/docs/SESSION-HANDOFF.md" ]; then
-  echo "=== ACTIVE SESSION HANDOFF (READ FIRST): docs/SESSION-HANDOFF.md ==="
-  echo "Read it before responding; delete it in the commit that absorbs it."
+# docs/SESSION-HANDOFF.md holds OPEN items only (CLAUDE.md §Hooks). Delete an
+# item in the commit that closes it. Warn when it starts turning into a journal.
+HANDOFF="$CLAUDE_PROJECT_DIR/docs/SESSION-HANDOFF.md"
+if [ -f "$HANDOFF" ]; then
+  LINES=$(wc -l < "$HANDOFF" | tr -d ' ')
+  echo "=== OPEN ITEMS (READ FIRST): docs/SESSION-HANDOFF.md — $LINES lines ==="
+  if [ "$LINES" -gt 120 ]; then
+    echo "  WARNING: over 120 lines. It holds open items only — move narrative to the ADR, the evaluation record, or memory."
+  fi
   echo ""
 fi
