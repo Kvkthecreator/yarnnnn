@@ -66,8 +66,7 @@ import {
   Info,
   History,
   Trash2,
-  FolderPlus,
-  Upload,
+  Plus,
 } from 'lucide-react';
 import { SettingsPaneShell } from '@/components/settings/SettingsPaneShell';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
@@ -199,6 +198,11 @@ export interface WorkspaceRoot {
 // Their paths are virtual /explorer/ handles (never fetched); children are the
 // real roots' subtrees, each still clickable + deep-linkable.
 const DOWNLOADS_NODE_PATH = '/explorer/downloads';
+// ADR-649 — the DEFAULT HOME for a new folder when no real folder is open:
+// Documents (operation/, ADR-555 D2 "the default home, not a gate"). The
+// path is the kernel's; the LABEL is read off the served roots, never spelt
+// here a second time.
+const DOCUMENTS_ROOT_PATH = '/workspace/operation';
 const SYSTEM_FILES_NODE_PATH = '/explorer/system-files';
 
 function buildRootNodes(input: {
@@ -409,10 +413,10 @@ export default function ContextPage() {
   // window.alert/confirm/prompt for the operator's file verbs. See
   // docs/design/ACTION-FEEDBACK.md.
   const { runAction, toast } = useFeedback();
-  // Touch parity (2026-07-12): the canvas New Folder / Add Files verbs live in a
-  // right-click menu (mouse-only). On a coarse pointer we surface them as
-  // buttons in the Explorer header — the Finder-parity clean look stays on
-  // desktop, touch gets a reachable trigger.
+  // The pointer CAPABILITY — it decides whether a single tap opens (the
+  // ADR-452 click grammar). It no longer gates the create door: ADR-649 made
+  // the Explorer "+" visible at every pointer, so the right-click canvas menu
+  // is one way in, never the only one.
   const coarse = useCoarsePointer();
 
   // ADR-358 D6 (2026-06-25): read this window's OWN deep-link params under
@@ -1615,8 +1619,9 @@ export default function ContextPage() {
   }, []);
 
   // ADR-555 D3 — where an arrival lands, in order: the folder the drop
-  // happened on, else the folder the canvas is showing, else Documents (the
-  // caller passes null and the server defaults). The same "the background of
+  // happened on, else the folder the canvas is showing, else Downloads (the
+  // caller passes null and the server's intake default lands it under
+  // inbound/uploads/ — an arrival, not authored work). The same "the background of
   // an open folder acts on that folder" rule New Folder already follows —
   // arrival was the one act on this surface that ignored where you stood.
   const uploadDestinationFor = useCallback(
@@ -1634,6 +1639,20 @@ export default function ContextPage() {
     [viewNode],
   );
 
+  // ADR-649 — where a NEW FOLDER lands, in order: the real folder the canvas
+  // is showing, else Documents (the default home). Recents, a virtual
+  // /explorer/ group and an open file all resolve to Documents: a new member's
+  // first folder lands where every participant is told authored work lives,
+  // not beside it (the top-level peer, which used to be the fallback and read
+  // as "you can't create a folder here" from a grouping). `openNewFolder(null)`
+  // keeps meaning "top level" for the API; no door on this surface passes it.
+  const newFolderScope = useCallback(() => {
+    if (viewNode?.type === 'folder' && viewNode.path.startsWith('/workspace/')) {
+      return { path: viewNode.path, name: viewNode.name };
+    }
+    const documents = treeNodes.find((n) => n.path === DOCUMENTS_ROOT_PATH);
+    return { path: DOCUMENTS_ROOT_PATH, name: documents?.name ?? 'Documents' };
+  }, [viewNode, treeNodes]);
   const openUpload = useCallback(
     (files?: File[], folder?: { path: string; name: string } | null) => {
       setDroppedFiles(files ?? null);
@@ -1682,37 +1701,31 @@ export default function ContextPage() {
   // (with the manual collapse `×`) folds in here — the shell owns collapse now.
   const treePaneContent = (
     <div className="flex h-full flex-col">
-      {/* Finder-parity (2026-07-09): the sidebar has no titled panel header and
-          no visible New Folder / Add Files buttons — those verbs live in the
-          canvas right-click menu (openCanvasMenu) + drag-drop, like Finder. A
-          quiet uppercase group label heads the source list (Finder's "Favorites"
-          / "Locations" pattern), nothing more. */}
+      {/* Finder-parity (2026-07-09): the sidebar has no titled panel header —
+          a quiet uppercase group label heads the source list (Finder's
+          "Favorites" / "Locations" pattern). ADR-649 adds ONE quiet "+" beside
+          it, at every pointer: Finder can hide its create verbs behind a
+          right-click because a menu bar stands behind them; this shell has no
+          menu bar, so the gesture alone left a new member with no visible door.
+          The "+" opens the SAME canvas menu the background right-click opens
+          (openCanvasMenu) — one menu, two ways in; drag-drop stays the third. */}
       <div className="px-3 pt-3 pb-1 shrink-0 flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           Explorer
         </p>
-        {/* Touch parity (2026-07-12): on a coarse pointer, the canvas verbs
-            (right-click-only on desktop) get reachable buttons here. */}
-        {coarse && (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => openNewFolder(null)}
-              aria-label="New folder"
-              className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-            >
-              <FolderPlus className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => openUpload()}
-              aria-label="Add files"
-              className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-            >
-              <Upload className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            const r = e.currentTarget.getBoundingClientRect();
+            setCanvasMenu({ x: r.left, y: r.bottom + 4 });
+          }}
+          aria-label="New folder or add files"
+          title="New folder · Add files"
+          className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto">
         {fileTreeLoading && treeNodes.length === 0 ? (
@@ -1892,6 +1905,10 @@ export default function ContextPage() {
         onClearSelection={clearSelection}
         onSelectRow={selectOne}
         verbs={fileVerbs}
+        // ADR-649 — the cold-start empty state carries the two create doors;
+        // the same acts the "+" and the canvas menu run, scoped the same way.
+        onNewFolder={() => openNewFolder(newFolderScope())}
+        onAddFiles={() => openUpload()}
       />
     </div>
   );
@@ -1947,16 +1964,9 @@ export default function ContextPage() {
           y={canvasMenu.y}
           onClose={() => setCanvasMenu(null)}
           // Finder folder-window grammar: the background of an open REAL folder
-          // creates inside that folder. Recents / a virtual /explorer/ group /
-          // an open file keep the top-level peer act (there is no honest
-          // "here" to create into).
-          onNewFolder={() =>
-            openNewFolder(
-              viewNode?.type === 'folder' && viewNode.path.startsWith('/workspace/')
-                ? { path: viewNode.path, name: viewNode.name }
-                : null,
-            )
-          }
+          // creates inside that folder; anywhere else the honest "here" is
+          // Documents, the default home (ADR-649 — see newFolderScope).
+          onNewFolder={() => openNewFolder(newFolderScope())}
           onAddFiles={() => openUpload()}
           // The VISIBLE way out of a selection, now that the chip is gone. The
           // Finder background menu is where "Deselect All" lives; Escape and a

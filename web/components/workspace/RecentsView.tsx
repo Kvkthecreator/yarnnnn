@@ -47,7 +47,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { History, Loader2 } from 'lucide-react';
+import { History, Loader2, FolderPlus, Upload } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -101,6 +101,11 @@ function isSystemFile(path: string): boolean {
   return fileName(path).startsWith('_');
 }
 
+// ADR-649 — the empty-state doors wear the Files surface's quiet button (the
+// same classes as the header's Properties), wrapping on a narrow pane.
+const EMPTY_DOOR_CLASS =
+  'inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
+
 // ---------------------------------------------------------------------------
 
 interface RecentsViewProps {
@@ -147,6 +152,13 @@ interface RecentsViewProps {
    * main-panel right-click the macOS/Explorer reference has.
    */
   verbs?: FileVerbs;
+  /**
+   * ADR-649 — the two create doors, rendered ONLY in the cold-start empty
+   * state. The Files centre pane passes them; a kernel slot (`hideWhenEmpty`)
+   * never renders the empty state, so it never shows them.
+   */
+  onNewFolder?: () => void;
+  onAddFiles?: () => void;
 }
 
 export function RecentsView({
@@ -161,6 +173,8 @@ export function RecentsView({
   hideWhenEmpty = false,
   verbs,
   subtitle,
+  onNewFolder,
+  onAddFiles,
 }: RecentsViewProps) {
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [loading, setLoading] = useState(true);
@@ -247,16 +261,33 @@ export function RecentsView({
     );
   }
 
-  // Cold-start honest: nothing authored yet.
+  // Cold-start honest: nothing authored yet. ADR-649: with `system/` out of
+  // this feed a new workspace actually reaches this branch, so it carries the
+  // two create doors — on a fresh Files surface they are the visible ones.
   if (!loading && revisions.length === 0) {
     if (hideWhenEmpty) return null;
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center px-6">
         <History className="h-8 w-8 text-muted-foreground/40 mb-3" />
-        <p className="text-sm text-muted-foreground">
-          Nothing authored yet. As the system writes to your workspace, recent
-          changes show here — who wrote what, and when.
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Nothing here yet. Files you and your agents write show up here, newest first.
         </p>
+        {(onNewFolder || onAddFiles) && (
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {onNewFolder && (
+              <button type="button" onClick={onNewFolder} className={EMPTY_DOOR_CLASS}>
+                <FolderPlus className="h-3.5 w-3.5" />
+                New folder
+              </button>
+            )}
+            {onAddFiles && (
+              <button type="button" onClick={onAddFiles} className={EMPTY_DOOR_CLASS}>
+                <Upload className="h-3.5 w-3.5" />
+                Add files
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

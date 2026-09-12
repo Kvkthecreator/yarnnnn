@@ -4,10 +4,13 @@
  * CanvasContextMenu — the background right-click menu for the Files center pane
  * (Finder-parity, 2026-07-09).
  *
- * Finder has no visible "New Folder" / "Add Files" buttons; both verbs live in
- * the right-click menu on empty canvas (plus ⌘⇧N / drag-drop). This is that
- * menu. It carries CANVAS-level verbs (create a folder here, add files here) —
- * distinct from <FileContextMenu>, which acts on a specific file/folder TARGET.
+ * The two canvas verbs (New Folder / Add Files) live in ONE menu with two
+ * ways in: the right-click on empty canvas (Finder's gesture) and, since
+ * ADR-649, the Explorer header's "+" — Finder has a menu bar behind its
+ * right-click and this shell has none, so the gesture alone left a new member
+ * with no visible door. Drag-drop is the third import path. This menu carries
+ * CANVAS-level verbs (create a folder here, add files here) — distinct from
+ * <FileContextMenu>, which acts on a specific file/folder TARGET.
  *
  * The Files page owns the verbs and the open-state; this component only paints
  * the menu at the click point and dismisses on outside-click / Escape (the same

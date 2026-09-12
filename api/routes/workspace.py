@@ -990,7 +990,13 @@ async def get_workspace_roots(auth: UserClient) -> list[dict]:
         # so the legacy uploads/ root would otherwise render EMPTY next to
         # Intake (the operator-observed duplicate-upload-root). It now shows only
         # when it actually holds pre-ADR-395 legacy files (count > 0).
-        always_show = {"agents"}
+        # ADR-649: Documents (operation/) and Downloads (inbound/) are the two
+        # homes every participant is TOLD exist (PARTICIPANT_FILESYSTEM_MODEL);
+        # the member has to see them on day one too, or a fresh sidebar reads
+        # "System files" and nothing else. ADR-395's reason for dropping
+        # `uploads` (an empty DUPLICATE beside Intake) does not apply here —
+        # these are the homes themselves, and the FE merges arrival roots.
+        always_show = {"operation", "inbound", "agents"}
         # ADR-588: a root that holds ONLY an empty marked folder still exists.
         names = set(counts) | marker_segs | (always_show & set(WORKSPACE_ROOTS))
 
@@ -2845,14 +2851,22 @@ async def clear_workspace_byok(auth: UserClient) -> dict:
 # operator audits.
 
 # System-strict path prefixes excluded from the authored-substrate feed.
-_RECENT_REV_EXCLUDE_DIRS = ("/workspace/context/signals",)
+# ADR-649 — what Recents is NOT: the temporal signal log (the same prefix the
+# tree hides; `context/signals` was the pre-ADR-320 spelling and matched nothing
+# on prod) and the kernel's own mirrors under `system/` (skills, faces). A new
+# workspace holds 17 of those within five minutes of minting and nothing else,
+# so without this the cold-start empty state never rendered: the first thing a
+# member saw in Files was a grid of files they did not write. A member's own
+# `skills/` is authored substrate and stays.
+_RECENT_REV_EXCLUDE_DIRS = ("/workspace/operation/signals", "/workspace/system/")
 
 
 def _is_authored_substrate_path(path: str) -> bool:
     """True if a revision path is operator-auditable authored substrate.
 
     Mirrors the Files explorer hide rule (files/page.tsx isHidden):
-    drop `_`-prefixed machine-config files and temporal signal logs.
+    drop `_`-prefixed machine-config files, temporal signal logs and the
+    kernel mirrors under `system/` (ADR-649).
 
     ADR-588 D1: also drops a folder MARKER. Creating a folder writes a real
     attributed revision (it is a real act, correctly on the ledger), but Recents

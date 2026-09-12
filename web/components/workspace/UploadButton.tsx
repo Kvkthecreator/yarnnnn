@@ -173,7 +173,7 @@ export function UploadModal({
                   to read a fixed "Intake" whatever the member had dropped on,
                   which was honest only while the destination was hardcoded. */}
               <p className="font-medium text-foreground">
-                Saved to <span className="font-mono">{destination?.label ?? 'Intake'}</span>
+                Saved to <span className="font-mono">{destination?.label ?? 'Downloads'}</span>
               </p>
               <p className="text-muted-foreground">
                 Your agents can read these files.

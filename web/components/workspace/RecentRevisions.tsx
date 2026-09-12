@@ -36,6 +36,9 @@ interface RecentRevisionsProps {
   onSelectRow?: (path: string) => void;
   /** ADR-400: the operator's file verbs → right-click menu on the main panel. */
   verbs?: FileVerbs;
+  /** ADR-649: the two create doors the cold-start empty state carries. */
+  onNewFolder?: () => void;
+  onAddFiles?: () => void;
 }
 
 export function RecentRevisions({
@@ -45,6 +48,8 @@ export function RecentRevisions({
   onClearSelection,
   onSelectRow,
   verbs,
+  onNewFolder,
+  onAddFiles,
 }: RecentRevisionsProps) {
   return (
     <div className="h-full overflow-y-auto px-6 py-4">
@@ -56,6 +61,8 @@ export function RecentRevisions({
         onClearSelection={onClearSelection}
         onSelectRow={onSelectRow}
         verbs={verbs}
+        onNewFolder={onNewFolder}
+        onAddFiles={onAddFiles}
       />
     </div>
   );
