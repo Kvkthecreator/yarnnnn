@@ -77,8 +77,17 @@ function CallbackHandler() {
         // the default landing (HOME_ROUTE), where the empty-state teaches the
         // moat and invites the first substrate-creating act (ADR-437 D3). The
         // guided /setup SEQUENCE surface + its first_run redirect are deleted.
-        // A lazy workspace-state fetch still triggers backend scaffolding on
-        // first load via GET /api/workspace/state; the shell does it.
+        // Genesis needs NOTHING from this page. The cold-user workspace mint
+        // lives in the API's auth dependency (`get_user_client`, ADR-465 D2),
+        // so it fires on the first authenticated request whatever that is.
+        //
+        // ⚠️ This comment used to say "a lazy workspace-state fetch triggers
+        // backend scaffolding on first load; the shell does it". That was true
+        // until ADR-437 Phase A deleted /setup — the last surface that fetched
+        // GET /api/workspace/state on login. The comment then named a caller
+        // that did not exist, and every cold sign-up from 2026-07-11 landed
+        // workspace-less. Do not re-point genesis at a route: a door on a route
+        // is only as live as that route's caller.
         window.location.href = next;
       };
 

@@ -68,10 +68,29 @@ def main():
         and src.count("cache_clear()") >= 2))
     with open("routes/workspace.py", encoding="utf-8") as f:
         ws_route = f.read()
+    # 2c RE-CUT 2026-09-12 — THE DOOR IS THE AUTH DEPENDENCY, NOT A ROUTE.
+    #
+    # This check used to assert the door was `GET /api/workspace/state`. That
+    # was D2's original placement, and it went dark on 2026-07-10 when ADR-437
+    # Phase A deleted /setup — the last surface that fetched it on login. The
+    # route kept its call; nothing called the route. Three cold sign-ups landed
+    # workspace-less before a 500 from `add_participant` surfaced it.
+    #
+    # ⭐ A GENESIS DOOR PLACED ON A ROUTE IS ONLY AS LIVE AS THAT ROUTE'S
+    # CALLER. `get_user_client` is the one dependency EVERY authenticated
+    # request passes, so the mint cannot be routed around by a UI change.
+    gs_src = inspect.getsource(sb.get_user_client)
     results.append(_check(
-        "2c the cold-user door: /workspace/state calls it, guarded on no-workspace",
-        "if not auth.workspace_id:" in ws_route
-        and "ensure_owner_workspace(auth.user_id)" in ws_route))
+        "2c the cold-user door is get_user_client, guarded on no-workspace",
+        "ensure_owner_workspace(user_id)" in gs_src
+        and "workspace_id is None and not x_workspace_id" in gs_src))
+    # 2c-ii join-only survives the move: the mint is conditional on resolving
+    # NOTHING, so a share-first arrival (who holds a grant) never trips it.
+    _resolve_i = gs_src.find("resolve_workspace_for_principal(user_id, x_workspace_id)")
+    _mint_i = gs_src.find("ensure_owner_workspace(user_id)")
+    results.append(_check(
+        "2c-ii join-only: the mint is conditional and follows grant resolution",
+        _resolve_i >= 0 and _mint_i > _resolve_i))
     # the only production caller is the state route (+ the definition itself)
     # RE-CUT 2026-08-18: this grepped for the NAME, so any file that merely
     # DISCUSSES the cold-user door (services/workspace_genesis.py's docstring
@@ -101,9 +120,30 @@ def main():
                         callers.append(_p.lstrip("./"))
                         break
     callers = sorted(set(callers))
+    # 2d The RULE that survives: no accept/invite path mints. The ENUMERATION
+    # does not — pinning an exact caller list is what let the door go dark
+    # while this gate stayed green. Assert the door is present and that no
+    # membership path minted instead.
+    _forbidden = [c for c in callers if c.startswith(("services/workspace_shares",
+                                                      "routes/shares", "routes/invites",
+                                                      "services/principal_grants"))]
     results.append(_check(
-        "2d no other production CALLER (accept/invite paths never mint)",
-        callers == ["routes/workspace.py"], str(callers)))
+        "2d no accept/invite path mints a workspace",
+        not _forbidden, str(callers)))
+    # 2e THE CHECK THAT WOULD HAVE CAUGHT IT. A workspace-less principal who
+    # reached a route did not get a clean refusal — `create_lane` INSERTED the
+    # conversation row, then `add_participant` raised on the NOT NULL cast
+    # workspace (migration 228), stranding an orphan lane with no cast. The row
+    # and its cast must not be able to disagree: refuse before the member is
+    # left with a half-made conversation.
+    with open("routes/lanes.py", encoding="utf-8") as f:
+        lanes_src = f.read()
+    _created_i = lanes_src.find('ws = created.get("workspace_id") or ws')
+    _addp_i = lanes_src.find("add_participant(\n        created[\"id\"]")
+    _guard = lanes_src[_created_i:_addp_i] if 0 <= _created_i < _addp_i else ""
+    results.append(_check(
+        "2e a workspace-less lane is refused AND cleaned up before the cast",
+        "if not ws:" in _guard and ".delete().eq(\"id\", created[\"id\"])" in _guard))
 
     # 3. member-aware tolerance at the three audited sites
     from services import workspace_context as wc

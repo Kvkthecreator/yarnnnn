@@ -131,6 +131,33 @@ here:
   first `/desktop` load (the lazy-scaffold path already exists — `GET /api/workspace/state` triggers
   backend scaffolding on first load, `auth/callback` comment). **Net: the trigger's job moves up into
   the app, where it can be conditional.**
+
+> **Amendment 2026-09-12 — the door is the auth dependency, not a route.** The three properties above
+> (lazy · conditional · app-controlled) are unchanged and join-only still holds. The **placement** was
+> wrong. This ADR put the mint on `GET /api/workspace/state`, citing the `auth/callback` comment that
+> "the shell does it". **ADR-437 Phase A (`58308c9`, 2026-07-10) deleted `/setup` — the last surface
+> that fetched that route on login.** The route kept its call; nothing called the route. The comment
+> survived naming a caller that no longer existed.
+>
+> Every cold sign-up from 2026-07-11 onward landed **workspace-less**, and nothing said so: every
+> substrate resolver tolerates `None` (this ADR's own §4 tolerance sweep), so the failure surfaced
+> three screens later as a 500 from `add_participant` — *"a participant needs the CONVERSATION's
+> workspace_id"* — with an orphan `NULL`-workspace lane row already inserted. Three live accounts
+> arrived this way before it was reported as *"a new account couldn't open a new agent"*.
+>
+> The mint now lives in **`get_user_client`** (`services/supabase.py`), the one dependency every
+> authenticated request passes, immediately after `resolve_workspace_for_principal`. Join-only is
+> preserved by the same predicate as before — it fires only when the principal resolves **no workspace
+> at all**, so a share-first arrival holding a grant never trips it.
+>
+> ⭐⭐⭐ **A genesis door placed on a ROUTE is only as live as that route's caller**, and which door a
+> new member opens first is a UI decision that keeps changing. Genesis belongs at the authenticated
+> boundary, where it cannot be routed around. ⚠️ The gate is the second half of the lesson:
+> `test_adr465_join_only_genesis.py` §2d asserted *"the only caller is `routes/workspace.py`"* — an
+> **enumeration** of the door rather than the rule it protected. That assertion stayed green for two
+> months **because it pinned the defect**. It now asserts the rule (no accept/invite path mints) plus
+> reachability, and §2e asserts the consequence directly: a workspace-less lane is refused and cleaned
+> up before the cast, so the row and its cast can never disagree.
 - *(rejected) Keep the trigger, delete the phantom on accept.* Mint-then-reap is a race and a lie
   (the owner row exists for a window; billing/state endpoints may observe it). It also keeps the
   invariant nominally true while making it operationally false. Clean removal beats compensating.

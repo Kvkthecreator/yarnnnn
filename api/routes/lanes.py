@@ -1085,6 +1085,28 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # authoritative and always present — and since migration 228 the cast's
     # `workspace_id` is NOT NULL, so guessing here would be a constraint error.
     ws = created.get("workspace_id") or ws
+    # The row and its cast must not be able to disagree. `add_participant`
+    # REFUSES a workspace-less conversation (migration 228 made the cast's
+    # workspace_id NOT NULL), so if the insert landed without one the lane is
+    # already unusable — and the two calls below would raise AFTER the row
+    # exists, stranding an orphan conversation with no cast at all. That is
+    # exactly what a cold workspace-less sign-up hit on 2026-09-12: a "New
+    # chat" that 500'd and left a NULL-workspace row behind.
+    #
+    # The cold-user door in `get_user_client` now mints before any route runs,
+    # so this should be unreachable. Keep it as the row-level guarantee: clean
+    # up the half-made lane and say what is actually wrong, rather than letting
+    # a constraint message from two layers down be the member's error.
+    if not ws:
+        auth.client.table("chat_sessions").delete().eq("id", created["id"]).execute()
+        logger.error(
+            "[LANE] workspace-less creation refused user=%s — no owner row and no grant",
+            auth.user_id[:8],
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Your workspace is still being set up — reload and try again.",
+        )
     # ADR-495 D1 — the cast is born with the conversation: the creator, always.
     # Window 0 (they see everything from turn one — nothing prior to withhold).
     #

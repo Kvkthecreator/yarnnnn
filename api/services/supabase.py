@@ -585,6 +585,39 @@ def get_user_client(
             detail=f"No active grant into workspace {x_workspace_id}",
         )
 
+    # ADR-465 D2 — THE COLD-USER DOOR. A signed-in principal who resolves NO
+    # workspace at all (no owner row, no grant) is a cold sign-up, and this is
+    # their first owner-act: mint here.
+    #
+    # ⚠️ THE DOOR MOVED HERE, and the move is the whole fix (2026-09-12). D2
+    # chose "lazy, conditional, app-controlled" — all three still hold — but it
+    # PLACED the call on `GET /api/workspace/state`, citing the auth/callback
+    # comment that "the shell does it". ADR-437 Phase A (58308c9, 2026-07-10)
+    # then deleted /setup, the last surface that fetched it on login; the
+    # comment survived naming a caller that no longer existed. Every cold
+    # sign-up since landed workspace-less, and NOTHING said so: the substrate
+    # resolvers all return None, so the failure surfaced three screens later as
+    # a 500 from `add_participant` ("a participant needs the CONVERSATION's
+    # workspace_id") with an orphan NULL-workspace lane row already inserted.
+    # Three live accounts arrived this way (2026-07-11 → 2026-09-12).
+    #
+    # A ROUTE is the wrong home for genesis: it is one door among many, and
+    # which door a new member happens to open first is a UI decision that will
+    # keep changing. This dependency is THE authenticated door — every request
+    # passes it — so the mint cannot be routed around.
+    #
+    # Join-only genesis (D2's crux) is UNCHANGED: the predicate is still "no
+    # owner row AND no grant", so a share-first arrival holds a grant,
+    # `resolve_workspace_for_principal` returns it, and this never fires. No
+    # phantom owner-workspace.
+    if workspace_id is None and not x_workspace_id:
+        try:
+            workspace_id = ensure_owner_workspace(user_id)
+        except Exception as e:  # pragma: no cover — never 500 the whole door
+            # A mint failure must not lock the principal out of every
+            # authenticated route; downstream tolerates None as it did before.
+            logger.error("[ADR-465 D2] cold-user mint failed for %s: %s", user_id, e)
+
     # Publish the binding for the data layer (contextvar — the sweep spine;
     # see services/workspace_context.py). Reset on teardown.
     from services.workspace_context import (
