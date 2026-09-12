@@ -83,8 +83,12 @@ class WorkspaceGenesisError(ValueError):
 # — never by a caller, which knows only "create me a workspace called X".
 _GENESIS_STEPS = (
     "identity",      # LIVE — the name (and later: icon, slug, directory shape)
+    "owner-grant",   # LIVE — reach for the owner (2026-09-12). NOT optional:
+                     #        `is_workspace_member` tests the GRANT, never
+                     #        `workspaces.owner_id`, so a workspace without it
+                     #        is reachable by nobody. See create_workspace.
     # "structure",   # FUTURE — starting folders / directory handling
-    # "principals",  # FUTURE — seed grants beyond the owner
+    # "principals",  # FUTURE — seed grants BEYOND the owner
     # "program",     # FUTURE — an at-birth hire (ADR-414 D5 says post-genesis;
     #                #          would need its own ratification to move here)
 )
@@ -145,6 +149,21 @@ def create_workspace(user_id: str, name: str) -> dict:
     if not inserted:
         raise RuntimeError(f"workspace genesis failed for {user_id}")
     row = inserted[0]
+
+    # ── Step: owner-grant ───────────────────────────────────────────────────
+    # ⭐⭐⭐ Reach is a GRANT, never an ownership column. `is_workspace_member()`
+    # (migration 221) reads `principal_grants` only — it has no arm for
+    # `workspaces.owner_id` — and migration 236's lane policy ANDs it. A
+    # workspace minted without this row is unreachable by its own owner, and
+    # says so only as a postgrest 42501 on the first lane INSERT, which reads
+    # like a write problem and is a read-back problem. Mirrors the same two
+    # writes in `ensure_owner_workspace`; keep them in lockstep (this module's
+    # docstring exists because these two sites drifted once already).
+    from services.principal_grants import ensure_principal_grant
+    ensure_principal_grant(
+        principal_id=user_id, workspace_id=row.get("id"), role="owner",
+        granted_by="system:workspace-genesis",
+    )
 
     # The owner→workspace resolver is lru_cached and may hold this principal's
     # PREVIOUS answer (or a None from before they owned anything). Genesis is

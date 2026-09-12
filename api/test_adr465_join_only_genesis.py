@@ -64,8 +64,32 @@ def main():
     src = inspect.getsource(sb.ensure_owner_workspace)
     results.append(_check(
         "2b idempotent-shaped (uncached re-check precedes the insert) + cache cleared on mint",
-        src.index('.select("id").eq("owner_id"') < src.index(".insert(")
+        src.find('.select("id").eq("owner_id"') < src.find(".insert(")
         and src.count("cache_clear()") >= 2))
+    # 2b-ii ⭐⭐⭐ A WORKSPACE IS NOT MINTED UNTIL ITS OWNER CAN REACH IT.
+    #
+    # `is_workspace_member()` (migration 221) tests `principal_grants` ONLY —
+    # it has no arm for `workspaces.owner_id` — and migration 236's lane SELECT
+    # policy ANDs it. So a workspace row without an owner grant is reachable by
+    # NOBODY, and announces it only as postgrest 42501 on the first lane INSERT
+    # ... RETURNING: a read-back failure wearing an INSERT's error message.
+    #
+    # The owner grants were backfilled ONCE (ADR-373 D2) and neither mint site
+    # was taught to write one, so every workspace minted after 2026-06-13
+    # lacked it — 8 of 19 on production. BOTH mint sites are asserted here
+    # because they drifted once already (workspace_genesis.py's own docstring
+    # is about that drift).
+    from services import workspace_genesis as wg
+    cw_src = inspect.getsource(wg.create_workspace)
+    results.append(_check(
+        "2b-ii the LAZY mint writes the owner grant",
+        "ensure_principal_grant(" in src and 'role="owner"' in src))
+    results.append(_check(
+        "2b-ii the DELIBERATE mint writes the owner grant",
+        "ensure_principal_grant(" in cw_src and 'role="owner"' in cw_src))
+    results.append(_check(
+        "2b-iii owner-grant is a declared genesis step",
+        "owner-grant" in wg._GENESIS_STEPS))
     with open("routes/workspace.py", encoding="utf-8") as f:
         ws_route = f.read()
     # 2c RE-CUT 2026-09-12 — THE DOOR IS THE AUTH DEPENDENCY, NOT A ROUTE.

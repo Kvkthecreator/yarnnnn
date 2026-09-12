@@ -215,9 +215,42 @@ def ensure_owner_workspace(user_id: str) -> str:
     )
     if not inserted.data:
         raise RuntimeError(f"owner-workspace mint failed for {user_id}")
+    workspace_id = inserted.data[0]["id"]
+    # ⭐⭐⭐ THE OWNER GRANT IS PART OF THE MINT, NOT A LATER STEP (2026-09-12).
+    #
+    # `workspaces.owner_id` says who owns it; `principal_grants` says who may
+    # REACH it — and the substrate asks the second question, never the first.
+    # `is_workspace_member()` (migration 221) tests ONLY for an active
+    # owner/member grant row; it has no "or you own the workspace" arm. So a
+    # workspace minted without this row is REACHABLE BY NOBODY, including the
+    # person who owns it.
+    #
+    # It fails in the least obvious way possible: the substrate reads all
+    # return empty rather than erroring, and the first hard failure is the
+    # `chat_sessions` INSERT ... RETURNING, whose SELECT policy (migration 236)
+    # ANDs `is_workspace_member(workspace_id)` — surfacing as postgrest 42501
+    # "new row violates row-level security policy", which reads like an INSERT
+    # problem and is actually a read-back problem two layers away.
+    #
+    # The owner grants were backfilled ONCE (ADR-373 D2) and this mint site was
+    # never taught to create one, so EVERY workspace minted after 2026-06-13
+    # lacked it — 8 of 19 on production, including every real sign-up since
+    # 2026-07-04. Do not separate these two writes.
+    try:
+        from services.principal_grants import ensure_principal_grant
+        ensure_principal_grant(
+            principal_id=user_id, workspace_id=workspace_id, role="owner",
+            granted_by="system:owner-genesis",
+        )
+    except Exception as e:
+        # The workspace row exists but is unreachable — that is worse than no
+        # workspace, because every later `ensure_owner_workspace` short-circuits
+        # on it. Fail loudly rather than hand back a half-minted commons.
+        logger.error("[ADR-465 D2] owner grant failed for ws=%s: %s", workspace_id, e)
+        raise
     _resolve_owner_workspace_id_cached.cache_clear()
     logger.info("[ADR-465 D2] lazily minted owner workspace for %s", user_id)
-    return inserted.data[0]["id"]
+    return workspace_id
 
 
 @lru_cache(maxsize=4096)
