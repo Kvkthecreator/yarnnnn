@@ -479,6 +479,22 @@ export default function ContextPage() {
   const publishOrder = useCallback((paths: string[]) => { orderRef.current = paths; }, []);
   const clearSelection = useCallback(() => { setSelection([]); setAnchorPath(null); }, []);
 
+  /**
+   * WHICH ROW THE CURRENT MULTI-CLICK SEQUENCE BELONGS TO.
+   *
+   * `MouseEvent.detail` counts the GESTURE, not the element: Chrome keeps
+   * counting across two presses at one point even when the thing underneath
+   * changed between them, so a row can receive `detail: 2` having never
+   * received click #1. See the long note in `handleFileClick` — this ref is
+   * what makes "a double-click on THIS row" expressible at all.
+   *
+   * A ref, not state: it is read inside the same click that writes it, and it
+   * must never schedule a render of its own.
+   */
+  const clickSeqPathRef = useRef<string | null>(null);
+  /** Anything that ends the gesture ends the sequence with it. */
+  const endClickSeq = useCallback(() => { clickSeqPathRef.current = null; }, []);
+
   // ADR-400 D4: the Trash nav item toggles the center pane to the Trash view.
   const [showTrash, setShowTrash] = useState(false);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
@@ -1142,7 +1158,33 @@ export default function ContextPage() {
       // browser's own counter. No timer of ours, so a slow double-click the
       // browser scored as two singles just selects twice, and a micro-drag
       // between the presses never becomes a spurious open.
-      const isDoubleClick = (e?.detail ?? 0) >= 2;
+      //
+      // ⭐ BUT `detail` COUNTS THE GESTURE, NOT THE ELEMENT (operator-observed
+      // KVK 2026-09-13, reported as "delete auto-opens the file in Text").
+      //
+      // Chrome does NOT reset the multi-click counter when the thing under the
+      // pointer changes between two presses at one point. It will hand
+      // `detail: 2` to an element that never received click #1. Proven by CDP:
+      // two stacked elements, the top one removing itself on its own click, and
+      // the element underneath receives `{detail: 2}`.
+      //
+      // That is exactly the delete flow's shape. The confirm dialog is centred
+      // on the viewport (`fixed inset-0 flex items-center justify-center`) and
+      // the listing fills the centre pane, so "Move to Trash" sits DIRECTLY
+      // over a row — measured at [838,477], over `file-10.md` in a 30-row
+      // listing. The click that commits the trash is #1; the operator's next
+      // click lands on the row as #2, this rule reads it as a double-click, and
+      // `openPath` navigates to whichever app owns the file. The trash always
+      // succeeded — only the navigation after it was spurious.
+      //
+      // THE FIX: a sequence that began somewhere else is not a double-click on
+      // THIS row. The anchor is the path, so it survives re-renders and the
+      // listing reordering under it, and it is cleared by anything that ends
+      // the gesture. A genuine double-click still opens (both presses anchor to
+      // the same row) — the regression that matters, driven alongside the bug.
+      const isDoubleClick =
+        (e?.detail ?? 0) >= 2 && clickSeqPathRef.current === node.path;
+      clickSeqPathRef.current = node.path;
       if (coarse || isDoubleClick) {
         openPath(node.path);
         return;
@@ -1241,6 +1283,10 @@ export default function ContextPage() {
     moveRoots: treeNodes,
     onAfterMutate: (newPath, oldPath) => {
       void loadExplorer();
+      // The verb's own confirm click was #1 of a multi-click sequence. End the
+      // sequence here so the member's NEXT click on the listing is a fresh
+      // single click, whatever `detail` the browser still has counting.
+      endClickSeq();
       // A single-target verb ENDS the set. Otherwise a set built before a
       // rename/move/trash outlives it and points at paths that no longer
       // exist: the stale-state half of ADR-519's trap, arriving by a different

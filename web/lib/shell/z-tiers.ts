@@ -100,13 +100,18 @@ export const Z_TOAST = 550;
  * modal's click self-contained, which is cheap and removes a class of
  * coupling between a dialog and the surface it floats over.
  *
- * THE STILL-OPEN SUSPECT for the reported "delete opens the file in Text":
- * `handleFileClick` in app/(authenticated)/files/page.tsx opens on
- * `(e?.detail ?? 0) >= 2`. `detail` is the UA's multi-click counter for
- * successive clicks at one point; it is not reset by an element appearing or
- * disappearing between them. Proving or refuting that needs a real pointer, or
- * CDP `Input.dispatchMouseEvent` with a fixed x/y and rising `clickCount` —
- * it cannot be synthesized from JS, which is why it is still open.
+ * THE REPORTED BUG WAS SOMETHING ELSE, and is now fixed elsewhere. Settled by
+ * CDP 2026-09-13: `MouseEvent.detail` counts the GESTURE, not the element —
+ * Chrome does not reset its multi-click counter when the thing under the
+ * pointer changes between two presses at one point, so the row under the
+ * dismissed dialog received `detail: 2` and `handleFileClick` read it as a
+ * double-click. The fix is the sequence anchor in
+ * app/(authenticated)/files/page.tsx, gated by
+ * web/scripts/gates/detail_counts_the_gesture_not_the_element.mjs.
+ *
+ * `dismissModal` does NOT fix that — driven before and after, both arms opened
+ * the file. It is kept because a self-contained modal click is worth having on
+ * its own, not because it repairs anything.
  *
  * A z-tier does not speak to any of this: layering decides who receives a
  * click while both are mounted. This lives beside the ladder because it is the

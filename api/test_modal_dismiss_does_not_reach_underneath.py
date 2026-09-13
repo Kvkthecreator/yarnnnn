@@ -9,13 +9,17 @@ holds began from a WRONG diagnosis:
   `click` handler, leaves the original target intact — the browser does not
   re-dispatch to whatever is revealed. Driven in Chrome both ways 2026-09-13.
 
-What this gate therefore does NOT claim: that it protects against the reported
-"delete on Files opens the file in Text". That bug is still open. The leading
-suspect is `handleFileClick` in web/app/(authenticated)/files/page.tsx, which
-opens on `(e?.detail ?? 0) >= 2` — the UA's multi-click counter, which is not
-reset by an element appearing or disappearing between two clicks at one point.
-Settling it needs a real pointer or CDP `Input.dispatchMouseEvent` with fixed
-coordinates and a rising `clickCount`; it cannot be synthesized from JS.
+What this gate does NOT claim: that it protects against the reported "delete on
+Files opens the file in Text". That bug was something else and is fixed
+elsewhere. Settled by CDP 2026-09-13: `MouseEvent.detail` counts the GESTURE,
+not the element — Chrome does not reset its multi-click counter when the thing
+under the pointer changes between two presses at one point, so the row beneath
+the dismissed dialog received `detail: 2` and `handleFileClick` read it as a
+double-click. Fixed by the sequence anchor in
+web/app/(authenticated)/files/page.tsx and gated, by execution against real
+Chrome, in web/scripts/gates/detail_counts_the_gesture_not_the_element.mjs.
+The `dismissModal` work here was driven before and after: both arms opened the
+file. It repairs nothing about that bug and is kept on its own merits.
 
 What this gate DOES pin, which is worth pinning on its own: every portaled
 modal routes its dismiss/commit handlers through `dismissModal`, and that
