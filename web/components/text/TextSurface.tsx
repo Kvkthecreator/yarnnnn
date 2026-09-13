@@ -23,7 +23,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, FolderOpen, Loader2, MoreHorizontal, Plus } from 'lucide-react';
+import { FileText, FolderOpen, MoreHorizontal, Plus } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 import { isTextEditable } from '@/lib/file-types';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
@@ -223,9 +224,7 @@ function TextLanding({
         {/* Recents — the emphasis, the Docs card anatomy: a text preview
             thumbnail, the document's own name, then the kind + quiet date. */}
         {loading ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading your documents…
-          </div>
+          <Working label="Reading your documents…" className="text-xs" />
         ) : hasRecents ? (
           <div className="space-y-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">

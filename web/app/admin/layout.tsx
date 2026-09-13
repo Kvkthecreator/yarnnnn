@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isAdminEmail } from "@/lib/internal-access";
 import { HOME_ROUTE } from "@/lib/routes";
 import { ArrowLeft, Shield, FlaskConical } from "lucide-react";
+import { Working } from '@/components/shared/Working';
 import { usePathname } from "next/navigation";
 
 interface AdminLayoutProps {
@@ -55,11 +56,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Shield className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-muted-foreground">Verifying admin access...</p>
-        </div>
+      <div className="min-h-screen bg-background">
+        <Working label="Verifying admin access…" fill />
       </div>
     );
   }

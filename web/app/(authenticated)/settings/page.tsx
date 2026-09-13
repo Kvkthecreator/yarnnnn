@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
-  Loader2,
   User,
   RefreshCw,
   LogOut,
@@ -31,6 +30,7 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 // the SPA and painted THIS surface before the pathname sync foregrounded the
 // target — the operator-visible two-step. See SurfaceLink's docblock.
 import { SurfaceLink } from "@/components/shell/SurfaceLink";
+import { Working } from '@/components/shared/Working';
 // ADR-425 — the Connectors pane (a human's platform credentials) lives in the
 // account door now. The section is location-agnostic; it was formerly mounted
 // under Workspace Settings → Perception.
@@ -396,9 +396,7 @@ export default function SettingsPage() {
           />
 
           {isLoadingDangerStats ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
+            <Working label="Loading…" fill className="py-8" />
           ) : dangerStats ? (
             <>
               {/* ADR-476 D3 — workspace-scoped destruction (clear history, clear
@@ -515,9 +513,7 @@ export default function SettingsPage() {
             <span className="font-medium">email</span>.
           </p>
           {isLoadingNotifications ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-            </div>
+            <Working label="Loading your preferences…" fill className="py-4" />
           ) : notificationPrefs && notificationKinds ? (
             <div className="space-y-3">
               {notificationKinds.map((k) => (

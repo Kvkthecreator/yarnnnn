@@ -24,6 +24,7 @@
 
 import { useState } from 'react';
 import { Rss, Plus, X, CheckCircle2, AlertCircle, Clock, Globe } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import {
   useSources,
   SOURCE_CAP,
@@ -48,7 +49,7 @@ export function SourcesCard({ variant = 'full', className }: SourcesCardProps) {
   const { watches, loading, noWatch, setSources } = useSources();
 
   if (loading) {
-    return <div className={cn('h-24 rounded-md bg-muted/30 animate-pulse', className)} />;
+    return <Working label="Loading sources…" fill className={className} />;
   }
 
   if (noWatch) {

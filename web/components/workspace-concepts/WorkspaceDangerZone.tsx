@@ -42,6 +42,7 @@ import { WorkspaceExportCard } from "./WorkspaceExportCard";
 // Cross-door links go through the window manager, not a hard navigation
 // (2026-08-20) — see SurfaceLink's docblock for the two-step this avoids.
 import { SurfaceLink } from "@/components/shell/SurfaceLink";
+import { Working } from '@/components/shared/Working';
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -152,9 +153,7 @@ export function WorkspaceDangerZone() {
 
   if (loading && !stats) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
+      <Working label="Loading…" fill />
     );
   }
 

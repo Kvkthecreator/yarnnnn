@@ -9,6 +9,7 @@ import { HOME_ROUTE } from "@/lib/routes";
 import { AuthForm } from "@/components/auth/AuthForm";
 import Link from "next/link";
 import { Wordmark } from "@/components/shared/Wordmark";
+import { Working } from '@/components/shared/Working';
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -65,7 +66,7 @@ export default function LoginPage() {
           <div className="relative z-10 w-full max-w-md space-y-8">
             <div className="text-center">
               <h1 className="text-[#1a1a1a]"><Wordmark className="text-3xl" /></h1>
-              <p className="mt-2 text-[#1a1a1a]/60">Loading...</p>
+              <div className="mt-2 flex justify-center"><Working label="Loading…" /></div>
             </div>
           </div>
         </div>

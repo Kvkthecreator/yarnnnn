@@ -35,7 +35,8 @@
  */
 
 import { useState } from "react";
-import { Loader2, UserRoundPlus, X } from "lucide-react";
+import { UserRoundPlus, X } from "lucide-react";
+import { Working } from '@/components/shared/Working';
 import { useWorkspaceMembers } from "@/lib/workspace/viewer";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import type { SubscriptionStatus } from "@/types";
@@ -109,10 +110,7 @@ export function SeatPanel({
           panel: a seat charge attributable to a NAME, not an opaque total. */}
       <div className="rounded-lg border border-border divide-y divide-border/60">
         {humans.length === 0 ? (
-          <div className="px-3 py-3 text-sm text-muted-foreground">
-            <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin" />
-            Loading the roster…
-          </div>
+          <Working label="Loading the roster…" className="px-3 py-3 text-sm" />
         ) : (
           humans.map((m, i) => (
             <div key={m.principal_id} className="flex items-center justify-between gap-3 px-3 py-2.5">

@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, Users, AlertTriangle } from "lucide-react";
+import { Working } from '@/components/shared/Working';
 
 import { api, APIError, setActiveWorkspace } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
@@ -133,8 +134,8 @@ export default function InviteAcceptPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading invite…
+          <div className="flex justify-center text-sm">
+            <Working label="Loading invite…" />
           </div>
         ) : error && !preview ? (
           <p className="text-sm text-muted-foreground">{error}</p>

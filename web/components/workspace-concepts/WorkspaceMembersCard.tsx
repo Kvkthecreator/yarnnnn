@@ -27,6 +27,7 @@
 
 import { useEffect, useState } from 'react';
 import { Users, ShieldCheck, Bot, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus, Wallet } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, getActiveWorkspaceId } from '@/lib/api/client';
 import { useWorkspaceMemberships } from '@/lib/workspace/viewer';
 import { cn } from '@/lib/utils';
@@ -460,9 +461,8 @@ export function WorkspaceMembersCard({
 
   if (loading) {
     return (
-      <div className={cn('flex items-center gap-2 rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground', className)}>
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading members…
+      <div className={cn('rounded-lg border border-border px-4 py-6 text-sm', className)}>
+        <Working label="Loading members…" />
       </div>
     );
   }

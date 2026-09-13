@@ -44,6 +44,7 @@ import { api } from "@/lib/api/client";
 import { formatRelativeTime } from "@/lib/formatting";
 import type { ConnectorMeta } from "@/lib/connectors/registry";
 import { SurfaceLink } from "@/components/shell/SurfaceLink";
+import { Working } from '@/components/shared/Working';
 
 type SelectableProvider = "slack" | "notion" | "github";
 
@@ -445,9 +446,7 @@ export function ManageConnectionSubsurface({
 
       <div className="mt-4 flex-1 space-y-3 overflow-y-auto pb-2">
         {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
+          <Working label="Loading the connection…" fill />
         ) : (
           <>
             {error && <p className="py-1 text-sm text-destructive">{error}</p>}

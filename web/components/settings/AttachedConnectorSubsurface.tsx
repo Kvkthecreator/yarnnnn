@@ -31,6 +31,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api, type AttachedConnector } from "@/lib/api/client";
+import { Working } from '@/components/shared/Working';
 
 type Mode = "off" | "propose" | "direct";
 
@@ -197,9 +198,7 @@ export function AttachedConnectorSubsurface({
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+        <Working label="Loading the connector…" fill />
       ) : row ? (
         <div className="mt-4 space-y-3">
           <SectionShell title="What you allow">

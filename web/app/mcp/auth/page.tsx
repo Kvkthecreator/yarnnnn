@@ -22,6 +22,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { Wordmark } from "@/components/shared/Wordmark";
+import { Working } from '@/components/shared/Working';
 
 function MCPAuthInner() {
   const searchParams = useSearchParams();
@@ -92,7 +93,7 @@ export default function MCPAuthPage() {
         <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
           <div className="text-center">
             <h1 className="text-[#1a1a1a]"><Wordmark className="text-3xl" /></h1>
-            <p className="mt-2 text-[#1a1a1a]/60">Loading…</p>
+            <div className="mt-2 flex justify-center"><Working label="Loading…" /></div>
           </div>
         </div>
       }

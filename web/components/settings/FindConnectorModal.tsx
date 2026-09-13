@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Search, ArrowLeft, X } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, type DirectoryEntry } from '@/lib/api/client';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
@@ -266,9 +267,7 @@ export function FindConnectorModal({
 
               <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-3">
                 {loading && results.length === 0 ? (
-                  <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Searching…
-                  </div>
+                  <Working label="Searching…" className="py-2 text-xs" />
                 ) : (
                   results.map((entry) => {
                     const already = attachedUrls.has(entry.url);

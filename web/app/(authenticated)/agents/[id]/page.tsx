@@ -26,8 +26,8 @@
 
 import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { Working } from '@/components/shared/Working';
 
 export default function AgentIdRedirectPage() {
   const params = useParams<{ id: string }>();
@@ -38,8 +38,6 @@ export default function AgentIdRedirectPage() {
   }, [params.id, navigateToSurface]);
 
   return (
-    <div className="h-full flex items-center justify-center">
-      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-    </div>
+    <Working label="Opening the agent…" fill />
   );
 }

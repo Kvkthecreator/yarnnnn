@@ -25,6 +25,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Working } from '@/components/shared/Working';
 
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -104,9 +105,7 @@ export default function AdminDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
+      <Working label="Loading the dashboard…" fill className="py-20" />
     );
   }
 

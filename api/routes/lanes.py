@@ -29,6 +29,43 @@ from services.workspace_context import effective_workspace_id
 
 logger = logging.getLogger(__name__)
 
+#: ADR-651 D3 — the lane stream heartbeats while the engine is silent. A turn
+#: can be quiet for minutes with no frame at all (thinking is not on the wire;
+#: a tool round has no delta), and to the browser that silence is identical to
+#: a dead socket a proxy kept half-open. The comment frame is SSE's own
+#: keepalive (every reader skips it by spec); with it the client can hold an
+#: idle deadline of seconds (`LANE_IDLE_MS`, web/lib/api/client.ts — this
+#: must stay well under half of it) instead of the 420s engine timeout.
+_HEARTBEAT_S = 15.0
+
+
+async def _with_heartbeat(events, every_s: float = _HEARTBEAT_S):
+    """Yield `events`' items as they come; yield None whenever `every_s`
+    passes without one. Cancelling the consumer cancels the producer, so a
+    member's stop still reaches the turn (the route persists the partial)."""
+    it = events.__aiter__()
+    pending = asyncio.ensure_future(it.__anext__())
+    try:
+        while True:
+            done, _ = await asyncio.wait({pending}, timeout=every_s)
+            if not done:
+                yield None
+                continue
+            try:
+                item = pending.result()
+            except StopAsyncIteration:
+                return
+            yield item
+            pending = asyncio.ensure_future(it.__anext__())
+    finally:
+        if not pending.done():
+            pending.cancel()
+            try:
+                await pending
+            except BaseException:  # noqa: BLE001 — the producer's own cleanup ran; nothing to add
+                pass
+
+
 router = APIRouter()
 
 _MAX_ACTIVE_LANES = 20     # UX bound, not policy (ADR-408 D6)
@@ -2030,7 +2067,7 @@ def _turn_stream_response(
                 pass
 
         try:
-            async for kind, payload in run_lane_turn_stream(
+            async for _item in _with_heartbeat(run_lane_turn_stream(
                 auth,
                 model=model,
                 history=history,
@@ -2067,7 +2104,12 @@ def _turn_stream_response(
                 # row carries the session it served, so the surface that asked
                 # (think / make / derive) is derivable at read time.
                 session_id=lane_id,
-            ):
+            )):
+                if _item is None:
+                    # SSE's own keepalive: a comment frame every reader skips.
+                    yield ": ping\n\n"
+                    continue
+                kind, payload = _item
                 if not spoke and responder:
                     # WHO, before WHAT. The bubble must never render an
                     # anonymous spinner while a named colleague is answering —

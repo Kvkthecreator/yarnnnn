@@ -129,7 +129,9 @@ function MarkdownImage({ src, alt, ...props }: { src: string; alt: string }) {
     );
   }
   if (!resolved) {
-    return <span className="inline-block h-4 w-24 animate-pulse rounded bg-muted align-middle" aria-hidden />;
+    // A still slot: the image resolves in a beat, and a flashing box beside
+    // prose is not a wait the reader should be told about (ADR-651 D5).
+    return <span className="inline-block h-4 w-24 rounded bg-muted/40 align-middle" aria-hidden />;
   }
   return <img src={resolved} alt={alt} {...props} />;
 }

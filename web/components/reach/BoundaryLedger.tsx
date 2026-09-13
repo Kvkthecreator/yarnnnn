@@ -20,6 +20,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, ShieldX } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 import { formatAbsolute, formatLedgerTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -172,9 +173,7 @@ export function BoundaryLedger() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="h-24 rounded-md bg-muted/30 animate-pulse" />
-      </div>
+      <Working label="Reading the ledger…" fill className="p-6" />
     );
   }
 

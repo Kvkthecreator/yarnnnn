@@ -21,6 +21,7 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
 import { DECK_STAGE_FALLBACK_W, DECK_STAGE_FALLBACK_H } from './stageGeometry';
+import { Working } from '@/components/shared/Working';
 
 /* ADR-520 D4 — the per-page structure tree LEFT this rail: the pane's
  * Identity section (path + Contents) is the structure's one home now; the
@@ -622,7 +623,7 @@ export function PagedNavigator({
           </li>
         )}
         {previews === null && (
-          <li className="px-1 text-[11px] text-muted-foreground">Loading previews…</li>
+          <li className="px-1 text-[11px]"><Working label="Loading previews…" /></li>
         )}
         {previews?.length === 0 && (
           <li className="px-1 text-[11px] text-muted-foreground">

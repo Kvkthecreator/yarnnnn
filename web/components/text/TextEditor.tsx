@@ -55,7 +55,6 @@ import {
   Check,
   FileText,
   Link2,
-  Loader2,
   MoreHorizontal,
   PanelRight,
 } from 'lucide-react';
@@ -102,6 +101,7 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 import { isSubmitKey } from '@/lib/shell/submit-key';
+import { Working, WorkingGlyph } from '@/components/shared/Working';
 
 type LanesEnv = Awaited<ReturnType<typeof api.lanes.list>>;
 type LaneRow = LanesEnv['lanes'][number];
@@ -1166,7 +1166,7 @@ export function TextEditor({
         >
           {saving ? (
             <>
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> Saving…
+              <WorkingGlyph /> Saving…
             </>
           ) : conflict ? (
             // ADR-575. A conflict SUSPENDS autosave (the effect returns early
@@ -1319,9 +1319,7 @@ export function TextEditor({
           )}
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening…
-            </div>
+            <Working label="Opening…" fill className="flex-1 text-xs" />
           ) : notFound ? (
             /* ⭐ A 404 IS A FACT ABOUT ONE WORKSPACE, NOT ABOUT THE WORLD.
                This branch used to read "Nothing exists at <path> — it may have
@@ -1667,9 +1665,7 @@ export function TextEditor({
                 }
               />
             ) : (
-              <div className="flex flex-1 items-center justify-center gap-2 p-6 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening Editor…
-              </div>
+              <Working label="Opening Editor…" fill className="flex-1 text-xs" />
             )}
           </div>
         </aside>

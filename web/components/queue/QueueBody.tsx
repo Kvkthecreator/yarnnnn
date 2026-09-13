@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Inbox, ShieldCheck } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { useProposalModal, type ProposalData } from '@/components/queue/ProposalCard';
 import { api } from '@/lib/api/client';
 import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
@@ -105,7 +106,7 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
   return (
     <>
       {proposals === null ? (
-        <div className="h-24 rounded-md bg-muted/30 animate-pulse" />
+        <Working label="Loading the queue…" fill />
       ) : proposals.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border/60 px-6 py-10 text-center">
           <Inbox className="mx-auto mb-3 h-6 w-6 text-muted-foreground/40" />

@@ -6,8 +6,8 @@ import { api } from "@/lib/api/client";
 import { formatRelativeTime } from "@/lib/formatting";
 import type { AdminAccountRow } from "@/types/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Working } from '@/components/shared/Working';
 import {
-  Loader2,
   AlertCircle,
   Activity,
   DollarSign,
@@ -57,10 +57,7 @@ export default function AdminAccountsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24 text-muted-foreground">
-        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-        Loading test accounts…
-      </div>
+      <Working label="Loading test accounts…" fill className="py-24" />
     );
   }
 

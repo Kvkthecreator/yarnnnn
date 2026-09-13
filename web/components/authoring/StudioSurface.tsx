@@ -31,6 +31,7 @@ import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 // row's `icon_key`, so this file no longer names an app's mark. (`Palette`
 // STAYS — the design-system picker uses it, a different noun and a correct use.)
 import { ArrowLeft, Check, FileText, FolderOpen, Link2, Loader2, MoreHorizontal, Palette, PanelLeft, PanelRight, Plus, Upload } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { resolveApp } from '@/lib/apps/registry';
 import { resolveSurfaceIcon, type SurfaceIcon } from '@/lib/shell/surface-icons';
 import { api, APIError } from '@/lib/api/client';
@@ -4016,9 +4017,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             </p>
           )}
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-            </div>
+            <Working label="Opening…" fill className="flex-1" />
           ) : loadError && !file ? (
             /* A real failure says so, and offers the retry — never "it doesn't
                exist", which reads as data loss. reloadKey is the same refetch
@@ -4471,10 +4470,14 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 }
               />
             ) : (
-              <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {laneError ?? 'Preparing the authoring lane…'}
-              </div>
+              // A failure and a wait never share one channel (ACTION-FEEDBACK §6).
+              laneError ? (
+                <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-destructive">
+                  {laneError}
+                </div>
+              ) : (
+                <Working label="Preparing the authoring lane…" fill className="flex-1" />
+              )
             )}
           </div>
           {rightTab === 'design' && (
@@ -5431,9 +5434,7 @@ function StudioManage({
             Files
           </p>
           {detail === null ? (
-            <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-            </div>
+            <Working label="Loading…" className="mt-2 text-sm" />
           ) : detail.sources.length === 0 ? (
             <p className="mt-2 text-sm text-muted-foreground">No stylesheets found.</p>
           ) : (

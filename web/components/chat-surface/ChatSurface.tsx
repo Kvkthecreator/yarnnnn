@@ -34,7 +34,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, Loader2, MessageCircle, PanelLeft, Pencil, Pin, Plus, Search, X } from 'lucide-react';
+import { Archive, MessageCircle, PanelLeft, Pencil, Pin, Plus, Search, X } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { LanePanel } from './LanePanel';
 import { ConversationHeader, type HeaderFace } from './ConversationHeader';
 import { ConversationDetail } from './ConversationDetail';
@@ -705,9 +706,7 @@ export function ChatSurface() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center text-muted-foreground">
-        <Loader2 className="w-5 h-5 animate-spin" />
-      </div>
+      <Working label="Opening chat…" fill />
     );
   }
 

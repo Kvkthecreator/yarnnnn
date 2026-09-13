@@ -31,7 +31,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { GitCompare, Loader2, Undo2, X } from 'lucide-react';
+import { GitCompare, Undo2, X } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
@@ -225,9 +226,7 @@ export function PaneActivityRail({
 
   if (revisions === null) {
     return (
-      <div className={cn('flex items-center gap-2 py-3 text-xs text-muted-foreground', className)}>
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading the folder&apos;s history…
-      </div>
+      <Working label="Reading the folder’s history…" className={cn('py-3 text-xs', className)} />
     );
   }
 
@@ -341,9 +340,7 @@ export function PaneActivityRail({
                   </span>
                 </div>
                 {diffLoading && (
-                  <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Computing diff…
-                  </div>
+                  <Working label="Computing diff…" className="p-3 text-xs" />
                 )}
                 {!diffLoading && diffText && (
                   <pre className="max-h-80 overflow-auto whitespace-pre px-3 py-2 font-mono text-[11px]">

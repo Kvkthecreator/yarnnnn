@@ -13,7 +13,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ArrowUpFromLine, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowUpFromLine, ExternalLink } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 
 type Emission = Awaited<ReturnType<typeof api.emissions>>[number];
@@ -81,9 +82,7 @@ export function EmissionsView() {
 
   if (!emissions) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
+      <Working label="Loading…" fill />
     );
   }
 

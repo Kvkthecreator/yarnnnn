@@ -31,6 +31,7 @@ This is the front-end half of ADR-593's split, rendered spatially:
 | **In-surface banner** | Unresolved state that must SURVIVE until acted on (Text's 409 conflict with its two exits, the OAuth failure with its caveat, a validation error) | The surface itself, `role="alert"`. **Deliberately not this layer** — a toast auto-dismisses, and these must not. |
 | **Micro-feedback** | A control acknowledging itself (Copy → check) | At the control, `COPY_FEEDBACK_MS` (2000ms — the sweep found four durations for one gesture). Never a toast. |
 | **Inline stream card** | A fact that belongs to the conversation record (tool side-effects) | The chat stream (`NotificationCard` etc.) — durable in the transcript, not transient. |
+| **Waiting** (ADR-651) | Content or a reply the member is waiting FOR — a pane, a list, a file, a chat turn | `<Working label="…" />` from `components/shared/Working.tsx` — the one glyph-and-shimmer row. Never a bare lucide spinner beside prose, never a pulse block, never a `<p>Loading…</p>`. `fill` centres it in a pane; `since` (the chat turn) shows elapsed time. It bounds itself: "still working" at 6s, an exit at 30s — unless `since` is given, where the transport's deadlines bound the wait. A button's icon swap while its own verb runs is **micro-feedback**, not this lane. |
 
 The one sanctioned **surface-local** transient: a canvas-coordinate gesture
 refusal (Studio's "select from one area at a time") stays inside its canvas —

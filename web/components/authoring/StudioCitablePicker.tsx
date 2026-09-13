@@ -15,8 +15,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { Working } from '@/components/shared/Working';
 
 // ADR-539 D2 — the kind lists are GONE (PICKER_KINDS / CSV_KINDS were two of
 // the audit's five spellings of one set). The surface derives both facts from
@@ -136,8 +136,8 @@ export function StudioCitablePicker({
                   : 'Insert an image from the workspace'}
       </p>
       {items == null && (
-        <div className="flex items-center justify-center gap-2 p-3 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+        <div className="flex justify-center p-3 text-xs">
+          <Working label="Loading…" />
         </div>
       )}
       {items != null && items.length === 0 && (

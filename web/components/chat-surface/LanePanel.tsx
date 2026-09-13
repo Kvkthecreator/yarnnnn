@@ -85,6 +85,7 @@ import { MentionMenu, type MentionCandidate } from './MentionMenu';
 import { ArtifactCard } from './ArtifactCard';
 import { toolLabelLine } from './toolLabels';
 import { StreamSteps, type StreamStep } from './StreamSteps';
+import { Working } from '@/components/shared/Working';
 
 /** Render a member's text with recognized `@handles` marked (ADR-492 D3).
  *
@@ -481,6 +482,9 @@ export function LanePanel({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  // When the running turn began — the in-flight row shows its elapsed time
+  // (ADR-651 D2, the patient form; the SSE idle deadline bounds the wait).
+  const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Phase-A turn controls: the in-flight stream's abort handle (stop), the
   // user message being edited (edit-and-resend), copy feedback.
@@ -863,6 +867,7 @@ export function LanePanel({
       if (sending) return;
       setError(null);
       setSending(true);
+      setTurnStartedAt(Date.now());
       const controller = new AbortController();
       abortRef.current = controller;
 
@@ -1304,8 +1309,7 @@ export function LanePanel({
                     {/* Streaming: an empty assistant bubble shows a live indicator
                         until the first delta lands, then fills token-by-token. */}
                     {m.role === 'assistant' && !m.content ? (
-                      <span className="flex items-center gap-2 text-muted-foreground">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <>
                         {/* Per-MESSAGE speaker (ADR-495 D3). The lane-level
                             `speaker` is the fallback for a lane that has no
                             cast; once the SSE speaker frame lands, the row
@@ -1319,8 +1323,15 @@ export function LanePanel({
                             two never restate each other, and a turn mid-tool
                             reads as "Lisa is working…" beneath a thread that
                             says exactly what she is doing. */}
-                        {`${authorLabel || speaker} is working…`}
-                      </span>
+                        {/* The one wait primitive (ADR-651), in its patient
+                            form: the turn reports its own start, so the row
+                            counts elapsed time and never self-escalates —
+                            a dead socket is the transport's to report. */}
+                        <Working
+                          label={`${authorLabel || speaker} is working…`}
+                          since={turnStartedAt ?? undefined}
+                        />
+                      </>
                     ) : m.role === 'assistant' ? (
                       // 2026-07-09: the lane's reply is markdown, like every
                       // other model reply in the product. It rendered as raw

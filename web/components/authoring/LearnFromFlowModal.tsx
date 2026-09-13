@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Loader2, Sparkles, Upload } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { api } from '@/lib/api/client';
@@ -192,9 +193,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
                   />
                   <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto" style={{ maxHeight: '30vh' }}>
                     {visible === null ? (
-                      <div className="flex items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-                      </div>
+                      <Working label="Loading…" fill />
                     ) : visible.length === 0 ? (
                       <p className="p-6 text-center text-sm text-muted-foreground">
                         Nothing matches — try Upload instead.

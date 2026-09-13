@@ -26,6 +26,7 @@
 
 import { useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
+import { Working } from '@/components/shared/Working';
 
 import { api } from "@/lib/api/client";
 import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
@@ -45,9 +46,7 @@ export function WorkspaceGeneralPane() {
 
   if (!loaded) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
-      </div>
+      <Working label="Loading…" className="text-sm" />
     );
   }
   if (!active) {

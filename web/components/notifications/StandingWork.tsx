@@ -25,6 +25,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarClock, FolderOpen, Loader2, Pause, Play, RefreshCw, Zap } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, type StandingLastRun, type StandingSummary } from '@/lib/api/client';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { formatLedgerTime } from '@/lib/formatting';
@@ -120,9 +121,7 @@ export function StandingWork() {
 
   if (rows === null) {
     return (
-      <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Reading what stands…
-      </div>
+      <Working label="Reading what stands…" className="p-6 text-sm" />
     );
   }
 

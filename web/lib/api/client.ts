@@ -4,7 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/client";
-import { sseEvents } from "@/lib/sse";
+import { sseEvents, SseIdleError } from "@/lib/sse";
 import type { StudioVocabulary } from "@/components/authoring/StudioToolbar";
 import type { StagePreset } from "@/components/authoring/NewArtifactModal";
 import type {
@@ -193,8 +193,18 @@ export function clearActiveWorkspace(): void {
   setActiveWorkspace(null);
 }
 
+/** ADR-651 D3 — every request carries a deadline. Behind ~115 spinners there
+ *  was not one `AbortSignal` outside the lane stream: a fetch a proxy left
+ *  hanging kept its surface "loading" for ever with nothing to resolve it.
+ *  Overridable per call (`timeoutMs`) for an endpoint that honestly runs long;
+ *  a caller that brings its own `signal` keeps it. */
+export const REQUEST_TIMEOUT_MS = 60_000;
+
 /** Internal-only: marks the single self-heal retry so it can never loop. */
-type RequestOptions = RequestInit & { __retriedWithoutWorkspace?: boolean };
+type RequestOptions = RequestInit & {
+  __retriedWithoutWorkspace?: boolean;
+  timeoutMs?: number;
+};
 
 /** One reload per heal, not one per in-flight request. A page load fans out
  *  many parallel calls; with a revoked pin EVERY one of them 403s and heals, so
@@ -285,15 +295,30 @@ async function request<T>(
   options: RequestOptions = {}
 ): Promise<T> {
   const headers = await getAuthHeaders();
+  const { timeoutMs, ...init } = options;
+  const deadline = timeoutMs ?? REQUEST_TIMEOUT_MS;
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(deadline),
+      credentials: "include",
+      headers: {
+        ...headers,
+        ...options.headers,
+      },
+    });
+  } catch (err) {
+    // The deadline's own rejection wears the app's error shape, so every
+    // `runAction` / `error.message` site reports it in the member's words.
+    if ((err as Error)?.name === "TimeoutError") {
+      throw new APIError(0, "Timeout", {
+        detail: `No answer from the server after ${Math.round(deadline / 1000)}s. Try again.`,
+      });
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     let data;
@@ -407,6 +432,17 @@ type LaneStreamHandlers = {
   onError?: (message: string) => void;
 };
 
+/** ADR-651 D3 — the lane stream's idle deadline. The server heartbeats every
+ *  `_HEARTBEAT_S` (15s, api/routes/lanes.py), so three missed beats is a dead
+ *  socket, not a slow engine; before this the only bound was the member
+ *  noticing and pressing stop. */
+export const LANE_IDLE_MS = 45_000;
+/** The window until the server has proven it heartbeats (its first comment
+ *  frame). Sized to the engine's own hung-call timeout (`_LANE_TIMEOUT_S`,
+ *  420s) plus margin, so a web deploy that lands before the API's can never
+ *  cut an honest long thought — and a dead socket is still bounded. */
+export const LANE_IDLE_MS_UNTIL_HEARTBEAT = 450_000;
+
 /** One lane-turn SSE reader over the shared transport (lib/sse, ADR-441 D4)
  *  — POST, dispatch the lane vocabulary, swallow member aborts (stop is a
  *  control act, not an error; the server persists the partial). */
@@ -452,7 +488,10 @@ async function streamLaneTurn(
     return;
   }
   try {
-    for await (const evt of sseEvents(res.body)) {
+    for await (const evt of sseEvents(res.body, {
+      idleMs: LANE_IDLE_MS,
+      idleMsUntilHeartbeat: LANE_IDLE_MS_UNTIL_HEARTBEAT,
+    })) {
       if (typeof evt.text_delta === "string") handlers.onDelta(evt.text_delta);
       else if (evt.speaker && typeof evt.speaker === "object") {
         handlers.onSpeaker?.(evt.speaker as { agent_slug: string; reason?: string });
@@ -479,6 +518,12 @@ async function streamLaneTurn(
     }
   } catch (err) {
     if ((err as Error)?.name === "AbortError") return; // stopped mid-read
+    if (err instanceof SseIdleError) {
+      // The socket went quiet past every heartbeat: report it as the turn's
+      // failure so the placeholder drops and the composer gives the text back.
+      handlers.onError?.("The reply stopped arriving. Check your connection and try again.");
+      return;
+    }
     throw err;
   }
 }
@@ -1093,6 +1138,7 @@ export const api = {
       request<{ memories_extracted: number }>("/api/memory/user/memories/import", {
         method: "POST",
         body: JSON.stringify(data),
+        timeoutMs: 180_000, // extraction is a model call over the whole import
       }),
   },
 

@@ -62,7 +62,6 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Loader2,
   Info,
   History,
   Trash2,
@@ -103,6 +102,7 @@ import { FilesViewToggle } from '@/components/workspace/FilesViewToggle';
 import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { resolveDownload } from '@/lib/workspace/download';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
+import { Working } from '@/components/shared/Working';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
 type AccessDecision = import('@/types').AccessDecision;
@@ -1775,10 +1775,7 @@ export default function ContextPage() {
       </div>
       <div className="flex-1 overflow-y-auto">
         {fileTreeLoading && treeNodes.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Loading...
-          </div>
+          <Working label="Loading your files…" fill />
         ) : treeNodes.length > 0 ? (
           <div className="p-2">
             <button

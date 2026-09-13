@@ -33,6 +33,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, ChevronRight, FolderOpen, Plug, Plus } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, type StandingSummary } from '@/lib/api/client';
 import { connectorMeta, FRESHNESS_PROVIDERS, OFFERED_CONNECTORS } from '@/lib/connectors/registry';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -235,7 +236,7 @@ export function ReachConnected() {
   }
 
   if (rows === null) {
-    return <div className="h-24 rounded-md bg-muted/30 animate-pulse" />;
+    return <Working label="Loading connections…" fill />;
   }
 
   if (rows.length === 0) {

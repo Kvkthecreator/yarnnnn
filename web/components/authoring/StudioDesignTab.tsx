@@ -97,6 +97,7 @@ import { resolveSkinVar, skinVarMap } from './skinVars';
 // cannot drift from the runtime's rule.
 import { HEADING_RUNGS, TEXT_BLOCK_KINDS } from '../workspace/viewers/projection';
 import { isSubmitKey } from '@/lib/shell/submit-key';
+import { Working } from '@/components/shared/Working';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -2750,9 +2751,7 @@ export function StudioDesignTab({
               </div>
             ) : bgPicking ? (
               bgImages == null ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading images…
-                </div>
+                <Working label="Loading images…" className="text-xs" />
               ) : bgImages.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   No images in the workspace yet — drop one into Files first.
@@ -2860,9 +2859,7 @@ export function StudioDesignTab({
             <div className={SECTION}>
               <p className={HEADING}>Image</p>
               {slotImages == null ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading images…
-                </div>
+                <Working label="Loading images…" className="text-xs" />
               ) : slotImages.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   No images in the workspace yet — drop one into Files, or ask the chat for an SVG.

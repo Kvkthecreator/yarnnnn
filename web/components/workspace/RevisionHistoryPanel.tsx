@@ -24,7 +24,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Loader2,
   History,
   User,
   Bot,
@@ -39,6 +38,7 @@ import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { useFeedback } from '@/contexts/FeedbackContext';
+import { Working } from '@/components/shared/Working';
 import {
   authorClass,
   formatAuthorLabelOrSystem,
@@ -293,10 +293,7 @@ export function RevisionHistoryPanel({
       {!collapsed && (
         <div className="border-t border-border">
           {loading && (
-            <div className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading revisions…
-            </div>
+            <Working label="Loading revisions…" className="px-3 py-4 text-sm" />
           )}
 
           {!loading && error && (
@@ -395,10 +392,7 @@ export function RevisionHistoryPanel({
                           </button>
                         </div>
                         {diffLoading && (
-                          <div className="flex items-center gap-2 p-3 text-xs text-muted-foreground">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Computing diff…
-                          </div>
+                          <Working label="Computing diff…" className="p-3 text-xs" />
                         )}
                         {!diffLoading && diffIdentical && (
                           <div className="p-3 text-xs text-muted-foreground italic">

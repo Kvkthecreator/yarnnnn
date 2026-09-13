@@ -33,8 +33,9 @@
  * appears, that is the moment to unify rather than to add.
  */
 
-import { Check, Loader2 } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { WorkingGlyph } from '@/components/shared/Working';
 import { toolStepLine } from './toolLabels';
 
 export type StreamStep = { name: string; subject?: string };
@@ -74,7 +75,9 @@ export function StreamSteps({ steps, running, className }: StreamStepsProps) {
                 />
               )}
               {inFlight ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
+                // The same glyph the bubble below cycles (ADR-651 D1): one
+                // motion for "in flight", wherever it shows.
+                <WorkingGlyph />
               ) : (
                 <Check className="w-3 h-3 text-muted-foreground/60" />
               )}

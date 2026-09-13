@@ -13,7 +13,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { FileQuestion, Loader2 } from 'lucide-react';
+import { FileQuestion } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 
 /**
@@ -51,9 +52,8 @@ export function useSignedBlobUrl(
 
 export function BlobLoading({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-muted/10 py-16 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      {label}
+    <div className="flex items-center justify-center rounded-lg border border-border bg-muted/10 py-16 text-sm">
+      <Working label={label} />
     </div>
   );
 }

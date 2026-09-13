@@ -33,7 +33,6 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
@@ -52,6 +51,7 @@ import {
 } from '@/lib/workspace/timeline-rows';
 import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
 import { cn } from '@/lib/utils';
+import { Working } from '@/components/shared/Working';
 
 const PAGE_SIZE = 60;
 
@@ -288,9 +288,7 @@ export function ActivityLedger() {
       ) : (
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
+          <Working label="Reading the ledger…" fill className="py-12" />
         ) : visible.length === 0 ? (
           <p className="px-6 py-8 text-sm text-muted-foreground">
             Nothing here{entries.length > 0 ? ' under these filters' : ' yet'} —

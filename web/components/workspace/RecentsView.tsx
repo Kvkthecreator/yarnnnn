@@ -47,7 +47,8 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { History, Loader2, FolderPlus, Upload } from 'lucide-react';
+import { History, FolderPlus, Upload } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -254,10 +255,7 @@ export function RecentsView({
     // Self-hiding slot: stay silent until the first batch resolves.
     if (hideWhenEmpty) return null;
     return (
-      <div className="flex items-center gap-2 px-1 py-3 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading recent changes…
-      </div>
+      <Working label="Loading recent changes…" className="px-1 py-3 text-sm" />
     );
   }
 

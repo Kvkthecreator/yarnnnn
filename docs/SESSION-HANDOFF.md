@@ -81,23 +81,18 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 - `routes/webhooks.py` reconciles Resend delivery events only against `export_log` (0 rows); a bounce on a
   notification email is logged and dropped. Store the message id on the transport row to close it.
 
-## Gates red at baseline — each needs its own ruling, none touched
-`test_adr224_kernel_boundary` (5 red: the alpha-trader bundle's task-type templates) ·
-`test_adr299_kernel_universal_capability` (1 red: `test_handler_refuses_llm_supplied_addressee_fields`) ·
-`test_adr353_composio_isolation` (1 red: the `_FakeQuery` fixture has no `.limit`) ·
-`test_adr614_cast_follows_the_registration` (3 red: cast seeding + persisted engine) ·
-`test_adr346` / `test_adr349` (retire or re-anchor on ADR-603) ·
-`test_adr404_member_invites` (1 red: greps the literal "Only the workspace owner can manage invites" in
-`routes/workspace.py`, which dropped it on 2026-07-31 in `5223750` — a stale literal, found 2026-09-12) ·
-`test_adr307_permission_taxonomy` (2 red: a probe roster missing `Restore`, and a delegation test that still names the
-deleted `Schedule` primitive under a retired `freddie_caller` flag — stale, found 2026-09-13) ·
-`test_adr386_member_lifecycle` (1 red: `test_provider_id_resolves_via_registry` expects bare "Claude" to
-resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the test pins the pre-D2.a rule)) ·
-`test_adr571_text_app` (115/279: node/sucrase shell-outs fail in this environment) · `test_adr242` (2/6) ·
-`test_adr445` (1/14) · `test_resend_webhooks` (collection error) · `test_adr427` ratchet ·
-`test_adr322_entity_pruning` (5/9: pins a `services.primitives.search` module and an ENTITY_TYPES set that
-no longer exist) — all identical at a clean HEAD worktree on 2026-09-12. `test_adr388_files_surface` was
-re-anchored the same day (14/14) and leaves this list.
+## Gates red at baseline — each needs its own ruling
+The authoritative list is `docs/evaluations/2026-09-13-gate-census.md` (43 pytest-shaped + 58 script-shaped
+red at a clean HEAD, each with a first-glance class). A ruling lowers that list in the same commit; the recurring
+shapes (Studio-era chrome pins, the ADR-209 live phases, retired-model subjects, the settings pane move) are named there.
+
+## Waiting (ADR-651, 2026-09-13)
+- Prod click-pass once both deploys are live: a lane turn shows "Lisa is working… 12s"; the network tab
+  shows `: ping` every 15s during a silence; a killed connection ends in "The reply stopped arriving" with
+  the composer text restored. The primitive was driven in Chrome (light, dark, reduced motion); the live
+  path was not.
+- `framer-motion` is a dead dependency (imported nowhere) — removing it needs a lockfile write; `pnpm`
+  is not on this machine's PATH and Vercel installs frozen.
 
 ## Cleanup owed since ADR-632
 - `api/scripts/operator/` shadows the stdlib `operator` module for any script run BY PATH from

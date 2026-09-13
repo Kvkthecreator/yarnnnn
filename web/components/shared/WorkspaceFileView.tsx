@@ -22,7 +22,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Loader2, type LucideIcon } from 'lucide-react';
+import { type LucideIcon } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
@@ -161,9 +162,7 @@ export function WorkspaceFileView({
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
-        </div>
+        <Working label="Loading…" fill />
       ) : isEmpty ? (
         <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
           {emptyBody ?? (

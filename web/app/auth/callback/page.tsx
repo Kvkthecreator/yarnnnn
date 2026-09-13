@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 import { Wordmark } from "@/components/shared/Wordmark";
+import { Working } from '@/components/shared/Working';
 
 function CallbackHandler() {
   const router = useRouter();
@@ -120,7 +121,7 @@ function CallbackHandler() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
         <h1 className="mb-2"><Wordmark className="text-2xl" /></h1>
-        <p className="text-gray-600">{status}</p>
+        <Working label={status} />
       </div>
     </div>
   );
@@ -133,7 +134,7 @@ export default function CallbackPage() {
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
             <h1 className="mb-2"><Wordmark className="text-2xl" /></h1>
-            <p className="text-gray-600">Loading...</p>
+            <Working label="Loading…" />
           </div>
         </div>
       }

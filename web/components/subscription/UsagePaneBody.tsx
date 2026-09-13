@@ -22,7 +22,8 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Loader2, Users } from "lucide-react";
+import { BarChart3, Users } from "lucide-react";
+import { Working } from '@/components/shared/Working';
 import { api } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
 import { deriveBalance, formatUsd } from "@/lib/subscription/usage";
@@ -140,10 +141,7 @@ export function UsagePaneBody() {
 
   if (limitsLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground p-4">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Loading usage...
-      </div>
+      <Working label="Loading usage…" className="p-4 text-sm" />
     );
   }
 

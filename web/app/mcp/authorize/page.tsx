@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { api } from "@/lib/api/client";
 import { Wordmark } from "@/components/shared/Wordmark";
+import { Working } from '@/components/shared/Working';
 
 /**
  * MCP OAuth login handoff + CONSENT — ADR-310 D4 (Auth Piece 2).
@@ -145,7 +146,7 @@ function MCPAuthorizeHandler() {
         {error ? (
           <p className="text-red-600">{error}</p>
         ) : phase === "loading" ? (
-          <p className="text-gray-600">Loading the connection request…</p>
+          <Working label="Loading the connection request…" />
         ) : phase === "consent" && info ? (
           <div className="text-left">
             {/* The lead names WHO is asking. WHERE it lands is the picker
@@ -286,9 +287,9 @@ function MCPAuthorizeHandler() {
             </div>
           </div>
         ) : phase === "approving" ? (
-          <p className="text-gray-600">Authorizing connection…</p>
+          <Working label="Authorizing connection…" />
         ) : (
-          <p className="text-gray-600">Redirecting back to your assistant…</p>
+          <Working label="Redirecting back to your assistant…" />
         )}
       </div>
     </div>
@@ -302,7 +303,7 @@ export default function MCPAuthorizePage() {
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
             <h1 className="mb-2"><Wordmark className="text-2xl" /></h1>
-            <p className="text-gray-600">Loading…</p>
+            <Working label="Loading…" />
           </div>
         </div>
       }

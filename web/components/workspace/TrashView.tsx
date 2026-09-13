@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Trash2, Undo2, FileText, FolderClosed } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { FileIcon } from './FileIcon';
 import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
@@ -196,10 +197,7 @@ export function TrashView() {
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading trash…
-        </div>
+        <Working label="Loading trash…" className="py-6 text-sm" />
       ) : rowCount === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Trash2 className="mb-3 h-8 w-8 text-muted-foreground/40" />

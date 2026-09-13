@@ -20,6 +20,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Folder, Loader2, Trash2, FileQuestion } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { FileIcon } from '@/components/workspace/FileIcon';
@@ -318,9 +319,7 @@ function DirectoryView({
 
   if (fetchLoading) {
     return (
-      <div className="flex items-center justify-center py-10">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-      </div>
+      <Working label="Loading…" fill />
     );
   }
 
@@ -536,9 +535,7 @@ function FileView({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
+      <Working label="Opening the file…" fill />
     );
   }
 

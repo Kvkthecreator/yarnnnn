@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { createClient } from '@/lib/supabase/server';
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
 import { Wordmark } from '@/components/shared/Wordmark';
+import { Working } from '@/components/shared/Working';
 
 export const metadata: Metadata = {
   title: {
@@ -53,7 +54,7 @@ function LayoutFallback() {
     <div className="h-screen flex items-center justify-center bg-background">
       <div className="text-center">
         <h1 className="mb-2"><Wordmark className="text-xl" /></h1>
-        <p className="text-muted-foreground text-sm">Loading...</p>
+        <Working label="Loading…" className="text-sm" />
       </div>
     </div>
   );

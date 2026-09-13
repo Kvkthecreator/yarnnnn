@@ -30,7 +30,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, FileText, Folder, Download } from 'lucide-react';
+import { FileText, Folder, Download } from 'lucide-react';
+import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
@@ -117,10 +118,7 @@ function FolderDetails({
         Recent changes in this folder
       </div>
       {loading && (
-        <div className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Loading…
-        </div>
+        <Working label="Loading…" className="px-3 py-4 text-sm" />
       )}
       {!loading && error && (
         <div className="px-3 py-3 text-xs text-destructive">Failed to load: {error}</div>
