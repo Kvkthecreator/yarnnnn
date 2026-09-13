@@ -90,7 +90,7 @@ def run() -> bool:
         "Enter mid-block splits (splitHalves) instead of falling to native",
         # (Re-pinned 2026-09-13: splitHalves takes its host explicitly — the
         #  2026-07-25 cloneNode-of-null fix. Pin the ENTER site (editingEl); a
-        #  pattern admitting the merge site's  passed with Enter's removed.)
+        #  pattern admitting the merge site's host argument passed with Enter's removed.)
         "var halves = splitHalves(editingEl);" in proj
         and "type: 'yarnnn-split-block'" in proj,
     )
