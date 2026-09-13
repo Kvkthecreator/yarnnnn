@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 /**
  * A typed folder name → the path segment it becomes. The FE mirror of
@@ -129,7 +130,7 @@ export function NewFolderModal({ open, onClose, onSubmit, destinationName }: New
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') submit();
+              if (isSubmitKey(e, { allowShift: true })) submit();
               if (e.key === 'Escape') onClose();
             }}
             placeholder="e.g. The Acme Deal"

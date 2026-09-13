@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 interface RenameModalProps {
   /** The file OR FOLDER being renamed (null = closed). `isFolder` (2026-08-21)
@@ -82,7 +83,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') submit();
+              if (isSubmitKey(e, { allowShift: true })) submit();
               if (e.key === 'Escape') onClose();
             }}
             className={cn(
