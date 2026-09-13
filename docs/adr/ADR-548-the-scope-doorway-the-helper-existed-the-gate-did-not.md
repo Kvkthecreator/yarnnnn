@@ -196,3 +196,60 @@ visible symptom was a member seeing less than they should.
 - **A click-pass on the Danger Zone cross-link.** The misroute is read off the
   code path; the 2026-07-31 settings click-pass verified those panes RENDER but
   reached them via the sidebar, never via the in-app link.
+
+---
+
+## 7. Amendment (2026-09-13) — the same law, the WRITE path, and the gate that went missing
+
+D1 said the binding must be **passed, not inferred**. That was enforced on the
+read path and on the destructive path (D8, `test_adr548_purge_honors_binding.py`)
+but **never on the write path** — and the ratchet D2 named,
+`test_adr548_primitive_scope_doorway.py`, **does not exist**. It was deleted as
+collateral by the ADR-632 steward retirement (`85c4f7b`) while four files went
+on citing it: this ADR, ADR-579, the ADR-LEDGER, and two module docstrings. The
+class had no enforcement at all, so it recurred.
+
+**The receipt** (yarnnn-api, prod, 2026-09-13 — one second apart, same browser
+session, same account, which owns TWO workspaces):
+
+```
+04:51:34  PATCH /api/workspace/file  → workspace_id=eq.d5b9029b  "File edited"
+04:51:35  GET   /api/workspace/file  → workspace_id=eq.9dc80079  404 Not Found
+```
+
+`write_revision(...)` takes `workspace_id` as an OPTIONAL kwarg. Six route-level
+call sites omitted it, so the write resolved through `effective_workspace_id`:
+rung 2 (the contextvar) is empty in an async handler, so it fell to rung 3,
+**owner-resolution — the caller's OLDEST owned workspace**. The read used the
+session's pin. Write and read therefore addressed different workspaces.
+
+The member saw *"Nothing exists at `operation/ideas.md` — it may have been moved
+or never written"* in the Text editor while the file sat intact in their other
+workspace. HTTP 200 on the write, an honest-looking empty state on the read: the
+ADR-561 incorrect-success class, on the create gesture of a core app. The
+symptom is indistinguishable from data loss and is not — nothing was lost.
+
+**Why owning two workspaces is normal, not a corruption.** `resolve_owner_workspace_id`'s
+docstring says a user owns "AT MOST one"; ownership has never been capped
+(no unique constraint on `workspaces.owner_id`), and since deliberate genesis
+shipped, a principal can hold several. The resolver is *correct* — oldest-first,
+by design. The defect is asking it at all when the request carried a binding.
+
+| # | Decision |
+|---|---|
+| **D9** | **A substrate WRITE passes its request binding, exactly as a read does.** All six `UserClient` route call sites pass `workspace_id=getattr(auth, "workspace_id", None)`: `edit_workspace_file`, four in `routes/studio.py`, and `export_png`. Omission is no longer "the default" — it is the bug. |
+| **D10** | **The doorway gate is restored under a name that matches what it checks** — `test_adr548_writes_honor_binding.py` (22/22, falsified). It walks the AST of each named handler and fails when a `write_revision` call lacks a `workspace_id` keyword. Membership is asserted, not iterated, so a renamed or deleted handler reddens the gate instead of being silently skipped. |
+
+**Gates**: `test_adr548_writes_honor_binding.py` 22/22 (falsified — removing the
+binding from `edit_workspace_file` reddens it naming that function, restored
+green); `test_adr548_purge_honors_binding.py` 12/12; `test_adr476_purge_scope.py`
+17/17; `test_adr440_studio.py` 44/44; `test_adr472_endpoints_execute.py` 6/6;
+`test_no_undefined_names.py` 19/19 on the touched files.
+
+⭐ `test_adr373_owner_resolution_is_scoped.py` was **4 RED at baseline** and is
+now 7/7 — a **stale fake, not real drift**. ADR-578 D1 added
+`.is_("deleted_at", "null")` to the real query; the gate's fake client had no
+`is_()`, so the `AttributeError` was swallowed by the resolver's best-effort
+`except` and returned `None`. The gate reported four confident failures about
+scoping while the scoping was fine. *A fake that cannot express a filter the
+real query applies is not a fake of that query.*

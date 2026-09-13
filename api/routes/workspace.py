@@ -3266,6 +3266,16 @@ async def edit_workspace_file(
         new_head_version_id = write_revision(
             auth.client,
             user_id=auth.user_id,
+            # ⭐⭐⭐ THE BINDING IS PASSED, NEVER INFERRED (ADR-548 D1).
+            # Omitting it drops the write through `effective_workspace_id`,
+            # whose contextvar rung is EMPTY in an async handler (the
+            # `get_user_client` threadpool split), so resolution fell to
+            # owner-resolution — the caller's OLDEST owned workspace. A member
+            # operating their second workspace had the file written into their
+            # first, and the read-back 404'd against the workspace they were
+            # actually in: "Nothing exists at operation/ideas.md", while the
+            # file sat in the other workspace. Receipted on prod 2026-09-13.
+            workspace_id=getattr(auth, "workspace_id", None),
             path=path,
             content=content,
             authored_by="operator",

@@ -694,7 +694,7 @@ def _scope_filter(auth: Any):
     Every `workspace_files` / `agents` query in this file MUST use this. A bare
     `.eq("user_id", auth.user_id)` on those tables is member-blind: a member
     reading the commons gets [] for every owner-authored row, with HTTP 200 and
-    no error to see. Gated by `test_adr548_primitive_scope_doorway.py`.
+    no error to see. Gated by `test_adr548_writes_honor_binding.py`.
     """
     from services.workspace_context import substrate_scope_filter
     return substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))

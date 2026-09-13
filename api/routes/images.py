@@ -166,6 +166,10 @@ async def export_png(
     write_revision(
         get_service_client(),
         user_id=auth.user_id,
+        # ADR-548 D1 — the binding is PASSED, never inferred: the
+        # contextvar rung is empty in an async handler, so an omitted
+        # workspace_id owner-resolves to the caller's OLDEST workspace.
+        workspace_id=getattr(auth, "workspace_id", None),
         path=target,
         content_bytes=data,
         content_type="image/png",

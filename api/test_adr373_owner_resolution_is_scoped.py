@@ -59,12 +59,23 @@ class _FakeQuery:
         self._eq = {}
         self._order = None
         self._limit = None
+        self._is = {}
 
     def select(self, *_a, **_k):
         return self
 
     def eq(self, col, val):
         self._eq[col] = val
+        return self
+
+    def is_(self, col, val):
+        # ADR-578 D1 added `.is_("deleted_at", "null")` to the real query.
+        # A fake missing it raises AttributeError INSIDE the resolver's
+        # best-effort `except`, which swallows it and returns None — so this
+        # gate reported four confident failures about scoping while the
+        # scoping was fine. A fake that cannot express a filter the real
+        # query applies is not a fake of that query.
+        self._is[col] = val
         return self
 
     def order(self, col, desc=False):
@@ -79,6 +90,9 @@ class _FakeQuery:
         rows = list(self._rows)
         for col, val in self._eq.items():
             rows = [r for r in rows if r.get(col) == val]
+        for col, val in self._is.items():
+            if val == "null":
+                rows = [r for r in rows if r.get(col) is None]
         if self._order:
             col, desc = self._order
             rows.sort(key=lambda r: r.get(col, ""), reverse=desc)

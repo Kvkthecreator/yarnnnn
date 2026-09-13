@@ -37,7 +37,10 @@ Receipted on prod 2026-08-11 (a member saw 1 document instead of 4):
 ``substrate_scope_filter(auth.user_id, getattr(auth, "workspace_id", None))``.
 Rung 2 remains load-bearing only for service-key paths (scheduler, wake,
 capture) that set it in their own async context. Gated by
-``test_adr548_primitive_scope_doorway.py``.
+``test_adr548_writes_honor_binding.py`` (the write path) and
+``test_adr548_purge_honors_binding.py`` (the destructive path). The ratchet
+this line used to name was deleted by ADR-632 (85c4f7b) and the class promptly
+recurred on the write path — see ADR-548 §7.
 """
 
 from __future__ import annotations

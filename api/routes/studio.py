@@ -568,6 +568,10 @@ async def set_default_design_system_route(
     write_revision(
         auth.client,
         user_id=auth.user_id,
+        # ADR-548 D1 — the binding is PASSED, never inferred: the
+        # contextvar rung is empty in an async handler, so an omitted
+        # workspace_id owner-resolves to the caller's OLDEST workspace.
+        workspace_id=getattr(auth, "workspace_id", None),
         path=STUDIO_DEFAULTS_PATH,
         content=yaml.safe_dump(config, sort_keys=True, allow_unicode=True),
         authored_by="operator",
@@ -759,6 +763,10 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
         new_head_version_id = write_revision(
             auth.client,
             user_id=auth.user_id,
+            # ADR-548 D1 — the binding is PASSED, never inferred: the
+            # contextvar rung is empty in an async handler, so an omitted
+            # workspace_id owner-resolves to the caller's OLDEST workspace.
+            workspace_id=getattr(auth, "workspace_id", None),
             path=path,
             content=req.content,
             authored_by="operator",
@@ -1005,6 +1013,10 @@ def _retitle_to(auth: UserClient, path: str, title: str | None = None) -> dict:
     write_revision(
         auth.client,
         user_id=auth.user_id,
+        # ADR-548 D1 — the binding is PASSED, never inferred: the
+        # contextvar rung is empty in an async handler, so an omitted
+        # workspace_id owner-resolves to the caller's OLDEST workspace.
+        workspace_id=getattr(auth, "workspace_id", None),
         path=path,
         content=updated,
         authored_by="operator",
@@ -1325,6 +1337,10 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
     write_revision(
         auth.client,
         user_id=auth.user_id,
+        # ADR-548 D1 — the binding is PASSED, never inferred: the
+        # contextvar rung is empty in an async handler, so an omitted
+        # workspace_id owner-resolves to the caller's OLDEST workspace.
+        workspace_id=getattr(auth, "workspace_id", None),
         path=path,
         content=content,
         authored_by="operator",
