@@ -151,6 +151,22 @@ function extractKeyDown(marker) {
 
 const kdBody = extractKeyDown('aria-label="Rename this artifact"');
 
+// D3's guard now lives in ONE place — `web/lib/shell/submit-key.ts` — rather
+// than being re-spelled per handler. This ADR's own comment said the two copies
+// were "kept in lockstep" by hand, which is what made eighteen other Enter
+// handlers miss the ruling entirely ("not a Studio-specific rule", §3).
+//
+// So the rule is EXTRACTED from its home and handed to the executed handler,
+// exactly as the handler body itself is extracted: the gate still runs shipped
+// code, and it now runs the shipped code of BOTH halves. A guard that stopped
+// reading `isComposing` would fail below just as it always did.
+const ruleSrc = readFileSync('web/lib/shell/submit-key.ts', 'utf8')
+  .replace(/export interface [\s\S]*?\n\}/g, '')
+  .replace(/:\s*SubmitKeyEvent/g, '')
+  .replace(/\)\s*:\s*boolean/g, ')')
+  .replace(/export /g, '');
+const { isSubmitKey } = new Function(`${ruleSrc}\nreturn { isSubmitKey };`)();
+
 function pressEnter({ isComposing, value = 'sd' }) {
   const calls = { commit: [], closed: false, prevented: false };
   const e = {
@@ -161,12 +177,13 @@ function pressEnter({ isComposing, value = 'sd' }) {
       calls.prevented = true;
     },
   };
-  new Function('e', 'commitRename', 'setRenaming', kdBody)(
+  new Function('e', 'commitRename', 'setRenaming', 'isSubmitKey', kdBody)(
     e,
     (v) => calls.commit.push(v),
     (v) => {
       calls.closed = !v;
     },
+    isSubmitKey,
   );
   return calls;
 }
@@ -183,11 +200,18 @@ t('ime: Enter AFTER composition still commits', done.commit.length === 1);
 t('ime: it commits the assembled value', done.commit[0] === '스터디');
 t('ime: Latin typing is entirely unaffected', pressEnter({ isComposing: false }).commit[0] === 'sd');
 
-// FALSIFIER: strip the guard, assert the fragment commits again.
-const preFix = kdBody.replace(/if \(e\.nativeEvent\.isComposing\) return;/, '');
+// FALSIFIER: blind the RULE to the composition and assert the fragment commits
+// again. It used to strip `if (e.nativeEvent.isComposing) return;` from the
+// handler body; that line is gone because the guard moved into `isSubmitKey`,
+// so falsifying the handler's copy would now be falsifying nothing — a
+// falsifier that passes vacuously is the failure this file's own §1 records.
+// The defect is reproduced where it now lives: a rule that ignores composition.
+const blindRule = new Function(
+  `${ruleSrc.replace('if (isComposingKey(e)) return false;', '')}\nreturn { isSubmitKey };`,
+)().isSubmitKey;
 const broke = (() => {
   const calls = [];
-  new Function('e', 'commitRename', 'setRenaming', preFix)(
+  new Function('e', 'commitRename', 'setRenaming', 'isSubmitKey', kdBody)(
     {
       key: 'Enter',
       nativeEvent: { isComposing: true },
@@ -196,6 +220,7 @@ const broke = (() => {
     },
     (v) => calls.push(v),
     () => {},
+    blindRule,
   );
   return calls;
 })();
