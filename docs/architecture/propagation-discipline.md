@@ -30,7 +30,7 @@ The right mental model: **Claude Code's `claude --update`.** Anthropic releases 
 
 ## The boundary that makes update safe
 
-ADR-209's revision chain records `authored_by` on every revision. The taxonomy distinguishes platform-written (`system:*`) from operator-authored (`operator`, `yarnnn:*`, `agent:*`, `specialist:*`, `reviewer:*`).
+ADR-209's revision chain records `authored_by` on every revision. The taxonomy distinguishes platform-written (`system:*`) from principal-authored (`member:*`, `agent:*`; historical `operator`, `yarnnn:*`, `freddie:*`).
 
 But the operative gate is finer: [api/services/workspace_utils.py::is_skeleton_content](../api/services/workspace_utils.py) compares the *content* of a workspace file against canonical content. A file passes the "still platform-managed" check if and only if content matches the canonical template (verbatim, or against bundle-template markers). This is what `fork_reference_workspace` already uses — battle-tested across every persona activation since ADR-226.
 
@@ -114,7 +114,7 @@ To prevent future drift back into the over-engineered shapes:
 
 - ❌ Daily back-office cron walking every workspace every 24h
 - ❌ Mechanical primitive (`ReapplyPlatformSubstrate`) in HANDLERS
-- ❌ Bundle recurrences shipping a `back-office-substrate-reapply` entry
+- ❌ A bundle shipping a standing declaration whose job is to re-apply itself (the retired `back-office-substrate-reapply` shape)
 - ❌ Schema columns for `activated_bundle_version` (substrate-native in MANDATE.md frontmatter)
 - ❌ Per-file diff-findings table
 - ❌ Per-file accept/reject affordance for operator at update-time (the config-vs-prose taxonomy per ADR-292 v3 D9 is the policy)
@@ -144,7 +144,7 @@ Run against PR diff:
 python scripts/lint_bundle_version_bump.py --base-ref origin/main
 ```
 
-**Gap B — silent skip of operator-edited bundle config files.** The `fork_reference_workspace` worker uses `is_skeleton_content()` as the only gate. Once the operator (or the Reviewer per ADR-275) edits `_recurrences.yaml`, every subsequent re-fork attempt skips it silently. When the bundle later changes the file's shape (Checkpoint 2 deleted `pre-ship-audit` from `_recurrences.yaml` and added `_hooks.yaml`), the live workspace had no way to receive the change.
+**Gap B — silent skip of operator-edited bundle config files.** The `fork_reference_workspace` worker uses `is_skeleton_content()` as the only gate. Once the operator edits a bundle-owned file, every subsequent re-fork attempt skips it silently. When the bundle later changes the file's shape (Checkpoint 2 deleted `pre-ship-audit` from `_recurrences.yaml` and added `_hooks.yaml`), the live workspace had no way to receive the change.
 
 **Fix (D9 + D10):** introduce a config-vs-prose taxonomy on bundle files. **Config files** (operationally load-bearing: `_recurrences.yaml`, `_hooks.yaml`) auto-overwrite-with-backup when the bundle moves — operator edits go to `/workspace/_shared/conflict-backups/{ran_at}/{relative_path}`, bundle's new content lands at the live path, the audit log + UpdateReport surface the conflict explicitly. **Prose files** (IDENTITY, MANDATE body, BRAND, principles, voice, editorial, risk envelope, operator profile) stay operator-protected as before. Closed-set declared in code (`services.substrate_reapply.CONFIG_PATHS`); adding a third config file requires an ADR amendment.
 

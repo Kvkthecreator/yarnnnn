@@ -229,7 +229,7 @@ The result arrives back as a `ui/notifications/tool-result` message; the widget 
 {
   "success": True, "subject": "...", "path": "/workspace/operation/...",
   "history": [                       # newest first
-    {"authored_by": "reviewer:ai", "when": "2026-06-25T...", "change": "...",
+    {"authored_by": "agent:editor", "when": "2026-06-25T...", "change": "...",
      "revision_id": "...", "diff": "@@ -1 +1 @@\n-old\n+new"},     # diff vs predecessor
     {"authored_by": "yarnnn:mcp",  "when": "2026-06-24T...", "change": "...",
      "revision_id": "...", "diff": None},                          # oldest → no predecessor
@@ -246,7 +246,7 @@ The result arrives back as a `ui/notifications/tool-result` message; the widget 
 4. `compose_history` + `_embed_revision_diffs` — embeds each revision's diff inline server-side (§6), so click-to-diff needs zero callback.
 5. `widgets/src/history-timeline/` — a React (TS) bundle that:
    - renders `history[]` as a vertical timeline, newest first;
-   - colors each node by `authored_by` bucket (`operator` / `reviewer` / `mcp` / `agent` / `system`) — the cross-LLM provenance made visual;
+   - colors each node by `authored_by` bucket (`member` / `agent` / `mcp` / `system`) — the cross-LLM provenance made visual;
    - shows each revision's `change` message + timestamp, and a **show-changes** toggle that expands the embedded unified `diff` (added/removed lines colored), zero callback;
    - renders the `explanation` as a caption — **it does not author new prose** (D3).
 6. `widgets/package.json` + `build.mjs` (esbuild) → single self-contained `widgets/dist/history-timeline.html`.

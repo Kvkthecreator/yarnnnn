@@ -1,5 +1,7 @@
 # Sessions
 
+> **HISTORICAL (2026-09-12).** This feature doc describes the pre-ADR-297/632 product — the four-tab desktop, the steward, recurrences and the task pipeline are all deleted. It is kept because ADRs and code comments cite it; the live surface contracts are [docs/design/WORKSPACE.md](../design/WORKSPACE.md) and the live model is [docs/architecture/SERVICE-MODEL.md](../architecture/SERVICE-MODEL.md).
+
 > How YARNNN conversations start, continue, and end — and what carries over between them.
 
 ---

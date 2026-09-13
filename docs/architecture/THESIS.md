@@ -1,7 +1,7 @@
 # YARNNN Thesis
 
 > **Status**: Canonical (internal)
-> **Date**: 2026-04-24 (amended 2026-05-04 — ADR-249 operator loop + autonomy reframe; **amended 2026-07-07 — ADR-414 two-order re-derivation**: the four commitments survive verbatim; *where they attach* moves — declared intent, independent judgment, and ground-truth evaluation are properties of a **hired Altitude-3 persona agent's operation** (ADR-408 D2 / ADR-382 §3), authored accumulation is the property of the **workspace commons** every actor settles into; the singular-operator/Reviewer runtime prose below carries per-section banners rather than a rewrite — the four-commitment claim is unchanged, its runtime instantiation is the altitudes model)
+> **Date**: 2026-04-24; amended 2026-05-04 (ADR-249) and 2026-07-07 (ADR-414); **recut 2026-09-12 (ADR-596/632)** — the four commitments survive verbatim in substance; *where they attach* is restated once more, because the seat that held independent judgment is deleted: judgment is now the member's verdict under the witness dial, and returns, if it returns, as a grant a member declares. The pre-recut text, with its ADR-249 runtime model and its two-order re-derivation, is archived verbatim at [previous_versions/THESIS-2026-09-12-pre-recut.md](previous_versions/THESIS-2026-09-12-pre-recut.md).
 > **Authors**: KVK, Claude
 > **Scope**: The philosophical thesis from which YARNNN's architecture derives.
 > **Audience**: Internal. Not external messaging. External framing lives in `docs/NARRATIVE.md` and `docs/ESSENCE.md`.
@@ -21,38 +21,21 @@ THESIS is not a marketing document. It is the founder-level statement of what th
 
 ## The Thesis in one paragraph
 
-Autonomy is not a capability of agents; it is a **structural property** of a system that combines four architectural commitments: *declared intent* (mandate), *independent judgment* (reviewer), *ground-truth evaluation* (per FOUNDATIONS Axiom 8 — instantiated as money-truth in alpha-trader, as multi-signal coherence in alpha-author, etc.), and *authored accumulation* (substrate). Take any one of the four away and what remains is automation, assistance, or chat — not autonomy. YARNNN exists to prove that an operation built on these four commitments produces outcomes that any simpler composition cannot, and that the resulting operation compounds in value over time in a way that inferred-context, human-in-the-loop, or pure-autonomy systems demonstrably do not.
+Autonomy is not a capability of agents; it is a **structural property** of a system that combines four architectural commitments: *declared intent* (the mandate; the standing declaration), *independent judgment* (accountable judgment held apart from the producers), *ground-truth evaluation* (per FOUNDATIONS Axiom 8 — instantiated as money-truth in alpha-trader, as multi-signal coherence in alpha-author, etc.), and *authored accumulation* (the substrate). Take any one of the four away and what remains is automation, assistance, or chat — not autonomy. YARNNN exists to prove that an operation built on these four commitments produces outcomes that any simpler composition cannot, and that the resulting operation compounds in value over time in a way that inferred-context, human-in-the-loop, or pure-autonomy systems demonstrably do not.
 
-**The two-order re-derivation (2026-07-07, ADR-414 — per ADR-408 D2 + ADR-382 §3).** The four commitments hold; their attachment points are now precise. **Authored accumulation is the workspace's** — the multi-principal commons every human, helper, and agent settles work into through one invocation contract (ADR-413); it is the floor, valuable before any operation exists, and it is the moat (ESSENCE v15: the system of record where human and AI work settles). **Declared intent, independent judgment, and ground-truth evaluation are a hired agent's** — the Altitude-3 persona agent that runs an operation carries the mandate, renders the judgment, and answers to the outcome signal; one workspace can hire zero, one, or many. The **system agent (Freddie)** carries none of the four in the operational sense — it is the management substrate-steward the commitments' machinery runs *over*, not the entity they attach to (ADR-380 D3 harness honesty). This resolves the apparent tension between the thesis and the ADR-380 §5 vision re-cut ("Rung-2 judgment scoped out of the vision"): the thesis is not abandoned — it is **per-hire**, proven on the dogfood operation's clock (alpha-trader, the first hired agent), while the product leads with the floor. A workspace with no hires is a complete product (the commons); a workspace with a hire is the thesis running.
+**Where the commitments attach (restated 2026-09-12, ADR-596/632).** **Authored accumulation is the workspace's** — the multi-principal commons every member, agent and connected AI settles work into through one invocation contract (ADR-413); it is the floor, valuable before any operation exists, and it is the moat (ESSENCE: the system of record where human and AI work settles). **Declared intent, independent judgment and ground-truth evaluation are properties of an operation a member declares** — a standing declaration's contract (ADR-603), a program's mandate (ADR-414 D5), the witness dial under which every consequential act surfaces before it binds (ADR-307/405), and the outcome signal the operation answers to. **They are never properties of an agent** (ADR-596 D1): an agent is identity ⊕ character ⊕ engine, and authority, clock, purpose and judgment live on grants, declarations and gates. The systemic agent that once held the judgment seat is deleted (ADR-632); nothing in the workspace wakes on its own initiative. A workspace with no operation is a complete product (the commons); a workspace with standing work and a hired program is the thesis running.
 
-## The Runtime Model (ADR-249 amendment)
+## The Runtime Model
 
-> **⚠ Amendment banner (2026-07-07, ADR-414):** this section is the **single-operator, one-judgment-seat** runtime model — historically correct, superseded in three ways by the multi-principal + altitudes canon: (1) DP17 v9.15 — the workspace has **N accountable human principals**, each with two embodiments; "the operator" reads as "the acting principal"; (2) "the Reviewer is the operator's judgment function" now names the **Altitude-3 persona agent** occupying a judgment seat — the system agent (Freddie) is management infrastructure, not a judgment embodiment (ADR-408 D2); (3) autonomy = the **witness dial** (ADR-405/345 — which beats surface before they bind, per-agent, per-family), and approval queues belong to agents, never to human members (ADR-408 D1). The Manual/Bounded/Autonomous mode taxonomy and "the human can always cut in" survive verbatim, applied per-agent.
+**The primary runtime relationship is between a member and the operation they declared — not between a user and an assistant.**
 
-The thesis above describes what the system is built from. This section describes how it runs.
+A **member** holds a grant on the commons, authors intent (a mandate, a standing declaration's contract), works with agents in lanes, and gives the verdicts on consequential acts. The **operation** is what the member declared: files kept current on schedule under contracts, proposals raised against accumulated context, acts that leave the workspace on the member's click. **Agents** are the member's hands in a lane — under the member's grant, attributed as the member via the engine — and the residents that do standing work when it comes due. **Machinery** drains the declarations, checks the contracts, holds the gates, and mirrors the kernel's own files; it is attributed `system:*` and has no judgment.
 
-**The primary runtime conversation is between the Operator and the System — not between the User and the System.**
+Two trigger shapes, and only two (FOUNDATIONS Axiom 4): an **attended** turn — a member's message in a lane — and an **unattended** run — a member's standing declaration coming due. Nothing else runs.
 
-The Operator is the user in their principal role: the entity that holds declared intent (MANDATE.md), authors the judgment framework (principles.md), and acts on the user's behalf continuously. The Operator is always present in the operation — through authored substrate when the user is absent, and through real-time presence when the user is engaged.
+**The witness dial governs how much explicit approval a consequential act needs before it binds** (ADR-307/405), per family: **manual** — the member decides every one; **bounded** — acts within a declared ceiling bind, acts above it surface; **autonomous** — acts within the pre-declared envelope bind and the member reads the receipts. In every mode the member can cut in; the dial sets the default continuation. An unattended run has no consequential reach at all — it is refused a member's credential (ADR-577/645) — so "runs in your absence" means *keeps files current in your absence*, never *acts on the world in your absence*.
 
-The System (YARNNN) is the executor and narrator. It reads the operator's declared substrate and acts on it. It does not reason about what the operation *should* do — it does what was declared. The operation runs at operational cadence (the heartbeat) regardless of the user's real-time presence.
-
-The user is the supervising principal. They can cut into the Operator ↔ System conversation at any moment from the feed surface — ask a question, override a decision, change the mandate, pause autonomy. But they are not required to be present for the loop to run.
-
-**Autonomy mode governs how much explicit user approval is required before Operator-initiated actions execute:**
-
-- **Manual**: user must explicitly approve each consequence (approve/reject in Queue) before it executes
-- **Bounded**: Operator actions within declared limits execute without user approval; actions above the ceiling surface for user confirmation
-- **Autonomous**: Operator acts within pre-declared framework; executes without user confirmation; user sees outcomes in the narrative
-
-In all three modes: the user can always cut in. The mode controls the default continuation — whether the system pauses and waits for the user or proceeds and narrates.
-
-This is distinct from every other autonomy model in the AI landscape:
-- Not "how much the AI can do" (the AI always follows the operator's declared framework)
-- Not "human vs. AI judgment" (the operator's judgment is always present, through human real-time or AI instantiation of pre-declared principles)
-- Not "permission levels" (the operator always has full authority; autonomy mode controls the user's confirmation requirement, not the operator's capability)
-
-The Reviewer is the operator's judgment function — the operator in judging posture. When the human user is present and engaged, they occupy the Reviewer seat directly. When the AI occupies the seat, it instantiates the operator's pre-declared judgment framework. In both cases, it is the operator's judgment executing — the independence comes from the architectural separation of the production path from the judgment path, not from different principals.
+This is distinct from every other autonomy model in the landscape: not "how much the AI can do" (an agent holds no authority of its own), not "human vs. AI judgment" (judgment is the member's verdict, recorded, until review is declared as a grant), not "permission levels" on an agent (permission is a grant on the commons; the dial is witness timing, not capability).
 
 ---
 
@@ -64,13 +47,13 @@ Each commitment is a **specific stance** in a space where the industry has other
 
 Agents cannot generate their own purpose. Any system that claims otherwise is either (a) hiding a human-declared purpose behind inference, or (b) optimizing a proxy objective that will drift from the operator's actual intent as the system accumulates context.
 
-YARNNN's position: **intent must be declared explicitly by a human occupant of the operator role, written to the filesystem as `MANDATE.md`, and changed only through deliberate authored revisions.** Everything downstream — context domains, task declarations, proposed actions — exists in service of the declared mandate. The mandate is the only axiom of purpose the system has.
+YARNNN's position: **intent must be declared explicitly by a human occupant of the operator role, written to the filesystem as `MANDATE.md`, and changed only through deliberate authored revisions.** Everything downstream — context domains, standing declarations, proposed actions — exists in service of the declared mandate. The mandate is the only axiom of purpose the system has.
 
 *Implemented by*: ADR-207 (Primary-Action-Centric Workflow), ADR-206 (Operation-First Scaffolding), FOUNDATIONS Axiom 3 (Purpose).
 
 *Alternative stance we are rejecting*: emergent intent — the idea that sufficient context makes intent discoverable. We reject it because emergent intent is undetectably wrong; there is no signal that says "you have optimized the wrong thing." Declared intent is correctable because it is legible.
 
-### 2. Independent judgment — *the reviewer is a durable role, not a safety feature*
+### 2. Independent judgment — *accountable judgment is a durable role, not a safety feature*
 
 In every deployed agent system, *something* decides whether a proposed action is fit to execute. The industry treats that something as:
 
@@ -79,27 +62,25 @@ In every deployed agent system, *something* decides whether a proposed action is
 - An internal critic model (various RLHF-adjacent approaches)
 - An assumption that the producer agent is correct (pure autonomy)
 
-YARNNN's position: **the role that decides whether an action is fit to execute is the single most important durable role in the system, and it must be architecturally independent of the producers whose work it judges.** Independence here is the specific, defensible property: the reviewer's judgment is evaluated against ground-truth substrate (FOUNDATIONS Axiom 8), not against internal agreement with producers. We do *not* claim pure objectivity — no judge, human or AI, operates without priors. We claim *independence*, such that the seat's judgment is **informative rather than confirmatory**. The reviewer seat persists; the occupant is interchangeable. Today the occupant is human. As AI judgment becomes credible in the seat, the occupant rotates without architectural change. The durable thing is the *role*, not the human.
+YARNNN's position: **the role that decides whether an action is fit to execute is the single most important durable role in the system, and it must be architecturally independent of the producers whose work it judges.** Independence here is the specific, defensible property: the judgment is evaluated against ground-truth substrate (FOUNDATIONS Axiom 8), not against internal agreement with producers. We do *not* claim pure objectivity — no judge, human or AI, operates without priors. We claim *independence*, such that the judgment is **informative rather than confirmatory**.
 
-**ADR-253 correction (2026-05-07): execution authority does not compromise independence.** The Reviewer's approve verdict already binds execution through `review_proposal_dispatch.py` when AUTONOMY permits. This is correct and necessary — a Reviewer whose verdicts never cause action is toothless, not independent. Independence means the Reviewer's judgment is evaluated against ground-truth substrate (per FOUNDATIONS Axiom 8 — money-truth in alpha-trader's instance), not against producer agreement. Whether the judgment subsequently causes action is not a threat to that independence; it is independence operating. The statement "Reviewer has no primitives" (ADR-247 D4) was a description of the Reviewer's LLM tool surface (it calls `return_review_decision`, not platform tools), not of its execution authority. ADR-253 corrects this conflation.
+**Who holds the role today, and how it returns (ADR-632/596).** The role is held by the **member**: every consequential act a producer proposes surfaces under the witness dial before it binds, the member executes or rejects it, and the verdict is recorded on the ledger with the proposal it answers (ADR-307; `judgment_log.py`). The seat as an *AI occupant* — the Reviewer, then the steward — is deleted, not dormant: an agent that owned the mandate and rendered verdicts on its own clock was authority on the entity, which ADR-596 D1 forbids. When AI judgment returns, it returns as **review declared as a grant** (ADR-596 D3(d)): a member grants a named agent the standing to review a family of acts under a stated policy — attributed, audited, revocable, enforced by the gate. The durable thing is the *role* and its independence; who holds it is a grant, never a seat an agent occupies.
 
-This is a specific philosophical claim: **the AI role that compounds in value is the judge, not the doer.** Producer agents are interchangeable commodities once the model layer saturates. The reviewer — the entity that reads the operator's mandate, the accumulated context, the track record, and the proposed action, and renders a verdict — is the seat where accumulation lives and where trust is earned.
+**Execution authority does not compromise independence.** A verdict that binds — the member's execute, or a granted review's approve within its policy — is independence operating, not a threat to it; a judgment that never causes action is toothless, not independent.
 
-The seat is **architecturally indifferent to its occupant class.** Interchangeability is the designed property; *replacement* is a prediction about the world, not an axiom. Today's occupant is human; tomorrow's candidates (YARNNN-internal AI, external AI service) will be measured, not asserted, against the seat's calibration trail. The architecture commits to making the seat occupant-class-agnostic; the claim about who actually comes to occupy it is a prediction below.
+**Independence extends to independence from pressure.** The rules a member declared protect the member from their own momentary impulse ("just loosen it"): the gate holds the floor, ground truth moves the aperture, and a revision of the declared intent is authored, attributed and legible — never a capitulation citing "per directive." The 2026-05-20 capitulation (an AI seat editing risk files on pressure) is the failure this names; the seat is gone, and the discipline now lives in the gate and the contract.
 
-**ADR-319 sharpening (2026-06-05): independence extends to independence from the operator's own pressure.** The Reviewer is the operator's installed principal (Axiom 2 — the same principal one wake later), and it *owns* the operation's governing intent, not merely executes it: it revises the mandate, the rules, and the envelope against ground-truth substrate when reconciled reality falsifies their premise. The single invariant that makes this safe is **ground-truth substrate moves the intent; operator pressure never does.** Independence is therefore not only separation-from-producers — it is also the seat's structural capacity to *refuse the operator's momentary impulse* ("just loosen it") in service of the operator's standing commitment (the mandate). The 2026-05-20 capitulation — the Reviewer editing risk files citing "per operator directive" instead of ground-truth evidence — was independence failing in this second sense. A Reviewer that revises on pressure is as compromised as one that confirms its producer; both have surrendered the informative-not-confirmatory property. The rules protect the operator from their impulses; the Reviewer is the discipline; ground truth is the judge. See FOUNDATIONS Derived Principle 24 + [ADR-319](../adr/ADR-319-stewardship-of-intent-against-ground-truth.md).
+**The delegated-agent pole, restated.** The wider LLM-runtime ecosystem bifurcates into two poles. The **commissioned-tool** pole (per-task agent harnesses) is a transient orchestration the human *wields*: verification happens in space (parallel sub-agents, *now*) and nothing persists. YARNNN is the **delegated-record** pole: intelligence lives in persistent, attributed substrate; verification happens **in time** — the record of verdicts reconciled against outcomes over tenure (ADR-330). What persists is the record and the grant, not an occupant; the cold-start seam of the delegated pole (the first high-stakes verdict has no history yet) is managed by the member deciding, never by importing the commissioned pole's fan-out.
 
-**ADR-320 sharpening (2026-06-05): independence is the property of the *delegated-agent* pole, named against the *commissioned-tool* pole it is not.** The wider LLM-runtime ecosystem is bifurcating into two poles (see [personified-judgment-seat-vs-task-harness-2026-06-05.md](../analysis/personified-judgment-seat-vs-task-harness-2026-06-05.md)). The **commissioned-tool** pole (per-task agent harnesses — e.g. dynamic Claude Code workflows) is a transient orchestration the human *wields*: intelligence lives in the spawning graph, verification happens **in space** (parallel adversarial sub-agents, *now*), and nothing persists — there is no standing intent, no track record, no stake, so there is nothing for "independence" to be a property *of*. The **delegated-agent** pole (YARNNN) is a durable seat the human *delegates authority to*: intelligence lives in persistent substrate, verification happens **in time** (the calibration loop reconciling verdicts against ground-truth outcomes, *later*), and the seat *is* the independent thing precisely because it persists with standing intent and accountable tenure. This sharpens what independence *is*: not a within-run check (the commissioned pole's move, which ADR-272 deliberately declined for the seat — judgment is done inline, not fanned out to sub-agents), but a **structural property of a detached, accountable, persistent seat judged against ground truth over tenure.** The commissioned pole *cannot* have this property; the delegated pole *is constituted by* it. The cost of the delegated pole is a **cold-start seam** the commissioned pole avoids by never relying on tenure: the first high-stakes verdict after an operation attaches has no calibration history yet — managed by defer-to-human or tighter cold-start `principles.md`, never by importing the commissioned pole's fan-out (which would break the seat's economic model and its single-voice personification). See FOUNDATIONS Derived Principle 25 + [ADR-320](../adr/ADR-320-constitution-region-topological-cut.md).
+*Implemented by*: ADR-307 (one gate, one queue), ADR-405 (the witness dial), ADR-632 D2 (the verdict-giver is the member), ADR-596 D1/D3(d) (no judgment on an agent; review as a grant), FOUNDATIONS Axiom 2 (Identity) + Axiom 3 (Purpose), `judgment_log.py` (the verdict record).
 
-*Implemented by*: ADR-194 v2 (Reviewer Layer), ADR-319 (Stewardship of Intent), ADR-320 (the detached personified seat as workspace root entity; topology-as-permission), FOUNDATIONS Axiom 2 (Identity) + Axiom 3 (Purpose) + Derived Principle 14 (Roles persist; occupants rotate) + Derived Principle 24 (Stewardship of intent) + Derived Principle 25 (root entity is a detached personified seat; topology is permission), `/workspace/persona/` + `/workspace/constitution/`. Canonical substrate spec: [reviewer-substrate.md](reviewer-substrate.md).
-
-*Alternative stance we are rejecting*: reviewer as policy layer. Most systems implement review as a coupled feature of the producer — the same model that generates the action also self-critiques. We reject this because it produces coherent confidence in incoherent decisions; the critic shares the producer's failure modes.
+*Alternative stance we are rejecting*: review as a policy layer of the producer. Most systems implement review as a coupled feature — the same model that generates the action also self-critiques. We reject this because it produces coherent confidence in incoherent decisions; the critic shares the producer's failure modes.
 
 ### 3. Ground-truth evaluation — *money-truth as the spine, universality not claimed*
 
 Any claim about autonomy requires a way to evaluate whether the system is actually doing what it is supposed to do. The industry's current evaluation substrate is human feedback — user ratings, thumbs, edit distance between agent output and accepted final. These are noisy, laggy, and confound operator skill with system quality.
 
-YARNNN's position: **in the domains where it applies, money-truth is the cleanest available ground-truth signal, and the architecture is instrumented to close the loop on it.** A trade wins or loses. A product sells or does not. A campaign converts or does not. Money-truth is not a metric the system optimizes; it is the signal against which the reviewer's judgment is validated and the producers' accumulated context is pruned.
+YARNNN's position: **in the domains where it applies, money-truth is the cleanest available ground-truth signal, and the architecture is instrumented to close the loop on it.** A trade wins or loses. A product sells or does not. A campaign converts or does not. Money-truth is not a metric the system optimizes; it is the signal against which judgment is validated and the producers' accumulated context is pruned.
 
 The scope of this commitment is deliberately narrower than the architecture:
 
@@ -107,9 +88,9 @@ The scope of this commitment is deliberately narrower than the architecture:
 - **Money-truth is structural, not universal.** Domain-agnosticism is architecturally supported (ADR-188) but not claimed at sale. Domains where value is diffuse or long-cycle are *future scope*, not current scope.
 - **The claim is sequencing, not coverage.** Prove the loop in domains where the signal is clean; extend to domains with messier signals only once the clean-signal loop is credibly demonstrated.
 
-**ADR-319 sharpening (2026-06-05): ground truth is the authority over the mandate, not only the validator of actions.** The original framing scopes ground-truth to validating *the reviewer's judgment of proposed actions* and pruning *accumulated context*. That is altitude 1. There is a second altitude: ground truth is also the authority that *moves the mandate itself*. When reconciled reality falsifies a rule's premise (a signal whose expectancy decayed, a voice doctrine the audience rejected, a channel that stopped converting), the Reviewer — as the operator's installed principal — revises the declared intent against that signal. This is what makes "the operation gets better at its job over tenure" (ESSENCE) structural rather than aspirational: the governing thesis is corrected by the consequence the operator bears, not left to drift until the operator notices. Ground truth is not a metric the system optimizes *within* a fixed mandate; it is the signal that determines *whether the mandate is still right*. The discipline (ground-truth-moves-the-intent, pressure-never-does) is what keeps this from collapsing into the rejected "emergent intent" of Commitment 1 — the revision is authored, attributed, legible, and operator-vetoable. See FOUNDATIONS Derived Principle 24 + [ADR-319](../adr/ADR-319-stewardship-of-intent-against-ground-truth.md).
+**ADR-319's second altitude, restated (2026-09-12).** Ground truth is also the authority over the mandate itself: when reconciled reality falsifies a rule's premise, the declared intent is revised against that signal — by the member, or by a review declared as a grant when that lands (ADR-596 D3(d)) — never by an agent on its own initiative (ADR-596 D1 retired the seat that once owned the mandate). The discipline (ground truth moves the intent, pressure never does) is what keeps this from collapsing into the rejected "emergent intent" of Commitment 1: the revision is authored, attributed, legible and vetoable. See FOUNDATIONS DP24 (retired as an agent posture; the mechanism survives as the standing declaration's contract check, ADR-603/618).
 
-*Implemented by*: ADR-195 v2 (Money-Truth Substrate — alpha-trader instance), ADR-181 (Source-Agnostic Feedback), ADR-184 (Product Health Metrics), ADR-319 (Stewardship of Intent — ground-truth as authority over the mandate), FOUNDATIONS Axiom 8 (Ground-Truth Substrate) + Derived Principle 24, ADR-282 (kernel/instance vocabulary discipline).
+*Implemented by*: ADR-195 v2 (Money-Truth Substrate — alpha-trader instance), ADR-181 (Source-Agnostic Feedback), ADR-330 (ground-truth intake), FOUNDATIONS Axiom 8 (Ground-Truth Substrate), ADR-282 (kernel/instance vocabulary discipline).
 
 *Alternative stance we are rejecting*: human-satisfaction ground truth. It is available universally but it is too noisy to close an evaluation loop in the short cycles autonomy requires.
 
@@ -117,76 +98,37 @@ The scope of this commitment is deliberately narrower than the architecture:
 
 Every major platform is building a context layer. Google Workspace Intelligence, OpenAI Memory, Microsoft Copilot + Graph, Anthropic Projects. All of them infer context from activity: emails, documents, chats, edits. Inferred context is shallow by construction — the operator cannot see it, correct it, or carry it somewhere else.
 
-YARNNN's position: **context is authored, attributed, and retained.** Every file has a declared author (operator, YARNNN, named agent, reviewer, system actor). Every mutation produces a parent-pointered revision with required attribution. The operator's workspace is a sovereign, portable artifact that accumulates value over time in a form the operator owns and can inspect.
+YARNNN's position: **context is authored, attributed, and retained.** Every file has a declared author (a member, an agent acting as the member's hands, a connected principal, a system actor). Every mutation produces a parent-pointered revision with required attribution. The operator's workspace is a sovereign, portable artifact that accumulates value over time in a form the operator owns and can inspect.
 
 This is the single sharpest technical differentiator YARNNN has. Inferred context commoditizes as model capability saturates (every context layer will be "good enough" eventually). Authored context does not commoditize; it gets richer per operator per month of use, and it travels with the operator across any model, any agent layer, any future incumbent.
 
-*Implemented by*: ADR-209 (Authored Substrate), ADR-106 (Agent Workspace Architecture), FOUNDATIONS Axiom 1 (Substrate) + second clause on authorship.
+*Implemented by*: ADR-209 (Authored Substrate), ADR-106 (Agent Workspace Architecture), ADR-413 (one invocation contract), ADR-588 (the ledger organized by meaning), FOUNDATIONS Axiom 1 (Substrate) + second clause on authorship.
 
 *Alternative stance we are rejecting*: inferred context as moat. Inferred context is a temporary advantage that dissolves as retrieval commoditizes. Authored context is a per-operator moat that compounds under use.
 
 ---
 
-## Vocabulary: Agents and Orchestration
+## Vocabulary: agents and machinery
 
-> **⚠ Amendment banner (2026-07-07, ADR-414):** the sharp two-class split below (Agents = judgment-bearing / Orchestration = machinery) **survives as the philosophical claim** and is now instantiated as the **three AI altitudes** (ADR-408 D2): Altitude 1 — the system agent (Freddie), management infrastructure with a voice, NOT a judgment Agent; Altitude 2 — lane helpers, the member's hands, not principals and not Agents; Altitude 3 — persona agents + user-authored domain Agents, the judgment-bearing class where the sharp word "Agent" lands. The ADR-216 "YARNNN is the orchestration feed surface" seam is **collapsed by ADR-414 D3**: there is one system agent and the rail is its voice; the orchestration/judgment split is now the Altitude-1/Altitude-3 split. [LAYER-MAPPING.md](LAYER-MAPPING.md) (rewritten same date) is the authoritative taxonomy.
->
-> **⚠ Further amendment (2026-07-18, ADR-460):** the three-altitude *ladder* dissolved into a **fact-vector** — one concept (Agent) whose facts (attribution · configuration · standing intent · governance · consequential authority) vary independently; "there is no ordinal, configuration is a vector not a rung." The three altitudes survive as **fact-clusters** (management / member-hands / judgment), not ranked kinds; "Altitude 1/2/3" above reads as "the management / member-hands / judgment cluster." The sharp two-class split is unaffected — it was always the claim, and the fact-clusters are how it instantiates. [LAYER-MAPPING.md](LAYER-MAPPING.md) (re-rewritten 2026-07-18) carries the fact-vector model.
+The four commitments describe the architecture. This section names the two-class taxonomy that falls out of them, restated on ADR-596/631; the authoritative taxonomy is [LAYER-MAPPING.md](LAYER-MAPPING.md).
 
-The four commitments above describe the architecture. This section names the two-class taxonomy that falls out of them: **YARNNN has persona-bearing Agents and Orchestration. YARNNN itself is the orchestration feed surface, not an Agent.** The word "Agent" belongs to judgment-bearing entities in the sharp sense; production machinery, capabilities, and feed surfaces do not inherit it by proximity. The full authoritative taxonomy lives in [LAYER-MAPPING.md](LAYER-MAPPING.md); this section states the philosophical claim.
+### Agents — the one noun (ADR-631)
 
-### Agents (judgment-bearing entities)
+An **agent** is identity ⊕ character ⊕ engine, and nothing else (ADR-596 D1): a named colleague a member works with — Designer, Editor, Blogger, from one register (ADR-600). An agent *uses* the kernel's verbs under the member's grant; it holds no standing intent, no clock, no authority, and no judgment of its own. Its home holds what it knows (`memory/`) and the grant sidecars a member set (ADR-624); it carries no record of its own work (ADR-640). The sharp philosophical word "Agent" that earlier versions of this document reserved for judgment-bearing entities has no live referent: **judgment-bearing is a property of a grant, not of an entity** — the ADR-460 D3.a cliff, now enforced by construction.
 
-An **Agent** in YARNNN is an entity that holds standing intent on behalf of a principal (the operator), reasons from principles against inputs, and renders judgments that carry fiduciary weight. Agents have persistent identity, accumulate calibration or domain expertise over tenure, and *use* tools and orchestration capabilities to do their work — but their essence is judgment, not production.
+### Machinery
 
-Members of this class in YARNNN today:
-
-- **Reviewer** — the judgment seat that reads proposed actions and renders approve/reject/defer. Fiduciary at the proposal level. Lives at `/workspace/review/` (six seat files) and reasons within delegation declared at `/workspace/context/_shared/AUTONOMY.md`.
-- **User-authored domain Agents** — persistent domain experts authored by the operator through YARNNN chat. Hold domain intent, accumulate domain context. Live at `/agents/{slug}/` with AGENT.md identity files.
-- **Future judgment archetypes** — Auditor, Advocate, Custodian, etc. Any future seat that holds standing intent. Would live at `/workspace/{role}/`.
-
-Systemic persona-bearing Agents (Reviewer, future archetypes) are one-per-workspace and path-named by role. Instance Agents (user-authored) are many-per-workspace and slug-named. The path shape encodes the cardinality distinction.
-
-### Orchestration (production machinery)
-
-**Orchestration** in YARNNN is the machinery that dispatches production work, bundles capabilities, and routes tasks to the right tool surface. Orchestration has **no standing intent, no fiduciary relationship, no accumulated identity**. It is stateless infrastructure that runs *under* Agents. It is never an Agent and is never personified.
-
-Members of this class in YARNNN today:
-
-- **YARNNN** — the platform-authored orchestration feed surface the operator addresses. It keeps the system legible, drafts work, and routes mutations, but it does not embody an operator-authored judgment persona.
-- **The Orchestrator** (system machinery) — task pipeline, dispatch routing, team composition logic, capability gating, back-office scheduling. Tooling that YARNNN, the Reviewer, and user-authored domain Agents use to get production work dispatched.
-- **Production roles** — pre-packaged production-style capability bundles: Researcher, Analyst, Writer, Tracker, Designer, Reporting. These are capability bundles, not entities. The Orchestrator dispatches against them when a task requires that style of production. (Previously called "Specialists" — the term is retired for the orchestration concept.)
-- **Platform integrations** — pre-packaged platform-API capability bundles: Slack, Notion, GitHub, Commerce, Trading. Capability-gated by active `platform_connections`. (Previously called "Platform Bots" — the term is retired; ADR-207 P4a already dissolved them as an agent class.)
-- **Primitive dispatch, back-office tasks, scheduler** — core orchestration plumbing. Runtime coordination, no judgment.
+**Machinery** is the kernel code that executes unconditionally under a `system:*` attribution: the drain loop that runs standing declarations, capture, the mirrors, the compose engine, the gates. It has no home, no grants, no character; it is trusted because it is reviewed as code. It is never personified.
 
 ### The split in one sentence
 
-*Agents hold intent and render judgment. Orchestration runs under them, bundles capabilities, and dispatches production.*
-
-### Where agency-proper lives
-
-In the philosophical and legal sense (principal-agent theory), *agency* is the capacity to act on declared intent, with reasoning from principles, on behalf of a principal. This is exactly what Agents in YARNNN do. The word is sharp here, not industry-loose.
-
-Industry's "agent" vocabulary (LLM + tools + loop + memory) maps most closely to YARNNN's **production roles** — packaged production capabilities, not Agents. Industry has consolidated the word around the wrong referent. YARNNN does not follow; the word belongs to judgment-bearing entities and is used accordingly.
-
-External UI and marketing happen to align with the sharp mapping naturally: the "Agents" the operator sees in the product (their domain workers on `/agents`) ARE Agents in the sharp sense — they hold operator-authored domain intent, they represent the operator's interests, they accumulate. No external vocabulary shift required.
+*Agents are colleagues who act under a member's grant. Machinery runs the workspace and holds the gates. Authority lives on the relation — the grant, the declaration, the gate — never on either.*
 
 ### Why this matters
 
-Three consequences follow from the sharp mapping:
-
-1. **It clarifies why the market struggles to build "agentic frameworks."** Most "agentic" systems are production pipelines with longer loops, broader tools, more memory — but no Agent layer at all. Every failure mode (drift from intent, no accountable judgment, low trust with irreversible actions, no meaningful calibration) traces to the missing Agent class. YARNNN's architectural differentiation is not that its orchestration is better, but that it *has an Agent class*.
-
-2. **It makes Principle 14 (Roles persist; occupants rotate) load-bearing where it belongs.** Occupant-interchangeability is the property that makes Agent seats durable — the seat evaluates against the operator's principles, not against any particular occupant's incentives. Orchestration capability bundles do not have occupants to rotate; they have configurations to tune.
-
-3. **It names two distinct growth axes.** Agents grow by accumulating calibration (Reviewer) or domain expertise (user-authored). Orchestration does not grow by accumulation — it grows by *adding capabilities* (new production roles, new platform integrations). Confusing these two axes produces category errors.
-
-### What this does imply (concretely)
-
-- Internal canon, code, and ADRs going forward use "Agent" only for persona-bearing judgment entities. Production roles, platform integrations, and YARNNN feed surface are never called Agents.
-- The orchestration module is named for what it is (orchestration), not for the legacy "agent_framework" framing.
-- Systemic persona-bearing Agents are path-named by role; instance Agents (user-authored) are slug-named; YARNNN remains an orchestration-surface convention rooted at `/workspace/memory/`. The filesystem encodes the distinction.
-- ADR-212 + LAYER-MAPPING.md ratify this mapping as canonical. Historical ADRs preserve old vocabulary as frozen artifacts and are not rewritten.
+1. **It clarifies why the market struggles to build "agentic frameworks."** Most "agentic" systems put authority on the entity — a persona with a clock, a mandate and a self-critique — and every failure mode (drift from intent, no accountable judgment, low trust with irreversible actions) traces to that placement. YARNNN's differentiation is not that its agents are better; it is that **authority is unrepresentable on an agent**, so accountability has one home: the ledger of who granted what to whom, and who decided.
+2. **It makes "roles persist; occupants rotate" true where it belongs.** The durable role is judgment; today its holder is the member, tomorrow a granted review — a grant rotates, an entity does not have to.
+3. **It names two distinct growth axes.** The commons grows by accumulation (every attributed revision); an agent grows only in what it knows (its memory). Confusing the two — treating an agent as the thing that compounds — is the category error the seat era made.
 
 ---
 
@@ -194,9 +136,9 @@ Three consequences follow from the sharp mapping:
 
 The four commitments are individually defensible and jointly inescapable:
 
-- **Mandate without reviewer** is declared intent with no accountable judgment — the mandate drifts into a prompt that agents over-interpret.
-- **Reviewer without mandate** is judgment with no north star — the reviewer evaluates against what, exactly?
-- **Money-truth without mandate+reviewer** is a KPI dashboard — attribution without directional governance.
+- **Mandate without accountable judgment** is declared intent with no one answering for it — the mandate drifts into a prompt that producers over-interpret.
+- **Judgment without a mandate** is verdicts with no north star — evaluated against what, exactly?
+- **Ground truth without mandate + judgment** is a KPI dashboard — attribution without directional governance.
 - **Authored substrate without the other three** is a wiki — accumulation with no action loop.
 
 The thesis is that the four compose into a minimal complete system for autonomous operation. Remove any one and the composition degrades into an existing known-inferior form (chat, automation, dashboard, assistant).
@@ -207,24 +149,21 @@ The thesis is that the four compose into a minimal complete system for autonomou
 
 A thesis earns its rent by making predictions that would be falsified if the thesis is wrong. THESIS predicts:
 
-1. **In domains with clean money-truth**, a YARNNN-structured operation will outperform an operator running equivalent work through (a) unstructured LLM chat, (b) traditional automation (Zapier-class), and (c) inferred-context agent platforms (Workspace Intelligence, Agentforce-class), over a bounded cycle (weeks for commerce, months for trading).
-
-2. **The reviewer role will compound in value** — an operator's expected ability to judge proposals will measurably improve over tenure on the platform, because the substrate the reviewer consults (`_money_truth.md`, principles, decisions log, track records) densifies monotonically.
-
+1. **In domains with clean money-truth**, a YARNNN-structured operation will outperform an operator running equivalent work through (a) unstructured LLM chat, (b) traditional automation (Zapier-class), and (c) inferred-context agent platforms, over a bounded cycle (weeks for commerce, months for trading).
+2. **The judgment record will compound in value** — a member's expected ability to judge proposals will measurably improve over tenure, because the substrate they consult (ground truth, the verdict record, track records) densifies monotonically.
 3. **The authored substrate will be portable and sticky** — an operator moving to a competitor platform will experience quality regression proportional to the substrate they leave behind. Switching cost is material, not rhetorical.
+4. **Review as a grant will become testable** — an agent granted review over a family of acts will, on instrumented proposals, achieve expected-value judgments within a measurable delta of the member's retrospective correctness, in domains where track-record density is sufficient. *(Deferred: no such grant exists yet — ADR-596 D3(d) is the owed decision.)*
 
-4. **The seat-rotation claim will become testable** — a machine reviewer (ADR-194 v2 Phase 3) will, on instrumented proposals, achieve expected-value judgments within a measurable delta of the human reviewer's retrospective correctness, in domains where track record density is sufficient.
-
-Each prediction is **falsifiable**. If the alpha operations do not show (1), the thesis is wrong about the sufficiency of the four commitments. If the substrate does not show (2) and (3), the authored-substrate commitment is not load-bearing. If (4) fails, the seat-interchangeability claim is aspirational rather than real.
+Each prediction is **falsifiable**. If the alpha operations do not show (1), the thesis is wrong about the sufficiency of the four commitments. If the substrate does not show (2) and (3), the authored-substrate commitment is not load-bearing. If (4) fails when it can be run, the review-as-grant claim is aspirational rather than real.
 
 ---
 
 ## What the thesis does *not* claim
 
 - It does not claim domain-agnosticism. The architecture supports it (ADR-188); the thesis is proven first in domains with clean money-truth.
-- It does not claim the reviewer must be AI. It claims the reviewer *seat* is durable and the occupant is interchangeable. Who occupies the seat is an empirical question, not a thesis commitment.
-- It does not claim autonomy from the operator. The operator authors the mandate and occupies the reviewer seat. Autonomy is of *operation*, not *agent*; the system runs without operator micro-input between mandate authorship and reviewer verdict, but the operator is never structurally absent.
-- It does not claim to obsolete human judgment. It claims that human judgment is a current occupant of a permanent architectural role, and that the role will accept AI occupants as they become credible.
+- It does not claim judgment must be AI. It claims the *role* is durable and its holder is a grant; today the member holds it. Who holds it later is an empirical question, not a thesis commitment.
+- It does not claim autonomy from the member. The member authors the intent and gives the verdicts. Autonomy is of *operation*, not *agent*; standing work runs without micro-input between declaration and receipt, but the member is never structurally absent — and nothing acts on the world in their absence.
+- It does not claim to obsolete human judgment. It claims that human judgment is the current holder of a permanent architectural role, and that the role will accept a granted AI holder as one becomes credible.
 
 ---
 
@@ -240,13 +179,15 @@ The system becomes the infrastructure layer for one or more operations run by a 
 
 The system is offered as infrastructure to external operators who build and run their own operations on it. Revenue comes from operator-seat economics; the moat is accumulated substrate per operator.
 
-**The two paths are not ranked.** Alpha operations (alpha-trader, alpha-commerce) are the first consequential dogfood test of the architecture's thesis in domains where money-truth is clean. They are *not* a statement of preference for Path A. They are the cleanest available falsification experiment.
+**The two paths are not ranked.** Alpha operations (alpha-trader, alpha-author) are the first consequential dogfood test of the architecture's thesis in domains where money-truth is clean. They are *not* a statement of preference for Path A. They are the cleanest available falsification experiment.
 
 The architecture is designed to keep both paths open. Decisions that collapse optionality prematurely (e.g., shipping features only the founder could use; or shipping features only external operators could use) are deliberately avoided. The evidence produced by alpha operations will inform which path activates; the thesis itself is indifferent.
 
 ### Communication discipline
 
 Internal docs (this file, FOUNDATIONS, ADRs) state the optionality honestly. **External communication (website, NARRATIVE.md, ESSENCE.md, social, deck) is framed exclusively in Path B terms** — YARNNN as service/platform for operators. The internal dual-use posture is not hidden, but it is not the external narrative. This discipline is enforced by ADR — see ADR-210 — and must be respected in every external surface.
+
+---
 
 ---
 
@@ -262,6 +203,8 @@ Internal docs (this file, FOUNDATIONS, ADRs) state the optionality honestly. **E
 | **NARRATIVE.md** | Story sequencing | External-facing | How the story is told across surfaces |
 
 THESIS is upstream of FOUNDATIONS (the axioms exist to express the thesis) and upstream of ESSENCE/NARRATIVE (the product story exists to deliver the thesis). When a contradiction appears between THESIS and any other doc, THESIS wins and the other doc is revised.
+
+---
 
 ---
 

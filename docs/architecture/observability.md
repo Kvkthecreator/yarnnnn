@@ -224,11 +224,11 @@ Set on: `yarnnn-api` + `yarnnn-unified-scheduler`.
 Scheduled invocation arrives
   → check capability (existing)
   → check daily spend from execution_events        ← NEW
-      if spend >= ceiling AND trigger = reactive:    # cron-fired recurrence
+      if spend >= ceiling AND trigger = standing:    # a standing declaration's run (ADR-618: refused, receipted)
           write execution_events row (status=skipped, error_reason=spend_ceiling)
           emit narrative entry (spend summary, weight=routine)
           return early
-      if spend >= ceiling AND trigger = manual:      # operator-initiated FireInvocation
+      if spend >= ceiling AND trigger = attended:    # a member's turn — the balance gate
           emit narrative warning (not a block — user explicitly requested)
           continue
   → generate (existing)

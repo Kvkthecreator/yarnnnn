@@ -39,7 +39,7 @@ Audited across every consumer surface:
 |---|---|---|
 | Member chat lanes (`run_lane_turn`) | **No** | Closed 9-tool allowlist (`lane_runner.py:148/173`); `lane_tools_openai()` RAISES on any name outside it |
 | App lanes (radar · docs · images · Strings · Studio) | **No** | Same closed set; the `app` parameter selects a PROMPT OVERLAY only (`lane_runner.py:838`) |
-| Steward (`freddie_agent.py`) | **No** | `FREDDIE_PRIMITIVES + ReturnVerdict` (`:924`) — deliberate, ADR-299 D8 |
+| ~~Steward (`freddie_agent.py`)~~ — deleted, ADR-632 | — | (was: `FREDDIE_PRIMITIVES + ReturnVerdict` — deliberate, ADR-299 D8 |
 | MCP server | **No** | 9 substrate verbs only |
 | Capture lane | Yes, but **dormant** | `CONNECTOR_CAPTURE_ENABLED` defaults OFF (ADR-404 D2) |
 | Settings picker (`landscape.py`) | **Yes** | Discovery only — never lands substrate, no agent sees it |

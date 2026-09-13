@@ -1,83 +1,52 @@
 # Architecture Documentation Index
 
-> **Last updated**: 2026-04-24 (ADR-216/217 canon hardening: YARNNN reclassified to orchestration surface; autonomy moved to `_shared/AUTONOMY.md`)
+> **Last updated**: 2026-09-12 (the post-steward recut — ADR-596/603/632; every doc below describes the live system, and every retired-era version is archived under `previous_versions/`).
 
----
+The canon is stacked: **THESIS** (the philosophical claim) → **FOUNDATIONS** (the axioms) → **GLOSSARY** + **LAYER-MAPPING** (the vocabulary and the taxonomy) → **SERVICE-MODEL** (how the pieces fit) → **agent-composition** + **lane-frame** (what an agent's turn is made of) → the substrate and surface canons. Start with SERVICE-MODEL.md for the operational picture. CLAUDE.md's canon table is the shortest way in.
 
-## Canonical Docs (`docs/architecture/`)
-
-The canon is stacked: **THESIS** (the philosophical claim the architecture exists to express) → **FOUNDATIONS** (the axiomatic structure that must hold) → **LAYER-MAPPING** (the Agent-vs-Orchestration taxonomy) → **agent-composition** (what each agent/surface actually reads at reasoning time) → **substrate canons** (how specific architectural commitments are expressed in files). Start with SERVICE-MODEL.md for the operational picture; read LAYER-MAPPING.md + ADR-216/217 + agent-composition.md for the current taxonomy/composition shape.
-
-### Thesis + Axioms + Taxonomy
+## The spine
 
 | Document | Covers |
-|----------|--------|
-| [**THESIS.md**](THESIS.md) | The philosophical thesis — four architectural commitments (declared intent, independent judgment, ground-truth evaluation, authored accumulation), falsifiable predictions, dual-use terminal vision. **Internal canon; not external messaging.** |
-| [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these. Six-dimensional model, filesystem-as-substrate, Axiom 2 sharp Agent-vs-Orchestration split, Axiom 8 ground-truth substrate, fourteen Derived Principles. |
-| [**LAYER-MAPPING.md**](LAYER-MAPPING.md) | **Authoritative taxonomy** for the Agent-vs-Orchestration split, amended by ADR-216. Names every entity, classifies it, and clarifies that YARNNN is the orchestration chat surface, not a persona-bearing Agent. |
-| [**agent-composition.md**](agent-composition.md) | The current composition canon — what YARNNN, Reviewer, and domain Agents read at reasoning time; how persona/framework/delegation separate; prompt/versioning discipline. |
-| [**GLOSSARY.md**](GLOSSARY.md) | Canonical vocabulary — one word, one concept, one layer. |
+|---|---|
+| [THESIS.md](THESIS.md) | The philosophical claim — four architectural commitments, falsifiable predictions, terminal-vision optionality. Internal canon; not external messaging. |
+| [FOUNDATIONS.md](FOUNDATIONS.md) | First-principles axioms every ADR derives from — the six dimensions, the filesystem as substrate, the agent (Axiom 2, v10), the two trigger shapes (Axiom 4, v10), ground truth, the derived principles. |
+| [GLOSSARY.md](GLOSSARY.md) | Canonical vocabulary — one word, one concept. Terms move; this is authoritative. |
+| [LAYER-MAPPING.md](LAYER-MAPPING.md) | The taxonomy of every acting entity: agents as a fact-vector, the clusters, machinery, the filesystem rule. |
+| [SERVICE-MODEL.md](SERVICE-MODEL.md) | End-to-end — the acts, the entity model, the two execution paths, intake, outbound, interop, services, billing. |
 
-### Substrate canons
-
-Parallel deep-dives on the two sharpest architectural substrates — the write path and the judgment seat. Each is sibling to the other and downstream of FOUNDATIONS.
+## How an agent's turn is composed
 
 | Document | Covers |
-|----------|--------|
-| [**authored-substrate.md**](authored-substrate.md) | Content-addressed retention + parent-pointer history + authored-by attribution on every `workspace_files` mutation. Ratified by FOUNDATIONS v6.1 Axiom 1 second clause + ADR-209. |
+|---|---|
+| [agent-composition.md](agent-composition.md) | The lane frame and the standing frame section by section; §3.3 the partition — where a sentence of prompt prose goes; what an agent reads and may write; versioning. |
+| [lane-frame.md](lane-frame.md) | The pane frame in depth — the binding, the focus declaration, the cast, app-declared postures. |
+| [primitives-matrix.md](primitives-matrix.md) | The kernel's verbs and who holds them — derived from the registry; the permission gate; the standing disciplines; the deleted-verbs ledger. |
 
-### System operation
+## The substrate and the surfaces
 
 | Document | Covers |
-|----------|--------|
-| [**SERVICE-MODEL.md**](SERVICE-MODEL.md) | End-to-end system description — entities, execution, services, primitives, perception |
-| [orchestration.md](orchestration.md) | Orchestration capability bundles, production roles, integrations, and dispatch metadata |
-| [backend-orchestration.md](../infrastructure/backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
-| [WORKSPACE.md](WORKSPACE.md) | Workspace — layers · filesystem inventory · bootstrap · autonomy threshold (paired with [design/WORKSPACE.md](../design/WORKSPACE.md)) |
-| [registry-matrix.md](registry-matrix.md) | Agent types × task types × output categories — the full registry catalog |
-| [primitives-matrix.md](primitives-matrix.md) | Primitives × substrate × mode × capability — the full primitive surface (ADR-168) |
-| [task-type-orchestration.md](task-type-orchestration.md) | Task type registry, mode semantics, pipeline integration |
-| [output-substrate.md](output-substrate.md) | Three-registry architecture (ADR-130), HTML-native output, compose engine |
-| [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) | Design principles — Spectrum A/B framing, loosening-with-Reviewer-gate |
+|---|---|
+| [WORKSPACE.md](WORKSPACE.md) | The filesystem as the kernel tells it, the roots, genesis, what unattended work requires, the live failure modes. Paired with [design/WORKSPACE.md](../design/WORKSPACE.md) (the surface contracts). |
+| [authored-substrate.md](authored-substrate.md) | The ledger — every write attributed, parent-pointered, revertible (ADR-209); attribution prefixes; the revision chain in depth. |
+| [compositor.md](compositor.md) | The shell — the window manager, navigation, the kernel/app seam. |
+| [intake-pipeline.md](intake-pipeline.md) · [connectors.md](connectors.md) · [grants-and-reach.md](grants-and-reach.md) · [connector-reach-and-the-commons.md](connector-reach-and-the-commons.md) | How the world reaches the commons, and how work leaves it: connections, capture, turn reach, outbound, grants. |
+| [observability.md](observability.md) | Logging, telemetry, spend ceilings. |
+| [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) | The two spectrums — what tightens, what loosens, and what holds the line while it does. |
+| [propagation-discipline.md](propagation-discipline.md) | Substrate reapply — how a bundle's later changes reach a live workspace (ADR-292). |
 
-`registry-matrix.md` and `primitives-matrix.md` are siblings: the former describes **what** the system works on (domains, tasks, agents); the latter describes **how** the system acts on it (primitives, dispatch paths, permission modes).
+## Reference and history
 
-## Reading Order
+- [ADR-LEDGER.md](ADR-LEDGER.md) — per-ADR notes and supersession chains; search it before proposing an architectural change.
+- [AGENT-TAXONOMY.md](AGENT-TAXONOMY.md) — the axes agents have been classified on, and the invariant that survived them.
+- [DOMAIN-STRESS-MATRIX.md](DOMAIN-STRESS-MATRIX.md) — the verticalization stress test for ADRs.
+- [os-framing-implementation-roadmap.md](os-framing-implementation-roadmap.md) · [bare-kernel-product-floor-2026-06-01.md](bare-kernel-product-floor-2026-06-01.md) — dated planning notes, kept for the ADRs that cite them; superseded where they name the steward or the bundle-fork as the constitution event (ADR-414 D4, ADR-632).
+- [orchestration.md](orchestration.md) · [registry-matrix.md](registry-matrix.md) · [output-substrate.md](output-substrate.md) · [compose-substrate.md](compose-substrate.md) · [commerce-substrate.md](commerce-substrate.md) — earlier-era references; read their status headers before relying on them.
 
-For someone new to the codebase:
+## Archived (`previous_versions/`)
 
-1. **[SERVICE-MODEL.md](SERVICE-MODEL.md)** — how the system works (start here)
-2. **[LAYER-MAPPING.md](LAYER-MAPPING.md)** — current Agent-vs-Orchestration taxonomy
-3. **[agent-composition.md](agent-composition.md)** — how YARNNN / Reviewer / domain Agents compose today
-4. **[FOUNDATIONS.md](FOUNDATIONS.md)** — why it works this way, axiomatically
-5. **[THESIS.md](THESIS.md)** — the philosophical claim the axioms exist to express (internal canon)
-6. **[authored-substrate.md](authored-substrate.md)** — the ledger (every write attributed, parent-pointered, revertible).
-7. **[orchestration.md](orchestration.md)** — orchestration capabilities and dispatch
-9. **[WORKSPACE.md](WORKSPACE.md)** — workspace layers, filesystem model, bootstrap, autonomy threshold
-10. **[backend-orchestration.md](../infrastructure/backend-orchestration.md)** — how everything runs
-
-## Archived (`docs/architecture/previous_versions/`)
-
-Historical documents preserved for reference. Do not use for current architecture decisions.
-
-- `yarnnn-agent-platform.md` — pre-ADR-138 project/PM investor-facing architecture
-- `four-layer-model.md` — ADR-063 Memory/Activity/Context/Work model (superseded by ADR-138/142)
-- `agent-model-comparison.md` — ADR-092 era agent model comparison (model has changed 3x since)
-- `tp-prompt-guide.md` — TP prompt v6.1 guide (TP rewritten multiple times since)
-- `VALUE-CHAIN.md` — ADR-132 era value realization chain (superseded by ADR-138)
-- `supervision-model.md` — early UI/UX supervision framing (core insight absorbed into FOUNDATIONS.md Axiom 5)
-- `mcp-integration-system.md` — pre-ADR-076 MCP Gateway architecture
-- `tp-configuration.md` — pre-v3 TP prompt configuration
-- `DECISION-001-platform-sync-strategy.md` — early platform sync decision
-- `INTEGRATION_FIRST_POSITIONING.md` — early product positioning
-- `YARNNN_STRATEGIC_DIRECTION.md` — early strategic direction
-- `activity-log-implementation-plan.md` — activity log implementation plan
-- `primitives-analogy.md` — primitives conceptual analogy
-- `agents-pre-118.md` — pre-ADR-118 agent architecture
+The retired-era text, verbatim, so nothing is lost when the live document is recut. The 2026-09-12 recut snapshots: `FOUNDATIONS-v9.20-2026-09-12.md` · `GLOSSARY-2026-09-12-pre-recut.md` · `WORKSPACE-architecture-2026-09-12-pre-recut.md` · `WORKSPACE-design-v3.0-2026-09-12-pre-recut.md` · `agent-composition-v1-2026-09-12.md` · `primitives-matrix-v1-2026-09-12.md` · `SERVICE-MODEL-v2.1-2026-09-12.md` · `THESIS-2026-09-12-pre-recut.md` · `LAYER-MAPPING-v3-2026-09-12.md` · `ESSENCE-v20-2026-09-12.md`. The steward / review-seat canon archived by ADR-632 (`reviewer-*.md`, `cadence-and-wakes.md`, `invocation-and-narrative.md`, `execution-loop.md`, `agent-execution-model.md`, `persona-reflection.md`, the `adr296-*` audits) and the pre-2026 documents live beside them. Do not use any of them for a current decision.
 
 ## Database
 
-- [SCHEMA.md](../database/SCHEMA.md) — complete table definitions
-- [ACCESS.md](../database/ACCESS.md) — connection strings and psql commands
-
-> **ADR-632 (2026-09-02)**: the steward / review-seat canon (`reviewer-*.md`, `cadence-and-wakes.md`, `invocation-and-narrative.md`, `execution-loop.md`, `agent-execution-model.md`, `persona-reflection.md`, the `adr296-*` audits) is archived under [previous_versions/](previous_versions/). The live Altitude-2 canon is [lane-frame.md](lane-frame.md); standing work is the standing declaration (ADR-603); skills are files (ADR-630).
+- [SCHEMA-NOTES.md](../database/SCHEMA-NOTES.md) — current table names, deprecated columns, the ADR history behind each.
+- [ACCESS.md](../database/ACCESS.md) — connection strings and psql commands.

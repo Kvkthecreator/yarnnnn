@@ -33,7 +33,7 @@ Each invariant separately enables a property operators and cognitive layers actu
 
 - **Content-addressed retention** → nothing is lost. Every prior state of every file is still there. Revert is pointing `head_version_id` at an earlier revision — no restore-from-backup flow.
 - **Parent-pointered history** → diff and history traversal are substrate operations. `ListRevisions`, `ReadRevision`, `DiffRevisions` are three primitive calls, not three subsystems.
-- **Authored-by attribution** → every cognitive layer's contribution is observable. YARNNN can ask *"what did I write this week?"*; the operator can ask *"what did YARNNN do while I was away?"*; the Reviewer can ask *"has `_risk.md` drifted from the operator's hand?"*
+- **Authored-by attribution** → every cognitive layer's contribution is observable. YARNNN can ask *"what did I write this week?"*; the operator can ask *"what did YARNNN do while I was away?"*; an agent can ask *"has `_risk.md` drifted from the operator's hand?"*
 
 Together, they turn the substrate from a flat filesystem into a **four-dimensional substrate**: path × content × author × time. Every read can be scoped on any axis.
 
@@ -44,10 +44,10 @@ The re-founding (keystone + adversarial triple-check; Axiom 1 sixth/seventh/nint
 | Carrier | What it now holds | Where it lives | Replaces |
 |---|---|---|---|
 | **Per-file grant** | who may write this file (the runtime permission authority), **defaulted at creation** by the meaning-folder, overridden per-file/per-principal | a grant field on `workspace_files` (the file row), consulted by the gate for edit/delete — ADR-373's `principal_grants` is the cross-file authorization fact this defaults from | the pure-prefix `_is_path_locked` *for the work-commons* (the directory was the runtime permission source; now it is only the birth-time default-stamp) |
-| **Revision-kind** | is this revision a raw **observation** (a principal contributed it) or a **derivation** (the steward made sense of it) | a `revision_kind` field on `workspace_file_versions` | the `inbound/` raw **lane** (provenance was a separate namespace; now it is a revision flag on the one meaning-file) |
+| **Revision-kind** | is this revision a raw **observation** (a principal contributed it) or a **derivation** (an agent derived it) | a `revision_kind` field on `workspace_file_versions` | the `inbound/` raw **lane** (provenance was a separate namespace; now it is a revision flag on the one meaning-file) |
 | **derived_from** | the observation revision-id(s) a derivation was built from | a `derived_from` field on the derivation revision | the `derived_from` frontmatter line in a separate-lane file (DP32's invariant `retain + attribute + cite` is unchanged; only its home moves namespace → revision) |
 
-So the four-dimensional substrate becomes a **richer ledger** — path × content × author × time × **grant** × **kind** × **citation** — and the namespace is freed to carry only **operator-meaning** (`the-acme-deal/`, `q3-strategy/`) plus the **minimal path-anchored residue** the triple-check proved irreducible: the kernel-read GRANT + per-act floor + `system/` (the kernel locates its own authority by fixed path; the floor must deny *creation* into an empty locked region — a non-existent file has no metadata to read), and the principal-homes (`persona/`, `agents/{slug}/` — fixed identity homes, the `/home/alice` model). **Permission is `defaulted-by-meaning, owned-by-grant`** — not "never on the namespace" (the absolutism the triple-check falsified at the create-boundary and the fixed-path grant read). One consequence for *this* doc's invariants: single-**writer**-per-path relaxes to single-**head**, many-**authors** for the commons (the chain serializes mechanics via CAS; a genuine same-path semantic contradiction relocates to the steward seat as a next-head judgment revision — conditioned on the single-substrate topology, ADR-378). See [the re-founding keystone](../analysis/the-re-founding-meaning-folders-and-permission-as-metadata-2026-06-29.md) + [the triple-check findings](../analysis/keystone-triple-check-FINDINGS-2026-06-29.md) + FOUNDATIONS DP33.
+So the four-dimensional substrate becomes a **richer ledger** — path × content × author × time × **grant** × **kind** × **citation** — and the namespace is freed to carry only **operator-meaning** (`the-acme-deal/`, `q3-strategy/`) plus the **minimal path-anchored residue** the triple-check proved irreducible: the kernel-read GRANT + per-act floor + `system/` (the kernel locates its own authority by fixed path; the floor must deny *creation* into an empty locked region — a non-existent file has no metadata to read), and the principal-homes (`persona/`, `agents/{slug}/` — fixed identity homes, the `/home/alice` model). **Permission is `defaulted-by-meaning, owned-by-grant`** — not "never on the namespace" (the absolutism the triple-check falsified at the create-boundary and the fixed-path grant read). One consequence for *this* doc's invariants: single-**writer**-per-path relaxes to single-**head**, many-**authors** for the commons (the chain serializes mechanics via CAS; a genuine same-path semantic contradiction relocates to a judgment act — a member's, or their agent's in a lane — as a next-head revision — conditioned on the single-substrate topology, ADR-378). See [the re-founding keystone](../analysis/the-re-founding-meaning-folders-and-permission-as-metadata-2026-06-29.md) + [the triple-check findings](../analysis/keystone-triple-check-FINDINGS-2026-06-29.md) + FOUNDATIONS DP33.
 
 ---
 
@@ -358,7 +358,7 @@ The `authored_by` column is a structured string. The taxonomy maps to FOUNDATION
 | `yarnnn:<model>` | YARNNN (meta-cognitive layer) | `yarnnn:claude-sonnet-4-7` |
 | `agent:<slug>` | A user-created domain agent | `agent:alpha-research` |
 | `specialist:<role>` | A specialist's style distillation | `specialist:writer` |
-| `freddie:<identity>` | The system agent occupying the seat (ADR-381; was `reviewer:`) | `freddie:human`, `freddie:ai-sonnet-v1` |
+| `freddie:<identity>` | **Historical** — the retired system agent (ADR-381; was `reviewer:`; deleted by ADR-632). Survives on old revisions, display-resolved, never rewritten | `freddie:human`, `freddie:ai-sonnet-v1` |
 | `dispatcher:<slot>` | Dispatcher-synthesized substrate filling a posture-cell contract (ADR-303 D2/D6) | `dispatcher:standing-intent` |
 | `member:<user_id> via <model>` | An Altitude-2 helper acting as the member's hands under their grant (ADR-408 D2 · ADR-460) | `member:…  via GPT-4o mini` |
 | `system:<actor>` | Deterministic system actors (reconciler, cleanup, capture, backfill) | `system:capture-slack`, `system:backfill-158` |
@@ -452,7 +452,7 @@ The property is uniform across cognitive layers. Each gets a mirror it didn't ha
 
 - **YARNNN** can ask *"what have I been doing lately?"* and see its own activity across the workspace
 - **Agents** can see their own prior memory writes and track drift (*"have I changed my domain stance five times this week?"*)
-- **Reviewer** can see its own decision rate and recent calls (*"am I approving too much given performance?"*)
+- **The member** can see their own verdict rate and recent calls (*"am I approving too much given performance?"*)
 - **Operator** can see every other layer's activity (*"what did YARNNN do overnight?"*)
 
 This last one is the **supervision property** that the cockpit model (ADR-198) implicitly demands. The operator is supervising an autonomous team; without Authored Substrate, that supervision is vibes-based. With it, the supervision is concretely observable.
@@ -515,7 +515,7 @@ This section exists to prevent drift. An earlier draft of this document framed b
 |---|---|
 | [THESIS.md](THESIS.md) | Authored Substrate is the substrate expression of THESIS commitment 4 (*"Authored accumulation — substrate with attribution, not inferred context"*). |
 | [FOUNDATIONS.md](FOUNDATIONS.md) | Authored Substrate completes Axiom 1's second clause (v6.1). Derived Principle 13 is the implementation rule. |
-| [reviewer-substrate.md](reviewer-substrate.md) | Sibling canon doc. The Reviewer seat's writes (`OCCUPANT.md`, `decisions.md`, `handoffs.md`, `calibration.md`) flow through Authored Substrate with required `authored_by` attribution — every verdict and every occupant rotation is revision-chain-tracked. Together the two canons cover the write path (here) and the judgment seat (there). |
+| [previous_versions/reviewer-substrate.md](previous_versions/reviewer-substrate.md) | **Archived (ADR-632).** The retired seat's writes flowed through this same write path; nothing writes them now. |
 | [GLOSSARY.md](GLOSSARY.md) | Canonical vocabulary: Authored Substrate, Revision, Revision chain, Head, Authorship trailer (v1.4). |
 | [SERVICE-MODEL.md](SERVICE-MODEL.md) | Entity Model gains an Authored-Substrate subsection (Phase 1 doc sweep). |
 | [WORKSPACE.md](WORKSPACE.md) | `/history/` convention removed (Phase 2). Authorship-trailer requirement added. Filename-versioning banned. |
@@ -531,7 +531,7 @@ This section exists to prevent drift. An earlier draft of this document framed b
 
 ## 9. The one-paragraph version
 
-YARNNN's substrate is the filesystem (Axiom 1). Every mutation to that filesystem carries three substrate-level properties: it is content-addressed (nothing is lost), parent-pointered (history is walkable), and authored (every write declares its author and reason). This is git's philosophy without git's infrastructure — we adopt the three capabilities that describe how a single source of truth stores history, and we defer the two capabilities that describe how multiple copies coordinate. The property applies uniformly to every file in `workspace_files` — no subset, no bifurcation, no separate backend. Legacy `/history/` subfolders and filename-versioning (`thesis-v2.md`) are retired. The result is that every cognitive layer (operator, YARNNN, agents, Reviewer) gets a concrete mirror of its own contributions to the workspace, and every supervisory question ("what has YARNNN done this week?", "how has this risk profile evolved?", "who last touched this file?") becomes a substrate query rather than an inference.
+YARNNN's substrate is the filesystem (Axiom 1). Every mutation to that filesystem carries three substrate-level properties: it is content-addressed (nothing is lost), parent-pointered (history is walkable), and authored (every write declares its author and reason). This is git's philosophy without git's infrastructure — we adopt the three capabilities that describe how a single source of truth stores history, and we defer the two capabilities that describe how multiple copies coordinate. The property applies uniformly to every file in `workspace_files` — no subset, no bifurcation, no separate backend. Legacy `/history/` subfolders and filename-versioning (`thesis-v2.md`) are retired. The result is that every actor (members, agents, machinery) gets a concrete mirror of its own contributions to the workspace, and every supervisory question ("what has YARNNN done this week?", "how has this risk profile evolved?", "who last touched this file?") becomes a substrate query rather than an inference.
 
 ---
 

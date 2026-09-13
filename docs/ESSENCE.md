@@ -2,18 +2,7 @@
 
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
-**Date**: 2026-01-28
-**Updated**: 2026-06-10 (v14.0 — **the cumulative workspace**. Product identity re-centered on *the workspace where work is cumulative*: the substrate is the asset, the agents are the labor, the Reviewer is the management, the artifacts are the dividends. Ratified in the 2026-06-10 business-model regroup against fresh June-2026 competitive evidence — see `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md`. The v13.0 two-layer structure (substrate floor + judgment layer) is preserved; what changes: (a) the external lead is the **judgment seat**, with substrate portability as supporting proof, because capability claims ("persistent," "compounds," "runs in your absence") have been verbally commoditized by platform incumbents while the accountable-judgment claim remains unoccupied; (b) the competitive posture is canonized — *capability parity arrives in waves; differentiate on structure, ownership, accountability*; (c) the neutrality card is named — a platform judging its own model's agents has a self-audit problem; a model-agnostic seat does not.)
-**v14.1 amendment** (2026-06-10, ADR-332): the cumulative asset's world-facing half — the workspace also accumulates the declared universe's distilled history (the perception field). One paragraph added to Core Thesis.
-**v14.2 amendment** (2026-06-29, ADR-380 §5 + ADR-381): **the vision/moat re-cut.** ADR-380 §5 (operator, 2026-06-29) closed two open items in the conservative direction: **(a) Rung-2 autonomous judgment is scoped OUT of the vision** — the vision is the **multi-principal substrate commons + Freddie (the context-management OS)**: the substrate floor (Rung 0) operated by humans and external agents, stewarded by **Freddie** (Rung 1, the 1st-order substrate steward); the judgment layer (Rung 2 / persona agents taking consequential action) is an **optional future capability, not the destination**; **(b) the moat stays at "durable attributed memory" with `trace`/provenance (the walkable revision chain) named as its defensible core** — NOT re-framed to the commons-altitude, NOT led by the judgment seat. **This reverses v14.0's "the judgment seat leads" external posture** (line 6/145): the external lead is now the **authored, attributed, portable substrate + `trace`** (the proven, defensible, red-ocean-surviving core); the judgment seat is named as the future Rung-2 deepening, not the systemic moat. **management role renamed Reviewer → Freddie** (asset/labor/**Freddie**/dividends) per [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) D1 — a relabel-keep-slug (the internal `reviewer` slug + `reviewer:` prefix + `/workspace/persona/` path unchanged; ADR-251 precedent). See [ADR-380](adr/ADR-380-the-activation-ladder-and-the-judgment-deferral-line.md) §5 + [ADR-381](adr/ADR-381-freddie-the-rung-1-substrate-steward.md) + the [two-order direction](analysis/freddie-as-the-workspace-agent-and-the-two-order-agent-model-2026-06-27.md).
-**v15.0 amendment** (2026-07-07, [ADR-414](adr/ADR-414-the-pure-workspace-genesis-system-agent-program-as-hire.md) D1): **the moat re-cut — position over feature.** The prior statement ("the authored, attributed, portable substrate — defended by `trace`") named the artifact, not the position; §The Moat is rewritten to the ratified form: **YARNNN is the system of record where human and AI work settles** — the invocation contract (ADR-413: projection in, attributed revision out, one ledger) is the moat's *mechanism*; the engines are fungible precisely because the memory is not; portability/attribution/accumulation are the three wedges; **`trace` is the proof surface, not the moat**; and the moat is **anti-fragile to model churn** (every new frontier engine makes the vendor-neutral commons more necessary). No strategy change — the ADR-380 §5 conservative lead (substrate commons + Freddie; judgment defers) stands; the wording catches up to the architecture ADR-413 already made true. Companion: programs are re-cut as **Altitude-3 hires** (ADR-414 D5) — a program installs a persona agent with its own home; it never re-persons the steward; Layer-2 prose below reads through that lens.
-**v18.0 amendment** (2026-07-30, [ADR-507](adr/ADR-507-the-acts-are-open-think-make-perceive.md)): **the acts are open — Think · Make · Perceive, and the pipeline retires.** Operator-ratified through the settle-axiom discourse. v16's two verbs become **three named acts over an OPEN set of apps** (Think→`/chat` · Make→`/studio`,`/images` · Perceive→`/radar`), with the openness stated as the model rather than as a caveat — *"apps can increase and the current list is not hard-fixed; we have a tendency to be current-state assessing when really we need to be expansive."* **The `think → settle → make` pipeline is SUPERSEDED** by `think ⇄ make` (perceive feeding both): the acts are **media** matched to the shape of the work (v16's durable observation, preserved), never stages in a flow. **The `settle` verb is DELETED** — service, route, "Keep this" button, portal chain, gate and metered slug: in live use the arrow ran *backwards* (3 of 4 settles were records of a make that had already happened), and distillation is now something a member simply ASKS FOR inside a conversation, served by the lane's own `WriteFile` + the conventions' placement/citation teaching. Settle also leaves the four staged moments — the surviving three (`trace` · correct-once-inherits · leave-with-everything) are all *demonstrations of the record*, which is what that list was always naming. `/files` (the record's mirror) and Settings (the management plane) are named as **not acts**. The moat statement is UNCHANGED (v15/ADR-414 D1) — "the system of record where human and AI work **settles**" is a property of the record, not a verb. Honest note: ADR-457 D8's falsifier 2 (settle adoption) was **read before removal and did NOT fire** on its own terms (4 settles, most recent 6 days prior = low adoption, not abandonment); the retirement is structural, not an adoption verdict. Falsifiers 1 + 3 stand.
-**v16.0 amendment** (2026-07-14, [ADR-457](adr/ADR-457-think-and-make-the-service-model.md)): **the desk and the record — the product and the moat are two layers.** Operator-ratified through a three-pass discourse (first-principles rederivation → adversarial re-check → live filesystem stress test). The v15 moat statement ("the system of record where human and AI work settles") **stands unchanged as the moat statement** — what v16 adds is the honest separation it always implied: **the record is the moat; the desk is the product.** The felt product is **a desk with two verbs — Think (`/chat`) and Make (`/studio`) — over a commons that remembers**; the ledger is felt at *staged moments* (trace/why · correct-once-everything-inherits · leave-with-everything · **settle**), never as the ambient experience itself — the OS pattern (the filesystem is invisible; the desk and the apps are felt). The era-1 posture (yarnnn as a Dropbox-like hum behind other AIs) is re-cut, not reversed: **the hum was demoted from product identity to product floor** — two doors, one moat (ADR-310) stands; investment priority moves to the desk, reversible against declared falsifiers (ADR-457 D8). New section §The Desk below; "What YARNNN Is Not" re-cut accordingly.
-**v19.0 amendment** (2026-07-30, [CANON-LOCK-2026-07-30](working_docs/strategy/CANON-LOCK-2026-07-30.md)): **the canon re-cut — the copy-paste seam, ease · share · out-of-box.** Operator-ratified as **working canon** (locked in full, explicitly subject to evolve by discourse; the replace-never-accumulate rule is what makes evolution safe). The psychographic center moves from *plural-AI fragmentation* (the 07-29 lock's own §9.2 validation question answered itself in the negative) to **the small AI-first team for whom sharing AI work is still copy-paste**. §The Canon Sentences re-cut: HOOK → *"Made with AI. Lost in the chat."* · RECOGNITION → *"I'm the human clipboard between my AI and my team."* · PRODUCT subhead re-cut (model names → connector chips; *"nothing to set up"* enters, guarded by a new ease falsifier). §Canonical Positioning updated to match; the 07-29 hook/recognition/subhead move below the line as retired lineage. ICP triad re-derived: **AI-first · shared · self-serve** (the single-AI user readmitted — one human + their one connected AI is already a two-principal ledger); anti-ICP re-cut two-sided (the procurement buyer + the AI-dabbler). Teams-not-enterprises named as position: the ADR-378 ceiling is the asset — a room, not an org tree. MOAT slot and the headline pair unchanged.
-**v17.0 amendment** (2026-07-29, [CANON-LOCK-2026-07-29](working_docs/strategy/CANON-LOCK-2026-07-29.md), closing [ADR-457](adr/ADR-457-think-and-make-the-service-model.md) §10.3 deferred item 3): **the canon sentences — one sentence per slot.** Two changes, no more. (a) A new §The Canon Sentences installs the four operator-ratified slots (MOAT · PRODUCT · HOOK · RECOGNITION) with audience labels and the maintenance rule *one sentence per slot; a new candidate replaces, never accumulates* — the seven-one-liners-in-one-document failure this rule exists to prevent was this document's own. (b) §Canonical Positioning is re-cut: the ADR-380 §5 substrate-led external lead (*"the authored, portable substrate leads — defended by `trace`"*), which the v16/ADR-457 amendment deliberately left in place pending this pass, is replaced by the locked product sentence and hero (capability forward, ownership in the possessive, the signed clause as the mechanism); the prior seeds move below the line as retired copy. §The Moat, §The Desk, and §What Stays Constant are untouched.
-**v20.0 amendment** (2026-08-17, [ADR-574](adr/ADR-574-the-prose-currency-leads-text-is-the-text-app-docs-pauses.md)): **the prose currency leads.** Operator-ratified through the service-philosophy discourse. §The Desk's Make row is re-cut: **Text (`.md`) is the text-based premise; Docs (`.html`) pauses** to search-only and leaves the default Dock. The decision is Channel-only — nothing deleted, no schema, no format change, no write-door change — and it rests on a **measurement at the second door**: a `document` artifact inlines ~24KB of kernel CSS ahead of its body, exceeding the MCP read cap (24,000 chars) on the stylesheet alone, so an external LLM's `open` returns zero authored content **and `success: true`** — an *incorrect success*, the failure class the record cannot see. ADR-456 D1 permitted HTML-as-sole-source on the condition that *"the bridge is projection both ways"*; that bridge is Wave 4, and it is the only wave of the four that never shipped. ADR-518 D5's unveil evidence ("9 of 18 live artifacts") is retired as **inapplicable, not refuted** — those artifacts are 100% test data, so no adoption verdict is claimed in either direction. The moat statement, the canon sentences, and the two-doors posture are **unchanged**; what changes is which app the product leads with for text, so that the app in front is the one whose currency actually crosses both doors. The HTML canvas reopens **only** as an outbound Publish surface (ADR-574 D4) — the "more HTML-native word processor" story is refused permanently under ADR-518 §2's built-vs-housed test.
-**v15.1 amendment** (2026-07-13, [ADR-454](adr/ADR-454-the-two-verb-experience-converse-and-make-ambient-steward.md)): **the ambient steward — Freddie's posture resolved.** The product's two acting surfaces are Converse (`/chat`) and Make (`/studio`); Freddie's persona chrome (the summonable rail + FAB) is gated off. **Freddie remains the named management function** — in this narrative, on the brand surfaces (`/freddie`), and above all in the ledger (`freddie:` attribution, "Freddie derived…" activity rows — the derived form of the steward's presence, ADR-410) — but is **never a fronted chat character**: the operator meets Freddie in the record of his work, not in a conversation window. External copy keeps the name and the Rung-1 honesty band (ADR-380 D3) and must not promise an in-product "ask Freddie" chat affordance; the asset/labor/**Freddie**/dividends quad stands unchanged.
-**Prior**: v13.0 (2026-06-02 — substrate-first rewrite; grounded in THESIS four commitments, ADR-310/311 one-moat-two-faces, ADR-222 kernel/program framing, ADR-209 authored substrate, ADR-216 orchestration vs judgment.)
+**Version**: v21.0 (2026-09-12 — **the post-steward recut**, ADR-596/632: the management role is the member's, judgment is a declared grant, the desk is the live apps. The v13→v20 amendment ledger — the cumulative workspace (v14), the Freddie re-cut (v14.2/15.1), the moat as position (v15), the desk and the record (v16), the canon sentences (v17/19), the open acts (v18), the prose currency (v20) — is archived verbatim with the prior text at [architecture/previous_versions/ESSENCE-v20-2026-09-12.md](architecture/previous_versions/ESSENCE-v20-2026-09-12.md); what each ratified survives below unless this version says otherwise.)
 
 ---
 
@@ -21,33 +10,33 @@
 
 **YARNNN is the workspace where work is cumulative.**
 
-> The substrate is the asset. The agents are the labor. **Freddie** is the management. The artifacts are the dividends. Buyers come for the dividends; they stay for the asset.
+> The substrate is the asset. The agents are the labor. **The member** is the management. The artifacts are the dividends. Buyers come for the dividends; they stay for the asset.
 >
-> *(Management = Freddie, the 1st-order substrate steward — the workspace agent that operationally owns the substrate and governs the labor, ADR-381. "Reviewer" was the prior name for this management role; "Freddie" names the hardened occupant filling the management seat, the internal slug unchanged. The 2nd-order persona agents that bear consequential judgment are a future capability — ADR-380 §5, ADR-382 — not part of the launch or the vision narrative.)*
+> *(Management = the member: they hold the grants, declare the standing work, and give the verdicts on every consequential act; the kernel's gates hold the line. Nothing in the workspace acts on its own initiative — an agent works in a member's lane or on a member's standing declaration (ADR-596/632). The prior occupants of this slot — the Reviewer, then Freddie the substrate steward — are retired; judgment returns, if it returns, as a grant a member declares, never as a seat an agent occupies.)*
 
-Every other AI system makes work *episodic*: an artifact generated in a session is constant-quality regardless of tenure, and correcting it improves nothing. In YARNNN, artifacts are synthesized from an authored, attributed substrate — which makes them different in three structural ways:
+Every other AI system makes work *episodic*: an artifact generated in a session is constant-quality regardless of tenure, and correcting it improves nothing. In YARNNN, artifacts are made from an authored, attributed substrate — which makes them different in three structural ways:
 
 1. **Provenance** — every claim traces to an attributed, revisioned file.
-2. **Consistency** — every artifact draws from the same substrate; the operation cannot contradict itself across outputs.
-3. **Correction-compounding** — fix a sub-file once and every future artifact inherits the fix. Quality is monotonically improving in tenure, not constant.
+2. **Consistency** — every artifact draws from the same substrate; the workspace cannot contradict itself across outputs.
+3. **Correction-compounding** — fix a file once and every future artifact inherits the fix. Quality is monotonically improving in tenure, not constant.
 
-A slide deck composed from substrate sub-files, a trade proposed against accumulated signals and a calibration trail — same mechanism, different program. This is why the architecture is what it is.
+A deck composed from substrate files, a report kept current by a standing declaration, an image made from a brief in the commons — same mechanism, different app.
 
-And the asset has a world-facing half *(v14.1, ADR-332)*: the workspace accumulates not only your own work but **your declared universe's distilled history** — the slice of the world your operation watches, distilled into attributed signals and judged over tenure. Anyone's AI can read the web; no one else's can show you *your* watchlist's distilled history under *your* judgment. Reading the world is commodity; the declared, distilled, tenured perception field is not.
+And the asset has a world-facing half *(v14.1, ADR-332)*: the workspace accumulates not only your own work but **what arrives from the connections you declare** — captures landing as attributed observations, distilled and cited (the intake pipeline, ADR-582). Anyone's AI can read the web; no one else's can show you *your* sources' distilled history in *your* record.
 
-The workspace is the **authored context layer that travels with you** — and, when you're ready, an operation that runs on it under a judgment you control.
+The workspace is the **authored context layer that travels with you** — and, when you're ready, an operation that runs on it under judgment you control.
 
 There are two layers, and the lower one stands on its own:
 
-- **The substrate layer (the floor).** You author your work — notes, documents, decisions, accumulated domain context — and every piece of it is **attributed, retained, and yours**. It's a context commons in a format every LLM speaks, reachable from any model you already use. This is valuable the moment you author anything; it needs no program, no mandate, no autonomous agent.
-- **The judgment layer (additive, on top).** Activate a program and that same substrate gets a **declared mandate**, a **Reviewer** (an independent judgment seat), and an **operation that runs in your absence** — evaluated against ground truth. This deepens the substrate from *portable* to *judged and operated*. It never replaces the floor.
+- **The substrate layer (the floor).** You author your work — notes, documents, decisions, accumulated context — and every piece of it is **attributed, retained, and yours**. It's a commons in a format every LLM speaks, reachable from any model you already use. This is valuable the moment you author anything; it needs no program, no mandate, nothing unattended.
+- **The operation layer (additive, on top).** Declare standing work and that same substrate gets **files that stay current on a schedule under a contract** (ADR-603/639), **consequential acts that surface to you before they bind** (the witness dial, ADR-307/405), and — with a program, a hire (ADR-414 D5) — a declared mandate and a ground-truth signal. This deepens the substrate from *portable* to *operated*. It never replaces the floor.
 
 **The product promise in one sentence:**
-> Author your context once. Carry it into every AI — and, when you're ready, let it run under a judgment you control.
+> Author your context once. Carry it into every AI — and, when you're ready, let it run under judgment you control.
 
 Short form: *Your context, attributed and portable.*
 
-The relationship is **authorship, not delegation**. The substrate is the user's — legible, correctable, and sovereign — and switching cost accumulates from the first thing they author.
+The relationship is **authorship, not delegation**. The substrate is the member's — legible, correctable, and sovereign — and switching cost accumulates from the first thing they author.
 
 ## The Canon Sentences
 
@@ -65,148 +54,105 @@ The relationship is **authorship, not delegation**. The substrate is the user's 
 
 ## What Stays Constant
 
-The product essence has five stable elements. They are ordered floor-first: the earlier ones are true with the lightest possible substrate; the later ones are what a program adds.
+The product essence has five stable elements. They are ordered floor-first: the earlier ones are true with the lightest possible substrate; the later ones are what an operation adds.
 
 1. **Authored context, not inferred context**
-   Every file has a declared author (operator, YARNNN, a named agent, the Reviewer, a system actor). Every mutation produces a parent-pointered revision with required attribution and a message. The operator can read, correct, and carry their context. Inferred context (what every incumbent builds — memory scraped from activity) commoditizes as retrieval saturates; authored context does not, because it is owned and inspectable (THESIS Commitment 4, FOUNDATIONS Axiom 1 + Authored Substrate / ADR-209). *(Direction, not yet shipped — FOUNDATIONS v9.13 / [ADR-384](adr/ADR-384-the-re-founding-meaning-folders-permission-as-metadata.md): the re-founding deepens this floor — the ledger becomes the single carrier of every kernel concern (content + author + time + permission + provenance-kind + citation), and the filesystem is organized by **meaning to the operator** rather than by kernel-architecture roots. This makes the `trace` differentiator cleaner — one attributed, meaning-organized commons — but the live substrate is still the six-root form; the re-founding is doc-direction under a sequenced implementation, ADR-384 §7.)*
+   Every file has a declared author (a member, an agent acting as the member's hands, a connected principal, a system actor). Every mutation produces a parent-pointered revision with required attribution and a message. The member can read, correct, and carry their context. Inferred context (what every incumbent builds — memory scraped from activity) commoditizes as retrieval saturates; authored context does not, because it is owned and inspectable (THESIS Commitment 4, FOUNDATIONS Axiom 1 + Authored Substrate / ADR-209; the ledger organized by meaning, ADR-588).
 
 2. **Portable across every AI, not locked to one model**
-   Authored context is reachable from any LLM the operator already uses, via the interop face (MCP today; protocol-agnostic by design). No model provider offers your context *across* the others — they are each present-bound silos. Portability is structurally something only a neutral substrate layer can offer, and it is the wedge that stands alone before any judgment exists (ADR-310, ADR-311).
+   Authored context is reachable from any LLM the member already uses, via the interop face (MCP today; protocol-agnostic by design). No model provider offers your context *across* the others — they are each present-bound silos. Portability is structurally something only a neutral substrate layer can offer, and it is the wedge that stands alone before any operation exists (ADR-310, ADR-311, ADR-543).
 
 3. **Declared intent, not inferred purpose**
-   When an operator activates a program, purpose is **authored** as a mandate, not discovered by inference. Everything downstream — context domains, recurrences, proposed actions — exists in service of the declared mandate. Inferred intent is undetectably wrong; declared intent is correctable because it is legible (THESIS Commitment 1, FOUNDATIONS Axiom 3).
+   Purpose is **declared** — a standing declaration says what a kept file owes and when (ADR-603); a program's mandate says what an operation is for (ADR-207) — never discovered by inference. Inferred intent is undetectably wrong; declared intent is correctable because it is legible (THESIS Commitment 1, FOUNDATIONS Axiom 3).
 
-4. **A judgment seat, not a safety filter**
-   The role that decides whether a proposed action is fit to execute is the most important durable role in the system, and it is architecturally independent of the producers whose work it judges. The Reviewer reads the mandate, the accumulated context, the track record, and the proposed action, and renders a verdict. The seat persists; the occupant is interchangeable (human today, AI as it becomes credible). This is supervised autonomy: the operator is never structurally absent (THESIS Commitment 2, FOUNDATIONS Axiom 2, ADR-194).
+4. **Accountable judgment, not a safety filter**
+   The role that decides whether a consequential act binds is the most important durable role in the system, and it is independent of the producers whose work it judges. Today the member holds it: every consequential act surfaces under the witness dial before it binds, the member executes or rejects, and the verdict is recorded on the ledger (ADR-307/405, ADR-632 D2). The seat as an AI occupant is retired; when review returns it is **declared as a grant** — attributed, audited, revocable — never assumed by an agent (ADR-596 D1/D3(d)). Supervised autonomy: the member is never structurally absent (THESIS Commitment 2).
 
 5. **Ground-truth evaluation, not vibe-truth**
-   In the domains where it applies, the Reviewer's judgment and the accumulated context are validated against a real outcome signal, not against internal agreement or user thumbs. The *flavor* of ground truth is program-specific — money-truth for a trading operation, publication/coherence for an authoring operation, revenue for commerce. Ground truth is structural, not universal; it is the spine of the judgment layer, not a claim about every workspace (THESIS Commitment 3, FOUNDATIONS Axiom 8).
+   In the domains where it applies, judgment and the accumulated context are validated against a real outcome signal, not against internal agreement or user thumbs. The *flavor* of ground truth is program-specific — money-truth for a trading operation, publication and coherence for an authoring one. Ground truth is structural, not universal; it is the spine of the operation layer, not a claim about every workspace (THESIS Commitment 3, FOUNDATIONS Axiom 8).
 
-These five compose. Take the substrate floor (1–2) alone and you have portable, sovereign context — already differentiated. Add the judgment layer (3–5) and the substrate becomes judged and operated. Remove any one of the five and what remains degrades into an existing inferior form (a wiki, a memory feature, a chatbot, a safety wrapper, a dashboard).
+These five compose. Take the substrate floor (1–2) alone and you have portable, sovereign context — already differentiated. Add the operation layer (3–5) and the substrate becomes operated. Remove any one of the five and what remains degrades into an existing inferior form (a wiki, a memory feature, a chatbot, a safety wrapper, a dashboard).
 
 ## The Two Layers, Concretely
 
 ### Layer 1 — Authored substrate, served everywhere (the floor)
 
-A workspace is a filesystem of authored, attributed, retained context. The operator authors it through conversation with YARNNN, through uploads, and through accumulated work. Every revision is content-addressed and parent-pointered; nothing is silently lost; everything carries an author.
+A workspace is a filesystem of authored, attributed, retained context. Members author it in the apps, in a lane with an agent, through uploads, and through accumulated work. Every revision is content-addressed and parent-pointered; nothing is silently lost; everything carries an author. Every member and every connected AI enters through one contract: projection in, attributed revision out, one ledger (ADR-413).
 
-That substrate is reachable from any LLM via the interop face. What you author in YARNNN follows you into ChatGPT, Claude, or any model — attributed and portable. This layer requires no program, no Reviewer, no mandate. It is the entry value: *your context is yours, and it follows you.*
+That substrate is reachable from any LLM via the interop face. What you author in YARNNN follows you into ChatGPT, Claude, or any model — attributed and portable. This layer requires no program, no standing work, no mandate. It is the entry value: *your context is yours, and it follows you.*
 
-### Layer 2 — The judgment layer (what a program adds)
+### Layer 2 — The operation layer (what standing work and a program add)
 
-A **program** (alpha-trader, alpha-author, and future programs) is an application that activates on top of the bare substrate. *(v15, ADR-414 D5: activation is a **hire** — the program installs an Altitude-3 persona agent with its own home and grant; it never re-persons the workspace's system agent, and the workspace is never typed by it.)* It supplies:
+- **Standing work** (ADR-603/639) — a member declares that a file is to be kept current: the target, a contract that says what "true" means for it, a schedule, its sources. The kernel drains it; the app's resident does the work in a toolless, contract-checked, receipted run; the member sees every run in Notifications and can Run now or Pause. Nothing else runs unattended.
+- **The witness dial** (ADR-307/405) — a consequential act (a proposal to move money, a publish, a send) surfaces to the member before it binds — every one, above a ceiling, or within a declared envelope — and the member's verdict is recorded.
+- **A program** (ADR-414 D5) — a hire that brings a declared mandate, a reference workspace, standing declarations and a ground-truth signal appropriate to the domain. Workspaces don't have types; they hire.
 
-- a **mandate** the operator declares,
-- a **Reviewer persona** and principles the operator authors,
-- **recurrences** that fire the operation on cadence,
-- a **cockpit** — the supervisory surface where the operator consults performance, sees pending decisions, and audits the judgment trail,
-- a **ground-truth signal** appropriate to the domain.
+This is additive: a Layer-1 member has portable context; a Layer-2 member has *operated* portable context.
 
-This is where the operation runs in the operator's absence and improves through supervision. It is additive: a Layer-1 operator has portable context; a Layer-2 operator has *judged* portable context plus an operation that runs without them.
+## The Desk (the felt product)
 
-## The Desk (v18 — the felt product)
-
-The moat above is structural and largely invisible — which is correct and normal for an
-OS-class product: nobody opens a settlement layer to work. The **felt product** is the desk:
+The moat below is structural and largely invisible — which is correct and normal for an OS-class product: nobody opens a settlement layer to work. The **felt product** is the desk:
 
 > **A desk of acts — Think, Make, Perceive — over a commons that remembers.**
 
-Each act is a **medium**, and each hosts apps. **Neither list is closed** — that openness is
-the model, not a caveat on it (ADR-507 D1):
+Each act is a **medium**, and each hosts apps. **Neither list is closed** — that openness is the model, not a caveat on it (ADR-507 D1):
 
-- **Think — dialogue.** Divergent work has no stable visual state, so its medium is
-  conversation: research, ideation, weighing, deciding — over *your* authored commons rather
-  than a vendor's memory-scrapings. Thinking here **lands**, because everything a lane writes
-  is an attributed revision in the commons. Apps: `/chat`. (Chat also remains the member's
-  hands — file operations, uploads, organizing — as means to the thinking end.)
-- **Make — the artifact.** Convergent work does have a stable visual state, so its medium is
-  direct manipulation: documents, decks, published pages, composed visuals — shaped by hand and
-  by a bound lane, every edit an attributed revision. Apps: `/text` (the prose premise) ·
-  `/studio`. *(v20, ADR-574: **the text premise belongs to the currency that reaches both
-  doors.** `/text` authors `.md` — the substrate's prose currency, read whole through the
-  interop face by any LLM. `/docs` authors `.html` and is **paused** to search-only: measured,
-  an MCP `open` on a document artifact returns ~24KB of kernel CSS and never reaches `<body>`,
-  so the second door — the moat's own portability wedge — receives nothing. The app is hidden,
-  not unplugged; the HTML canvas reopens only as an outbound **Publish** surface, never as a
-  better word processor. `/images` remains internal, ADR-488.)*
-- **Perceive — the world arriving.** Standing attention on declared sources, maintained as a
-  living report the member reads and corrects (ADR-565; the dated-brief shelf is superseded).
-  Apps: `/radar`.
+- **Think — dialogue.** Divergent work has no stable visual state, so its medium is conversation: research, ideation, weighing, deciding — over *your* authored commons rather than a vendor's memory-scrapings, with any engine behind the colleague you pick (ADR-460). Thinking here **lands**, because everything a lane writes is an attributed revision in the commons. App: **Chat** — the member's lanes (ADR-411/558); the agents you work with are met on **Agents** (ADR-600/640).
+- **Make — the artifact.** Convergent work does have a stable visual state, so its medium is direct manipulation: documents, decks, visuals, published pages — shaped by hand and by the bound lane beside the canvas, every edit an attributed revision. Apps: **Text** (`.md`, the prose currency that crosses both doors — ADR-571/574) · **Slides** (ADR-599) · **Images** (ADR-472/633) · **Blogger** (the publish medium — ADR-627/628).
+- **Perceive — the world arriving.** The connections you declare, what they capture into Downloads, and what leaves through them: **Reach** — Connected · Leaving · Crossed, the boundary's one door (ADR-582/642/645).
 
 *Words for exploring, hands for shaping, attention for what arrives.*
 
-**There is no pipeline.** The acts compose freely — **think ⇄ make**, with perceive feeding
-both. Work oscillates: you think, you make, you look at what you made, you think again. Nothing
-has to pass through a distillation step to move between acts; the commons is the shared medium,
-and a mandatory verb in the middle was never required for it to work. *(v16 asserted
-`think → settle → make` and shipped `settle` as its middle term; in use the arrow ran
-backwards — three of four real settles were records of a make that had already happened. The
-pipeline and the verb are retired, ADR-507 D2/D3. "Settles" survives where it was always true:
-in the **moat statement** — the system of record where human and AI work settles — which is a
-property of the record, not a stage in a flow.)*
+**There is no pipeline.** The acts compose freely — **think ⇄ make**, with perceive feeding both. Work oscillates: you think, you make, you look at what you made, you think again. Nothing has to pass through a distillation step to move between acts; the commons is the shared medium (ADR-507 D2/D3 — the `settle` verb was tried and retired). "Settles" survives where it was always true: in the moat statement.
 
-**Two surfaces are deliberately not acts.** `/files` is the **record's mirror** — the moat made
-legible, not a verb. Settings is the **management plane**. Both sit at a different altitude
-than the acts, and calling them verbs would flatten two different things.
+**Two surfaces are deliberately not acts.** **Files** is the **record's mirror** — the moat made legible, not a verb. **Settings** is the management plane. **Notifications** carries attention: what wants you, what happened, what stands (ADR-605/639).
 
-The record beneath stays invisible until its **staged moments**: *why is this here* (`trace`),
-*correct once and everything after inherits it*, and *leave with everything*. Those moments —
-not the ledger's ambient presence — are how the moat is felt; note that all three are
-**demonstrations of the record**, never workflow steps. The interop face (the same commons
-reached from any LLM) remains the second door; the desk is where the product is experienced.
+The record beneath stays invisible until its **staged moments**: *why is this here* (`trace`), *correct once and everything after inherits it*, and *leave with everything* (the git export, ADR-328 D4). Those moments — not the ledger's ambient presence — are how the moat is felt; all three are **demonstrations of the record**, never workflow steps. The interop face remains the second door; the desk is where the product is experienced.
 
 ## The System Shape
 
 1. **Substrate** — the authored, attributed filesystem. The floor everything stands on. State lives in files; computation is stateless over them (FOUNDATIONS Axiom 1).
-
-2. **The interop face** — the substrate reachable from any LLM. The distribution channel of the one moat: file + revision operations over the operator's context commons, attributed on every read (ADR-310/311).
-
-3. **YARNNN (the orchestration surface)** — the chat surface the operator addresses. It keeps the workspace legible, drafts work, and routes mutations. It is orchestration, not a judgment persona — it is *how the operator drives the system*, not a seat that renders verdicts (ADR-216).
-
-4. **Freddie** — the 1st-order substrate steward (one per workspace, systemic). The workspace agent that operationally owns the substrate (files, context, attributions, intake, connections) and governs the labor. Base-LLM reasoning about the substrate + the system; reversible mutations; no consequential capital judgment. The named occupant of the **management seat** (`/workspace/persona/`, the internal `reviewer` slug unchanged — ADR-381). *(This is the Rung-1 steward the vision is built on — ADR-380.)* *(v15.1, ADR-454: Freddie is **ambient in-product** — no fronted chat chrome; his presence is the attributed ledger, his dials live in Workspace Settings → System.)*
-
-4a. **The judgment seat (the Reviewer / Rung-2 persona agents)** — the judgment layer a program adds. Reads proposed actions, renders approve/reject/defer, accumulates calibration over tenure; the seat where trust is earned (ADR-194). **A future deepening, not the systemic lead** (ADR-380 §5): the consequential-judgment occupant is the 2nd-order persona agent (ADR-382), an optional capability the launch + vision narrative does not pre-sell.
-
-5. **Programs** — applications that activate the judgment layer on bare substrate. They ship a mandate template, a judgment persona, recurrences, and a cockpit composition — installed as an **Altitude-3 persona agent** with its own home and grant row (ADR-414 D5). Workspaces don't have *types*; they *hire agents that run programs* (ADR-222 + ADR-414).
-
-6. **User-authored Agents** — persistent domain experts the operator creates through conversation. They hold domain intent and accumulate domain context. Optional; many-per-workspace.
+2. **The interop face** — the substrate reachable from any LLM. The distribution channel of the one moat: the file, revision and share verbs over the member's commons, attributed on every write (ADR-310/311/543).
+3. **The lanes** — where a member works with an agent: one conversation, one colleague, under the member's grant; every write attributed *member via model*. Lanes are isolated conversations; the workspace is the shared memory (ADR-411/558).
+4. **The agents** — identity ⊕ character ⊕ engine and nothing else, from one register (Designer · Editor · Blogger today). Authority, clock, purpose and judgment live on grants, declarations and gates — never on the agent; an agent is met, not audited (ADR-596/600/640). A member-authored agent, when it comes, is a row in the same register (ADR-601 D2).
+5. **The apps** — a pane over one artifact type with its resident agent beside the canvas, declared once on the server and mirrored once on the client (ADR-562/636/646).
+6. **Standing work** — a member's declaration beside the file it keeps; the kernel's one drain loop; toolless, contract-checked, receipted runs (ADR-603/618/639).
+7. **Reach** — the member's connections (consent + credential + aperture), the captures that land in the commons, the publishes and sends that leave it on the member's click (ADR-577/582/628/645).
+8. **Programs** — hires that bring a mandate, a reference workspace and a ground-truth signal (ADR-414 D5). Optional; a workspace with none is a complete product.
 
 ## The User Experience Loop
 
-There are two loops. The first is the floor; the second is what a program adds.
+There are two loops. The first is the floor; the second is what an operation adds.
 
 **Loop 1 — author and reach (every workspace):**
-1. Author context — through conversation, uploads, or accumulated work.
+1. Author context — in an app, in a lane with an agent, by upload, or through accumulated work.
 2. It is attributed and retained — a revision chain you can inspect.
 3. Reach it from any AI you use — your context follows you.
 
-**Loop 2 — declare, judge, operate (programs):**
-1. Declare a mandate — what the operation is for.
-2. The operation runs on cadence — proposing actions against accumulated context.
-3. The Reviewer judges proposals against the mandate and ground truth.
-4. The operator supervises — approves, redirects, refines — and the judgment trail accumulates.
-5. Calibration, context, and preferences compound; future supervision gets lighter.
+**Loop 2 — declare, run, decide (standing work and programs):**
+1. Declare what is owed — a file kept current under a contract; with a program, a mandate.
+2. It runs on schedule — receipted, bounded by your pool, no tools, no reach.
+3. Anything consequential surfaces to you before it binds; you decide; the verdict is recorded.
+4. The record compounds — corrections inherit forward; the next run starts from a higher floor.
 
 Loop 1 is the product's floor. Loop 2 is the deepening.
 
 ## Why This Is Different
 
-Most AI systems fail recurring, high-context work for one of two reasons: they are **session-based** (work is episodic; nothing compounds) or **persistent but inferred** (the context is scraped, shallow, and the operator can't see, correct, or carry it).
+Most AI systems fail recurring, high-context work for one of two reasons: they are **session-based** (work is episodic; nothing compounds) or **persistent but inferred** (the context is scraped, shallow, and the member can't see, correct, or carry it).
 
-**The competitive reality (June 2026):** the platform incumbents now *market* persistence and compounding. Workspace agents run on schedules in the cloud; persistent project workspaces ship with scheduled memory-curation sold as "agents that improve between runs." The capability *claims* have commoditized. The *mechanisms* have not: incumbent compounding is inferred-memory curation — unattributed, uninspectable, unjudged. YARNNN's compounding is authored substrate plus a judgment seat calibrated against ground truth the agent cannot author. The posture this demands of every external surface: **never lead with a capability adjective ("persistent," "compounds," "runs in your absence") without carrying the mechanism — owned, attributed, judged against what actually happened.** Capability parity arrives in waves; YARNNN differentiates on what waves don't wash out — structure, ownership, accountability.
+**The competitive reality (2026):** the platform incumbents now *market* persistence and compounding. Workspace agents run on schedules in the cloud; persistent project workspaces ship with scheduled memory-curation sold as "agents that improve between runs." The capability *claims* have commoditized. The *mechanisms* have not: incumbent compounding is inferred-memory curation — unattributed, uninspectable, unjudged. YARNNN's compounding is authored substrate plus accountable judgment: every consequential act is signed by whoever decided it, human or not, against what actually happened. The posture this demands of every external surface: **never lead with a capability adjective ("persistent," "compounds," "runs in your absence") without carrying the mechanism — owned, attributed, decided by someone accountable.** Capability parity arrives in waves; YARNNN differentiates on what waves don't wash out — structure, ownership, accountability.
 
-YARNNN's stance: **context is authored, attributed, retained, and portable.** It does not commoditize — it gets richer per operator per month of use, and it travels across any model, any agent layer, any future incumbent. On top of that authored floor, an independent judgment seat makes the operation trustworthy in a way a self-critiquing producer never can — and in a way a *platform* never can, because a platform judging its own model's agents has a self-audit problem. A neutral, model-agnostic seat does not. That neutrality is YARNNN's by construction and the platforms' by impossibility.
+YARNNN's stance: **context is authored, attributed, retained, and portable.** It does not commoditize — it gets richer per member per month of use, and it travels across any model, any agent layer, any future incumbent. On top of that authored floor, an attributed record of who decided what makes the operation trustworthy in a way a self-critiquing producer never can — and in a way a *platform* never can, because a platform auditing its own model's work has a self-audit problem. A neutral, model-agnostic record does not. That neutrality is YARNNN's by construction and the platforms' by impossibility.
 
 ## The Moat
 
-> **Re-cut by ADR-414 D1 (2026-07-07), superseding the ADR-380 §5 wording** (which named the artifact — "durable attributed memory, defended by `trace`" — without the position). The conservative lead posture is unchanged: substrate commons + Freddie lead; the judgment seat defers.
+**YARNNN is the system of record where human and AI work settles.** Engines commoditize on a quarterly cycle; the accumulated, attributed history of a working commons does not — it compounds with tenure and cannot be re-inferred by a bigger model or reconstructed by a competitor. Every actor — every human, every model, every protocol — enters through one invocation contract: projection in, attributed revision out, one ledger (ADR-413). That contract is the moat's mechanism: it makes **the engines fungible precisely because the memory is not.** Portability is the trust wedge (you can leave, which is why you stay). Attribution is the accountability wedge (you can answer *who did this, under what grant, and why* — which no model vendor can offer neutrally). Accumulation is the compounding wedge (quality is monotonic in tenure). **`trace` is the proof surface — the demo of the moat, not the moat.**
 
-**YARNNN is the system of record where human and AI work settles.** Engines commoditize on a quarterly cycle; the accumulated, attributed history of a working commons does not — it compounds with tenure and cannot be re-inferred by a bigger model or reconstructed by a competitor. Every actor — every human, every model, every protocol — enters through one invocation contract: projection in, attributed revision out, one ledger (ADR-413). That contract is the moat's mechanism: it makes **the engines fungible precisely because the memory is not.** Portability is the trust wedge (you can leave, which is why you stay). Attribution is the accountability wedge (you can answer *who did this, under what grant, and why* — which no model vendor can offer neutrally, because a vendor auditing its own model's work is a self-audit). Accumulation is the compounding wedge (quality is monotonic in tenure). **`trace` is the proof surface — the demo of the moat, not the moat.**
-
-- **Position over feature.** "System of record for multi-actor work" is a category claim with a historical rhyme: git made distributed collaboration trustable because *history* was the trust substrate; double-entry made the firm scalable because every entry was attributable and auditable. The moat is the position that ledger occupies, served two ways — a **cockpit face** (in-app) and an **interop face** (any LLM, via MCP); two faces, one moat (ADR-310).
-- **Anti-fragile to model churn.** The wave that washes out every AI-app moat — capability parity arriving quarterly — strengthens this one: every new frontier engine, every new lane a member pins, deepens the commons it works through while remaining swappable. The defense is the toll gate (nothing reaches durability except as an attributed revision) plus the network effect (every principal and engine added makes the commons more valuable and harder to leave).
-- **Engines are table stakes, not the product** (ADR-420 §10). yarnnn provides *enough* engines and member-attachable connectors that no one's favorite is missing — never *the most* (that is a marketplace, a red ocean, and off-moat), and never *"which model to use"* as a maintained curation service (that is the router-startup treadmill, someone else's business). The plurality **protects the portability wedge** — "it works with your favorite tool, so you never choose us *over* it" — rather than diluting the commons into a store. The layman pitch leads with the owned, accumulating, attributed workspace (the *what*); the engines are the invisible *how*. Recommendation exists only as a thin creation-moment hint, never as the service.
-- **The judgment seat is the future deepening, not today's moat lead** (ADR-380 §5, unchanged). When Rung-2 persona agents activate, tenure-calibrated judgment compounds on top of the ledger — a deepening of the position, never a replacement for it.
+- **Position over feature.** "System of record for multi-actor work" is a category claim with a historical rhyme: git made distributed collaboration trustable because *history* was the trust substrate; double-entry made the firm scalable because every entry was attributable and auditable. The moat is the position that ledger occupies, served two ways — the desk (in-app) and the interop face (any LLM, via MCP); two doors, one moat (ADR-310).
+- **Anti-fragile to model churn.** The wave that washes out every AI-app moat — capability parity arriving quarterly — strengthens this one: every new frontier engine, every new colleague a member picks, deepens the commons it works through while remaining swappable. The defense is the toll gate (nothing reaches durability except as an attributed revision) plus the network effect (every principal and engine added makes the commons more valuable and harder to leave).
+- **Engines are table stakes, not the product** (ADR-420 §10, ADR-559). yarnnn provides *enough* engines and member-attachable connectors that no one's favorite is missing — never *the most*, and never *"which model to use"* as a maintained curation service. The plurality **protects the portability wedge**; the layman pitch leads with the owned, accumulating, attributed workspace (the *what*); the engines are the invisible *how*.
+- **Judgment declared as a grant is the future deepening, not today's moat lead.** When review returns as a grant a member declares (ADR-596 D3(d)), tenure-calibrated judgment compounds on top of the ledger — a deepening of the position, never a replacement for it.
 
 Inferred-context layers commoditize. The attributed settlement layer for work does not.
 
@@ -216,9 +162,9 @@ YARNNN is not:
 
 - **an inferred-memory feature** — context is authored and attributed, not scraped from activity.
 - **locked to one model** — the substrate is portable across every LLM; that is the point.
-- **a bare chat wrapper** *(re-cut v16, ADR-457)* — yarnnn deliberately *is* partly a chat product now: Think is one of the two verbs. What it is not is an **ungrounded** one — a conversation surface whose thinking evaporates when the session ends. Thinking here is grounded in an authored commons and lands back into it; a chat feature that doesn't exploit that floor is off-product (the floor-leverage test, ADR-457 D6).
-- **a safety-filter wrapper** — the Reviewer is an independent judgment seat that compounds in value, not a post-hoc guardrail bolted onto a producer.
-- **uncontrolled autonomous action** — the model is supervised autonomy: declared mandate, gated actions, a legible cockpit, and an operator who is never structurally absent.
+- **a bare chat wrapper** — yarnnn deliberately *is* partly a chat product: Think is one of the acts. What it is not is an **ungrounded** one — a conversation surface whose thinking evaporates when the session ends. Thinking here is grounded in an authored commons and lands back into it; a chat feature that doesn't exploit that floor is off-product (the floor-leverage test, ADR-457 D6).
+- **a safety-filter wrapper** — the member's verdict under the witness dial is accountable judgment recorded on the ledger, not a post-hoc guardrail bolted onto a producer.
+- **uncontrolled autonomous action** — nothing acts on its own initiative; unattended work is a member's declaration, bounded, receipted, and refused any outbound reach (ADR-632/645).
 - **a money-making claim for every workspace** — money-truth is one program's flavor of ground truth (trading), not a universal product element. The universal is *authored, portable substrate*.
 
 ## Canonical Positioning
@@ -270,12 +216,12 @@ Short forms that remain valid in voice-variation contexts:
 For product narrative and architecture, use this order:
 
 1. `docs/ESSENCE.md` — product essence and stable value proposition (this doc)
-1a. `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md` — the ratified formulation + June-2026 competitive reassessment this version stands on
 2. `docs/architecture/THESIS.md` — the philosophical claim and the four commitments
-3. `docs/architecture/FOUNDATIONS.md` — first-principles cognitive architecture (six dimensions, eight axioms)
-4. `docs/adr/ADR-310-judged-substrate-interop-face.md` + `ADR-311-primitive-interop-surface.md` — one moat, two faces; the interop surface
-5. `docs/adr/ADR-222-agent-native-operating-system-framing.md` — kernel / program OS framing
-6. `docs/adr/ADR-209-authored-substrate.md` — authored, attributed, retained substrate
-7. `docs/adr/ADR-194-pluggable-reviewer-and-impersonation.md` — the judgment seat
+3. `docs/architecture/FOUNDATIONS.md` — first-principles architecture (six dimensions, the axioms)
+4. `docs/adr/ADR-596-the-agent-is-a-being.md` + `ADR-632-the-steward-retires.md` — the agent, and what no longer acts on its own
+5. `docs/adr/ADR-310-judged-substrate-interop-face.md` + `ADR-311-primitive-interop-surface.md` — one moat, two faces; the interop surface
+6. `docs/adr/ADR-222-agent-native-operating-system-framing.md` — kernel / app OS framing
+7. `docs/adr/ADR-209-authored-substrate.md` — authored, attributed, retained substrate
+8. `docs/adr/ADR-307-unified-permission-taxonomy.md` + `ADR-405-the-witness-dial.md` — one gate, the witness dial
 
 If lower-level docs contradict this essence without justification, the lower-level docs should be revised.

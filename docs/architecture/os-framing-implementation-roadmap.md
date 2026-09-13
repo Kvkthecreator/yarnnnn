@@ -133,7 +133,7 @@ Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblo
 
 2. **`api/services/task_types.py` split.** Kernel-universal task types (back-office, daily-update) stay. Program-specific task types (`trading-digest`, `revenue-report`, etc.) move into program bundles. Loaders fetch the union.
 
-3. **`api/services/orchestration.py` `AGENT_TEMPLATES` split.** Universal roles stay (the universal six + thinking_partner + reviewer). Program-specific agent configurations (e.g., trader-style Reviewer-principles default) move into bundles or stay as operator-authored in the persona layer.
+3. **`api/services/orchestration.py` `AGENT_TEMPLATES` split.** Universal roles stay (the universal six + thinking_partner + reviewer). *(Historical — `AGENT_TEMPLATES`, the roles and the seat are all deleted since; ADR-269/596/632.)* Program-specific agent configurations (e.g., trader-style Reviewer-principles default) move into bundles or stay as operator-authored in the persona layer.
 
 4. **`api/services/platform_tools.py` split.** `TRADING_TOOLS`, `COMMERCE_TOOLS`, `SLACK_TOOLS`, etc. become program-bundle declarations (a program declares which platform tool surfaces it requires) rather than universal registries. The kernel exposes the platform-connection primitive; programs declare what they use.
 
@@ -193,7 +193,7 @@ Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblo
 
 3. **Redaction discipline.** Sanitization rules for `_money_truth.md` graduation (schema + anonymized examples, not actual numbers). API-key/credential exclusion rules (already covered by current substrate practices). Timestamp anonymization where applicable.
 
-4. **Approval flow.** Reviewer queue handles graduation candidates same as any other proposal. Approved → diff committed to the program bundle (in-repo) with a graduation note. Authored substrate (ADR-209) tracks the revision.
+4. **Approval flow.** The proposal queue (the member's verdict under the witness dial, ADR-307 — the retired Reviewer queue) handles graduation candidates same as any other proposal. Approved → diff committed to the program bundle (in-repo) with a graduation note. Authored substrate (ADR-209) tracks the revision.
 
 5. **Source extension for cross-operator compounding.** When N+1 operators are running the same program, graduation reads from the union of lived workspaces. Multi-operator validation strengthens graduation confidence. Privacy-preserved (each lived workspace's content stays private; only structural patterns graduate).
 

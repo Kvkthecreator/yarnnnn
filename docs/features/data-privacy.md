@@ -1,5 +1,7 @@
 # Data & Privacy — Purge Layering & Workspace Reinit
 
+> **HISTORICAL (2026-09-12).** This feature doc describes the pre-ADR-297/632 product — the four-tab desktop, the steward, recurrences and the task pipeline are all deleted. It is kept because ADRs and code comments cite it; the live surface contracts are [docs/design/WORKSPACE.md](../design/WORKSPACE.md) and the live model is [docs/architecture/SERVICE-MODEL.md](../architecture/SERVICE-MODEL.md).
+
 > **Surface**: Settings → Account tab ("Data & Privacy" section)
 > **Status**: Layered model fully shipped. All five layers (L1–L5) live in production. Post-flip streamline pass landed 2026-04-24 — purge coverage now matches the post-ADR-194/205/206/207/209 schema. The purge thread is closed.
 > **History**: This doc lived at `docs/design/PURGE-LAYERING.md` through Phases 1–3 and was moved to `docs/features/data-privacy.md` in Phase 4 (2026-04-09) — it belongs with user-facing feature docs, not architectural design notes, now that the design is stable and shipped. It also supersedes the stale archived `docs/features/previous_versions/data-privacy.md` (deleted in the same commit).

@@ -36,9 +36,9 @@ closed.
 
 - **Applications** (`register: application`) — open files + live state. A
   typed userspace file (report, PDF, image), a folder (Files = Finder), or
-  live state composed into a view (Cockpit = Activity Monitor). Feed, Queue,
-  Activity, Agents, Cadence, Files, Cockpit. **Artifacts are files**, not
-  surfaces: a Reviewer-generated report/PDF is substrate; the viewer
+  live state composed into a view (Notifications = Activity Monitor). Chat, Text,
+  Slides, Images, Blogger, Files, Agents, Reach, Notifications. **Artifacts are files**, not
+  surfaces: an agent-authored report or image is substrate; the viewer
   Application opens it via the **type→application association**
   (`web/lib/file-types`, `resolveViewerApplication`). The report Application
   is `DeliverableMiddle`; the generic file/PDF/image viewer is ContentViewer
@@ -52,7 +52,7 @@ is neither register — it is the window manager's own framing.
 > **STALE SECTION — corrected 2026-08-02 (the ADR-512 canon pass; drift flagged by the
 > chat-architecture audit).** The two paragraphs below describe the pre-ADR-454
 > chat-drawer/rail model and are preserved as history only. **ADR-454 D3 gated the
-> steward's chat chrome off entirely** (`STEWARD_CHROME_ENABLED`); the live chat is a
+> steward's chat chrome off, and ADR-632 deleted it**; the live chat is a
 > **windowed kernel surface** — a `SurfaceRegistry` row (`chat`), launcher-tier primary,
 > dock anchor + default landing per ADR-435 — an app under the Think act (ADR-507), not
 > chrome and not a rail. The `Viewing:`/`surfaceOverride` binding described below died
@@ -115,8 +115,8 @@ in every mode.
 **Window-namespaced deep-link params (ADR-358 D6).** Several windows are open at
 once but there is only ever **one** query string, so each window's intra-surface
 params are namespaced by its slug: `?{slug}.{key}`
-(`workspace-settings.pane=autonomy`, `settings.pane=billing`,
-`recurrence.pane=activity`, `agents.agent=reviewer`). A window reads only its own
+(`settings.pane=billing`, `notifications.pane=activity`,
+`reach.pane=leaving`, `agents.agent=editor`). A window reads only its own
 namespace, so open windows never collide and each persists its own deep-link
 state. Singular Implementation: `scopeParamKey(slug, key)` forms the one prefix;
 `navigateToSurface(slug, params)` scopes by the target slug; surfaces use the
@@ -302,20 +302,9 @@ After Phase 3, the Work surface has four compositor-resolved slots:
 - **Kernel default:** No pinning (empty list).
 - **Bundle declaration:** `tabs.work.list.pinned_tasks: [slug-1, slug-2]`.
 
-### 4. Cockpit (four faces of the operation, ADR-228)
+### 4. Cockpit — retired
 
-Per ADR-228, the cockpit is no longer a flat pane registry. It is **four faces in fixed order** rendered directly by `<CockpitRenderer>`, with no compositor-resolver step between SURFACES.yaml and the faces.
-
-- **Faces (universal, fixed order):**
-  1. **Mandate** (`MandateFace`) — standing intent + autonomy posture, reads `constitution/MANDATE.md` + `governance/AUTONOMY.md`. Skeleton state: destructive-tinted authoring CTA.
-  2. **Money truth** (`MoneyTruthFace`) — where the account stands right now. Bundle-declared platform-live source (e.g., Alpaca for trader) with substrate fallback (`_money_truth.md`). Phase 1 of ADR-228 ships substrate-fallback path; platform-live ships in Commit 3.
-  3. **Performance** (`PerformanceFace`) — mandate-attributed performance + Reviewer calibration from `/workspace/persona/judgment_log.md`.
-  4. **Tracking** (`TrackingFace`) — pending decisions (proposal queue with inline approve/reject) + operational state (bundle-fed) + recent activity (outcomes only — task-run delivery events excluded per ADR-228 D5).
-- **Kernel default:** No bundle declaration → faces render kernel-default substrate paths.
-- **Bundle declaration:** `tabs.work.list.cockpit.{mandate,money_truth,performance,tracking}` per-face binding map. Bundles cannot reorder or omit faces; they only fill them. Schema is open by design — face components consume only the keys they understand.
-- **Cockpit context handler:** chat-draft seeder threads via `CockpitContext` provider in `<CockpitRenderer>`. The Mandate face uses it for skeleton-state authoring.
-
-The flat `cockpit_panes` array, `KERNEL_DEFAULT_COCKPIT_PANES`, `resolveCockpitPanes`, and the six axis-shaped pane components from ADR-225 Phase 3 (`MandateStrip`, `MoneyTruthTile`, `KernelNeedsMePane`, `MaterialNarrativeStrip`, `TrustViolations`, `TeamHealthCard`) were all deleted by ADR-228.
+The four-face cockpit (ADR-228: `MandateFace` · `MoneyTruthFace` · `PerformanceFace` · `TrackingFace`) was superseded by Home as a composition (ADR-312) and Home was deleted (ADR-435). No cockpit slot survives; the operating-work composition is Notifications (ADR-346/349) and the boundary's is Reach (ADR-642). The section's text is in the archived versions of this doc's cited ADRs.
 
 The phase-aware banner (`tabs.work.list.banner`) is a separate concern handled by `<BundleBanner tab="work" />`, mounted directly in `WorkListSurface` since Phase 2.
 

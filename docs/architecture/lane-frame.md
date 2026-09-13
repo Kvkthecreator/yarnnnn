@@ -4,8 +4,8 @@
 > ADR-440 D3 (the binding), ADR-522 (the focus declaration), ADR-495 D3 (the cast),
 > ADR-562 (app-owned configuration), ADR-606 (focus at one kernel site; the job
 > overlay declared at the app). This document is the composition reference for the
-> **Altitude-2** prompt frame — the steward's (Altitude-1) composition canon is
-> [agent-composition.md](agent-composition.md) and does not overlap.
+> **lane** frame — the standing frame's composition (the unattended twin, ADR-639 D1) is
+> [agent-composition.md](agent-composition.md) §3.2 and does not overlap.
 >
 > **Code home**: `api/services/lane_runner.py::build_lane_conventions` is the ONE
 > composition site. `api/services/authoring.py` holds the app registry
@@ -138,19 +138,9 @@ server-side), and declaring being optional (so the Docs→Text transition silent
 dropped it). A mechanism whose per-app half is optional decays one surface at a
 time; the obligation is what makes "first-class" durable.
 
-## 5. The two rails (one vocabulary, separate wires)
+## 5. One rail (the second went with the steward)
 
-Both rails now carry the typed focus — the lane rail as `LaneTurnRequest.focus`,
-the steward rail as `ChatRequest.focus` (`StewardFocus`, its own Pydantic model —
-ADR-607 superseded the ADR-398 D2 `operator_locator` URL-scrape and deleted it
-everywhere). They share the `SurfaceFocus` vocabulary and the ONE pure renderer
-(`build_focus_line`, actor-parameterized: "The member" / "The operator") but keep
-separate wires, separate request models, and one rendering site each (lanes:
-`_compose_focus_section`; steward: the addressed-ask composer in
-`freddie_agent._ask_for_trigger`). The rails are NOT merged — ADR-441 D1 stands;
-what they share is vocabulary, exactly as they already share the path grammar.
-The steward renders every declaration (it has no binding to be the authority);
-if it ever gains a bound mode, ADR-606 D2's guard is the precedent to import.
+The lane rail carries the typed focus as `LaneTurnRequest.focus`, rendered at ONE kernel site (`_compose_focus_section`, ADR-606 D1) through the ONE pure renderer (`build_focus_line`). The steward rail's twin wire (`ChatRequest.focus` / `StewardFocus`, ADR-607) was deleted with the rail (ADR-632); ADR-441 D1's separate-wires rule and ADR-606 D2's binding-is-the-authority guard are the precedents to import if a second rail ever returns.
 
 ## 6. Refusals (recorded so they are not re-proposed)
 

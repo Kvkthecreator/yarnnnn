@@ -1,5 +1,7 @@
 # Framing: Is bare-kernel-without-a-program a supported product, or is program-activation the floor?
 
+> **SUPERSEDED (2026-09-12).** Direction A ratified the bundle-fork as the constitution-creation event and the bare kernel as a resting state. ADR-414 D4 made genesis pure (a workspace is born constituted by its grants; a program is a post-genesis hire) and ADR-632 deleted the steward this note reasons about. Kept as a dated record for the ADRs that cite it; do not derive current placement from it.
+
 > **Status**: **Direction A RATIFIED 2026-06-01.** Program-activation is the product floor.
 > The bare kernel is an inspect-only resting state; you activate a program to begin operating.
 > Implementation is *subtractive* — the dead conversational-onboarding layer is deleted, the
