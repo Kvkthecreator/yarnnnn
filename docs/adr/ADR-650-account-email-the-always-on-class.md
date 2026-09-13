@@ -127,6 +127,15 @@ triggered the mail never waits on it and never fails for it; a failed send is a 
   now `deep_links.notification_settings_url()`, the single URL source of truth (ADR-202), used by both
   footers. The gate refuses a hand-built copy anywhere under `services/`.
 
+### D8 — Supabase Auth mail wears the shell too (amendment 2026-09-13)
+
+Supabase Auth's six mails (confirm sign-up, invite, magic link, change email, reset password,
+reauthentication) are Supabase's to send, but ours to dress. SMTP now points at Resend on the house
+domain (state and receipt in `docs/database/ACCESS.md`), and the six templates are rendered from the one
+shell by `api/scripts/render_supabase_auth_templates.py` into `supabase/templates/auth/` — the source of
+truth for what is pasted into the dashboard. The gate holds the files in sync with the renderer and checks
+each keeps its Go placeholder; a template edit lands in the renderer first, and the paste follows.
+
 ### D7 — The gate
 
 `api/test_adr650_account_email.py` (48 checks): the kind is fixed and refused by the validator; the four
@@ -145,10 +154,8 @@ third exemption) and stays green at 41/41.
   path), a credential connected or removed on Reach, BYOK set or cleared. These are the next tenants of
   the `account` kind: same composer, same class, one hook each. Deferred to their own commit so this one
   ships the lifecycle spine.
-- **Supabase Auth mail parity.** Confirmation, recovery, magic-link and email-change mail is Supabase's.
-  Whether the project uses custom SMTP through the Resend domain or Supabase's default sender is a
-  dashboard fact this tree cannot see; the ADR-498 lesson (the first contact was the least branded thing
-  we sent) applies exactly. Open item in `docs/SESSION-HANDOFF.md`.
+- ~~Supabase Auth mail parity~~ — **done 2026-09-13 as D8** (SMTP on Resend, templates rendered from the
+  shell). The one act left is the operator's paste into the dashboard.
 - **Resend webhook reconciliation of notification rows.** `routes/webhooks.py` matches delivery events
   only against `export_log` (zero rows exist), so a bounce on any notification email is logged and
   dropped. Storing the Resend message id on the transport row would close it; not taken here.

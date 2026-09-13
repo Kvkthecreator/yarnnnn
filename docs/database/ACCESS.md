@@ -12,6 +12,26 @@
 **Region**: `ap-southeast-1` (Singapore)
 **Dashboard**: https://supabase.com/dashboard/project/noxgqcwynkzqabljjyon
 
+## Auth email — Supabase → Resend over SMTP (set 2026-09-13, ADR-650)
+
+Supabase Auth's own mail (confirm sign-up, magic link, recovery, change email, invite,
+reauthentication) leaves through **custom SMTP on Resend**, the same domain the system wire uses —
+so a member's first contact carries the house sender, not `mail.app.supabase.io`. Dashboard:
+Authentication → Emails → SMTP Settings.
+
+| Setting | Value |
+|---|---|
+| Sender email / name | `noreply@yarnnn.com` / `yarnnn` (matches `RESEND_FROM_EMAIL` on Render) |
+| Host / port | `smtp.resend.com` / `465` |
+| Username | `resend` (literal) |
+| Password | a Resend API key — its own key, sending-only, so it rotates independently of `RESEND_API_KEY` |
+| Rate limit | 30/hour after custom SMTP (Authentication → Rate Limits to raise); 60s per-user minimum interval |
+
+**Receipt**: `POST /auth/v1/invite` for a throwaway address returned 200 at 2026-09-13T05:23:39Z (GoTrue
+sends synchronously and errors on an SMTP failure); the Resend Emails log is where the send is visible.
+**Templates** are rendered from the house shell into `supabase/templates/auth/` by
+`api/scripts/render_supabase_auth_templates.py` and pasted into the dashboard — see that folder's README.
+
 ## One-Time Setup (local, uncommitted)
 
 Two ways to hold the connection string, both keeping it out of the tracked tree:

@@ -18,6 +18,8 @@ Locks:
   D6  the pane renders a fixed kind as a fact, not a select.
   D7  cleanup: the plain-message template and the test email wear the shell;
       the manage link has ONE home (deep_links).
+  D8  Supabase Auth's six templates are rendered from the shell into
+      supabase/templates/auth/, in sync with the renderer, placeholders intact.
 """
 
 from __future__ import annotations
@@ -296,9 +298,39 @@ def test_d7_cleanup() -> None:
     _assert(not hand_built, f"no service hand-builds the manage link (offenders: {hand_built})")
 
 
+def test_d8_supabase_auth_templates() -> None:
+    print("\n[D8] Supabase Auth mail wears the shell — rendered, in sync, placeholders intact")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "render_auth_templates", API / "scripts/render_supabase_auth_templates.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    rendered = mod.render_all()
+    out = REPO / "supabase/templates/auth"
+    _assert(set(rendered) == {"confirm-signup", "invite", "magic-link", "change-email",
+                              "reset-password", "reauthentication"},
+            "the six Supabase templates are declared")
+    stale = [k for k, v in rendered.items()
+             if not (out / f"{k}.html").exists()
+             or (out / f"{k}.html").read_text(encoding="utf-8") != v]
+    _assert(not stale, f"the files on disk match the renderer (stale: {stale}) — edit the renderer, re-run it")
+    for k, v in rendered.items():
+        need = "{{ .Token }}" if k == "reauthentication" else "{{ .ConfirmationURL }}"
+        _assert(need in v, f"{k} keeps its Go placeholder {need}")
+        _assert('class="y-mark"' in v and "<script" not in v, f"{k} wears the shell, carries no script")
+    _assert("{{ .NewEmail }}" in rendered["change-email"], "change-email names the new address")
+    readme = (out / "README.md").read_text(encoding="utf-8")
+    _assert(all(f"`{k}.html`" in readme for k in rendered) and "Subject" in readme,
+            "the README maps every file to its dashboard template and subject")
+    access = _read("docs/database/ACCESS.md")
+    _assert("smtp.resend.com" in access and "supabase/templates/auth" in access,
+            "ACCESS.md records the SMTP state and the templates' home")
+
+
 if __name__ == "__main__":
     for t in (test_d1_fixed_kind, test_d2_hook_sites, test_d3_roster_and_shell,
-              test_d4_driven, test_d5_dispatch, test_d6_pane, test_d7_cleanup):
+              test_d4_driven, test_d5_dispatch, test_d6_pane, test_d7_cleanup,
+              test_d8_supabase_auth_templates):
         try:
             t()
         except Exception as e:  # a crashed section is a FAIL, never silence

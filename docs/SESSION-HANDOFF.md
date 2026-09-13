@@ -102,6 +102,11 @@ resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the t
 clean HEAD worktree on 2026-09-12.
 
 ## Cleanup owed since ADR-632
+- `api/scripts/operator/` shadows the stdlib `operator` module for any script run BY PATH from
+  `api/scripts/` (`python3 scripts/x.py` puts `scripts/` first on `sys.path`; the next `import re` dies).
+  Reproduced 2026-09-13; affects `backfill_embeddings.py`, `purge_user_data.py`,
+  `refresh_connector_directory.py` (whose docstrings say to run them by path). `python3 -m scripts.x`
+  works. Rename the package or fix the three docstrings — one decision.
 - Strip the steward env vars from Render; drop the `wake_queue` and `tasks` tables; ADR-596 D3(d).
 - **Retired vocabulary, frozen by `api/test_retired_vocabulary_ratchet.py`** (per-file ceilings, only ever
   lowered): canon 230 lines across 27 files (ADR-LEDGER 48 — historical by nature; FOUNDATIONS 37, GLOSSARY 37,
