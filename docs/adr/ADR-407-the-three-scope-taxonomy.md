@@ -247,3 +247,49 @@ receives after-witness; member's thread is theirs; owner's is not).
 - **Cascade (doc-only, on ratification)**: FOUNDATIONS DP17 amendment + DP35 +
   ADR-222 shell row + GLOSSARY entries (scope, member experience, member state).
   (D10)
+
+---
+
+## Amendment (2026-09-13) — the switcher pins the PICK, not the species
+
+Phase 5 shipped the workspace switcher with a role branch:
+
+```ts
+if (m.role === 'owner') clearActiveWorkspace();
+else setActiveWorkspace(m.workspace_id);
+```
+
+justified by the comment *"absent header = server resolves the owner
+workspace"*. That is true only for a principal owning **exactly one**
+workspace. Ownership has never been capped — there is no unique constraint on
+`workspaces.owner_id` — and since deliberate genesis a principal can own
+several. Clearing then resolves their **oldest** workspace, not the one they
+clicked.
+
+So picking a second OWNED workspace put the member back into the first. The
+switcher showed the new name and a checkmark, every read served the old
+workspace, and a document created "in" the new one was written to the old.
+Receipted on prod 2026-09-13: after clicking "SK Personal",
+`localStorage['yarnnn.active-workspace']` was still `null`.
+
+This is also a small instance of **ADR-405's no-species-law**: which workspace
+is bound is the member's *pick*, never a rule derived from their role.
+
+⭐ It shipped **alongside** the ADR-548 D9 write-binding defect, and the two
+presented as ONE symptom — *"Nothing exists at `operation/…`"*. Fixing the
+write path alone did not fix the flow, because the client was still pinned to
+the wrong workspace. **When two layers can disagree about the acting
+workspace, expect BOTH to be wrong before believing either is right.**
+
+| # | Decision |
+|---|---|
+| **D8** | **The switcher pins the workspace the member picked, always** — including one they own. `clearActiveWorkspace` survives only where the workspace is *gone* (deletion), because there is nothing left to pin. The server still validates the pin fail-closed, so the ADR-499 stale-pin self-heal is unchanged. |
+
+**Why the existing gates were green through the bug**: the Phase 5 gate asserts
+`"clearActiveWorkspace" in menu or "setActiveWorkspace" in menu` — an OR that
+passes on either spelling, so it was green for the bug AND the fix; ADR-499's
+gate reads only `client.ts`. *A check that cannot fail is not a check.* The
+replacement, `test_adr407_switcher_pins_the_pick.py` (6/6, falsified), isolates
+the handler body, strips comments before matching, and asserts the rule in
+three directions: the pick is pinned, the pin is never cleared on a switch, and
+the decision never branches on the role.

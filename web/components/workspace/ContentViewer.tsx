@@ -549,9 +549,14 @@ function FileView({
       <div className="p-8 text-center text-muted-foreground text-sm">
         <FileQuestion className="mx-auto mb-3 h-10 w-10 opacity-40" />
         <p className="font-medium text-foreground/80">This file isn’t here</p>
+        {/* A 404 is scoped to ONE workspace, so it cannot say "nothing exists"
+            — the wording this carried, which was wrong on 2026-09-13 when the
+            file was sitting one workspace over (ADR-548 D9). State the fact we
+            have, and say plainly that nothing was deleted. */}
         <p className="mt-1 text-xs max-w-sm mx-auto">
-          Nothing exists at <span className="font-mono">{path}</span>. It may have
-          been moved or never written — pick a file from the explorer.
+          No file at <span className="font-mono">{path}</span> in this workspace.
+          It may be in another workspace, or not written yet — nothing has been
+          deleted. Pick a file from the explorer.
         </p>
       </div>
     );

@@ -74,7 +74,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
-import { setActiveWorkspace, clearActiveWorkspace } from '@/lib/api/client';
+import { setActiveWorkspace } from '@/lib/api/client';
 import {
   useWorkspaceMembers,
   useWorkspaceMemberships,
@@ -162,12 +162,31 @@ export function UserMenu({ email }: UserMenuProps) {
       setIsOpen(false);
       return;
     }
-    // Owner → CLEAR the binding (absent header = server resolves the owner
-    // workspace); member → pin the workspace id. Then hard-navigate: a full
-    // reload is required so every fetched surface rebinds to the new
-    // workspace — no client-side route.
-    if (m.role === 'owner') clearActiveWorkspace();
-    else setActiveWorkspace(m.workspace_id);
+    // ⭐⭐⭐ PIN THE WORKSPACE THE MEMBER PICKED — ALWAYS, INCLUDING AN OWNED ONE.
+    //
+    // This used to read `if (m.role === 'owner') clearActiveWorkspace()`, on
+    // the assumption stated in the old comment: "absent header = server
+    // resolves the owner workspace". That holds only when a principal owns
+    // EXACTLY ONE workspace. Ownership has never been capped (no unique
+    // constraint on `workspaces.owner_id`), and since deliberate genesis a
+    // principal can own several — at which point clearing the pin resolves
+    // their OLDEST workspace, not the one they just clicked.
+    //
+    // So picking a second owned workspace silently put the member back in the
+    // first: the switcher showed the new name, every read served the old
+    // workspace, and a file created "in" the new one was written to the old.
+    // Receipted on prod 2026-09-13 alongside the write-binding defect
+    // (ADR-548 D9) — two independent bugs with one symptom, which is why
+    // fixing the write alone did not fix the flow.
+    //
+    // The pin is the member's EXPLICIT choice; it is never a fallback. The
+    // server still validates it fail-closed (403 → the stale-pin self-heal in
+    // `client.ts` clears it and retries), so pinning a workspace the member
+    // may not reach degrades exactly as before.
+    //
+    // `clearActiveWorkspace` remains the right call for DELETION (the
+    // workspace is gone, so there is nothing to pin) — see WorkspaceDeleteCard.
+    setActiveWorkspace(m.workspace_id);
     window.location.assign('/chat');
   };
 

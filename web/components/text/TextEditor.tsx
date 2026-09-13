@@ -65,6 +65,7 @@ import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
+import { useWorkspaceMemberships } from '@/lib/workspace/viewer';
 import { formatRelativeTime } from '@/lib/formatting';
 import { LanePanel, type SeedTarget } from '@/components/chat-surface/LanePanel';
 import { SelectionGesture } from '@/components/authoring/SelectionGesture';
@@ -143,6 +144,15 @@ export function TextEditor({
     withRevision: true,
     reloadKey,
   });
+
+  /* The workspace this surface is reading — named in the not-found state so a
+     404 says WHERE it looked. A read is scoped to one workspace, so "no file
+     here" is only ever a fact about that one; see the `notFound` branch. */
+  const { memberships } = useWorkspaceMemberships();
+  const activeWorkspaceLabel = useMemo(
+    () => memberships.find((m) => m.is_active)?.label ?? null,
+    [memberships],
+  );
 
   /**
    * ADR-643 D4 — may THIS viewer type here? Served per row by the decider.
@@ -1272,9 +1282,51 @@ export function TextEditor({
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Opening…
             </div>
           ) : notFound ? (
-            <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
-              Nothing exists at <span className="mx-1 font-mono text-xs">{relPath(path)}</span> —
-              it may have been moved or never written.
+            /* ⭐ A 404 IS A FACT ABOUT ONE WORKSPACE, NOT ABOUT THE WORLD.
+               This branch used to read "Nothing exists at <path> — it may have
+               been moved or never written": a claim about the whole system,
+               made from a read that was scoped to ONE workspace. It broke the
+               very rule the `error` branch below states ("never 'it doesn't
+               exist', which reads as data loss") and it was WRONG twice on
+               2026-09-13 — the file existed, one workspace over, while the
+               write had owner-resolved into a different one (ADR-548 D9).
+
+               So: name WHERE we looked, and never assert more than a 404
+               proves. The workspace name is the one word that separates a
+               deleted file from a misrouted one, and its absence is what made
+               a one-line diagnosis take a two-hour investigation.
+
+               It was also the only state in this surface with NO EXIT — the
+               `error` branch offers a retry, this offered nothing, on the
+               state a member is far likelier to hit. Both doors are here now:
+               look again (the write may simply have landed after this read),
+               and go back to the list. */
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+              <p className="max-w-sm text-sm text-muted-foreground">
+                No file at{' '}
+                <span className="font-mono text-xs text-foreground">{relPath(path)}</span>
+                {activeWorkspaceLabel ? <> in {activeWorkspaceLabel}</> : null}.
+              </p>
+              <p className="max-w-sm text-xs text-muted-foreground">
+                It may be in another workspace, or it may not have been written
+                yet. Nothing has been deleted.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReloadKey((n) => n + 1)}
+                  className="rounded border border-border px-2.5 py-1 text-xs hover:bg-muted/40"
+                >
+                  Look again
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded border border-border px-2.5 py-1 text-xs hover:bg-muted/40"
+                >
+                  Back to documents
+                </button>
+              </div>
             </div>
           ) : error ? (
             /* A real failure says so, and offers the retry — never "it doesn't
