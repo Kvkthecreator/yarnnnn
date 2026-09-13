@@ -167,5 +167,36 @@ def test_s4_a_new_folder_from_nowhere_lands_in_documents():
     assert "openNewFolder(null)" not in PAGE
 
 
+# ── §4 (server) the create door SURVIVES the decider on an empty Documents ────
+
+def test_s4_the_create_door_lands_a_marker_inside_an_empty_documents(monkeypatch):
+    """DRIVEN. The click-pass on a fresh workspace (2026-09-12) found this
+    door raising NameError AFTER the decider allowed it: a back-compat shim
+    referenced a name ADR-643 D6 had un-imported, so every New Folder on prod
+    was a 500 for five days — invisible to the decider gate, which checks that
+    a door CALLS the decider, never that it survives the call. This drives
+    the whole handler with the substrate faked EMPTY (Documents not yet
+    written, exactly the ADR-649 D5 case) and asserts the marker write."""
+    import routes.documents as rd
+    import services.access as access
+    import services.authored_substrate as substrate
+    import services.workspace_context as wctx
+
+    monkeypatch.setattr(access, "resolve_access", lambda auth, path, verb: access.ALLOWED)
+    monkeypatch.setattr(rd, "get_service_client", lambda: object())
+    monkeypatch.setattr(wctx, "effective_workspace_id", lambda *a, **k: "w")
+    written = {}
+    monkeypatch.setattr(substrate, "write_revision", lambda **kw: written.update(kw))
+    auth = types.SimpleNamespace(user_id="u", workspace_id="w", client=_Client([]))
+    body = rd.CreateFolderRequest(path="first-folder", parent="operation")
+    out = asyncio.run(rd.create_folder(body, auth))
+    assert out == {"success": True, "path": "/workspace/operation/first-folder"}
+    assert written["path"] == "/workspace/operation/first-folder/"      # ADR-588: the marker, trailing slash
+    assert written["content_type"] == rd.FOLDER_MARKER_CONTENT_TYPE
+    assert written["workspace_id"] == "w" and written["user_id"] == "u"
+    # The decider is the ONE question (ADR-643 D2); no second gate stands behind it.
+    assert not hasattr(rd, "_assert_principal_may_organize")
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

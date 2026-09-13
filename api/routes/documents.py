@@ -770,20 +770,6 @@ def _assert_may(auth, path: str, verb: str) -> None:
         raise HTTPException(status_code=403, detail=decision.reason)
 
 
-def _assert_principal_may_organize(auth, path: str) -> None:
-    """Back-compat shim for the trash-shaped verbs. Prefer `_assert_may`."""
-    _assert_may(auth, path, "trash")
-
-    if _is_path_locked_for_principal(auth, path):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                f"Your grant in this workspace does not permit changing {path}. "
-                "The workspace owner can widen it from the Access pane."
-            ),
-        )
-
-
 @router.delete("/documents/{document_path:path}")
 async def delete_document(auth: UserClient, document_path: str):
     """Move a workspace file to Trash (the operator-facing 'Delete' verb).
@@ -1598,11 +1584,16 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
     # Checked on the marker path — the row this route actually writes.
     _assert_may(auth, marker_path, "create")
 
-    # ADR-501 S1 (2026-09-07). ADR-424 D2 says the operator does not ask
-    # permission to name a folder for their work — but "the operator" there is
-    # the OWNER. A member's grant can be narrower, and this writes a real row
-    # through write_revision. Checked on the same marker path the carve law used.
-    _assert_principal_may_organize(auth, marker_path)
+    # ADR-501 S1 (2026-09-07): a member's grant can be narrower than the
+    # owner's, and this writes a real row. That question is ALREADY the third
+    # step of `_assert_may` above (ADR-643 D2: one decider — the carve law,
+    # then the grant). A second "back-compat" check stood here until
+    # 2026-09-12; it referenced a name D6 had un-imported, so every folder
+    # create on prod raised NameError for five days behind a 500 the client
+    # rendered as "Could not create the folder". Found by driving the ADR-649
+    # empty-state door on a fresh workspace — no gate could see it, because
+    # the decider gate checks that a door CALLS the decider, not that the
+    # door survives the call. Gate: test_adr649 §4 drives this door.
 
     # Already a folder here? Either it holds files (it exists through them) or
     # it already carries a marker. Both are "already exists" — never re-create.

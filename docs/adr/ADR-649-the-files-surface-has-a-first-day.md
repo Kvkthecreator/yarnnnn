@@ -130,7 +130,34 @@ instead of "Intake".
   a Move. If a member ever needs it, the NewFolderModal grows a destination
   picker — not a second fallback.
 
-## 5. Verification
+## 5. What the click-pass found behind the door
+
+Driving D4/D5 on a fresh rig workspace (2026-09-12): the modal said *"It will
+be created inside Documents."*, Create returned **500**, the client rendered
+*"Could not create the folder"*. The API traceback:
+
+```
+routes/documents.py:1605  _assert_principal_may_organize(auth, marker_path)
+routes/documents.py:777   if _is_path_locked_for_principal(auth, path):
+NameError: name '_is_path_locked_for_principal' is not defined
+```
+
+ADR-643 D6 (`d3dd403`, 2026-09-07) moved the grant question into the ONE
+decider and un-imported the name — but left a "back-compat shim" that still
+called it, one line after the decider had already answered. **Every New
+Folder on prod raised for five days**, behind a 500 the client could only
+render generically. The decider gate (18/18 green throughout) checks that a
+door CALLS the decider, never that it survives the call. The shim is deleted
+(it duplicated `_assert_may`'s third step); the ADR-649 gate now DRIVES the
+create door against an empty Documents and asserts the marker write, and is
+red with the NameError reintroduced.
+
+⭐ **A name nothing binds is a 500 waiting for its first caller.** The same
+sweep that found this found five more (image export, the Resend webhook,
+connectors, the trader credential helper, the retired agent branch of the
+write primitive) — recorded in the session handoff.
+
+## 6. Verification
 
 - Gate: `api/test_adr649_files_has_a_first_day.py` — §1 and §2 DRIVEN (the
   path predicate; the roots handler against an empty substrate through a fake
@@ -142,5 +169,8 @@ instead of "Intake".
   `test_image_listings_serve_a_thumbnail`. `test_adr388_files_surface` (3/14)
   and `test_adr571_text_app` (115/279) are red at HEAD identically — stale
   gates, untouched.
-- The click-pass on a fresh workspace is the real check of D3/D4 and is
-  recorded in the session handoff.
+- Click-passed on prod on rig `anr-scout@yarnnn.com` (17 kernel files, nothing
+  else): Documents · Downloads · System files in the tree, the empty state with
+  both doors, the "+" opening the canvas menu at desktop and 390px, the modal
+  naming Documents. Receipts as the rig: `GET /workspace/roots` → Documents
+  `exists:false`, `GET /workspace/recent-revisions` → 0 rows.
