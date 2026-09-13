@@ -251,12 +251,49 @@ print("\n\u00a76d the transport OWNS caching — no caller may hand-roll it")
 # The architecture claim: callers pass a provider/model string and stay blind.
 # A caller that learned about cache_control would be a second home for the rule
 # and would drift the moment a provider changed shape.
-for _caller in ("services/lane_runner.py", "services/session_continuity.py",
-                "services/studio_arrangement_plan.py",
-                "services/apps/images/decompose.py", "services/derive_turn.py"):
-    _b = pathlib.Path(_caller).read_text(encoding="utf-8")
-    check(f"{_caller} stays provider-blind (no cache_control)",
-          "cache_control" not in _b)
+# DERIVED, never a roster: the rule is "one home" (CLAUDE.md, the context
+# budget row — caching ONLY in model_router._build_messages), so the check is
+# every module under services/ and routes/ EXCEPT that home. A hand-listed
+# roster here crashed on 2026-09-13 reading `services/apps/images/decompose.py`,
+# deleted five days earlier (0b9920f) — a gate anchored to a name decays in
+# both directions, and a crashed gate reports nothing.
+_HOME = pathlib.Path("services/model_router.py")
+
+def _code_only(src: str) -> str:
+    """Source minus comments and docstrings — a check that matches its own
+    documentation is not a check (the 2026-09-07 lesson, twice)."""
+    import ast, io, tokenize
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return src
+    doc_spans = set()
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(body, list) and body and isinstance(body[0], ast.Expr) \
+                and isinstance(getattr(body[0], "value", None), ast.Constant) \
+                and isinstance(body[0].value.value, str):
+            doc_spans.add((body[0].lineno, body[0].end_lineno))
+    lines = src.splitlines(keepends=True)
+    for a, b in doc_spans:
+        for i in range(a - 1, b):
+            lines[i] = "\n"
+    out = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO("".join(lines)).readline):
+            if tok.type != tokenize.COMMENT:
+                out.append(tok.string if tok.type not in (tokenize.NEWLINE, tokenize.NL) else "\n")
+    except tokenize.TokenizeError:
+        return "".join(lines)
+    return " ".join(out)
+
+_leaks = sorted(
+    str(_p) for _root in ("services", "routes")
+    for _p in pathlib.Path(_root).rglob("*.py")
+    if _p != _HOME and "cache_control" in _code_only(_p.read_text(encoding="utf-8", errors="ignore"))
+)
+check("every module outside model_router.py stays provider-blind (no cache_control)",
+      not _leaks, f"cache_control appears in {_leaks}")
 # ADR-556: machinery is keyed by CALL TYPE and must not learn transport concerns.
 check("system_calls.py knows nothing about caching (ADR-556 boundary)",
       "cache_control" not in pathlib.Path("services/system_calls.py").read_text(encoding="utf-8"))

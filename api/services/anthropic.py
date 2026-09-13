@@ -187,8 +187,9 @@ def _prepare_system(system: str | list[dict]) -> list[dict]:
     """Normalize system prompt to content blocks for prompt caching.
 
     Accepts either a plain string (wrapped as a single text block)
-    or a list of content blocks (passed through). Callers that want
-    prompt caching should pass a list with cache_control on static blocks.
+    or a list of content blocks (passed through). Prompt caching is the
+    transport's concern (services/model_router.py — ADR-634/647); callers
+    stay provider-blind and never mark blocks themselves.
     """
     if isinstance(system, str):
         return [{"type": "text", "text": system}]
@@ -225,7 +226,7 @@ async def chat_completion(
 
     Args:
         messages: List of {"role": "user"|"assistant", "content": str}
-        system: System prompt (string or content blocks with cache_control)
+        system: System prompt (string, or content blocks the transport marked)
         model: Model ID
         max_tokens: Maximum response tokens
 
@@ -305,7 +306,7 @@ async def chat_completion_with_tools(
 
     Args:
         messages: List of {"role": "user"|"assistant", "content": str|list}
-        system: System prompt (string or content blocks with cache_control)
+        system: System prompt (string, or content blocks the transport marked)
         tools: List of tool definitions
         model: Model ID
         max_tokens: Maximum response tokens
@@ -372,7 +373,7 @@ async def chat_completion_with_tools_stream(
 
     Args:
         messages: List of {"role": "user"|"assistant", "content": str|list}
-        system: System prompt (string or content blocks with cache_control)
+        system: System prompt (string, or content blocks the transport marked)
         tools: List of tool definitions
         model: Model ID
         max_tokens: Maximum response tokens
@@ -438,7 +439,7 @@ async def chat_completion_stream(
 
     Args:
         messages: List of {"role": "user"|"assistant", "content": str}
-        system: System prompt (string or content blocks with cache_control)
+        system: System prompt (string, or content blocks the transport marked)
         model: Model ID
         max_tokens: Maximum response tokens
 
