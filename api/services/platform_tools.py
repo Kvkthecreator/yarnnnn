@@ -1468,40 +1468,6 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
     return tools
 
 
-async def get_platform_tools_for_agent(
-    auth: Any,
-    agent: dict,
-    task_required_capabilities: Optional[list[str]] = None,
-) -> list[dict]:
-    """Get platform tools for an agent.
-
-    ADR-227: Capabilities resolve from two sources, deduplicated:
-      1. The agent's role-level capability list (universal — Tracker, Analyst,
-         etc. declare what THEY are, ICP-agnostic per ADR-176).
-      2. The recurrence's `required_capabilities:` block (declared on the
-         YAML recurrence body per ADR-231 / ADR-261, ICP-specific —
-         `read_trading`, `write_commerce`, etc., supplied by the active
-         program bundle per ADR-224).
-
-    Without (2), program-specific platform tools never reach agents on
-    universal roles, even when the user has the platform connected and the
-    task declares the capability — the agent silently falls back to generic
-    tools (WebSearch) and emits empty deliverables.
-    """
-    from services.orchestration import get_type_capabilities
-
-    role = (agent or {}).get("role", "")
-    role_capabilities = get_type_capabilities(role) if role else []
-    # Merge role + task-required, dedupe, preserve declaration order
-    seen: set[str] = set()
-    merged: list[str] = []
-    for cap in role_capabilities + (task_required_capabilities or []):
-        if cap and cap not in seen:
-            seen.add(cap)
-            merged.append(cap)
-    return await get_platform_tools_for_capabilities(auth, merged)
-
-
 # =============================================================================
 # Tool Handlers
 # =============================================================================

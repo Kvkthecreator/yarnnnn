@@ -111,7 +111,7 @@ from .propose_action import (
     REJECT_PROPOSAL_TOOL, handle_reject_proposal,
 )
 from services.platform_tools import (
-    is_platform_tool, handle_platform_tool, get_platform_tools_for_agent,
+    is_platform_tool, handle_platform_tool,
     is_consequential_platform_tool, consequential_platform_family,
 )
 

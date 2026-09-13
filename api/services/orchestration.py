@@ -492,23 +492,6 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
 }
 
 # =============================================================================
-# Type Query Helpers
-# =============================================================================
-
-def get_type_capabilities(agent_type: str) -> list[str]:
-    """Return the capability list for an agent type.
-
-    ADR-272 → ADR-417 follow-on: PRODUCTION_ROLES is now empty; unknown roles
-    return an empty capability list — the caller treats this as "no special
-    tools" rather than silently inheriting a wrong role's surface.
-    """
-    resolved = resolve_role(agent_type)
-    type_def = ALL_ROLES.get(resolved)
-    if not type_def:
-        return []
-    return type_def["capabilities"]
-
-# =============================================================================
 # ADR-207 P3: Capability Availability Gate
 # =============================================================================
 
