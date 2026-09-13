@@ -54,12 +54,14 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 - Genesis no longer needs `GET /api/workspace/state`; its remaining payload (program lifecycle,
   substrate_status) has no live reader except `/settings` behind a swallowed catch.
 
-## Files (ADR-649, 2026-09-12)
-- **No current thesis suite** (evaluations): the steward suite retired 2026-09-13; the runner's
+## Evaluations (2026-09-13)
+- **No current thesis suite**: the steward suite retired 2026-09-13; the runner's
   measured turn is now `send_message` (a lane turn). Cutting the next one is a Hat-B decision with a cost
   line — candidates: the register (ADR-638), the skills index (ADR-630). `DECLARED_CURRENT` in
   `test_eval_suite_gate.py` + the README registry go together. The `scenarios/` corpus still spells
   steward-era setup; a corpus pass belongs to whoever cuts that suite.
+
+## Files (ADR-649, 2026-09-12)
 - Rig `anr-scout@yarnnn.com` (ws `4023cb7b`) now holds `operation/first-folder/` from the click-pass; trash it
   if a cold rig is wanted. `testacct` owns a workspace too — its "owns nothing" note in
   `browser_login_link.py` is stale.
@@ -87,7 +89,6 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 `test_adr224_kernel_boundary` (5 red: the alpha-trader bundle's task-type templates) ·
 `test_adr299_kernel_universal_capability` (1 red: `test_handler_refuses_llm_supplied_addressee_fields`) ·
 `test_adr353_composio_isolation` (1 red: the `_FakeQuery` fixture has no `.limit`) ·
-`test_eval_suite_gate` (an ADR-518 manifest missing `restore:`) ·
 `test_adr614_cast_follows_the_registration` (3 red: cast seeding + persisted engine) ·
 `test_adr346` / `test_adr349` (retire or re-anchor on ADR-603) ·
 `test_adr404_member_invites` (1 red: greps the literal "Only the workspace owner can manage invites" in
