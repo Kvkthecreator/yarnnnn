@@ -70,8 +70,6 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   default sender (rate-limited, unbranded — the ADR-498 "least branded first contact" failure). Re-template
   the four to the shell's look; record the state in `docs/database/ACCESS.md`. Receipt: the 2026-09-12
   email sign-up sat unconfirmed.
-- **Live receipt owed**: the next cold sign-up against prod should leave an `account` row in
-  `notifications` and a welcome in a real inbox (`probe_cold_user_genesis.py` is the instrument).
 - **Security-change mail** (the next tenants of the `account` kind, one hook each): a new AI connection
   on the OAuth code path (`_ensure_foreign_llm_grant`), a credential connected/removed on Reach, BYOK set
   or cleared.

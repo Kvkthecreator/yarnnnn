@@ -157,7 +157,18 @@ third exemption) and stays green at 41/41.
 ## 5. Verification
 
 Gates run green after the change: ADR-650 48/48 · ADR-593 41/41 · ADR-498 · ADR-489 52/52 · ADR-465
-15/15 · genesis 38/38 · ADR-410 44/44 · ADR-431 7/7 · ADR-605 55/55. `cd web && pnpm build` clean. The
-live receipt is owed by the next cold sign-up against production: an `account` row in the transport
-ledger and a welcome in a real inbox — the same probe that surfaced the genesis defects on 2026-09-12
-(`api/scripts/operator/probe_cold_user_genesis.py`) is the instrument.
+15/15 · genesis 38/38 · ADR-410 44/44 · ADR-431 7/7 · ADR-605 55/55. `next build` clean.
+
+**Live receipt (2026-09-13 00:3x UTC, deploy `dep-daiurf5ckfvc739d70o0` on `yarnnn-api`, commit `96b54b9`
+carrying `e5a27a6`).** `probe_cold_user_genesis.py --email delivered@resend.dev` against production: a
+genuinely cold principal (`ca558a76…`) → one ordinary authenticated call minted the workspace and the owner
+grant → the lane opened with its cast → and the ADR-650 step:
+
+```
+PASS  5 the mint dispatched the welcome (ADR-650: one account transport row)
+      row={'status': 'sent', 'message': 'Welcome to yarnnn', 'error_message': None}
+ALL PASS — 7/7
+```
+
+The row was cascaded away with the probe user at teardown, as D3 predicts; the probe is the only reader that
+sees it, which is why the probe carries the check.
