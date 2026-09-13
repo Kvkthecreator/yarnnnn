@@ -9,7 +9,7 @@ Rulings already applied this day: `test_adr388` re-anchored (14/14) · `test_adr
 entity layer, is gone) · `test_adr477` re-pointed to the moved StudioCanvas · `test_adr647` derived from the
 one-home rule · `test_eval_suite_gate` green (browser manifests restorable) · `test_adr565` + `test_adr567`
 deleted (their subject, the radar app, was deleted by 15403f1 on 2026-08-21 — "radar deleted, docs hidden") ·
-`test_quality_e2e` deleted (a smoke test of the task pipeline ADR-231 dissolved; it imported `services.task_types`) · the seven `test_studio_*` gates re-anchored (2026-09-13): six failures were one root cause — write messages and the crumb label became `${app.label}` (ADR-636/599) — plus the shared submit rule (ADR-483 D3), the explicit host of `splitHalves`, the sixth reload site (the member-pressed reload control); the flow-root Tab checks retired (ADR-560 D8) and the toolbar's gallery-dismissal check retired (ADR-586 D1/616 D1/589 D3) — every re-anchor falsified in-process · `test_adr455` re-anchored (19/19): the navigator's desktop toggle is a pane slot gated by `threeColumn` (ADR-511/516), not `md:hidden`; falsified.
+`test_quality_e2e` deleted (a smoke test of the task pipeline ADR-231 dissolved; it imported `services.task_types`) · the seven `test_studio_*` gates re-anchored (2026-09-13): six failures were one root cause — write messages and the crumb label became `${app.label}` (ADR-636/599) — plus the shared submit rule (ADR-483 D3), the explicit host of `splitHalves`, the sixth reload site (the member-pressed reload control); the flow-root Tab checks retired (ADR-560 D8) and the toolbar's gallery-dismissal check retired (ADR-586 D1/616 D1/589 D3) — every re-anchor falsified in-process · `test_adr455` re-anchored (19/19): the navigator's desktop toggle is a pane slot gated by `threeColumn` (ADR-511/516), not `md:hidden`; falsified · `test_adr456_studio_wave2` re-anchored (21/21): the format bar is ADR-521's two-pass applier (`applyToggle`/`applyCode`, `execCommand(cmd)`), the write-door normalisation is ADR-527's table, turn-into is `turnBlockInto` through `applyOp` at both sites; three falsified.
 Environment, not defects:
 `test_adr573_connector_workspace_binding` and `test_adr584` are py3.11-only (green under `python3.11`).
 
@@ -54,7 +54,6 @@ Environment, not defects:
 | `test_adr449_design_system.py` | script | drift — re-anchor or retire (needs its own ruling) | PASS  setting a default VALIDATES the manifest resolves and writes through the one door (w |
 | `test_adr452_studio_landing.py` | script | drift — re-anchor or retire (needs its own ruling) | PASS  lane_runner threads artifact_path into the skill section |
 | `test_adr453_property_layer.py` | script | drift — re-anchor or retire (needs its own ruling) | - toolbar: the page-verb pair (New ‹noun› · Layout), carry-note shared (ADR-466 D5) |
-| `test_adr456_studio_wave2.py` | script | drift — re-anchor or retire (needs its own ruling) | FAILED: |
 | `test_adr458_studio_hover_layer.py` | script | drift — re-anchor or retire (needs its own ruling) | - the File verbs ride the SHARED implementation (useFileOrganizeVerbs) |
 | `test_adr459_artifact_identity.py` | script | drift — re-anchor or retire (needs its own ruling) | FAIL |
 | `test_adr462_context_menu.py` | script | drift — re-anchor or retire (needs its own ruling) | FAIL: 47/54 checks |

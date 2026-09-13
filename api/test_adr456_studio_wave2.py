@@ -47,11 +47,20 @@ def run() -> bool:
            "document.body.appendChild(fmtBar)" in proj
            and ".yarnnn-fmt" in proj)
     _check("B/I ride execCommand with styleWithCSS off (tags, not styles)",
-           "execCommand('bold')" in proj and "execCommand('italic')" in proj
+           # (Re-pinned 2026-09-13: ADR-521 made the format bar a two-pass,
+           #  multi-segment applier — the command is the variable `cmd`, fed by
+           #  applyToggle('bold'|'italic'); styleWithCSS is still off.)
+           "applyToggle('bold')" in proj and "applyToggle('italic')" in proj
+           and "document.execCommand(cmd);" in proj
+           and "document.queryCommandState(cmd) !== intent" in proj
            and "'styleWithCSS', false, 'false'" in proj)
     _check("code is a range wrap (surround, extract+insert fallback)",
-           "wrapSelection('code')" in proj and "surroundContents" in proj
-           and "extractContents()" in proj)
+           # (Re-pinned 2026-09-13: wrapSelection became applyCode under ADR-521;
+           #  the wrap and its fallback are per segment.)
+           "function applyCode()" in proj
+           and "else if (op === 'code') applyCode();" in proj
+           and "seg.range.surroundContents(wrap)" in proj
+           and "seg.range.extractContents()" in proj)
     _check("link = the bar's input; createLink on the SAVED range",
            "execCommand('createLink', false, url)" in proj
            and "savedRange" in proj)
@@ -65,8 +74,11 @@ def run() -> bool:
     _check("pointer runtime ignores the bar's clicks",
            "closest('.yarnnn-fmt')) return;" in proj)
     _check("b/i normalize to strong/em at the write door",
-           "querySelectorAll('b, i')" in ops
-           and "el.tagName === 'B' ? 'strong' : 'em'" in ops)
+           # (Re-pinned 2026-09-13: the ternary became a table when ADR-527 D1
+           #  added strikethrough. Anchor on the declaration line, not the words
+           #  "strong/em" — the file's own comment block spells them out.)
+           "const NORMALIZE: Record<string, string> = { B: 'strong', I: 'em', STRIKE: 's' };" in ops
+           and "holder.querySelectorAll('b, i, strike')" in ops)
 
     # ── 2. Slash-insert ──────────────────────────────────────────────────
     # The gesture evolved twice after W2 shipped and this section now pins the
@@ -122,8 +134,14 @@ def run() -> bool:
            and "isConvertible(" in design
            and "onTurnInto" in design)
     _check("surface routes turn-into through the one door (applyOp)",
-           "handleTurnInto" in surface
-           and "Studio: turn block into" in surface)
+           # (Re-pinned 2026-09-13: handleTurnInto → turnBlockInto (759eefe, the
+           #  kernel left its Studio-named housing); the message is `${app.label}: …`
+           #  (ADR-636/599). Both sites reach the one door, applyOp → convertBlock.)
+           "const turnBlockInto = useCallback(" in surface
+           and len(re.findall(
+               r"void applyOp\(\s*\n\s*\(html\) => convertBlock\(html, blockId, \w+(?:\.\w+)?, \w+(?:\.\w+)?\),\s*\n\s*`\$\{app\.label\}: turn block into \$\{[\w.]+\}`",
+               surface,
+           )) == 2)
 
     print()
     failed = [label for label, ok in _results if not ok]
