@@ -2,7 +2,7 @@
   "_doc": "Last-validated SHA per verification lane. Read by .claude/hooks/verification-radar.sh (SessionStart); updated by .claude/hooks/mark-validated.sh <lane>... AFTER a lane's exit criteria (docs/evaluations/VERIFICATION.md) are met. Committed so validation state survives sessions.",
   "lanes": {
     "prompt": {
-      "sha": "05b6cdf",
+      "sha": "b78c3e5",
       "at": "2026-09-13"
     },
     "api": {
@@ -14,7 +14,7 @@
       "at": "2026-09-13"
     },
     "migrations": {
-      "sha": "43babc0",
+      "sha": "b78c3e5",
       "at": "2026-09-13"
     },
     "evals": {
@@ -22,8 +22,8 @@
       "at": "2026-09-13"
     },
     "claude-md": {
-      "sha": "05b9ffd",
-      "at": "2026-09-12"
+      "sha": "b78c3e5",
+      "at": "2026-09-13"
     },
     "context-budget": {
       "sha": "05b6cdf",
