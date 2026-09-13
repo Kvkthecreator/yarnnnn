@@ -32,7 +32,7 @@ at the compositor, not the kernel. Workspaces have no types.
 | Tool primitives | [primitives-matrix.md](docs/architecture/primitives-matrix.md); code registry `api/services/primitives/registry.py` |
 | How outside content reaches the commons | [intake-pipeline.md](docs/architecture/intake-pipeline.md) · [connectors.md](docs/architecture/connectors.md) |
 | The MCP connector | [docs/features/mcp/](docs/features/mcp/) |
-| Orchestration machinery | [orchestration.md](docs/architecture/orchestration.md) |
+| The end-to-end service model | [SERVICE-MODEL.md](docs/architecture/SERVICE-MODEL.md) |
 
 **Before proposing an architectural change**: `ls docs/adr/ | grep -i <topic>`, then search the ledger. If an
 external system does something differently, check whether an ADR already explains why we chose otherwise.

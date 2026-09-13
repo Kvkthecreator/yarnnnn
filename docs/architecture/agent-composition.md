@@ -1,166 +1,66 @@
-# Agent Composition — Prompts, Substrate, Versioning
+# Agent Composition — the frame, what an agent reads, and where prose goes
 
 > **Status**: Canonical.
-> **Audience**: Engineers and operators touching prompts, agent substrate, or ADRs that reshape the agent layer.
-> **Purpose**: Single reference for how YARNNN composes its agents — what each agent reads at reasoning time, how operator-authored substrate vs seat-owned substrate vs generated output separate cleanly, and how to version + document iterations so future refactors don't drift.
+> **Audience**: Engineers touching the lane frame, an app's posture, the participant constants, a skill, or an ADR that reshapes what an agent reads.
+> **Purpose**: Single reference for how YARNNN composes an agent's turn — what enters the prompt and from where, what the agent reads at reasoning time and may write, where a sentence of prompt prose belongs, and how the composition is versioned.
+> **Version**: v2.0 (2026-09-12 — the post-steward recut, ADR-596/630/632/634/638/648; v1 archived verbatim at [previous_versions/agent-composition-v1-2026-09-12.md](previous_versions/agent-composition-v1-2026-09-12.md))
 
 ---
 
 ## 1. Why this doc exists
 
-YARNNN's agent layer has iterated fast through ADR-186 (prompt profiles), ADR-194 v2 (Reviewer seat), ADR-211 (Reviewer Phase 4), ADR-212 (LAYER-MAPPING flip), ADR-216 (YARNNN reclassification + persona wiring), and ADR-217 (workspace autonomy split). Each ADR is the decision record for a specific change. None of them — nor the `api/prompts/CHANGELOG.md` that tracks prompt edits — serve as **"how does agent composition work today"**.
+The prompt layer moved fast: ADR-306 collapsed the persona frame, ADR-411 made lanes, ADR-533 made the participant contract kernel data, ADR-596 recut the agent, ADR-630 made craft a skill, ADR-632 deleted the steward's frame, ADR-634/647/648 bounded what a turn costs. Each ADR records one decision; `api/prompts/CHANGELOG.md` records each edit. Neither says *how an agent is composed today*. This doc does.
 
-This doc is that reference. It answers:
-
-- What files does each agent read, in what order, at what time?
-- What's authored by the operator vs the seat itself vs the platform?
-- What's shared between agents vs seat-bound?
-- How do we version prompts and persona content?
-- What discipline do we apply when a refactor changes the composition?
-
-Reading order: §2 the two-layer model, §3 per-agent composition, §4 operator-vs-Reviewer symmetry, §5 versioning + iteration, §6 appendix references.
+It answers, in order: what enters a turn's prompt and from where (§3.1–3.2); where a sentence of prompt prose belongs (§3.3 — the partition CLAUDE.md sends every session to); whether the assembled whole still tells one story (§3.4); what an agent reads and may write (§4); how the composition is versioned (§5).
 
 ---
 
-## 2. The two-layer model
+## 2. The layers
 
-Under FOUNDATIONS v6.0 + ADR-212 + ADR-216, every entity in YARNNN falls into one of two layers:
+Two kinds of actor (FOUNDATIONS Axiom 2, v10; ADR-596 D1):
 
-- **Orchestration layer** — mechanical, opinion-less, substrate-writing infrastructure. Schedules tasks, routes capabilities, composes prompts, dispatches runs, writes substrate, fetches platform data, handles compose/delivery, surfaces chat. Sits in Mechanism (Axiom 5) + Channel (Axiom 6). Not persona-bearing. Performance-fungible.
-- **Judgment layer** — persona-bearing Agents holding standing intent on behalf of the operator. Reason from authored persona + framework + substrate. Sits in Identity (Axiom 2). NOT performance-fungible — persona change changes output distribution.
+- **Agents** — identity ⊕ character ⊕ engine, and nothing else. One register: `AGENTS` in `api/services/agents_registry.py` (Designer · Editor · Blogger today); an app names one of them its **resident** (`register_app(resident=…)`, ADR-562), and many-to-one is free (Editor → text · slides). Authority, reach, clock, purpose and judgment live on grants, declarations and gates — never on the agent.
+- **Machinery** — kernel code executing unconditionally, attributed `system:*`: the drain loop, capture, the mirrors, the gates. Trusted because it is reviewed as code.
 
-Two members of the orchestration layer that frequently get mistaken for the judgment layer:
-
-- **YARNNN** (the chat-surface entity) — orchestration chat surface, not Agent (ADR-216 D2). Platform-fixed voice; no workspace-authored IDENTITY file. It *drives* the orchestrator; it doesn't carry persona.
-- **Production roles** (researcher, analyst, writer, tracker, designer, reporting) — orchestration capability bundles, not Agents. No persona, no standing intent.
-
-Members of the judgment layer:
-
-- **Reviewer** (systemic) — one per workspace, persona-bearing, gates irreversible writes.
-- **User-authored domain Agents** (instance) — zero-to-many per workspace, persona-bearing, operator-authored.
-- Future systemic Agents (Auditor, Advocate, Custodian, etc. per ADR-212 D1 forward-looking note).
+The **member** is the principal; a **lane** is how they act through an agent, under their own grant. Nothing an agent's own files say can widen what it may do (ADR-460 D3.a).
 
 ---
 
-## 3. Per-agent composition
+## 3. Composition
 
-### 3.1 YARNNN (orchestration chat surface)
+### 3.1 The lane frame (attended) — `build_lane_conventions`, `api/services/lane_runner.py`
 
-**Purpose**: conversational façade of the orchestrator. Operator drives the system through YARNNN.
+Composed at turn time, derived-never-stored (a stored copy would drift), from the `_CONVENTIONS_FRAME` template in this order:
 
-**Substrate reads at reasoning time**:
+| # | Section | Composed from | Rule |
+|---|---|---|---|
+| 1 | **The address** — *You are {engine}, working inside a YARNNN workspace as {member}'s hands* | `LANE_MODELS[model].label`; the member's label | the engine rides behind the agent's name (ADR-460); the member is named |
+| 2 | **The commons contract** — read-before-write · the attribution rule (*"{member} via {model}"*) · the citation rule | `PARTICIPANT_COMMONS_CONTRACT` and siblings in `api/services/workspace_paths.py` (ADR-533 D1) | kernel data; the frame never restates a clause inline — `test_adr533_participant_contract.py` asserts the composed output carries each verbatim |
+| 3 | **The filesystem model** + the reach sentence (*your reach is exactly the member's grant*) | `PARTICIPANT_FILESYSTEM_MODEL` (ADR-424/588) | Documents / Downloads are told names; the kernel resolves them at one chokepoint |
+| 4 | **Your tools** — one line naming the surface | `lane_tool_names(reach, platforms, attached)`: `LANE_TOOL_NAMES` (the file + folder verbs) + `LANE_SURFACE_EXTRA` (QueryKnowledge · WebSearch · list_integrations · GenerateImage) + the member's turn reach (ADR-615) + attached connectors' tools (ADR-635) | ONE computation feeds the declared payload, the execution allowlist and this prose (ADR-467 D4); uniform for every lane and every agent |
+| 5 | **The reach section** — the turn's edge + one line per connection; the attached section | `reach_status.frame_paragraph` (ADR-644) + `attached_connectors.frame_section` (ADR-635 D5) | rendered from the ONE reach structure the member's Reach page and `list_integrations` also read; never hand prose |
+| 6 | **Format discipline** | `PARTICIPANT_FORMAT_DISCIPLINE` (ADR-254) | |
+| 7 | **Talking to {member}** | `PARTICIPANT_REGISTER` (ADR-638) | structure rules, A/B-validated (0.00 vs 2.08 leaks/reply); governs the address, never the work; lanes only |
+| 8 | **Who else is here** — the cast, when the room holds more than two | `_build_cast_section` (ADR-495 D3) | species-blind; empty for a cast of one |
+| 9 | **The workspace's mandate** — the first 40 lines of `constitution/MANDATE.md`, when present | `_read_workspace_file` | read-only orientation; workspace intent stays on the surface that carries it (ADR-533 D6) |
+| 10 | **Posture** — the agent's character; then the app's job; then the member's place; then a skill-bound lane's derive section | `build_agent_posture(slug, as_name)` (the register; an app may rename its resident, ADR-562 D6) → `posture_for_app(app)` (`register_app(posture=…)`, ADR-606 D3; the bound artifact's head is read ONCE here) → `_compose_focus_section` (ADR-606 D1) → `build_skill_section` (ADR-450/630) | the character precedes the job; every binding APPENDS (an `=` here once ate the colleague's character); the focus is a fact about the MEMBER, rendered at one kernel site |
+| 11 | **Skills** — the INDEX only | `skills_index_section(member_skills, app, reach)` (ADR-630) | descriptions only, scoped by app and by attached reach, bounded in BYTES (two budgets); a body enters the turn when the agent reads it (DP22) |
 
-| File | Read path | Source |
-|------|-----------|--------|
-| Compact index (ADR-159) | `working_memory.format_compact_index()` | Generated from workspace state at each turn |
-| `/workspace/constitution/MANDATE.md` | Via tool reads | Operator-authored (ADR-207) |
-| `/workspace/persona/IDENTITY.md` | Via working memory + tool reads | Operator-authored (ADR-206; operator-identity collapsed into the persona seat per ADR-320 D2b) |
-| `/workspace/operation/BRAND.md` | Via tool reads | Operator-authored (ADR-206) |
-| `/workspace/operation/CONVENTIONS.md` | Via tool reads | Operator-authored (ADR-206) |
-| `/workspace/governance/AUTONOMY.md` | Via tool reads | Operator-authored (ADR-217) — informs chat reasoning about what the AI is authorized to do autonomously |
-| `/workspace/constitution/PRECEDENT.md` | Via tool reads (in compact index key files per commit `fd4917a`) | Operator-authored — durable interpretations / boundary-case resolutions |
-| `/workspace/system/AWARENESS.md` + working memory files | Via working memory | YARNNN's own orchestration state |
+After the frame comes the message history, clamped **oldest-first** in chars (`_clamp_history_chars`, ADR-648 — the cache matches a prefix, so a middle-drop costs more than it saves). The frame is the cached prefix; caching lives ONLY in `model_router._build_messages` (ADR-634/647). A binary `ReadFile` on a viewable image appends the pixels as a user-message image part, never base64 in the tool result (ADR-623).
 
-**Persona**: none. `api/agents/yarnnn_prompts/base.py::BASE_PROMPT` declares the fixed-voice interlocutor identity. There is no workspace-authored YARNNN IDENTITY file per ADR-216 D2.
+### 3.2 The standing frame (unattended) — `build_standing_frame` + `_STANDING_JOB`
 
-**Prompt composition** (per ADR-186 profile-aware assembly in `api/agents/yarnnn_prompts/__init__.py`):
+The lane frame **minus** what a toolless run and an absent principal make false, **plus** what only a run can carry (ADR-639 D1):
 
-```
-System prompt (cached, platform-fixed):
-  BASE_PROMPT ("You are YARNNN — the user's super-agent...")
-  + {workspace | entity} profile behaviors
-  + TOOLS_CORE (primitive docs, capabilities, workforce model)
-  + PLATFORMS_SECTION (platform tools)
-  + CONTEXT_AWARENESS (for workspace profile)
-User message (dynamic):
-  + {context} injection (compact index)
-  + Entity preamble (for entity profile: TASK.md, run log, output)
-  + User's turn content
-```
+- **kept** — the commons contract; the attribution rule (*this run's revision attributes as standing work on {member}'s declaration*); the citation rule (the kernel records the `derived_from` edge from the declared sources); the mandate head; the executor's character (`build_agent_posture` — the same door every lane uses; the executor is the agent the declaration DERIVED from the target's type, never named — ADR-603 D2);
+- **removed** — the tools line (there are none), the reach section (*this run reaches nothing live*, said affirmatively), the cast, the focus, the register (there is no reply — ADR-638 D2), the skills index (a door is useless to a caller with no ReadFile);
+- **added** — the kernel JOB (`_STANDING_JOB` in `api/services/standing_work.py`: the per-run facts + the output contract) and the craft skill's BODY, pushed in because a toolless turn cannot pull it (ADR-630 D4; a missing skill degrades craft, never correctness).
 
-**Profile selection** (ADR-186): `api/routes/chat.py::resolve_profile()` maps `DeskSurface.type` to `workspace` (full: onboarding, task catalog, creation) or `entity` (scoped: feedback routing, evaluate/steer/complete).
+Ratcheted like the lane frame (`test_adr639_standing_work.py`); cache-marked like every frame (ADR-634).
 
-**Model**: Claude Sonnet 4.6, streaming.
+### 3.3 Partition discipline — where prompt prose goes
 
----
-
-### 3.2 Reviewer (systemic persona-bearing Agent)
-
-**Purpose**: gates irreversible writes. Reads proposed actions + substrate + persona + framework, renders approve/reject/defer.
-
-**Substrate reads at reasoning time** (per ADR-216 Commit 2 + ADR-217 Commit 2):
-
-| File | Read at | Source |
-|------|---------|--------|
-| `/workspace/persona/IDENTITY.md` | Reviewer agent (`freddie_agent.py::_build_user_message`) | Operator-authored (ADR-216 D4). Declares the persona. |
-| `/workspace/persona/principles.md` | Reviewer agent | Operator-authored. Declares the framework (checks + narrowing conditions). |
-| `/workspace/constitution/PRECEDENT.md` | Reviewer agent (v4 prompt, `freddie_agent.py`) | Operator-authored (commit `fd4917a`). Durable interpretations / boundary-case rules. Overrides conflicting clauses in `principles.md` — precedent always wins when the two disagree. |
-| `/workspace/governance/AUTONOMY.md` | Dispatcher (`review_proposal_dispatch.py` + `review_policy.py::load_autonomy`) | Operator-authored (ADR-217). Declares the delegation ceiling — NOT read by the Reviewer agent itself; enforced by the dispatcher before invocation. |
-| `/workspace/operation/{domain}/_operator_profile.md` | Reviewer agent | Operator-authored. Strategy + style context. |
-| `/workspace/operation/{domain}/_risk.md` | Reviewer agent | Operator-authored. Hard floors. |
-| `/workspace/operation/{domain}/_money_truth.md` | Reviewer agent | Reconciler-generated (ADR-195 v2). Track record. |
-| The proposal itself | Reviewer agent | `action_proposals` row passed in by dispatcher. |
-
-**Persona**: operator-authored in `/workspace/persona/IDENTITY.md`. Platform provides a generic default at signup (neutral skeptical baseline); operator overwrites to embody a specific character (Simons, Buffett, Deming, etc.). The Reviewer agent reads this file as the *opening* section of its user message, so persona shapes reasoning from the first token.
-
-**Prompt composition** (in `api/agents/freddie_agent.py`):
-
-```
-System prompt (fixed, platform-authored, v4):
-  _SYSTEM_PROMPT
-    - "You are the independent judgment seat..."
-    - Substrate list (IDENTITY, principles, PRECEDENT, risk, operator_profile, performance, proposal)
-    - Persona vs framework vs substrate separation
-    - Autonomy delegation (ADR-217): dispatcher enforces ceiling;
-      framework (principles + precedent) can narrow never widen
-    - Precedent hierarchy: precedent wins over conflicting principles
-    - Decision categories (approve/reject/defer)
-    - Reasoning expectations (upside/downside, asymmetry, edge fit)
-User message (dynamic, dispatcher-assembled):
-  1. ## /workspace/persona/IDENTITY.md — Your persona
-  2. ## Proposed action
-  3. ## /workspace/persona/principles.md
-  4. ## /workspace/constitution/PRECEDENT.md — Operator-declared durable interpretations
-  5. ## Operator profile (if present)
-  6. ## _risk.md (if trading)
-  7. ## _money_truth.md (if domain has track record)
-  8. ## Instruction (call return_review_decision tool once)
-```
-
-Order is load-bearing: persona → framework (principles + precedent) → substrate. PRECEDENT lands between principles and substrate so operator interpretations filter substrate reasoning. Changes defer/approve boundaries legibly across different personas + across workspaces with different precedent accumulation.
-
-**Eligibility gate** (runs before the Reviewer agent, in `review_proposal_dispatch.py`):
-
-1. Resolve `context_domain` from `action_type`.
-2. Load AUTONOMY.md via `review_policy.load_autonomy()`.
-3. Resolve `autonomy_for_domain(autonomy, context_domain)` — returns per-domain policy or `default` fallback.
-4. `is_eligible_for_auto_approve(autonomy_policy, action_type, estimated_cents, reversibility)` — returns `(eligible, reason)`.
-5. If ineligible → observe-only path (decisions.md entry with `reviewer_identity="reviewer-layer:observed"`). Seat stays open for human occupant.
-6. If eligible → AI Reviewer invocation + auto-execute on approve.
-
-The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces the ceiling; the Reviewer reasons on merits. This keeps persona reasoning unclouded by the delegation mechanics.
-
-**Narrowing rule** (ADR-217 D4): principles.md can add defer conditions on top of the eligibility gate. The system prompt tells the persona explicitly: "Your principles can narrow delegation (add defer conditions) but never widen it. Apply the stricter."
-
-**Seat rotation** (ADR-194 v2 + ADR-211): OCCUPANT.md + handoffs.md track who is currently filling the seat. `rotate_occupant()` is the single write path. Rotation does NOT touch IDENTITY.md, principles.md, or AUTONOMY.md — those are operator-authored content that survives seat changes.
-
-**Model**: Claude Sonnet 4.6, forced-tool-call (`return_review_decision`), max 1024 output tokens.
-
-**Identity string**: `FREDDIE_MODEL_IDENTITY` (currently `ai:freddie-sonnet-v3`). Bumped on any material prompt change. Persisted on every decisions.md entry + action_proposals.reviewer_identity. Used for calibration cohort separation.
-
----
-
-#### 3.2.1 Partition discipline: where prompt prose goes
-
-> **Re-cut 2026-09-07 for the post-steward frame (ADR-632).** CLAUDE.md's
-> prompt-change protocol sends every session here for *"where does this prose
-> go"*. The partition this section governed until 2026-09-02 was between a
-> program's `principles.md` and the steward's persona-frame in `api/agents/`;
-> that frame is DELETED, and the composition sites are now the lane frame
-> (`services/lane_runner.py::build_lane_conventions`), the app postures
-> (`register_app(posture=…)`), the kernel participant constants
-> (`services/workspace_paths.py`) and the skills (`services/skills/`). The
-> pre-ADR-632 text is preserved verbatim below as the historical record.
+> CLAUDE.md's Prompt change protocol sends every session here for *"where does this prose go"*. The composition sites are the lane frame (`build_lane_conventions`), the standing frame, the app postures (`register_app(posture=…)`), the kernel participant constants (`api/services/workspace_paths.py`) and the skills (`api/services/skills/`).
 
 **The one-line statement.** *A sentence goes where the fact it states is
 owned, and it is written once.* Grammar is owned by a registry, the contract
@@ -205,346 +105,76 @@ WORKS (ADR-365 shipped a ratified directive an A/B later falsified).
   (three toolbar doors) and gated — and no lane knew them, because a toolbar
   is not a composition site.
 
-##### Historical record — the pre-ADR-632 partition (`principles.md` vs. the persona-frame), verbatim
+#### The four-field rule shape
 
-> This is the boundary the section governed while the steward existed. It is
-> kept because bundle reference-workspaces and older ADRs cite it, and because
-> the four-field rule shape is still how a `principles.md` is written. **Do not
-> derive current placement from it** — the frame it partitions against is gone.
+A rule of judgment, wherever it lives (a program's `principles.md`, a skill that carries a contract), has four fields: a **name**; the **substrate it reads against**; a **pass condition**; the **consequence** on fail. A rule with no substrate anchor is floating — either runtime interface (→ the frame) or pedagogy (→ the guide, a skill). The pre-ADR-632 partition this shape came from — a program's `principles.md` against the steward's persona-frame — is archived verbatim with v1; do not derive current placement from it.
 
+### 3.4 Composed coherence
 
-> **⚠ ADR-414 amendment (2026-07-07):** the partition now applies **per altitude**. For the **system agent** (Freddie), *both sides collapse into the kernel*: its identity/mandate/principles are kernel constants (ADR-414 D2) — there is no seeded steward `principles.md` to partition against, and the persona-frame carries the steward self-model + action-grammar only. The partition below governs **Altitude-3 agents** (hired persona agents + user-authored domain Agents): *their* `agents/{slug}/principles.md` is the rule-set, *their* envelope carries the judgment load-out, and the frame stays minimal (DP22). Bundle-template edits therefore target the hired agent's home, never `/workspace/persona/`.
+Partition (§3.3) keeps each piece in its lane. Coherence asks whether the **assembled whole** still tells one story consistent with FOUNDATIONS: an agent is the member's hands in a shared commons, acting under the member's grant; it writes only to the commons and only through attributed tool calls; it never schedules, dispatches, or reaches out on its own (Axiom 1 §4 — the substrate is the bus; Axiom 2 — an agent holds no authority). A document set can pass the partition and fail this: every clause in its lane, yet the frame implying two action-grammars. **The model resolves a contradiction toward the more vivid, more repeated grammar — usually the wrong one** (the 2026-05-29 confabulation finding, archived with v1).
 
-> **This subsection is the singular enforcement home for the principles ↔ persona-frame partition.** When you are about to add content to `/workspace/persona/principles.md` (in a bundle template, in a per-workspace seed, or in a doc that prescribes principles content), this is the test. When you are about to add content to a `_compute_*` section of `api/agents/freddie_agent.py`'s persona-frame, this is the test. Other canon files (`reviewer-seat-substrate.md`, `reviewer-occupant.md`, ADR-194 v2, ADR-217, ADR-293, ADR-295, ADR-303, ADR-315) defer to this clause on the partition question — they describe the seat, the occupant, the autonomy gating, the self-amendment capability, the posture taxonomy, but the *content boundary between principles.md and the persona-frame* is governed here.
+**Diagnostic**: read the assembled frame as one document. Does it tell a single story about (a) what the agent is, (b) how it acts, (c) where its agency ends?
 
-**The one-line statement** (already canonized at §4.2 line 227 and §3.2 substrate table):
-> **`principles.md` is the rule-set the persona applies.** Persona is *how to reason*; mandate is *why we exist*; autonomy is *how far decisions bind*; principles is *what the rules of judgment are*.
+**Enforcement is layered.** Structural gates assert the composed OUTPUT carries each clause (`test_adr533_participant_contract.py`, `test_adr638_register.py`, the size ratchets in `test_adr632_the_seat_retires.py` §5, `test_adr630_skills.py`). A composition gate proves a clause is COMPOSED; only a probe proves it WORKS — ADR-365 shipped a ratified directive an A/B later falsified, and ADR-638's register only earned its bytes by measuring.
 
-**The four-field rule shape.** Every rule declared in `principles.md` must have:
+---
 
-1. **Name** — a stable identifier for the rule (e.g. `voice-fingerprint-match`, `anti-slop`, `text-continuity`, `entity-continuity`, `cadence-on-pace`).
-2. **Substrate it reads against** — the file path or signal the rule evaluates (`_voice.md`, `entities/{slug}.md::What's been established`, `_preferences.yaml::cadence` × `_signal.md::last-ship-date`, etc.). A rule with no substrate-anchor is floating. Note (post-2026-05-29 collapse): "floating" no longer means "move it to the persona-frame" — the frame holds only principal-shift + action-grammar. A floating clause is either a model-runtime-interface concern (→ minimal frame) or substrate pedagogy (→ `_workspace_guide.md`); it is not reasoning-posture-for-the-frame, because that category was retired.
-3. **Pass condition** — what state of that substrate means the rule passes.
-4. **Verdict on fail** — `approve` (the rule isn't load-bearing for this verdict shape) / `defer` (with directive shape — what the operator-facing directive should contain) / `reject` (unconditional) / `propose` (Reviewer must emit an action_proposal).
+## 4. What an agent reads, and what it may write
 
-A `principles.md` rule that does not fit this shape is mis-placed content — it belongs elsewhere per the boundary below.
+### 4.1 Reads — attended
 
-**What belongs in `principles.md` vs. the minimal frame — bright-line content boundary (INVERTED 2026-05-29 by the persona-frame collapse, ADR-306).**
-
-> **Prior framing (pre-2026-05-29), now superseded**: an earlier version of this boundary placed self-amendment discipline, anti-patterns, the fiduciary principle, the posture taxonomy, cadence-trifecta, wake-context discipline, write-authority, and voice in the persona-frame `_compute_*` sections, treating them all as "reasoning posture" that did NOT belong in principles.md. The persona-frame collapse (`2026-05-29-persona-frame-collapse-ablation.md`) found that most of those are either **rules of judgment** (they fit the four-field shape → they ARE principles.md content) or **substrate pedagogy** (→ `_workspace_guide.md`, ADR-281) or **code-enforced** (→ no prose needed). The system-authored frame collapsed to the MINIMAL two-thing shape below. The boundary is re-stated accordingly.
-
-The system-authored **minimal frame** (`api/agents/freddie_agent.py::_compute_minimal_frame`, ~3.5K chars) carries ONLY two things — neither of which is the operator's to declare:
-
-| In the minimal frame (system-authored, irreducible) | Why it cannot live in substrate |
-|---|---|
-| **Principal-shift** — "you are this workspace's installed agent acting on behalf, not an assistant awaiting instruction" (ADR-383: the *systemic* self-model is the **steward** / system agent — judgment is the program-activated role the agent routes to via its MANDATE/principles.md) | Corrects the *model's trained assistant prior*. A model reading IDENTITY.md through its assistant prior becomes "a helpful assistant playing the persona." This is a property of installing an *agent* over an assistant-trained model — not an operator declaration. Post-ADR-383 the shift leads with the steward and routes to judgment by MANDATE, rather than asserting a judgment self-model over every workspace. |
-| **Action-grammar** — tool-call-IS-action + anti-confabulation + read-fresh-not-cached + close-cycle-with-verdict-or-standing-intent + the rung-agnostic obligation-pointer ("a wake is a situation; apply what your principles.md says you owe") | The agent↔runtime interface contract (how tool calls relate to reality), not data the agent reasons over. The cc8e0ab fix, proven load-bearing. The obligation-pointer (ADR-383) replaced the capital-flavored standing-obligation/aperture/floor block, whose *content* is now each agent's principles.md (§3.2.1 amendment in §4.4). |
-
-**Everything else is `principles.md` (rules of judgment) or `_workspace_guide.md` (substrate pedagogy) or code (gates):**
-
-| Concern | Canonical home (post-collapse) | Why |
+| What | How | Note |
 |---|---|---|
-| When the Reviewer may amend operator-canon (the four evidence patterns) | **`principles.md`** | A rule of judgment: name (calibration-drift / near-miss / substrate-gap / cadence), substrate-anchor (ground-truth file), pass-condition (threshold met), verdict (amend / defer). Numeric thresholds in `_principles.yaml` (ADR-254). |
-| Anti-patterns — when NOT to amend operator-canon | **`principles.md`** | Rules of judgment (when NOT to act). The autonomy-safety discipline lives here, rendered every wake under "## principles.md". |
-| Fiduciary principle + counterweight | **`principles.md`** | The active-vs-passive judgment rule. |
-| Independence (judgment vs producer-agreement) + reason-before-autonomy-filter + precedent-hierarchy | **`principles.md`** (posture) + **code** (the dispatcher applies AUTONOMY post-verdict regardless of prose) | Independence is a rule of judgment; the AUTONOMY-application mechanism is code-enforced. |
-| When to Clarify vs decide | **code** (the ask-gate, ADR-352) + **`principles.md`** (the (B)-classification rule) | *Availability* of asking is code-enforced: `resolve_permission` derives APPLY/DENY for `Clarify` from the witness dial (`_autonomy.yaml`) — under `autonomous` asking is denied unless `structural_gap=true` (the ADR-344 (B) escalation). The *rule of judgment* (what makes a gap (B)-shaped) stays in `principles.md`. The minimal frame keeps only a one-clause pointer at the enforcement (the anti-enumerate sliver shrank further — ADR-352 moved it from persuasion to the gate, like write-locks). |
-| Posture taxonomy (P1–P5) + standing-intent every-cycle contract | **code** (dispatcher synthesizes P4/P5 fallback) + **minimal frame** (the model-facing rule compresses to "close every cycle with a verdict or a standing_intent write") | The cycle-exit shape is a Reviewer↔dispatcher runtime concern; the dispatcher half is code, the model half is one line in the frame's action-grammar. |
-| Cadence-trifecta / wake-context / pulse-files / preferences semantics | **`_workspace_guide.md`** (ADR-281 substrate pedagogy) + **the envelope's labeled headers** | The model reads `_pace.yaml`/`_autonomy.yaml`/`## Wake context` from the envelope under their own headers; the workspace guide teaches what each is for. The frame does not re-narrate them. |
-| Write authority + locks | **code** (`DEFAULT_REVIEWER_WRITE_LOCKS` + `_is_path_locked_for_reviewer`) | Enforced by the lock-set; the tool result reports a lock. No prose enumeration needed (one sentence in the frame notes locks exist). |
-| Voice and narration | **minimal frame** (action-grammar) | First-person + narrate-your-direction is part of the interface contract. |
-| Register of operator-facing text (ADR-365 — register follows consumer) | **deterministic render surfaces (code), NOT the frame** | ADR-365 first tried a frame *directive* ("write for the operator, not yourself"); an A/B eval ([`2026-06-24-adr365-register-ab-FALSIFICATION.md`](../evaluations/2026-06-24-adr365-register-ab-FALSIFICATION.md)) **falsified it** — a soft prose directive does not measurably move the model's free-prose register, and the motivating jargon lives in `standing_intent`, a forward-reasoning surface §D5 leaves the agent free to reason in canon within. **Do not re-add a register directive to the frame.** The operator-legibility lever is the surfaces the system renders deterministically (the hard-coded feed narration strings — `reviewer_chat_surfacing.py`, made plain by construction) and, for raw forward-reasoning files, a composed plain-English projection rendered FROM them (ADR-340 "compose few"), never a frame self-censorship directive. |
-| Citation binds to Source, not internal path (ADR-357 / DP31) | **minimal frame** (action-grammar, one clause) + **`principles.md`/bundle spec** (the per-program sourcing rule) | The *interface-grammar* — cite the observation's `source_ref` (where it came from in the world), never the internal filesystem path (where the distilled copy lives) and never `authored_by` (who recorded it); a claim with no resolvable Source does not ship — is frame-resident, the same category as "cite what drove your verdict" (it makes provenance legible, it is not a rule of judgment). The per-program *sourcing rule* ("a number/claim that cannot be traced to a Source does not ship") lives in `principles.md` / the bundle authoring spec, replacing any "trace to a workspace file" phrasing (the exact internal-path confusion DP31 forbids). |
-| Calibration loop | **`principles.md`** (the loop's rule) + ADR-195 reconciler (the mechanism) | |
-| Workspace-lifecycle phase gates | **`AUTONOMY.md`** + per-program tuning | Operator-declared lifecycle policy. |
-| **The recurrence prompt** (the wake's named task — `_recurrences.yaml` `prompt:`) | **operator-instruction-only** (ADR-354) | A judgment-mode recurrence prompt carries ONLY *what to evaluate / produce* + the *order form* (tool contract). It does NOT re-script cycle-closing (the frame owns "close with a verdict or a standing_intent write"), does NOT re-state principles (`principles.md` is in the envelope), does NOT re-teach substrate (→ `_workspace_guide.md`), and especially does NOT script a terminal "else → stand down" branch — that pre-empts the standing-obligation (DP30) reasoning the frame owns, and the concrete procedure beats the thin frame (the 2026-06-22 full-autonomy probe). This is the ADR-306 collapse principle applied to the recurrence layer: framework prescribes minimally (ADR-261 D1), the prompt encodes only the operator's intent. A rule a prompt asks the Reviewer to evaluate must reference only fields the **perception field** emits (DP27 / ADR-335) — a rule naming an absent field is structurally unevaluable and the occupant will rationalize the gap rather than recognize it (CI-checked, ADR-354 D3). |
+| the bound artifact's head | read once into the frame; re-read every turn | the OBJECT comes from the substrate, the PLACE from the focus declaration (ADR-452/606) |
+| the workspace's mandate | the frame's orientation section | first 40 lines only |
+| any file | `ReadFile` — capped, with a notice and a real `offset` | ADR-648: the clip is not the feature, the notice is |
+| the commons by meaning | `QueryKnowledge` · `SearchFiles` · `ListFiles` | |
+| its own memory | `agents/{slug}/memory/` — ordinary substrate it also writes | ADR-624 |
+| a kernel skill's body | `ReadFile` of `system/skills/{slug}/SKILL.md` | ADR-630 |
+| the web; the member's connections | `WebSearch`; turn reach under the member's own credential | ADR-615/577 — an agent is refused a credential of its own |
+| an image | the pixels ride a user-message image part | ADR-623 |
 
-**Conflict-resolution rule.** When two reads disagree on a verdict:
+### 4.2 Reads — unattended
 
-1. `PRECEDENT.md` > `principles.md` — operator-declared durable interpretations override the framework.
-2. **`principles.md` is authoritative for rules of judgment** (including self-amendment evidence-patterns + anti-patterns + independence). The minimal frame does NOT carry these — it carries only principal-shift + action-grammar — so there is no frame-vs-principles conflict on rules of judgment to resolve (the prior framing's "persona-frame > principles for reasoning-posture" rule is retired; the frame no longer holds reasoning-posture content).
-3. `AUTONOMY.md` ceiling > `principles.md` *for delegation widening*. Principles can narrow delegation (add defer conditions) but never widen (ADR-217 D4). The ceiling is code-enforced.
+The target's head and the declared sources, in the message; nothing else (toolless — ADR-603/639).
 
-**Bundle-template + per-workspace audit checklist.** Before editing a `docs/programs/{slug}/reference-workspace/persona/principles.md` or forking it:
+### 4.3 Writes
 
-- Every section declares either (a) a rule with the four-field shape (now INCLUDING the self-amendment evidence-patterns + anti-patterns + independence + fiduciary rules), (b) the conflict-resolution rule, or (c) a brief workspace-lifecycle phase pointer. If it doesn't fit, it's mis-placed.
-- Numeric thresholds live in `_principles.yaml` (ADR-254). Prose category declarations may live in principles.md; the numbers per program live in yaml.
-- No section describes the **principal-shift** or the **action-grammar** — those are the minimal frame's two irreducible things. (This is the inverse of the prior checklist item.)
+Every write is an attributed revision through `write_revision` (ADR-209): `member:{user_id} via {model}` in a lane, `system:standing` for a run. What an agent MAY write is the member's grant, decided at one chokepoint (ADR-643), minus the locked residue — its own grant sidecars, `system/`, the principal homes (ADR-624). A write on an artifact is a judged act (ADR-612/613). A consequence beyond the substrate — executing a proposal, publishing — is the member's click or the witness gate (ADR-307/405/628); an agent never binds it alone.
 
-**Diagnostic test** (use this when uncertain): *Is this content (a) correcting the model's assistant prior, or (b) the agent↔runtime interface contract?* If yes → minimal frame. Otherwise: *does it name a rule with a substrate-anchor + pass-condition + verdict?* If yes → `principles.md`. *Does it teach what a substrate file is for?* → `_workspace_guide.md`. *Is it enforced by a gate?* → code, no prose. *Is it telling the Reviewer what to evaluate/produce on a specific scheduled wake?* → the recurrence `prompt:`, and ONLY that — never the close, never re-stated rules (ADR-354). The persona-frame is NOT a home for anything that fits the latter four — that is the anti-rebloat constraint (FOUNDATIONS Derived Principle, added by the collapse). And the symmetric constraint added by ADR-354: a recurrence prompt is NOT a home for cycle-closing, rules of judgment, or substrate pedagogy — those have their own homes and re-scripting them in the prompt makes the concrete procedure compete with (and beat) the surfaces that own them.
+### 4.4 Two axes, stated once — authority vs vocabulary
 
----
-
-#### 3.2.2 The composite prompt-governing substrate + composed-coherence discipline
-
-> **This subsection names a category §3.2.1 does not cover.** §3.2.1 governs *partition* — the boundary between two members of the set so they don't overlap. This subsection governs *composed coherence* — whether the **assembled whole** tells one consistent story about what the Reviewer is and where its agency ends, **consistent with FOUNDATIONS**. Partition is "does each piece stay in its lane?"; composed coherence is "does the lane-respecting whole still hold together against the axioms?" A document set can pass §3.2.1 and fail §3.2.2: every piece in its lane, yet the assembled frame contradicts canon.
-
-**The category.** The Reviewer's runtime behavior is governed not by one document but by a **dispersed set** — the operator's "CLAUDE.md, split intentionally across substrate." It is one auditable category with one owned property (coherence). Its members:
-
-| Member | Authored by | Home | Class |
-|---|---|---|---|
-| `MANDATE.md` | operator | `constitution/` | operator-canon (why we exist) |
-| `AUTONOMY.md` + `_autonomy.yaml` | operator | `governance/` | operator-canon (how far decisions bind) |
-| `_pace.yaml` | operator | `governance/` | operator-canon (Trigger budget) |
-| `_preferences.yaml` | operator | `governance/` | operator-canon (deliverable cadence) |
-| `IDENTITY.md` | operator (overwritable) | `persona/` | persona (how to reason — character) |
-| `principles.md` (+ `_principles.yaml`) | operator (overwritable) | `persona/` | framework (what rules of judgment — §3.2.1) |
-| `PRECEDENT.md` | operator | `constitution/` | operator-canon (durable interpretations) |
-| program-specific (e.g. `_voice.md`, `_risk.md`, `_operator_profile.md`) | operator | `operation/{domain}/` | operator-canon (domain rules) |
-| minimal frame `_compute_minimal_frame` | **system** (kernel) | `api/agents/freddie_agent.py` | the two irreducible things — principal-shift (corrects the model's assistant prior) + action-grammar (agent↔runtime interface contract). NOT reasoning posture (that's principles.md post-2026-05-29 collapse). |
-
-The last row is load-bearing and easy to forget: the **system-authored minimal frame is a member of the composite set**, assembled into the same effective prompt as the operator-authored documents. A coherence audit that reads only the operator's files misses the frame. Post-collapse the frame carries only principal-shift + action-grammar (~3.5K chars, down from ~36K); the rules of judgment it used to duplicate now live solely in `principles.md` (§3.2.1 inverted boundary).
-
-**The composed-coherence property (what someone must own).** The assembled prompt must not contradict FOUNDATIONS. The two clauses most prone to violation, because they describe *what the Reviewer is and how it acts*:
-
-- **Axiom 2** — the Reviewer is an **Agent** (judgment-bearing); execution machinery is **Orchestration**. The composite must not tell the Reviewer it *is* the executor.
-- **Axiom 1 §4** — the Reviewer **directs**; the runtime **executes**; the **substrate revision is the channel** between them; the next wake reads what this wake wrote. The composite must not tell the Reviewer it performs-and-inline-observes an execution step the architecture routes elsewhere.
-
-**Diagnostic test for composed coherence** (use when editing any member of the set): *Read the assembled frame as one document. Does it tell a single consistent story about (a) what the Reviewer is, (b) how it acts, (c) where its agency ends — and is that story consistent with Axiom 1 §4 + Axiom 2?* If two members imply different action-grammars (one says "you direct," another says "you execute / your hands / write directly"), the composite is incoherent even if each member individually respects §3.2.1's partition. The model will resolve the contradiction toward the more vivid/repeated grammar — usually the wrong one.
-
-**Why this clause exists** (substrate-receipt): the 2026-05-29 finding [`docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md`](../evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md) traced a Reviewer confabulation ("I attempted the write, it was gated, it queued" — with zero substrate-receipt) to exactly this failure: `_compute_voice_and_narration` already said "narrate your **direction**" (coherent), while `_compute_identity_and_purpose` said "the System Agent is your **hands**… Decide. Act." and `_compute_write_authority` said "write **directly**" (executor self-model). Each section passed §3.2.1; the **assembled** frame held two contradictory action-grammars, and the model role-played the executor one against the architecture. The fix reconciled all sections to the directs-not-executes grammar consistent with Axiom 1 §4 + Axiom 2.
-
-**Maintenance rule.** Any edit to a member of the composite set — operator-canon *or* the system-authored persona-frame — must be checked against the composed-coherence diagnostic, not only against §3.2.1's partition diagnostic. The two are complementary gates; passing one does not imply the other. Future ADRs that reshape any composite member **must run the composed-coherence test in the same commit** — the discipline is enforced here, not re-derived.
-
-**Operational enforcement (layered — structural + behavioral).** The composed-coherence diagnostic is backed by two gates so it cannot silently drift back to prose-only diligence (which the 2026-05-29 finding proved insufficient — the confabulation survived into a *validated* session):
-
-1. **Structural gate (Hat-A, every commit)** — `api/test_reviewer_formalization.py::test_persona_frame_action_grammar_coherence` scans the assembled persona frame (`resolve_persona_frame_sections(_PERSONA_FRAME_SECTIONS)`) for the executor-self-model contradiction class. **Paired assertion**: banned executor grammar ("your hands", "write directly", "the doing") absent AND the directs-not-executes grammar present (so a *removed* fix fails too, not just an *added* regression). This catches structural reappearance of the contradiction in source. It does NOT — and cannot — judge prose coherence in general; it pins one named, axiom-anchored contradiction class.
-2. **Behavioral gate (Hat-B, periodic)** — the eval suite's **confabulation cross-check** (`docs/evaluations/EVAL-SUITE-DISCIPLINE.md` §6.2): for every action the Reviewer *narrates having taken*, verify a substrate-receipt; a narrated action with no receipt is a confabulation finding. This catches behavioral reappearance even if the structural grammar is clean. Only a live wake + transcript-vs-receipt read can do this; it is not expressible as a code gate.
-
-The two are complementary: structural is cheap and runs on every commit but only catches known-grammar regressions; behavioral is expensive and periodic but catches novel confabulation the grammar scan would miss. Neither subsumes the other.
-
----
-
-### 3.3 User-authored domain Agents (instance persona-bearing Agents)
-
-**Purpose**: operator-authored specialists for domain-scoped work (e.g. "competitive-intel researcher", "weekly-report writer"). Zero-to-many per workspace. Dispatched by tasks that name them in their `## Team` section.
-
-**Substrate reads at reasoning time** (per ADR-216 D9):
-
-| File | Read at | Source |
-|------|---------|--------|
-| `/agents/{slug}/AGENT.md` | Task pipeline (`task_pipeline.py::gather_task_context`) | Operator-authored. **Single-file persona + framework convention**: domain Agents are single-domain, so persona (character) and framework (directives) share one file. This is deliberately different from Reviewer's IDENTITY/principles split. |
-| `/agents/{slug}/memory/*.md` | Task pipeline | Agent-accumulated working memory. |
-| `/workspace/operation/{domain}/` files | Task pipeline (if `context_reads` declares the domain) | Shared accumulated context. |
-| `/workspace/constitution/*.md` + `/workspace/governance/*` + `/workspace/operation/{BRAND,CONVENTIONS}.md` + `/workspace/persona/IDENTITY.md` | Task pipeline (compact-index + on-demand ReadFile for MANDATE/AUTONOMY/IDENTITY/BRAND/CONVENTIONS) | Operator-authored standing declarations (same as YARNNN/Reviewer see). |
-| `/workspace/constitution/PRECEDENT.md` | Task pipeline (`gather_task_context` §4b — injected as "Operator Precedent" section when non-empty) | Operator-authored durable interpretations. Forces production roles to honor operator-declared boundary-case rules across task runs. |
-
-**Persona**: operator-authored in AGENT.md (single-file convention per ADR-216 D9). Seeded from the agent's `agent_instructions` DB column at first dispatch.
-
-**Prompt composition** (in `api/services/task_pipeline.py::build_task_execution_prompt`):
-
-```
-System prompt (assembled at dispatch):
-  - Agent identity (AGENT.md)
-  - Task-specific instructions (TASK.md process step)
-  - Shared context (from workspace/_shared + declared domain reads)
-  - Tool surface scoped by required_capabilities
-User message:
-  - Prior output (if task_mode implies replacement/update)
-  - Current cycle instruction
-  - Context bundle (gathered per context_reads declaration)
-```
-
-**Why the single-file convention**: domain Agents are single-domain by design. The operator authors the Agent as a single entity with character + directives combined. Splitting for its own sake would be spurious uniformity — there's no edit-cadence orthogonality to preserve (persona and framework change together when the operator re-authors the Agent). See ADR-216 D9 for the full rationale.
-
-**Model**: Claude Sonnet 4.6 (headless mode, ADR-141 pipeline).
-
----
-
-### 3.4 Production roles (orchestration capability bundles, NOT Agents)
-
-**Purpose**: packaged production configurations dispatched by tasks. Six today: researcher, analyst, writer, tracker, designer, reporting.
-
-**Substrate reads**: no persona files. Role-scoped prompt templates live in code (`api/services/orchestration.py::PRODUCTION_ROLES`). Dispatch-time capability gating via `required_capabilities` × `platform_connections`.
-
-**Not persona-bearing** — no standing intent, no fiduciary weight. Performance-fungible. The `class` enum string is `specialist` as a data-compatibility slug per ADR-212 D1 exception.
-
-Production roles are fully documented in `docs/architecture/agent-orchestration.md` + `orchestration.py` docstrings; this doc won't duplicate their shape.
-
----
-
-## 4. Operator ↔ Reviewer symmetry
-
-The operator (principal) and the Reviewer (agent) sit on opposite ends of the principal-agent relationship. Their substrate files mirror each other.
-
-### 4.1 Shared substrate (both read)
-
-Operator-authored standing declarations, now split across three roots per ADR-320 — `constitution/` (intent), `governance/` (ceilings the seat runs under but cannot set), and `operation/` (output-shaping). The operator's identity collapsed into the persona seat (ADR-320 D2b), so it lives at `persona/IDENTITY.md`:
-
-| File | New home (ADR-320) | ADR | What it declares | Class (ADR-383) |
-|------|-----|-----|------------------|------|
-| MANDATE.md | `constitution/` | ADR-207 | The agent's **purpose** — why it exists. For an *operation*: the Primary Action (the value-moving write). For the *system agent* (bare workspace): the steward-mandate ("steward this substrate"; names no Primary Action). | **agent-universal** |
-| IDENTITY.md | `persona/` | ADR-206 | The agent's reasoning-character. Steward default for the bare workspace; program persona once activated. | **agent-universal** |
-| BRAND.md | `operation/` | ADR-206 | Voice, tone, audience-facing presentation rules. | operation-specific |
-| CONVENTIONS.md | `operation/` | ADR-206 | Filesystem + behavioral conventions. | operation-specific |
-| AUTONOMY.md | `governance/` | ADR-217 | Delegation ceiling — how autonomously AI may act. | **agent-universal** |
-| PRECEDENT.md | `constitution/` | 2026-04-24 shared-governance hardening | Durable interpretations and boundary-case rules that should compound across future decisions. | operation-specific (accumulates) |
-
-Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the operator's standing intent and bind every agent.
-
-> **ADR-383 — the consistent agent framework + MANDATE as every agent's purpose.** The "Class" column names the [ADR-383](../adr/ADR-383-the-consistent-agent-framework-and-mandate-as-purpose.md) split: **agent-universal** files (MANDATE = purpose, IDENTITY = character, principles = rules, governance/* = ceilings) are present + populated for *every* agent — for a bare workspace with kernel/steward defaults (ADR-383 §3 D3/D5), overwritten by a program at activation (bundle-fork, ADR-226). **operation-specific** files (`_expected_output.yaml`, `operation/{domain}/*`, accumulating PRECEDENT) populate only when an operation is declared. **MANDATE is reframed, not made conditional** (ADR-383 D3): the system agent (Freddie) has a MANDATE — its purpose is stewardship; ADR-207's "MANDATE declares the Primary Action" generalizes to "MANDATE declares the agent's *purpose*; the Primary Action is the *operation-instance* of purpose." So a bare workspace is a **constituted steward**, not "unconfigured," and the ADR-320 D4 / ADR-207 hard-gate passes for it (MANDATE is never empty). Freddie and persona agents are the *same kind* of agent, differing only in file content (the two-order direction; FOUNDATIONS DP33).
-
-### 4.2 Distinct substrate (agent-specific)
-
-**Reviewer-bound** under `/workspace/persona/` (the seat home, relocated from `review/` per ADR-320):
-
-| File | ADR | Author | Content |
-|------|-----|--------|---------|
-| IDENTITY.md | ADR-216 | Operator | The persona the seat embodies (operator-identity collapsed in per ADR-320 D2b). |
-| principles.md | ADR-194 v2 + ADR-217 | Operator | The framework the persona applies — the rule-set, not the reasoning posture. See §3.2.1 for the partition-discipline clause (singular enforcement home). |
-| OCCUPANT.md | ADR-194 v2 Phase 2b | Rotation primitive | Who currently fills the seat. |
-| handoffs.md | ADR-194 v2 Phase 2b | Rotation primitive | Rotation history (append-only). |
-| judgment_log.md | ADR-194 v2 | Reviewer itself | Verdict trail (append-only; renamed from `decisions.md` per ADR-320). Decision blocks carry `proposal_id` — the FK the reflection loop joins on (ADR-364). |
-| reflection.md | ADR-364 | Reviewer itself | Interpreted learning from the closed intent→outcome loop — authored from the envelope gap-fact (verdicts joined to attested outcomes by `proposal_id`). Supersedes `calibration.md` (the back-office aggregate-windows file with no persona writer). |
-
-**YARNNN has no persona-bound substrate.** Its "working memory" under `/workspace/system/` (AWARENESS, _playbook, style, notes) is orchestration accumulation, not persona.
-
-**Domain Agent-bound** under `/agents/{slug}/`:
-
-| File | ADR | Author | Content |
-|------|-----|--------|---------|
-| AGENT.md | ADR-216 D9 | Operator | Single-file persona + framework. |
-| memory/*.md | ADR-106 | Agent itself | Per-agent working memory. |
-| history/*.md | ADR-209 revision chain (absorbed) | Agent itself | Prior output versions (retained via revision chain, not via history folder). |
-
-### 4.3 Asymmetry rule
-
-The operator's standing declarations under `constitution/` + `governance/` + `operation/` are **read by every agent**. The operator *drafts* them — via YARNNN chat (`InferContext` for identity/brand merge, `WriteFile` scope=`workspace` for direct substrate, per ADR-235; the `InferWorkspace` first-act primitive was removed per ADR-314 D4, dissolved by Direction A — for a program workspace the bundle fork drafts the constitution). But "operator-authored" names the *first* author, not the *only* one: from then on the Reviewer co-authors most of them on its own initiative (it cannot, however, write `governance/` — those are the ceilings it runs under but cannot set). See §4.4.
-
-The Reviewer's seat substrate under `/workspace/persona/` is **read by the Reviewer agent and its dispatcher only**. Rotation primitive writes to OCCUPANT + handoffs. Reviewer agent writes to judgment_log (its content, via the material-outcome gate) AND reflection.md (Reviewer-authored from the envelope gap-fact, ADR-364 — replacing the old back-office calibration writer). IDENTITY + principles are operator-authored and revision-chained.
-
-Domain Agent substrate under `/agents/{slug}/` is **read by task pipeline when dispatching that agent**. Operator writes AGENT.md via chat; agent writes its own memory during runs.
-
-**The invariant that makes this work** (post-ADR-320: the directory a file lives in determines who may write it): file placement follows authorship + scope. Operator-authored intent = `constitution/`; operator-declared ceilings = `governance/`; output-shaping = `operation/`. Operator-authored seat-bound = `/workspace/persona/IDENTITY.md` + `/workspace/persona/principles.md`. Operator-authored agent-bound = `/agents/{slug}/AGENT.md`. Seat-generated = judgment_log + reflection (ADR-364) + rotation files (all under `persona/`). Agent-generated = agent memory.
-
-**Content boundary within the seat-bound files** (the partition that companion §3.2.1 enforces): `IDENTITY.md` = persona (how the seat reasons); `principles.md` = rule-set the persona applies (the framework). Reasoning-posture content (self-amendment discipline, anti-patterns, fiduciary principle, posture taxonomy, standing-intent contract, cadence-trifecta, wake-context discipline, write authority, voice/narration) lives in `api/agents/freddie_agent.py` persona-frame `_compute_*` sections — single home, code-local. The seat-bound prose files describe *who* and *what rules*; the persona-frame describes *how to reason*. See §3.2.1 for the four-field rule shape and the diagnostic test.
-
-### 4.4 Two orthogonal axes — authority vs. vocabulary (the self-amendment model)
-
-> **Why this subsection exists.** The §4.3 phrase "operator-authored" + the small `FREDDIE_PRIMITIVES` surface together invite a wrong inference: *that the operator owns the constitution and the Reviewer is a low-capability requestor operating under it.* Both halves are wrong, and conflating "small toolset" with "limited authority" is a recurring confusion (it has cost multiple design sessions). This subsection states the two axes as independent so the conflation stops. It does not introduce new canon — it cross-stitches FOUNDATIONS Derived Principle 21 + line 23 + the `workspace_paths.py::DEFAULT_REVIEWER_WRITE_LOCKS` rationale, which each carry a piece.
-
-The Reviewer's capability is governed by **two independent axes**. Reasoning about one as if it were the other is the error.
-
-**Axis 1 — Authority (what substrate it may write): nearly full, self-amending.**
-The Reviewer is a self-amending agent over its own operational substrate — the direct analog of Claude Code reading and editing the project's own `CLAUDE.md`. It rewrites MANDATE, its own IDENTITY + principles, PRECEDENT, the operator-profile + risk envelope, the universe, the recurrence set, learned notes — **all of `constitution/`, all of `persona/`, and all of `operation/` (the `governance/` ceilings and `system/` runtime are the locked exceptions per ADR-320)** — on its own initiative, attributed via ADR-209, gated for *capital* consequence by AUTONOMY mode, reverted via the revision chain. "Operator-authored" means the operator drafts the first revision; the Reviewer co-authors every revision after.
-
-**The two locks, and the single reason for them** (`DEFAULT_REVIEWER_WRITE_LOCKS` in `workspace_paths.py`): the Reviewer cannot write `AUTONOMY.md` / `_autonomy.yaml` (its delegation ceiling) or `_token_budget.yaml` (its compute ceiling) — plus the softer operator-cadence pair `_preferences.yaml` / `_pace.yaml`. The load-bearing two encode one rule: **an agent cannot grant itself more authority or more resources than the operator delegated.** This is not "the operator owns this content" — it is the boundary between *autonomous* (decisions bind within a declared envelope) and *unbounded* (the envelope is self-expandable). Everything the Reviewer *can* write changes WHAT the operation does; the two locked files would change WHETHER the Reviewer has unauthorized authority to do it. That is the only asymmetry. Per FOUNDATIONS line 23, even this lock-set is *current dev-trust state* and shrinks toward zero as self-amendment discipline hardens — it is not a permanent architectural line.
-
-**Axis 2 — Vocabulary (how many primitives it holds): deliberately small, judgment-bandwidth-capped.**
-`FREDDIE_PRIMITIVES` is a small, stable set (~21 tools). This is **not** an authority limit — it is a *judgment-quality* limit. Tool-list size is empirically corrosive to judgment for this surface: the 2026-05-25 v5 canary measured that adding a *single* tool (the 22nd) collapsed Reviewer output ~74% and produced `stand_down` with zero substrate writes; reverting restored substantive judgment (see `registry.py::FREDDIE_PRIMITIVES` comment + `docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/`). The vocabulary stays small so the judgment stays sharp.
-
-**The orthogonality, stated once:** the Reviewer already self-amends its entire operational constitution (high authority) using a small, stable toolset (capped vocabulary). Widening authority is done by **shrinking the lock-set** (and raising the AUTONOMY ceiling), *not* by adding primitives. Adding primitives does not add authority — it spends judgment bandwidth. The two dials the operator turns to make the Reviewer more autonomous over tenure are **the lock-set** (what it may touch) and **AUTONOMY mode** (how far its decisions bind without a countersignature) — together with Pace, these are the Pace + Autonomy + Persona trifecta of Derived Principle 21. The primitive count is not a third dial; it is a fixed cognitive budget.
-
-**Axis 3 — Posture (how the granted authority is *used*): stewardship of intent against ground truth (ADR-319 / Derived Principle 24).** Axes 1–2 establish that the Reviewer *can* rewrite its operational constitution. Axis 3 establishes *the posture that governs that use*: the Reviewer **owns** the operation's governing intent as the operator's installed principal, and revises it against ground-truth substrate with consequence-anchored urgency — at both altitudes (within the intent: judging actions; on the intent: revising the mandate/rules/envelope when ground truth falsifies them). The single invariant: **ground-truth substrate moves the intent; operator pressure never does.** This corrects a *posture* gap, not a *capability* gap — the authority (Axis 1) is already canon; what ADR-319 adds is that its use is fiduciary-against-ground-truth, not defensively-deferential to the operator's earlier self (the prior `principles.md` "Self-Improvement Posture" framing — epistemic-deference, enrich-don't-bulldoze, edit-eager-is-the-risk — inverts to ground-truth-fiduciary). **Where this posture's *rules* live** (per §3.2.1): in each program's `principles.md` (rules of judgment — re-pointed from defensive to fiduciary, with program-specific evidence thresholds), NOT in the persona-frame (which carries only principal-shift + action-grammar per Derived Principle 22). The kernel **why** is FOUNDATIONS Derived Principle 24 + THESIS Commitments 2/3; the per-program **rules** are principles.md content. ADR-319's predecessor — ADR-295 — supplies the self-amendment *capability + evidence-thresholds*; ADR-319 inverts its *posture*.
-
-**Axis 3 extension — the offensive limb + the aperture/floor split (ADR-342 / Derived Principle 24 amendment).** DP24's stewardship posture had a defensive bias in practice: its evidence vocabulary was decay-shaped (outcomes that arrived and went negative), and its illustrative forward-reasoning (the ADR-318 persona-frame examples) was all position/cadence housekeeping. ADR-342 adds the **offensive limb**: the ground truth that moves the intent includes the *persistent absence* of expected outcomes (dormancy — a strategy producing nothing across cadence), not only decay; sustained silence under a production mandate obligates altitude-2 work — research, **aperture-widening**, rule-revision — with the same urgency a decayed rule demands. The discipline that keeps the offensive limb from becoming the pressure-driven capitulation DP24 forbids is the **aperture/floor split**: dormancy (and any ground truth) may move the **aperture** (what the operation looks at / evaluates — universe, entry bands, watch set, research scope) but **never lowers the floor** (the per-action risk envelope — sizing, stops, var, caps); a dormancy-rationalized floor edit is the same capitulation as a pressure-driven one in a costume.
-
-> **⚠ ADR-383 re-carve amendment (2026-06-29 — supersedes the "frame-resident stance" claim below for the *capital-judgment* posture).** The two-order re-carve (ADR-381/383) moved the **capital-judgment posture** — the aperture/floor split, the standing-obligation, the capital-EV reasoning — **out of the persona frame entirely**. Rationale: under the two-order model the systemic frame's self-model is the **steward** (the system agent / Freddie), not a capital judge; the aperture/floor stance is *judgment-specific* (it is about a production mandate's owed-output), so it is **not** universal-across-every-systemic-occupant the way principal-shift is. What the frame now carries is a **rung-agnostic pointer**: *"a wake is a situation; you hold whatever standing obligation your `principles.md` declares; apply it"* — the *content* (aperture, floor, dormancy, the capital instances) lives in each agent's `principles.md` (already present in the alpha-trader/alpha-author bundles, migrated by the 2026-05-29 collapse). So the paragraphs below that say the aperture/floor + standing-obligation **stance is "frame-resident"** describe the *pre-ADR-383* frame; **post-ADR-383 the stance is the rung-agnostic obligation-pointer (frame) + the program's instance (principles.md)** — the capital-flavored stance is no longer frame-resident. FOUNDATIONS DP24/DP30 still hold as *kernel why*; their *frame expression* narrowed to the pointer. See ADR-383 + the [frame re-carve design](../evaluations/2026-06-29-freddie-frame-recarve-design.md).
-
-**(Pre-ADR-383 framing, preserved for lineage — read through the amendment above.)** **Where this lands** (per §3.2.1, identical to the Axis-3 home): the *stance* (a wake under a production mandate treats persistent silence as a condition to act on) *was* **frame-resident** — it is principal-shift/action-grammar, generalizes across every program, and carries no program rule, so it lived in the minimal frame's situation-scoped paragraph (`freddie_agent.py::_compute_minimal_frame`); the *rules* (the dormancy threshold, which files are aperture vs floor, the research-first ordering) are **principles.md-resident**, program-tuned. The numbers and file-lists stay in principles.md.
-
-**ADR-343 refinement — the aperture/floor *definition* is kernel-resident; the *instances* are program-derived.** ADR-342 shipped the split as a trader-bundle rule (file-lists). ADR-343 lifts the split's *definition* to the kernel (frame + FOUNDATIONS DP24 v9.7): the frame now carries the two program-neutral categories (**aperture** = the selection surface of what the operation engages; **floor** = per-act integrity + outcomes-in attestation honesty) plus the **derive-obligation** ("derive both from your MANDATE + ground-truth"). This stays frame-legal under the §3.2.1 test: it is principal-shift (it corrects the model's prior that "dormancy → act" reads as "pressure → permission to relax constraints" — the shift is *derive which is which, widen the aperture, never lower the floor*), it names no program noun, and it carries no program rule. What lives in `principles.md` is each program's **derived instance** of the split (the trader's worked file-lists are *one derivation*, useful as a calibration anchor) — but a program is not *required* to hand-author its instance: a Reviewer with only the kernel definition + its own mandate + ground-truth can derive the split live (validated on alpha-author, 2026-06-18 — it derived floor=anti-slop/voice+can't-fake-a-ship / aperture=topic+source+format with no `principles.md` §Aperture). The partition is therefore: *category definition + derive-obligation* → frame (kernel, universal); *derived instance* → principles.md (program, optional worked anchor); *mechanical enforcement* → topology (ADR-320, the floor's hard backstop). See ADR-343.
-
-**ADR-344 extension — the standing obligation + the (A)/(B) classifier.** ADR-344 adds the altitude above stewardship: the Reviewer holds a **standing obligation** (an owed-output derived from budget→pace × mandate→output-kind+volume × quality-bar) and at wake-time checks actual-vs-owed, classifying any shortfall as **(A) quiet-world** (→ dormancy/aperture) or **(B) structurally-can't** (the loop has no organ to originate what it owes → author the organ within the floor, or surface). The partition splits the same three ways: the **stance** (you hold a standing obligation; classify the gap before acting) is **frame-resident** — principal-shift, it corrects the prior "no trigger fired → nothing to do," names no program noun; the **derivation** (how to read budget+mandate into an owed-output) + the **classifier thresholds** (what counts as structurally-can't for *this* program) are **principles.md-resident**, program-tuned (a program may ship a worked instance; the Reviewer derives live otherwise, the ADR-343 pattern); and an **optional explicit owed-output** may be declared in `MANDATE.md` (`## Expected Output`) — operator's choice, never required, derivation is the default so no existing workspace needs a migration. The frame addition for ADR-344 was tightened to the principal-shift only (the ceiling rose 11K→11.5K, ADR-344 §10 — three load-bearing kernel postures now share the situation-scoped paragraph; the discipline holds that an over-ceiling condition is almost always fixed by moving a rule to principles.md, not raising the ceiling). See ADR-344. **The (1)-self-author-vs-(2)-surface discriminator within (B)** (2026-06-25, the unattended-soak finding) is the **write-topology** (DP25), and it is a **`principles.md` §0 rule of judgment, NOT a frame addition**: a blocker on a path the Reviewer can write (`constitution/` + `operation/` + `persona/`) is a (1) self-author case (author the fix) — (2) surface is reserved for paths it cannot write (`governance/` ceilings, a missing capability, a mandate reinterpretation it wants vetted). The frame already carries the half it needs (the topology statement "everything in `constitution/`, `persona/`, `operation/` is yours" + the (B) stance "author the missing organ OR surface"); the *discriminator* (which of the two) is the rule, so it lands in each program's `principles.md` §0 (the Clarify-vs-decide classifier), instancing the kernel rule (ADR-344 §4) with the program's own writable paths — the trader's instance carves the **floor exception** (`_risk.md` is writable but never relaxed to end a dry spell; aperture self-authoring yes, floor edit no). Empirical trigger + validation: `docs/evaluations/2026-06-24-unattended-soak-FINDING.md`. This refines the line-188 "(B)-classification rule → principles.md" mapping; it adds NO frame content (the anti-rebloat constraint holds — the authority was always there in the topology; the rule just makes the agent apply it).
-
-**Diagnostic test** (use when a design discussion proposes "give the Reviewer capability X"): *Is X an authority question (may it write path P?) or a vocabulary question (does it hold tool T?)* If authority → the answer is a lock-set + AUTONOMY decision, no new primitive. If vocabulary → the answer is gated by the judgment-bandwidth cap, and the burden is to show the tool earns its bandwidth cost. A request phrased as "the Reviewer should be able to do X" almost always resolves to the authority axis — and almost never needs a new tool.
+**Authority** (what it may write) is the grant — never a primitive. **Vocabulary** (the tool surface) is uniform for every lane and every agent (`lane_tool_names`, ADR-467 D4) and deliberately small: the 2026-05-25 canary measured a single added tool collapsing output ~74%. Widening authority is a grant decision; adding a tool spends judgment bandwidth and needs its own evidence. A request phrased *"the agent should be able to do X"* almost always resolves to the grant and almost never needs a tool. The seat-era third axis — a posture of stewardship over the operation's mandate — is retired: judgment is never on the agent (ADR-596 D1).
 
 ---
 
 ## 5. Versioning + iteration discipline
 
-### 5.1 Prompt versioning
+### 5.1 The engine, not an identity string
 
-**Model-identity bumps**: every material prompt change increments the agent's identity string. For Reviewer, `FREDDIE_MODEL_IDENTITY` bumps v1 → v2 → v3 etc. The identity string lands on every verdict in decisions.md + action_proposals.reviewer_identity. This creates cohort separation for calibration analysis.
-
-What triggers a bump:
-
-- System prompt edit that changes reasoning style or decision boundaries.
-- Tool definition change that alters what the agent can do.
-- Model upgrade that changes capability class (e.g. Sonnet 4.5 → 4.6 → 4.7).
-
-What doesn't:
-
-- Typo fixes, comment edits, docstring changes.
-- Downstream substrate-read changes that don't alter the prompt (though the ADR should note the substrate change).
+An engine is a row in `LANE_MODELS` (`api/services/lane_runner.py`, ADR-559): a `provider/model` id, a label, `vision`, and `retired` for a superseded engine (routable, gone from the door, its `_BILLING_RATES` row kept). The member picks the colleague and the engine rides behind the name (ADR-460), persisted on the lane as a historical fact — never re-derived. What an app's resident runs is a `register_app` change on the server (ADR-562), never a caller-supplied id. Availability has three observed reasons — `no_provider_key` · `unpriced` · `upstream_refused` — and an unavailable engine is served greyed with its reason, never filtered.
 
 ### 5.2 CHANGELOG entries
 
-Every prompt-touching change lands a `api/prompts/CHANGELOG.md` entry per CLAUDE.md Prompt Change Protocol. Entry format:
+Every change to a frame, a posture, the participant constants, a skill or a tool definition lands an entry in `api/prompts/CHANGELOG.md` per CLAUDE.md's Prompt change protocol: prepended, newest first, naming the **repeated, observed** failure it fixes, the expected behavior change and the gate. The file holds the newest two months; older months are frozen under `api/prompts/archive/` (`api/test_prompt_changelog_discipline.py`).
 
-```markdown
-## [YYYY.MM.DD.N] - Short title referencing ADR + what changed
+### 5.3 ADR pattern for composition changes
 
-Narrative summary. What changed, why, expected behavior delta.
+An ADR that touches composition (a frame, a posture, a constant, a skill, the tool surface) **cites this doc, amends it in the same commit**, adds the CHANGELOG entry, runs the ratchets (`test_adr632_the_seat_retires.py` §5, `test_adr630_skills.py`) — and, for a frame or posture clause, states its A/B null before it runs. Adding is the last resort; raising a ceiling needs the same evidence as adding a clause, named in the raising commit (ADR-306, DP22).
 
-### Changed
-- Specific files + what changed.
+### 5.4 Singular implementation
 
-### Expected behavior change
-- Before vs after for typical workspaces.
+One composition site per frame; one home per fact (§3.3). Dual paths at composition drift silently — the three hand-written reach branches disagreed with the member's surface within an hour of shipping (ADR-644), which is why the reach section is rendered from one structure now.
 
-### Migration
-- What existing workspaces need to do (usually nothing; scaffold re-run if substrate).
+### 5.5 When to bump this doc
 
-### Related
-- ADR references + dependent commits.
-```
-
-CHANGELOG is historical record. Never retroactively edit past entries — only add new ones that supersede.
-
-### 5.3 ADR pattern for agent-layer changes
-
-When an ADR touches agent composition (prompts, substrate, dispatcher wiring, primitive surface), it should:
-
-1. **Cite this doc** (`docs/architecture/agent-composition.md`) as the canonical reference.
-2. **Amend this doc in the same commit** — update the composition tables + asymmetry rules to reflect the new state. Don't leave composition documentation lagging behind decision records; future readers will hit the gap otherwise.
-3. **Add CHANGELOG entry** per §5.2.
-4. **Cross-reference in ADR frontmatter** with `Amends:` or `Supersedes:` against any prior ADRs whose composition claims this change invalidates.
-5. **Update amended ADRs' status banners** with forward-pointing notes (ADR-194 v2 + ADR-211 status banners pointing to ADR-217 are the template).
-
-### 5.4 Singular-implementation discipline for composition
-
-Per CLAUDE.md: no dual paths. When ADR-217 moved autonomy from modes.md to AUTONOMY.md, the old path was deleted in the same commit window. No backwards-compat shim. Callers migrated, constants deleted, default scaffolds swapped.
-
-This discipline is especially important at the composition layer because **dual paths at composition drift silently** — if both modes.md and AUTONOMY.md were readable, operators would edit one and expect the Reviewer to see the other, and debugging the mismatch is expensive. One file, one authoring mouth, one read path.
-
-### 5.5 When to bump this doc itself
-
-This doc itself needs a revision when:
-
-- A new agent class joins the judgment layer (future Auditor, Advocate, etc.).
-- Substrate placement shifts (a file moves between roots — e.g. from `persona/` to `constitution/` or vice versa; ADR-217 was one such shift, and ADR-320 re-rooted the whole topology into five roots).
-- The two-layer model itself is refined (unlikely but possible).
-- A new versioning discipline is adopted (e.g. if we start tracking production-role identity strings too).
-
-Minor edits (new ADR cross-references, CHANGELOG pointers, clarifying examples) don't need revision bumps — the doc is canon, not a versioned artifact.
+A new composition site; a new destination in the partition table; a change to the frame's section order; a third frame (which would be an adapter on one of these two, not a twin).
 
 ---
 
-## 6. Appendix — ADR reference map
+## 6. Appendix — ADR reference map (live)
 
-Decisions that shaped the current agent composition, in order:
-
-- **ADR-106** — Agent workspace architecture. Virtual filesystem over Postgres; agents interact via path-based operations.
-- **ADR-117** — Feedback substrate. Edit history → style.md distillation.
-- **ADR-141** — Unified execution architecture. Task pipeline, mechanical scheduling + LLM generation split.
-- **ADR-159** — Filesystem-as-memory. Compact index + on-demand reads replace working-memory dumps.
-- **ADR-168** — Primitives matrix. Two-axis canonical reference for all primitives.
-- **ADR-186** — YARNNN prompt profiles. Workspace vs entity profile-aware assembly.
-- **ADR-194 v2** — Reviewer Layer + operator impersonation. Reviewer seat as filesystem substrate.
-- **ADR-205** — Workspace primitive collapse. YARNNN as sole persistent identity at signup.
-- **ADR-206** — Operation-first scaffolding. `_shared/` relocation; intent/deliverables/operation three-layer view.
-- **ADR-207** — Primary Action + MANDATE + capabilities. Mandate gate; capability-declarative tasks.
-- **ADR-209** — Authored Substrate. Every file write revision-chained with authorship.
-- **ADR-211** — Reviewer Phase 4 substrate. OCCUPANT + handoffs + modes (now deleted by ADR-217) + calibration.
-- **ADR-212** — LAYER-MAPPING correction. Sharp Agent/Orchestration taxonomy.
-- **ADR-216** — YARNNN reclassification + persona wiring. Orchestration vs judgment separation; persona read at reasoning time.
-- **ADR-217** — Workspace autonomy substrate. Single authoring mouth for delegation; modes.md → AUTONOMY.md.
-- **ADR-315** — Reviewer Occupant Contract. Seat ≠ occupant: the seat stays substrate ([reviewer-seat-substrate.md](reviewer-seat-substrate.md)); the occupant becomes a contract-bounded module ([reviewer-occupant.md](reviewer-occupant.md)) consuming a published ABI ([reviewer-occupant-contract.md](reviewer-occupant-contract.md), defined in `api/agents/occupant_contract.py`).
-- **Shared governance hardening** (commit `fd4917a`, 2026-04-24) — `PRECEDENT.md` under `/workspace/constitution/` (re-rooted by ADR-320) as operator-authored durable interpretation substrate. Read by YARNNN (compact index), Reviewer (v4 prompt), task pipeline (`gather_task_context`).
-- **`persona-reflection.md`** (canon doc, 2026-04-24) — Reviewer as living accumulator. Precedent and reflection together close the "framework evolves with reality" gap: precedent is operator-sided; reflection (future ADR-218) is persona-sided. Both accumulate inside MANDATE + AUTONOMY boundaries.
-
-This doc supersedes the scattered "how does agent X compose" language that accumulated across the above ADRs. Those ADRs remain authoritative as decision records; this doc is the running architectural reference.
+ADR-209 (authored substrate) · 306 (the frame collapse) · 411 (lanes) · 460 (one concept, independent facts, one gate) · 467 (the uniform surface) · 495 (the cast) · 533 (the participant contract as data) · 559 (the engine registry) · 562 (app-owned AI config) · 596 (the agent) · 600/601 (one register; provenance) · 603 (the standing declaration) · 606 (the focus declaration) · 615 (reach follows the principal) · 623 (the lane can see) · 624 (the agent's home) · 630 (skills) · 632 (the steward retires) · 634/647 (caching) · 635 (attached connectors) · 638 (the register) · 639 (the standing frame) · 643 (one access decider) · 644 (one reach status) · 648 (the context budget). The v1 map (ADR-106 … 315) is archived with v1.
 
 ---
 
@@ -552,4 +182,6 @@ This doc supersedes the scattered "how does agent X compose" language that accum
 
 | Date | Change |
 |------|--------|
-| 2026-04-24 | v1 — initial. Consolidates composition knowledge across ADRs 106/117/141/159/168/186/194v2/205–217. Documents two-layer model, per-agent composition for YARNNN + Reviewer + domain Agents, operator-Reviewer symmetry, and versioning discipline. Written alongside ADR-217 Commit 4. |
+| 2026-04-24 | v1 — initial. Two-layer model, per-agent composition for YARNNN + Reviewer + domain Agents, operator↔Reviewer symmetry, versioning discipline (ADR-217 Commit 4). |
+| 2026-09-07 | §3.2.1 re-cut for the post-steward frame (ADR-632): the partition's destinations become the lane frame, the postures, the kernel constants, the gates and the skills. |
+| 2026-09-12 | v2.0 — **the post-steward recut (ADR-596/632).** §3 restated as the two live frames composed section by section from code; the partition kept verbatim; composed coherence restated for the lane; §4 the reads and writes of an agent under a grant; §5 the engine registry in place of identity strings. The Reviewer/YARNNN/production-role composition, the operator↔Reviewer symmetry and the three-axis self-amendment model are archived verbatim at previous_versions/agent-composition-v1-2026-09-12.md. |
