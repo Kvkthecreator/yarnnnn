@@ -35,9 +35,9 @@ CODE_TERMS = re.compile(r"\bReviewer\b|\bFreddie\b|\bsteward\b|wake_queue|Manage
 CANON_CEILINGS = {
     "docs/architecture/FOUNDATIONS.md": 37,
     "docs/architecture/GLOSSARY.md": 37,
-    "docs/design/WORKSPACE.md": 82,
+    "docs/design/WORKSPACE.md": 6,
     "docs/architecture/agent-composition.md": 69,
-    "docs/architecture/WORKSPACE.md": 67,
+    "docs/architecture/WORKSPACE.md": 3,
     "docs/architecture/SERVICE-MODEL.md": 57,
     "docs/architecture/ADR-LEDGER.md": 48,
     "docs/architecture/primitives-matrix.md": 33,

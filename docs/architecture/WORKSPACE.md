@@ -1,451 +1,140 @@
 ---
 title: Workspace (Architecture)
 counterpart: docs/design/WORKSPACE.md
-scope: conceptual — substrate, files, layers, bootstrap, autonomy threshold
+scope: conceptual — substrate, files, layers, genesis, the two execution paths
 status: Canonical
-last_updated: 2026-05-12
+version: v2.0 (2026-09-12 — the post-steward recut, ADR-596/603/632; v1 archived at previous_versions/WORKSPACE-architecture-2026-09-12-pre-recut.md)
+last_updated: 2026-09-12
 ---
-> ⚠️ **RECURRENCES ARE RETIRED (ADR-603 D5, executed 2026-08-24).** Production counted 0 recurrence declarations (one empty `_recurrences.yaml`); the member-facing surface, routes, and FE are DELETED. Everywhere this doc says "recurrence" as a live mechanism, read it as HISTORICAL: standing work is the **standing declaration** (strings today, ADR-603 D1/D2), and run receipts live in the notifications Activity ledger. The steward-side plumbing (walker, `Schedule`, cron_tick) survives inert and dies with ADR-596 D3 phase (a).
-
 
 # Workspace — Architecture
 
-**Counterpart (design):** [docs/design/WORKSPACE.md](../design/WORKSPACE.md) — operator-facing surface contracts for the same substrate
-**Supersedes:** `docs/architecture/workspace-init.md` (merged) · `docs/architecture/workspace-conventions.md` (merged) · `docs/design/SHARED-CONTEXT-WORKFLOW.md` · `docs/design/ONBOARDING-TP-AWARENESS.md` · `docs/design/USER-JOURNEY.md`
-**ADRs:** 106 · 119 · 138 · 142 · 149 · 151 · 152 · 154 · 170 · 194 · 205 · 206 · 207 · 209 · 217 · 219 · 222 · 223 · 226 · 231 · 244 · 251 · 253 · 254 · 255
+**Counterpart (design):** [docs/design/WORKSPACE.md](../design/WORKSPACE.md) — the member-facing surfaces over the same substrate.
+**Canon this doc derives from:** [FOUNDATIONS](FOUNDATIONS.md) Axioms 1, 2, 4 · [ADR-209](../adr/ADR-209-authored-substrate.md) · [ADR-373](../adr/ADR-373-multi-principal-workspace-and-the-re-key.md) · [ADR-378](../adr/ADR-378-the-workspace-as-the-outermost-unit.md) · [ADR-414](../adr/ADR-414-the-pure-workspace-genesis-system-agent-program-as-hire.md) · [ADR-588](../adr/ADR-588-folders-are-first-class-and-the-told-name-is-an-address.md) · [ADR-596](../adr/ADR-596-the-agent-is-a-being.md) · [ADR-603](../adr/ADR-603-the-standing-declaration-and-the-supervisor-desk.md) · [ADR-624](../adr/ADR-624-the-being-has-a-home-and-what-it-knows-lives-there.md) · [ADR-639](../adr/ADR-639-standing-work-is-a-kernel-lane.md).
 
-This doc answers six questions, in order:
+> **Recut (2026-09-12).** The previous version described the pre-ADR-320 tree (`context/_shared/`, `review/`, `memory/`), a five-phase init that seeded a steward, a Reviewer-run autonomy loop and its cold-start failure modes. All of that machinery is deleted (ADR-414 D4, ADR-603 D5, ADR-632). The record is archived verbatim at [previous_versions/WORKSPACE-architecture-2026-09-12-pre-recut.md](previous_versions/WORKSPACE-architecture-2026-09-12-pre-recut.md); this document states the live form.
 
-0. **Which layer is what?** — the four-layer model (kernel · workspace · program · agent), plus where user-account concerns live (they're not workspace).
-1. **What files exist in a workspace, who owns each path, and what's the lifecycle?** — the spatial inventory.
-2. **What gets seeded when, by which trigger?** — the temporal bootstrap sequence.
-3. **What does autonomous operation actually require?** — the autonomy threshold.
-4. **How does the closed autonomy loop actually run?** — the loop trace.
-5. **What specifically breaks at cold-start when a prerequisite is missing?** — the failure-mode catalog.
+This doc answers five questions, in order:
 
-For the operator-facing view of these same files (per-tab contracts, CRUD shapes, affordances), see [docs/design/WORKSPACE.md](../design/WORKSPACE.md). For how agents *read* this substrate at reasoning time (prompt assembly, profile selection, cockpit awareness), see [docs/architecture/agent-composition.md](agent-composition.md) — that doc is the orthogonal counterpart on the prompt side.
+0. **Which layer is what?** — kernel · workspace · app · agent, plus where user-account concerns live.
+1. **What is the substrate, and what does a workspace hold?** — the filesystem as the kernel tells it.
+2. **How is a workspace born, and what accumulates in it?** — genesis and growth.
+3. **What does unattended work require?** — the standing declaration.
+4. **How does work run?** — the two execution paths.
+
+For how an agent *reads* this substrate at reasoning time (the lane frame), see [lane-frame.md](lane-frame.md) and [agent-composition.md](agent-composition.md).
 
 ---
 
 ## 0. Layer model
 
-YARNNN is an agent-native operating system per [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md). The substrate splits across four layers; user-account concerns are a fifth orthogonal channel that doesn't touch workspace substrate at all.
+YARNNN is an agent-native operating system ([ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md)). Four layers touch a workspace; user-account concerns are a fifth, orthogonal channel that never touches workspace substrate.
 
-| Layer | What's authored here | Who owns it | Cold-start dependency |
-|---|---|---|---|
-| **User account** | billing, email, notification prefs | the human, across all their workspaces | none — orthogonal to autonomy |
-| **Kernel (workspace-universal)** | MANDATE · IDENTITY · BRAND · AUTONOMY · PRECEDENT · Reviewer principles · Reviewer occupant identity · `_locks.yaml` · YARNNN working memory | operator (authored content) + system (skeletons, audit trails) | MANDATE non-skeleton + AUTONOMY delegated + Reviewer principles authored = autonomy threshold |
-| **Program (kernel + program bundle)** | CONVENTIONS · `_operator_profile` · `_risk` · `_universe` · specs · `_recurrences.yaml` · domain folders | program bundle (shipped) + operator (authored-tier overwrite) | bundle forked + authored-tier files overwritten = operational |
-| **Agent** | Reviewer substrate (`/workspace/review/*`); user-authored agents would have `AGENT.md` + `memory/` | each agent owns its identity; system writes audit trails | Reviewer occupant declared + principles authored = judgment loop closeable |
-
-**Why IDENTITY and BRAND are workspace-scoped, not user-account-scoped.** The same human can run two workspaces with two distinct operating postures — alpha-trader in one, alpha-prediction in another. IDENTITY is "who the operator is *in this workspace*"; BRAND is "the voice the workforce writes in." Both are workspace-shaping configuration that every agent reads, not biographical facts about the human. Per [ADR-205](../adr/ADR-205-workspace-primitive-collapse.md).
-
-**Why CONVENTIONS is program-scoped, not kernel-seeded.** CONVENTIONS only means something when a program defines vocabulary, time conventions, proposal envelope rules. A generic workspace doesn't need it; the alpha-trader bundle ships it as `tier: canon` with trading-specific rules. The headless base prompt reads it conditionally — present in program workspaces, skipped in generic ones.
-
-**Why agent substrate is currently Reviewer-only.** The Reviewer is the sole *systemic* persona-bearing agent per [ADR-251](../adr/archive/ADR-251-system-agent-reviewer-first-class-surfaces.md). User-authored domain agents are zero-to-many per workspace; when they exist they get `/workspace/agents/{slug}/AGENT.md` + `memory/`. Production roles (researcher, analyst, writer, tracker, designer, reporting) and platform integrations are Orchestration, not Agents — they don't have substrate per [ADR-216](../adr/ADR-216-orchestration-surface-vs-judgment-persona.md).
-
----
-
-## 1. Spatial inventory — what files exist and who owns them
-
-YARNNN's workspace is a **virtual filesystem of human-readable files** backed by Postgres (`workspace_files` table). Path conventions are the schema. New capabilities extend paths, not database tables. Every mutation produces a content-addressed revision with `authored_by` attribution per [ADR-209](../adr/ADR-209-authored-substrate.md).
-
-### Three top-level roots
-
-| Root | Scope | Owner | Purpose |
-|---|---|---|---|
-| `/workspace/` | Workspace-level | Operator + System Agent | Identity, conventions, uploads, accumulated context, performance, Reviewer substrate |
-| `/workspace/agents/{slug}/` | Per-agent | Agent itself + system audit | WHO — persistent agent identity + memory (currently only Reviewer at `/workspace/review/`; domain agents at `/workspace/agents/{slug}/`) |
-| `/workspace/{reports,operations}/{slug}/` | Per-recurrence | System | WHAT — recurrence declarations + run logs + outputs per [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) D2 |
-
-**Dissolved roots** (preserved here for orientation; do not write to them):
-- `/knowledge/` — dissolved into `/platforms/` then into `/workspace/context/` per ADR-142 + ADR-153
-- `/memory/` — merged into `/workspace/memory/` per ADR-206
-- `/user_shared/` — dissolved into session-scoped uploads per ADR-142
-- `/platforms/` — DEPRECATED per ADR-153; platform data flows through tracking tasks into `/workspace/context/` domains
-- `/tasks/{slug}/` — DELETED per ADR-231 D2; replaced by per-shape natural homes (`reports/{slug}/`, `operations/{slug}/`, `context/{domain}/_recurring.yaml`, `_shared/back-office.yaml`)
-
-### `/workspace/` — full tree
-
-```
-/workspace/
-├── context/
-│   ├── _shared/                    ← kernel-authored standing configuration
-│   │   ├── MANDATE.md              ← Workspace north star + success criteria + boundaries [K]
-│   │   ├── IDENTITY.md             ← Who the operator is in this workspace [K]
-│   │   ├── BRAND.md                ← Output voice / visual style [K]
-│   │   ├── AUTONOMY.md             ← Prose delegation documentation (human/LLM read only) [K]
-│   │   ├── _autonomy.yaml          ← Machine-parsed delegation config (ADR-254) [K]
-│   │   ├── PRECEDENT.md            ← Durable interpretations / boundary cases [K]
-│   │   ├── CONVENTIONS.md          ← Program-specific structural rules (not kernel-seeded) [P]
-│   │   ├── _locks.yaml             ← Operator-authored Reviewer write-path locks (ADR-258) [K, optional]
-│   │   ├── back-office.yaml        ← MAINTENANCE recurrence declarations (ADR-231) [P]
-│   │   └── back-office-audit.md    ← Append-only back-office audit log [P]
-│   ├── {domain}/                   ← accumulated intelligence per domain (ADR-151)
-│   │   ├── _tracker.md             ← System: per-entity freshness registry (hidden)
-│   │   ├── _recurring.yaml         ← ACCUMULATION recurrence declarations for this domain (ADR-231)
-│   │   ├── _money_truth.md         ← Money-truth per domain (ADR-195) [SYS]
-│   │   ├── _feedback.md            ← Source-agnostic feedback (ADR-181)
-│   │   ├── _run_log.md             ← Recurrence run log
-│   │   ├── {entity-slug}/          ← Per-entity folder
-│   │   │   ├── profile.md
-│   │   │   ├── signals.md
-│   │   │   └── ...
-│   │   ├── assets/                 ← Domain-level visual assets (ADR-157)
-│   │   └── landscape.md            ← Cross-entity synthesis (agent-written)
-│   ├── _money_truth_summary.md     ← Cross-domain rolling-window money-truth (ADR-195 P3) [SYS]
-│   ├── slack/  notion/  github/    ← Platform-bot temporal observations (ADR-158)
-│   └── signals/                    ← Cross-domain temporal signal log (no tracker)
-├── memory/                         ← YARNNN working memory (ADR-206 relocation)
-│   ├── awareness.md                ← Shift handoff notes (cross-session)
-│   ├── _playbook.md                ← Orchestration playbook (hidden)
-│   ├── style.md                    ← Inferred style from edit patterns
-│   └── notes.md                    ← YARNNN-extracted facts and standing instructions
-├── review/                         ← Reviewer substrate (ADR-194 v2)
-│   ├── IDENTITY.md                 ← Reviewer occupant identity (operator-authored persona)
-│   ├── principles.md               ← Declared judgment framework (operator-editable, ADR-253)
-│   ├── _principles.yaml            ← Machine-parsed thresholds (ADR-254)
-│   ├── OCCUPANT.md                 ← Current seat occupant (rotates)
-│   ├── handoffs.md                 ← Append-only occupant-rotation log
-│   ├── decisions.md                ← Append-only verdict trail (ADR-194 Phase 2a)
-│   └── calibration.md              ← Auto-generated judgments-vs-outcomes
-├── agents/{slug}/                  ← User-authored domain agents only (zero-to-many)
-│   ├── AGENT.md
-│   ├── memory/
-│   │   └── playbook-*.md
-│   └── style.md
-├── reports/{slug}/                 ← DELIVERABLE-shape recurrences (ADR-231 D2)
-│   ├── _spec.yaml                  ← Recurrence declaration
-│   ├── _feedback.md
-│   ├── _run_log.md
-│   └── {date}/output.md            ← Per-firing output (replacive; latest is canonical)
-├── operations/{slug}/              ← ACTION-shape recurrences (ADR-231 D2)
-│   ├── _action.yaml
-│   └── _run_log.md
-├── uploads/                        ← User-uploaded reference material (permanent)
-│   └── {slugified-name}.md
-├── _recurrences.yaml               ← Operator-authored top-level recurrence index (ADR-261)
-└── working/                        ← Ephemeral scratch (24h TTL)
-```
-
-**Legend.** `[K]` = kernel-seeded at signup. `[P]` = program-supplied (only present when a program bundle is forked). `[SYS]` = system-written aggregate. Unmarked paths accumulate from work.
-
-### File naming convention (ADR-156)
-
-One glance tells you ownership:
-
-| Convention | Meaning | Writer | Visible in explorer? |
-|---|---|---|---|
-| **UPPERCASE.md** | Charter / identity — defines who/what/why | Operator + System Agent | Yes |
-| **lowercase.md** | Content — notes, feedback, synthesis, runs | Operator + System Agent + agents | Yes |
-| **_prefixed.md/yaml** | System infrastructure — derived, pipeline-managed | Pipeline / system | No (hidden) |
-
-**Frontend rule:** any file whose name starts with `_` is hidden from the operator's filesystem explorer. One rule, no exceptions.
-
-### File ownership / lifecycle classification
-
-Eight categories cover the operator-relevant universe:
-
-| Code | Meaning | Examples |
+| Layer | What lives here | Who owns it |
 |---|---|---|
-| **K-S** | Kernel-seeded skeleton (every workspace, empty initially) | `/workspace/context/_shared/MANDATE.md`, `/workspace/memory/awareness.md`, `/workspace/review/principles.md` |
-| **K-A** | Kernel-seeded but operator-authored on first edit (skeleton → rich) | Most `[K]` files above transition K-S → K-A on operator edit |
-| **P-C** | Program-bundle canon (forked verbatim, operator typically doesn't edit) | Alpha-trader's `_autonomy.yaml` (`tier: canon`), CONVENTIONS.md |
-| **P-A** | Program-bundle authored (forked as template, operator MUST overwrite) | `_operator_profile.md`, `_risk.md`, `_universe.yaml`, `_principles.yaml` |
-| **P-P** | Program-bundle placeholder (empty skeleton in bundle, fills from work) | Per-ticker `{ticker}.yaml`, signal fires, `_money_truth.md` |
-| **AGT** | Agent-scoped (currently only Reviewer + user-authored agents) | `/workspace/review/decisions.md`, `/workspace/agents/{slug}/AGENT.md` |
-| **MEM** | YARNNN memory (system-written, operator may read) | `/workspace/memory/style.md`, `notes.md` |
-| **SYS** | System-written aggregates (performance, calibration, audit, run logs) | `_money_truth.md`, `decisions.md`, `_run_log.md`, `back-office-audit.md`, `reports/{slug}/{date}/output.md` |
+| **User account** | billing, email, notification preferences, credentials (`platform_connections`, keyed `user_id` — ADR-577) | the human, across all their workspaces |
+| **Kernel** | the filesystem over Postgres, the primitives, the gates, the one drain loop, the mirrors it writes into `system/` (skills — ADR-630; agent faces — ADR-641 am.2) | the system; reviewed as code, attributed `system:*` |
+| **Workspace** | the commons: every file the members and their agents author, the grants (`principal_grants`), the timeline, the balance | its members (ADR-373 — one multi-principal attributed commons; the outermost unit, ADR-378) |
+| **App** | the artifact type it edits and the resident that works it (`register_app` — ADR-562/592/646) | the system; a client `AppDescriptor` mirrors it (ADR-636) |
+| **Agent** | identity ⊕ character ⊕ engine (ADR-596); its home `agents/{slug}/` holds `memory/` + two locked grant sidecars (ADR-624) | the register (`AGENTS`, ADR-600); the member's own face wins |
 
-### Lifecycle column on `workspace_files` (ADR-119)
-
-| Value | Meaning |
-|---|---|
-| `active` | Normal operational file |
-| `permanent` | User-curated, never auto-cleaned (e.g. `/workspace/uploads/`) |
-| `ephemeral` | Temporary — auto-cleaned after TTL (e.g. `/working/` 24h) |
-| `delivered` | Output that has been delivered |
-| `archived` | Previous version kept for history |
-
-### Conventions for new files
-
-1. Use existing directories first. Don't create new top-level roots.
-2. Use `.md` for content, `.yaml` for machine-parsed config, `.json` only for manifests (ADR-254 format discipline).
-3. UPPERCASE for charter/identity (`AGENT.md`, `TASK.md` legacy, `IDENTITY.md`, `MANDATE.md`).
-4. lowercase-kebab-case for user/agent-created content files.
-5. `_prefix` for system infrastructure (hidden from explorer).
-6. Date-stamp temporal content (`2026-03-25/` for daily outputs).
-7. Prefer folders as boundaries — new coordination needs become subfolders, not new tables.
-8. Accumulated context goes in `/workspace/context/{domain}/`. New domains must be added to the directory registry per ADR-151; no ad-hoc context folders.
+Workspaces have no types. A program (`docs/programs/{slug}/`) is a post-genesis hire (ADR-414 D5) that forks a reference workspace in; nothing about a workspace's shape is fixed at birth.
 
 ---
 
-## 2. Temporal bootstrap — what gets seeded when
+## 1. The substrate — the filesystem as the kernel tells it
 
-`services.workspace_init.initialize_workspace()` is the single function that bootstraps a workspace. It runs in three situations:
+The workspace is a **virtual filesystem of human-readable files over Postgres** (`workspace_files` + `workspace_file_versions`, ADR-106/209). Path conventions are the schema; new capabilities extend paths, not tables. **`write_revision()` in `api/services/authored_substrate.py` is the single write path**: every mutation lands a content-addressed revision with `authored_by` and a message, parent-pointered to the one before it. Binary bytes ride the same lane through the CAS seam (ADR-427). There is no filename versioning and no `/history/` folder — the revision chain *is* the history.
 
-| Trigger | Code path |
-|---|---|
-| First login (no agents exist) | `GET /api/workspace/state` lazy-scaffold gate |
-| L2 workspace reset | `DELETE /account/workspace` reinit phase |
-| L4 full account reset | `DELETE /account/reset` reinit phase |
+### What every participant is told
 
-It is idempotent — each phase checks before writing.
+The kernel tells every agent the same thing (`PARTICIPANT_FILESYSTEM_MODEL`, `api/services/workspace_paths.py` — composed into every lane frame and the MCP binding, ADR-533):
 
-### Phase 1 — System Agent row
+- **Where** — a file's path is its meaning. Two homes are provided: **Documents** (authored work with no more specific home) and **Downloads** (what arrived from outside — uploads, observations from connected apps). Everything else at the top level is a meaning-named folder someone created; writing a file into a new folder creates it.
+- **Whether** — a grant decides if a path may be written. Most of the home is the participant's; the system's own settings and runtime state are not.
+- **Who** — every write is attributed and versioned; nothing is silently overwritten.
 
-Creates one `agents` row with `role='thinking_partner'`, `origin='system_bootstrap'`. This is the sole infrastructure row at signup per [ADR-205](../adr/ADR-205-workspace-primitive-collapse.md).
+The told names are addresses, not paths: `HOME_ALIASES` resolves **Documents → `operation/`** and **Downloads → `inbound/`** at `parse_file_reference`, the one chokepoint (ADR-588). A told name must never reach a composed path.
 
-Production roles (researcher, analyst, writer, tracker, designer, reporting) are lazy-created on first dispatch. Platform integration capability bundles are connection-bound — they materialize at OAuth connect, not signup.
+### Roots
 
-### Phase 2 — Kernel-seeded skeleton files
-
-Writes the files marked `[K]` in the inventory above via `UserMemory.write` (→ `authored_substrate.write_revision`, attributed `system:workspace_init`). The full kernel set is enumerated in [`api/services/workspace_paths.py::SHARED_CONTEXT_FILES`](../../api/services/workspace_paths.py).
-
-**Note:** `CONVENTIONS.md` is *not* in this set. It is program-scoped — only written when a program bundle forks it. See §3 below for the program-activation flow.
-
-`PRECEDENT.md` starts as a skeleton at signup but is not prompted upfront. It accumulates durable interpretations over time, written by the System Agent or Reviewer when a boundary-case decision warrants a permanent ruling:
-
-```python
-WriteFile(scope="workspace", path="context/_shared/PRECEDENT.md",
-          content="### <slug>\n- Scope: ...\n- Rule: ...\n- Why: ...\n",
-          mode="append")
-```
-
-`dispatch_helpers.gather_task_context()` reads it and injects into every headless task execution context.
-
-### Phase 3 — Workspace narrative session
-
-Creates a `chat_sessions` row (type=`thinking_partner`, no `agent_id`, no `task_slug`). This is the workspace-scoped narrative log that all autonomous writers (task pipeline, reviewer verdicts, back-office, MCP) target from day one. Without it, narrative entries before the operator opens `/chat` would be lost permanently.
-
-### Phase 4 — Signup balance audit trail
-
-Writes a `signup_grant` row to `balance_transactions` ($3.00 per ADR-172 schema DEFAULT). Only runs on fresh init (`already_initialized=False`).
-
-### Phase 5 — Reference-workspace fork (optional)
-
-When `program_slug` is provided, delegates to `services.programs.fork_reference_workspace()`. Walks the bundle's `reference-workspace/` directory and writes files honoring three-tier categorization (ADR-223 §5):
-
-| Tier | Rule |
-|---|---|
-| `canon` | Re-applied on every fork; operator edits preserved as prior revisions per ADR-209 |
-| `authored` | Applied only when operator file is still skeleton; operator-authored content preserved |
-| `placeholder` | Applied on first fork only; never overwritten |
-
-This phase is what turns a kernel-only workspace into a program-shaped one. Phases 1–4 are kernel-universal; Phase 5 is optional and reversible (`POST /api/programs/deactivate` strips the program marker but preserves operator-authored content per [ADR-244](../adr/ADR-244-workspace-settings-surface.md)).
-
-### Scheduling index — materialized at fork time
-
-The `tasks` table is a thin scheduling index over `/workspace/_recurrences.yaml` per ADR-261 D3. The YAML is truth; the table holds `next_run_at` + `last_run_at` per `(user_id, slug)` so the scheduler can do fast due-time queries with CAS atomic claims. The two writers of the canonical YAML each call `services.scheduling.materialize_scheduling_index()` immediately after the write:
-
-- `services.programs.fork_reference_workspace` — bundle activation (signup, `/api/programs/activate`, L2/L4 reset reinit). When the fork touches `_recurrences.yaml`, the index is built before the function returns.
-- `services.primitives.schedule.handle_schedule` — operator-driven mutations via `Schedule(action=create|update|pause|resume|archive)`. The post-write materialize syncs schedule changes, applies `paused` flips, and drops index rows whose recurrence was archived.
-
-The materialize call is idempotent and safe to invoke from either site. A freshly-activated workspace has a coherent scheduling index the moment the activation HTTP call returns.
-
-### Back-office tasks — trigger-materialized, not signup-scaffolded
-
-Per ADR-206, zero operational tasks are scaffolded at signup. Back-office tasks materialize via `services.back_office.materialize_back_office_task()` on trigger:
-
-| Task | Trigger |
-|---|---|
-| `back-office-proposal-cleanup` | First `ProposeAction` call |
-| `back-office-outcome-reconciliation` | First commerce or trading platform connect |
-| `back-office-reviewer-calibration` | Same as outcome-reconciliation |
-| `back-office-reviewer-reflection` | Same as outcome-reconciliation |
-
-`materialize_back_office_task` lives in `services.back_office` (relocated 2026-05-03 from `workspace_init.py` — it is lifecycle management, not initialization).
-
-### Skeleton detection — single implementation
-
-Three callers previously had diverging skeleton-detection heuristics. As of 2026-05-03 all three delegate to `services.workspace_utils.is_skeleton_content()`:
-
-- `services.workspace_init` — fork idempotency (`authored` tier only re-applied when skeleton)
-- `routes/workspace._classify_file_state` — `/workspace` surface substrate status panel
-- `services.bundle_reader.classify_activation_state` — MANDATE.md skeleton → `post_fork_pre_author` (relocated 2026-08-26 when working_memory.py was deleted)
-
-### First-run user flow
-
-```
-1. OAuth / magic-link → /auth/callback
-2. Supabase session established
-3. GET /api/workspace/state
-   → Server: zero agents? → initialize_workspace()
-   → activation_state == "none" && no active program?
-     → redirect /workspace?first_run=1
-   → otherwise → HOME_ROUTE (/chat)
-4. /workspace (first_run=1)
-   → Operator picks a program (or skips → chat)
-5. POST /api/programs/activate (if program picked)
-   → fork_reference_workspace() runs
-   → activation_state → "post_fork_pre_author"
-6. Operator authors authored-tier files via YARNNN chat or direct substrate edit
-   → activation_state → "operational"
-   → Schedule(create) hard gate unblocked
-7. YARNNN scaffolds first recurrences + fires them immediately
-```
-
-**Without program activation** (generic workspace): operator lands on `/chat` directly, YARNNN's Mandate-first elicitation engages (from `onboarding.py` `CONTEXT_AWARENESS`), operator authors MANDATE in conversation. Recurrences can be created once MANDATE is non-skeleton.
-
----
-
-## 3. Autonomy threshold — what does autonomous operation actually require?
-
-A workspace is "autonomous" when it can fire scheduled work without operator intervention and the Reviewer can adjudicate proposals within delegated bounds. Three load-bearing conditions, none independently sufficient:
-
-### Condition A — MANDATE non-skeleton (workspace minimum)
-
-MANDATE.md must declare a Primary Action and success criteria per [ADR-207](../adr/ADR-207-primary-action-centric-workflow.md). Until non-skeleton:
-
-- `Schedule(action='create', ...)` returns an error (hard gate at primitive layer)
-- YARNNN's CONTEXT_AWARENESS prompt prioritizes mandate elicitation
-- No recurrences fire; the workspace is in "knowledge mode" only
-
-The mandate gate is the architectural floor for autonomous operation. It exists because firing recurrences without a declared mandate produces work that can't be evaluated against any standard.
-
-### Condition B — Autonomy delegated (operator authorization)
-
-`AUTONOMY.md` + `_autonomy.yaml` must declare a delegation level beyond `manual` per [ADR-217](../adr/ADR-217-autonomy-ceiling-substrate.md). The four levels:
-
-| Level | Behavior |
-|---|---|
-| `manual` | Every proposal routes to operator queue; nothing auto-executes |
-| `bounded` | Proposals under `ceiling_cents` auto-execute if Reviewer approves; over-ceiling route to queue |
-| `autonomous` | Reviewer's approval is execution; queue is bypass-only |
-| (paused) | Time-bounded circuit breaker via `paused_until` (ADR-248) |
-
-Autonomy is *operator-authored, not system-default*. A workspace with delegation=`manual` and a non-skeleton MANDATE is still partially autonomous (recurrences fire and produce proposals) — it's just that consequential actions still wait for the operator.
-
-### Condition C — Reviewer principles authored (judgment loop closeable)
-
-`/workspace/review/principles.md` + `_principles.yaml` must declare the evaluation framework the Reviewer applies per [ADR-253](../adr/ADR-253-reviewer-substrate-native-agent.md). The Reviewer is the sole independent judgment seat per [ADR-194 v2](../adr/ADR-194-reviewer-layer-and-operator-impersonation.md) — without authored principles, the Reviewer falls back to a generic default that can't evaluate domain-shaped proposals (capital risk, brand fit, customer-segment alignment, etc.).
-
-The Reviewer occupant identity (`/workspace/review/IDENTITY.md`) is also load-bearing — it embodies the persona that *applies* the principles (Simons, Buffett, Deming, or operator-authored original). Same seat, swappable occupant per ADR-194 v2.
-
-### Program-activated minimum (additional)
-
-When a program bundle is active, the bundle's `tier: authored` files must be overwritten — the bundle ships skeleton templates that the operator MUST customize:
-
-- alpha-trader: `_operator_profile.md`, `_risk.md`, `_universe.yaml`, Reviewer `_principles.yaml`
-- alpha-commerce: equivalents (when activated)
-
-These are surfaced one-by-one through the ACTIVATION_OVERLAY (`api/agents/prompts/chat/activation.py`) when activation_state is `post_fork_pre_author`.
-
-### Activation state machine
-
-Per ADR-244 + ADR-226, `workspace_state.activation_state` enum:
-
-| State | Meaning | What's true |
+| Root | What it is | Written by |
 |---|---|---|
-| `none` | No program activated; kernel-only | Generic workspace; Schedule gate depends only on MANDATE |
-| `post_fork_pre_author` | Program forked but authored-tier files still skeleton | Activation overlay engaged; recurrences blocked until authored files filled |
-| `operational` | All authored-tier files non-skeleton | Recurrences fire; autonomous loop available |
+| `operation/` (**Documents**) | the commons' meaning folders — `operation/{folder}/…` for whatever members name; `operation/reports/` for composed outputs; `operation/CONVENTIONS.md` when a program ships one | members, agents in their lanes, standing declarations |
+| `inbound/` (**Downloads**) | what arrived: `inbound/{lane}/{selector}/{stamp}.{ext}` (the BINDING grammar, [intake-pipeline.md](intake-pipeline.md)); `inbound/uploads/` for human uploads; observations from captures | the intake pipeline (`system:capture-{platform}`), uploads |
+| `uploads/` | the legacy human-upload root; permanent | members |
+| `agents/{slug}/` | an agent's home: `memory/` (ordinary substrate, freely writable by it) + `_autonomy.yaml` + `_budget.yaml` (the grant sidecars, LOCKED — ADR-624). Nothing else; the ADR-414 twelve-file set is deleted | the agent (memory); the member (sidecars) |
+| `system/` | the kernel's region: `system/skills/` (the mirrored kernel skills, ADR-630), `system/agents/{slug}/` (what the kernel ships for an agent — its face), runtime state | the kernel only |
+| `governance/` | the workspace dials — `_autonomy.yaml` (the witness dial, ADR-405) + `_budget.yaml` (the spend envelope, ADR-327). Absent on most workspaces: `budget.py` degrades to kernel defaults | the owner |
+| `constitution/` · `contract/` | the operator's declarations when they exist — `constitution/MANDATE.md` + `PRECEDENT.md` (intent, ADR-207/320); `contract/_preferences.yaml` + `_expected_output.yaml` (what the operation owes, ADR-345/366) | the operator |
 
-`active_program_slug` is a separate signal — derived from MANDATE.md's program-marker heading line per ADR-244. The two enums together describe the workspace's autonomy posture.
+Older workspaces may still carry `persona/` (the retired seat's files, ADR-632) and `context/`; no live code reads either as a home.
 
----
+### Folders, names, lifecycle
 
-## 4. The autonomy loop
-
-Once the autonomy threshold is met (§3), the workspace runs a closed loop: trigger wakes Reviewer → Reviewer reads substrate + assembles prompt → tool-use loop produces verdict → dispatcher gates execution against autonomy policy → outcome lands in substrate → next cycle reads it. This section traces the loop end-to-end. Prompt-assembly mechanics live in [agent-composition.md](agent-composition.md); what follows is the substrate-and-dispatch view.
-
-### 4.1 Triggers — two shapes (post ADR-263 D2)
-
-Per [ADR-263 D2](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md) the Reviewer trigger taxonomy collapsed from four to two. `proposal | reflection | heartbeat | addressed` (ADR-256 original) → `reactive | addressed` (ADR-260 → ADR-263).
-
-| Trigger | Entry point | When | Pre-loaded context |
-|---|---|---|---|
-| `reactive` | `services/review_proposal_dispatch.py::on_proposal_created` | An `action_proposals` row is inserted (operator/agent proposes an action) | Proposal row + domain substrate (`_money_truth.md`, `principles.md`, `IDENTITY.md`, `PRECEDENT.md`, `_risk.md`, `_operator_profile.md`) |
-| `reactive` | `services/invocation_dispatcher.py::dispatch` when `recurrence.mode == "judgment"` | A judgment-mode recurrence fires on its cron | Recurrence prompt + signal files + workspace_state + last 7d `decisions.md` |
-| `addressed` | `agents/yarnnn.py::execute_stream_with_tools` chat-executor flow | Operator addresses YARNNN in chat with a turn that requires judgment | All pre-loaded substrate + operator message + conversation window |
-| (not a trigger) | `services/invocation_dispatcher.py::_dispatch_mechanical` | A `mechanical`-mode recurrence fires on its cron (e.g. `SyncPlatformState`) | No Reviewer invocation — pure deterministic Python writes substrate; the next reactive/addressed wake reads what mechanical wrote |
-
-Mechanical-mode recurrences are not a trigger — they're substrate sensors per [ADR-264](../adr/ADR-264-substrate-canonical-world.md) that keep the substrate the Reviewer reads fresh between Loop wake-ups.
-
-### 4.2 Substrate reads on wake
-
-On wake the Reviewer receives a pre-loaded context bundle assembled by the dispatcher. Once inside the tool-use loop it can call `ReadFile` to fetch any other substrate path on demand. The pre-loaded set:
-
-| File | Role at reasoning time |
-|---|---|
-| `/workspace/review/IDENTITY.md` | Persona embodiment — operator-authored character traits framing judgment. Empty → neutral skeptical baseline. |
-| `/workspace/review/principles.md` | Framework constraints — operator's stated evaluation thresholds in prose. Empty → "no declared framework" fallback. |
-| `/workspace/review/_principles.yaml` | Machine-parsed thresholds. Loaded at *dispatch* time (not Reviewer reasoning) via `services.review_policy.load_principles()`. |
-| `/workspace/context/_shared/MANDATE.md` | Operation's primary intent — the reason the Reviewer exists. |
-| `/workspace/context/_shared/AUTONOMY.md` | Prose delegation declaration (legibility for human/LLM; not parsed). |
-| `/workspace/context/_shared/_autonomy.yaml` | Machine-parsed delegation policy. Loaded at *dispatch* time via `services.review_policy.load_autonomy()` — drives `should_auto_execute_verdict()`. |
-| `/workspace/context/_shared/PRECEDENT.md` | Durable interpretations / boundary-case rulings. Filters reasoning over substrate; overrides principles per prompt framing. |
-| `/workspace/context/{domain}/_money_truth.md` | Money-truth track record per domain (rolling 7d/30d/90d, ADR-195 v2 Phase 3). |
-| `/workspace/context/{domain}/_operator_profile.md` | Domain strategy + operator style. Program-supplied for active programs. |
-| `/workspace/context/{domain}/_risk.md` | Hard floors / risk envelope. Trading-specific; ceiling enforcement source per ADR-192. |
-| `/workspace/review/decisions.md` | Reviewer's own prior verdicts. Not pre-loaded; available via on-demand `ReadFile` for self-consistency review. |
-
-### 4.3 Prompt assembly + tool-use loop
-
-See [agent-composition.md §Reviewer prompt assembly](agent-composition.md) for the canonical assembly mechanics. In summary: system prompt is a platform-fixed `_PERSONA_FRAME` + auto-generated cockpit-awareness section from `cockpit_awareness.py` (composed at module load from path constants + `REVIEWER_PRIMITIVES` registry — never drifts from runtime). User message is dispatcher-assembled with persona → framework (principles + precedent) → substrate → trigger-specific framing.
-
-Bounded loop: Sonnet (proposal-arrival reactive) = 3 rounds max; Haiku (recurrence-fire reactive + addressed) = 12 rounds max. The Reviewer closes by calling `ReturnVerdict`. Per-round prompt nudges enforce convergence.
-
-### 4.4 Verdict dispatch
-
-The Reviewer emits a `ReviewerOutput` TypedDict — `{verdict, reasoning, confidence, actions_taken, proposals?, evidence_summary?, directives?}`. Verdict types: `approve | reject | defer | stand_down` (proposal/recurrence) or `no_change | narrow | relax | character_note | pause_autonomy` (reflection recurrence). Dispatch routing per ADR-229 D1:
-
-**Approve** → `services.review_policy.should_auto_execute_verdict()` reads `_autonomy.yaml` and decides:
-- **Pause active** (`paused_until > now`) → advisory queue, regardless of delegation
-- **`delegation: manual`** → advisory queue (operator must click Approve)
-- **`delegation: autonomous`** → `handle_execute_proposal` fires the platform tool
-- **`delegation: bounded`** → ceiling check against `proposal.estimated_cents` vs `ceiling_cents`; under → execute; over → advisory queue
-- **Missing `ceiling_cents` on bounded** → advisory queue ("no ceiling_cents set")
-- **Missing `estimated_cents` on proposal** → advisory queue ("no estimated value") — this is the trading-specific failure mode when `_risk.md` is skeleton
-
-**Reject** → `handle_reject_proposal` marks proposal `status="rejected"`; not autonomy-gated (Reviewer's narrowing is always binding).
-
-**Defer** → records observation entry; if `directives` array present, the dispatcher executes each directive (`fire_invocation` / `write_file` to `/workspace/review/*` / `clarify`) per [ADR-253 D2](../adr/ADR-253-reviewer-substrate-native-agent.md).
-
-**Stand_down** → observation entry only; loop closes with no action.
-
-Every verdict appends to `/workspace/review/decisions.md` via `services.reviewer_audit.append_decision()` with `authored_by="reviewer:{occupant}"` per ADR-209.
-
-### 4.5 Outcome reconciliation + calibration recursion
-
-Execution side-effects land at the platform (broker, commerce provider, Slack, etc.). The loop closes through two back-office paths:
-
-**Outcome reconciliation** — daily `back-office-outcome-reconciliation` recurrence calls `services.outcomes.ledger.fold_outcome_candidates()`. Reads `last_reconciled_at` from the domain's `_money_truth.md` frontmatter, fetches platform events since, writes:
-- `/workspace/context/{domain}/_money_truth.md` — rolling 7d/30d/90d totals, **`by_signal` per-signal attribution** (ADR-267, P&L unification 2026-05-12), processed-event-keys (idempotency), by-action breakdown, recent narrative
-- `/workspace/context/_money_truth_summary.md` — cross-domain rollup (`services.outcomes.ledger.write_money_truth_summary()`)
-
-Signal attribution flows natively from proposal to outcome via Alpaca's `client_order_id` round-trip (ADR-267 D1) — the reconciler reads `client_order_id` on filled orders, joins against `action_proposals` to recover `signal_id` from `proposal.inputs`, and emits outcomes with native attribution. Per-signal rolling windows are computed in lockstep with domain-wide windows on every fold.
-
-High-impact outcomes (above `_principles.yaml::high_impact_threshold_cents`) additionally route to `/workspace/context/{domain}/_feedback.md` per [ADR-181 Phase 5a](../adr/ADR-181-source-agnostic-feedback-layer.md).
-
-**Reviewer calibration** — periodic `back-office-reviewer-reflection` recurrence (judgment mode) wakes the Reviewer with prior decisions + `_money_truth_summary.md`. Reviewer's verdict types are different here (`no_change | narrow | relax | character_note | pause_autonomy`). Verdicts can mutate `principles.md` or write `paused_until` to `_autonomy.yaml` per [ADR-248 D3](../adr/ADR-248-reviewer-periodic-pulse.md) as a time-bounded circuit breaker.
-
-**Closure.** Next reactive/addressed wake reads the updated `_money_truth.md` + calibrated `principles.md`. The substrate IS the bus per [FOUNDATIONS Axiom 1 fourth sub-clause](FOUNDATIONS.md) — there is no parallel control-flow channel between cycles. Mechanical-mode recurrences sit at the deterministic end of this same architecture, keeping external state mirrored into substrate between wake-ups.
+- **A folder exists iff a file exists under its prefix** — the tree is derived. An *empty* folder is a marker row (trailing-slash path, `content_type='inode/directory'`), written via `write_revision`, never through `WriteFile`; every listing filters on `is_folder_marker` (presentation, never authorization) (ADR-588).
+- **Format follows the consumer** (ADR-254): `UPPERCASE.md` prose for operator/LLM, `lowercase.md` append-only narrative, `_name.yaml` machine-parsed config (`yaml.safe_load`; ints are ints), `.json` manifests, `.html` composed artifacts, `face.png` an agent's face. No new YAML-frontmatter `.md`; no hand-rolled frontmatter parsers.
+- **A file declares its type in its own bytes** (`data-template`); a layout row declares the owning app; the server scopes which types an app opens (`kinds_for_app`, ADR-473/646). An unowned type opens in the generic viewer, never a default app.
+- **Lifecycle** (`workspace_files.lifecycle`, ADR-119): `active` · `permanent` (uploads) · `ephemeral` · `delivered` · `archived` (the Trash — a folder fan-out archives one revision per file, grouped by `metadata.trashed_with`).
+- **Permission is owned by the grant, defaulted by meaning; one decider** ([ADR-643](../adr/ADR-643-an-access-decision-has-one-decider.md)): `_is_path_locked_for_principal` in `api/services/primitives/workspace.py` answers *may this principal do this verb on this path* and fails closed. The path-anchored residue is exactly the grant sidecars, `system/`, and the principal homes.
 
 ---
 
-## 5. Cold-start failure modes
+## 2. Genesis and growth
 
-Definitive catalog: for each prerequisite, what specifically breaks at runtime and how to recover. This is the foundation for testing playbooks — every row below is a testable assertion.
+### Genesis is pure (ADR-414 D4, ADR-465 D2)
 
-| Prerequisite | If missing / skeleton | Severity | Recovery |
-|---|---|---|---|
-| **MANDATE.md skeleton** | Reviewer wakes with neutral frame; cockpit shows "mandate needed" CTA; recurrences not auto-fired (Schedule gate). Reviewer still adjudicates evidence — no auto-execution because no operation context. | **Operational blocker for autonomy** | Author MANDATE.md (via chat or direct edit) — Schedule gate unblocks once non-skeleton |
-| **IDENTITY.md skeleton** | Reviewer defaults to neutral skeptical baseline (`reviewer_agent.py:438`). Verdicts render but lack persona voice. | Non-blocking (acceptable cold-start) | Operator authors persona later via chat |
-| **principles.md skeleton** | Reviewer has no framework. User message says "no declared framework." Verdict renders on EV grounds against MANDATE + `_money_truth.md` only. | Non-blocking | Framework builds over time via reflection-recurrence calibration |
-| **_principles.yaml empty/missing** | `services.review_policy.load_principles()` returns `{}`. High-impact threshold detection skipped → all outcomes treated as routine, no high-impact feedback routing per ADR-181. | Non-blocking | Authored by operator or system at activation |
-| **AUTONOMY.md skeleton (prose only)** | Documentation gap; not load-bearing. Gate reads `_autonomy.yaml`. | Non-blocking | Author for legibility |
-| **`_autonomy.yaml` skeleton / missing** | `load_autonomy()` returns `{}` → `should_auto_execute_verdict()` defaults to `delegation="manual"` → **every approve verdict becomes advisory**. Reviewer adjudicates, nothing auto-executes. | **CRITICAL — disables autonomy entirely** | Author `_autonomy.yaml` with `delegation: bounded` (+ `ceiling_cents`) or `autonomous` |
-| **`_autonomy.yaml` `delegation: manual`** | Every approve verdict routes to operator-approval queue (by design). | By design | Change to `bounded` or `autonomous` when ready |
-| **`_autonomy.yaml` `paused_until > now`** | Gate returns False before delegation check; circuit-breaker mode. | By design (ADR-248 D3) | Wait for expiry or manual unpause |
-| **Reviewer OCCUPANT.md never authored** | No failure — OCCUPANT.md is metadata, not gating. Reviewer wakes normally; IDENTITY + principles drive persona. | No impact | None needed |
-| **Program bundle active + `_operator_profile.md` skeleton** | Reviewer wakes without domain strategy context. Verdicts lack strategy framework. Activation overlay engaged per ADR-226. | Non-blocking but degraded judgment | Author via activation overlay walkthrough |
-| **Program bundle active + `_risk.md` skeleton (trading)** | Proposal value estimation returns None → ceiling check fails → **trading autonomy disabled per-domain** even with `_autonomy.yaml: autonomous`. | **CRITICAL for trading workspaces** | Author `_risk.md` before trading recurrences fire |
-| **All four (MANDATE + AUTONOMY + principles + `_operator_profile`) skeleton** | Reviewer judges on `_money_truth.md` only; if also empty, defers. No auto-execution. Activation overlay is recovery path. | Critical | Activation overlay walkthrough or chat-driven authoring |
+A workspace is minted by **`ensure_owner_workspace`** (`api/services/supabase.py`), called from `get_user_client` — the one dependency every authenticated request passes — for a principal who resolves no workspace at all. **The mint is two rows**: the `workspaces` row *and the owner's `principal_grants` row*. `is_workspace_member()` (mig 221) reads grants only, so a workspace without its owner grant is reachable by nobody, including its owner (found and fixed on both mint sites 2026-09-12; 7 live workspaces healed). A share-first arrival already holds a member grant and never triggers the mint: join-only is real (ADR-404).
 
-**The single load-bearing fact about autonomy:** even with everything else authored, `_autonomy.yaml` missing or skeleton silently routes every Reviewer approval to the operator-approval queue. Reviewer judgment is correct; nothing happens automatically. **This is the first thing a cold-start playbook must verify.**
+Nothing is seeded. There is no steward, no mandate, no persona, no template: the workspace is born empty, constituted by its grants, and everything renders (ADR-414 D4). `initialize_workspace()` (`api/services/workspace_init.py`, v3.0) survives for the reset paths (`DELETE /account/workspace`, `DELETE /account/reset`, the purge reinit) and writes only the two governance dials and the signup balance audit row; the workspace-state route still calls it but has no live reader (an open item).
 
-For trading workspaces specifically: `_autonomy.yaml` authored AND `_risk.md` authored are both required for the autonomous loop to actually fire trades. Either alone is insufficient.
+### What accumulates
+
+- **The kernel's mirrors** — the scheduler's mirror lane writes `system/skills/` and the agents' faces on every tick; a mirror's correctness is that the second run does nothing (ADR-630/641).
+- **The members' work** — files written in lanes through the five file verbs and the apps' verbs, attributed `member:{user_id} via {model}`; uploads into Downloads; folders named by meaning.
+- **What arrives** — captures landing attributed observations at the intake lane on a connection's schedule (ADR-582/591); the derive step distils, and judgment reads the distillate ([intake-pipeline.md](intake-pipeline.md)).
+- **What agents know** — `agents/{slug}/memory/`, ordinary substrate the agent writes freely (ADR-624).
+- **Standing declarations** — `{folder}/_standing.yaml` + `CONTRACT.md` beside the file they keep (ADR-603/639).
+- **A program, if hired** — `POST /api/programs/activate` forks `docs/programs/{slug}/reference-workspace/` in (`fork_reference_workspace`, tiers `canon` / `authored` / `placeholder`; ADR-226); `reapply_platform_substrate` (ADR-292) is the `claude --update` shape for taking later bundle changes.
+
+---
+
+## 3. What unattended work requires
+
+Nothing wakes on its own initiative (ADR-632). Attended work needs only a member and a lane. **Unattended work is a member's standing declaration**, and it needs exactly:
+
+| Requirement | Where it lives | If missing |
+|---|---|---|
+| a **target** — the file the declaration keeps | the kept file itself | nothing to keep; no declaration |
+| a **contract** — what "true" means for the kept file | `{folder}/CONTRACT.md` | the run is refused (ADR-603 D6) |
+| a **schedule** + sources + the app | `{folder}/_standing.yaml`; the app derives from the target's type (an agent slug there is `app_invalid`) | not due; never drained |
+| **budget** — spend bounded by the pool | the member's balance; `governance/_budget.yaml` when present | the run is refused with a receipt (ADR-618) |
+| a **grant** — the declaring member may write the target | `principal_grants` | the write is refused by the one decider |
+
+A declaration is made from inside any lane (the `declaring-standing-work` skill, ADR-630/639) and shows in Notifications → Standing work with Run now / Pause. It carries no outbound reach by design (a standing run is refused a credential — ADR-577/645); the successor is a workspace bot identity, never adoption.
+
+---
+
+## 4. How work runs — the two execution paths
+
+| Path | Trigger | Runner | Attribution | Bounds |
+|---|---|---|---|---|
+| **Attended** | a member's message in a lane | `run_lane_turn` (`api/services/lane_runner.py`) — the agent's tool-use loop; the frame is `build_lane_conventions` | `member:{user_id} via {model}` | the member's grant; the read cap and history ceiling (ADR-648); prompt caching in the router (ADR-634/647) |
+| **Unattended** | a standing declaration comes due | the ONE drain loop (`claim_run` · `record_run` · `drain_due`, `api/services/scheduling.py`) → `run_bounded_derive_turn` (`api/services/derive_turn.py`): toolless, contract-checked, receipted | `system:standing` | the pool (ADR-618); the contract; a third unattended kind is an adapter on the same loop, never a twin |
+
+The substrate is the bus: a turn reads what the last one wrote, and there is no control-flow channel between turns except the revision itself (FOUNDATIONS Axiom 1). Capture rides the same drain loop as the intake twin.
+
+---
+
+## 5. Failure modes that are live
+
+| Condition | What happens | Recovery |
+|---|---|---|
+| a workspace row with no owner grant | reachable by nobody; every read empty; the first hard error is a postgrest 42501 on a lane insert — an INSERT's error for a READ-BACK failure | both mint sites now write the grant; backfill via `ensure_owner_workspace` itself |
+| a told name (`Documents/`) in a composed path | a phantom root shadows `operation/` — the PATCH door runs no alias pass | resolve at `parse_file_reference`; never compose a told name |
+| a standing declaration without `CONTRACT.md` | refused, receipted | write the contract |
+| the pool exhausted | the unattended run is refused with a receipt (ADR-618); attended turns are gated by balance | top up |
+| a member without a grant on the target | the one decider refuses the write | share (ADR-517) |
 
 ---
 
@@ -453,25 +142,22 @@ For trading workspaces specifically: `_autonomy.yaml` authored AND `_risk.md` au
 
 | File | Role |
 |---|---|
-| [api/services/workspace_init.py](../../api/services/workspace_init.py) | `initialize_workspace()` — the 5-phase init function |
-| [api/services/workspace_paths.py](../../api/services/workspace_paths.py) | Canonical path constants; `SHARED_CONTEXT_FILES` (kernel-seeded set); `DEFAULT_REVIEWER_WRITE_LOCKS` |
-| [api/services/workspace_utils.py](../../api/services/workspace_utils.py) | `is_skeleton_content()` + `classify_file_state()` — shared heuristics |
-| [api/services/programs.py](../../api/services/programs.py) | `fork_reference_workspace()`, `_strip_tier_frontmatter()`, `parse_active_program_slug()`, `strip_program_marker_from_mandate()` |
-| [api/services/scheduling.py](../../api/services/scheduling.py) | `materialize_scheduling_index()` — idempotent recurrences-YAML → `tasks`-index sync |
-| [api/services/primitives/schedule.py](../../api/services/primitives/schedule.py) | `handle_schedule()` — operator-driven recurrence mutations |
-| [api/services/back_office/__init__.py](../../api/services/back_office/__init__.py) | `materialize_back_office_task()` — trigger-based back-office lifecycle |
-| [api/routes/workspace.py](../../api/routes/workspace.py) | `GET /api/workspace/state` — lazy scaffold + activation state surface |
-| [api/routes/account.py](../../api/routes/account.py) | `DELETE /account/workspace` (L2) and `DELETE /account/reset` (L4) — purge + reinit |
-| [web/app/auth/callback/page.tsx](../../web/app/auth/callback/page.tsx) | First-run redirect gate |
-| [web/components/settings/WorkspaceSection.tsx](../../web/components/settings/WorkspaceSection.tsx) | `/workspace` surface (program lifecycle + substrate status) |
+| [api/services/authored_substrate.py](../../api/services/authored_substrate.py) | `write_revision()` — the single write path |
+| [api/services/workspace.py](../../api/services/workspace.py) · [api/services/primitives/workspace.py](../../api/services/primitives/workspace.py) | the filesystem over Postgres; the file verbs; `_clip_read`; `_is_path_locked_for_principal` (the decider) |
+| [api/services/workspace_paths.py](../../api/services/workspace_paths.py) | the root constants; `PARTICIPANT_FILESYSTEM_MODEL` · `PARTICIPANT_COMMONS_CONTRACT` · `PARTICIPANT_REGISTER`; `HOME_ALIASES` |
+| [api/services/supabase.py](../../api/services/supabase.py) | `ensure_owner_workspace` (the mint, owner grant included) · `get_user_client` (the door) |
+| [api/services/workspace_init.py](../../api/services/workspace_init.py) | `initialize_workspace()` — the reset paths' reinit (dials + balance audit) |
+| [api/services/programs.py](../../api/services/programs.py) · [api/services/substrate_reapply.py](../../api/services/substrate_reapply.py) | `fork_reference_workspace()`; `reapply_platform_substrate()` |
+| [api/services/standing_work.py](../../api/services/standing_work.py) · [api/services/scheduling.py](../../api/services/scheduling.py) · [api/services/derive_turn.py](../../api/services/derive_turn.py) | the standing declaration; the one drain loop; the bounded derive turn |
+| [api/services/skills/__init__.py](../../api/services/skills/__init__.py) · [api/services/agents_registry.py](../../api/services/agents_registry.py) | the kernel skills + their mirror; the one agent register |
+| [api/services/directory_registry.py](../../api/services/directory_registry.py) · [api/services/workspace_utils.py](../../api/services/workspace_utils.py) | `WORKSPACE_DIRECTORIES`; `is_skeleton_content()` / `classify_file_state()` |
+| [api/routes/workspace.py](../../api/routes/workspace.py) · [api/routes/account.py](../../api/routes/account.py) | the file routes; the reset endpoints |
 
 ## 7. Related
 
-- [docs/design/WORKSPACE.md](../design/WORKSPACE.md) — operator-facing surface contracts (the design counterpart to this doc)
-- [docs/architecture/agent-composition.md](agent-composition.md) — **how agents read this substrate at reasoning time** (prompt assembly, profile selection, cockpit awareness). Orthogonal counterpart to this doc on the prompt side.
-- [docs/architecture/FOUNDATIONS.md](FOUNDATIONS.md) — axioms (Substrate, Identity, Purpose, Trigger, Mechanism, Channel); v8.4 hardening on substrate-as-the-bus + operator-as-one-principal-with-two-embodiments
-- [docs/architecture/SERVICE-MODEL.md](SERVICE-MODEL.md) — end-to-end service model
-- [docs/architecture/authored-substrate.md](authored-substrate.md) — ADR-209 deep dive (revision chain, attribution)
-- [docs/architecture/compositor.md](compositor.md) — kernel/program seam for surface composition
-- [docs/architecture/reviewer-substrate.md](reviewer-substrate.md) — Reviewer-specific file inventory
-- [docs/programs/README.md](../programs/README.md) — program bundle registry
+- [docs/design/WORKSPACE.md](../design/WORKSPACE.md) — the surfaces over this substrate
+- [lane-frame.md](lane-frame.md) · [agent-composition.md](agent-composition.md) — how an agent reads the substrate at reasoning time
+- [intake-pipeline.md](intake-pipeline.md) · [connectors.md](connectors.md) — how outside content reaches the commons
+- [authored-substrate.md](authored-substrate.md) — the revision chain in depth
+- [compositor.md](compositor.md) — the kernel/app seam for surfaces
+- [docs/programs/README.md](../programs/README.md) — the program bundles
