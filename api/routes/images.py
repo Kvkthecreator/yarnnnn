@@ -88,6 +88,14 @@ def export_path_for(artifact_path: str) -> str:
     return f"{folder}/exports/{stem}.png"
 
 
+# The export door's two bounds. They were module constants beside the compose
+# block and left with it in 0b9920f (2026-09-08) while the door kept reading
+# them — every raster POST-back raised NameError until the undefined-name
+# sweep (test_no_undefined_names.py) found it on 2026-09-12.
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+_MAX_EXPORT_BYTES = 25 * 1024 * 1024
+
+
 @router.post("/images/export")
 async def export_png(
     auth: UserClient,

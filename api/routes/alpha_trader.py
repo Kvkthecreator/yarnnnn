@@ -202,7 +202,7 @@ async def _get_alpaca_credentials(auth: UserClient):
     except Exception:
         raise HTTPException(status_code=422, detail="Failed to decrypt trading credentials")
 
-    paper = bool((rows[0].get("metadata") or {}).get("paper", True))
+    paper = bool((row.get("metadata") or {}).get("paper", True))
     return api_key, api_secret, paper
 
 

@@ -105,6 +105,9 @@ def _slugify_selector(value: str) -> str:
     inbound sub-lane convention so pre-582 raw and post-582 raw file together
     (lowercase, hyphenated, no slashes — `owner/repo` stays ONE segment)."""
     s = re.sub(r"[^a-zA-Z0-9]+", "-", (value or "").strip().lower()).strip("-")
+    # The ONE definition of the default (`inbox`) is the sync primitive's;
+    # imported at the use so the two modules never form a cycle.
+    from services.primitives.sync_platform_state import _DEFAULT_SELECTOR
     return s or _DEFAULT_SELECTOR
 
 

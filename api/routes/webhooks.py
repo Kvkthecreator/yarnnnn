@@ -12,6 +12,7 @@ ADR-271: Slack event-trigger endpoint removed (pre-ADR-261 task pipeline dead pa
 import os
 import json
 import base64
+import hashlib
 import hmac
 import logging
 from datetime import datetime, timezone

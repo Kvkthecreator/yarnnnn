@@ -354,6 +354,15 @@ async def bundle_update_available(
     if not available:
         return None  # bundle hasn't declared a version yet
 
+    # The mandate is read HERE, as every sibling in this module reads it. This
+    # function reached the read without ever loading the content (a refactor
+    # left the name behind) — a NameError on first call, found by the
+    # undefined-name sweep on 2026-09-12 (ADR-649 §5); no live caller today,
+    # but test_adr292 pins its existence.
+    from services.workspace import UserMemory
+    from services.workspace_paths import CONSTITUTION_MANDATE_PATH
+    um = UserMemory(client, user_id)
+    mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
     workspace_version, _ = _read_workspace_versions(mandate_content)
     if workspace_version == available:
         return None  # already up-to-date
