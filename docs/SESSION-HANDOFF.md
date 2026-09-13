@@ -81,6 +81,19 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 - `routes/webhooks.py` reconciles Resend delivery events only against `export_log` (0 rows); a bounce on a
   notification email is logged and dropped. Store the message id on the transport row to close it.
 
+## Mobile typing (2026-09-13)
+- The Text editor was driven at 390x844 in a real browser: the three-tab bar renders Document | Properties |
+  Chat, each ONE tap, no nested strip. What was NOT driven on a device: the list continuation and the
+  soft-keyboard Enter. Both are proven by executing the real commands headlessly (13/13 + 15/15) and the
+  gestures are keyboard-shaped, so the remaining risk is the SOFT keyboard itself — `enterKeyHint`, and
+  whether an IME on a real phone reports the flag this rule reads. Owed: one pass on an actual phone.
+- The local API wedged mid-click-pass (`/health` stopped answering after serving fine), so the document
+  never mounted a CodeMirror instance. Unrelated to these changes and not diagnosed — worth knowing before
+  the next local click-pass.
+- `web/scripts/gates/adr519_container_reorder.mjs` crashes with `SyntaxError: Unexpected identifier 'from'`
+  and reports nothing. Confirmed PRE-EXISTING against a worktree at 80b9874~1, so it is not from this arc —
+  but it is the same silent-crash class as the two gates repaired in 43babc0, and it is not in the census.
+
 ## Gates red at baseline — each needs its own ruling
 The authoritative list is `docs/evaluations/2026-09-13-gate-census.md` (43 pytest-shaped + 58 script-shaped
 red at a clean HEAD, each with a first-glance class). A ruling lowers that list in the same commit; the recurring

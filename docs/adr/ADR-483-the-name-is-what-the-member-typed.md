@@ -128,6 +128,31 @@ ended by then). Latin typing is unaffected.
 
 This is one bug in two places, fixed once in both — not a Studio-specific rule.
 
+#### Amendment (2026-09-13) — the rule leaves the two handlers
+
+D3 closed with *"not a Studio-specific rule"*, and it was right; only the
+IMPLEMENTATION was local. Two handlers each carried their own
+`if (e.nativeEvent.isComposing) return;`, and the second one's comment said it
+was *"kept in lockstep"* with the first by hand. Eighteen other Enter handlers
+never learned the rule: a repo-wide grep for `isComposing` returned those two
+copies and TypeScript's own `lib.dom.d.ts`. So composing Hangul in the chat
+composer SENT the message mid-word, and the same Enter renamed a lane, created a
+folder, invited a member, added a source.
+
+The guard now lives once, in `web/lib/shell/submit-key.ts` (`isSubmitKey`), and
+every Enter handler in the app calls it — asserted as a CENSUS by
+`web/scripts/gates/enter_belongs_to_the_ime_first.mjs`, so site twenty-one
+cannot forget it. The three hand-rolled copies are deleted.
+
+One correction rides with it: the shared rule also honours `keyCode === 229`,
+the legacy sentinel some Korean/Android IMEs report INSTEAD of setting
+`isComposing`. D3's two copies checked only the flag, so those keyboards stayed
+broken at the two sites that looked fixed.
+
+This ADR's own gate (`adr483_name_lift_and_ime.mjs`, 14/14) still executes the
+shipped handler, now with the extracted rule in scope, and its falsifier blinds
+the RULE rather than stripping a line that no longer exists.
+
 ---
 
 ## 4. What this ADR deliberately does NOT do
