@@ -55,11 +55,6 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   substrate_status) has no live reader except `/settings` behind a swallowed catch.
 
 ## Files (ADR-649, 2026-09-12)
-- `/images/export` (the raster POST-back) raised NameError on every call from `0b9920f` (09-08) until
-  `faf668f` restored its two bounds; the restore is import- and gate-verified, NOT click-passed. Drive one
-  Download PNG on prod.
-- `services/primitives/write.py` still lists `agent` as an entity kind; its branch calls the deleted
-  `_process_agent` (allowlisted in `test_no_undefined_names.py` with its reason). Remove the kind — ADR-596 D3(d).
 - `services/operator_proxy/scenarios.py::establish_substrate` references eight helpers that no longer
   exist (Hat-B, allowlisted). Repair or delete in an evaluations pass.
 - Rig `anr-scout@yarnnn.com` (ws `4023cb7b`) now holds `operation/first-folder/` from the click-pass; trash it
@@ -96,10 +91,11 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 `routes/workspace.py`, which dropped it on 2026-07-31 in `5223750` — a stale literal, found 2026-09-12) ·
 `test_adr386_member_lifecycle` (1 red: `test_provider_id_resolves_via_registry` expects bare "Claude" to
 resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the test pins the pre-D2.a rule)) ·
-`test_adr388_files_surface` (3/14: `GetInfoModal.tsx` gone, `FileAttributionSummary`, `status === 404`) ·
 `test_adr571_text_app` (115/279: node/sucrase shell-outs fail in this environment) · `test_adr242` (2/6) ·
-`test_adr445` (1/14) · `test_resend_webhooks` (collection error) · `test_adr427` ratchet — all identical at a
-clean HEAD worktree on 2026-09-12.
+`test_adr445` (1/14) · `test_resend_webhooks` (collection error) · `test_adr427` ratchet ·
+`test_adr322_entity_pruning` (5/9: pins a `services.primitives.search` module and an ENTITY_TYPES set that
+no longer exist) — all identical at a clean HEAD worktree on 2026-09-12. `test_adr388_files_surface` was
+re-anchored the same day (14/14) and leaves this list.
 
 ## Cleanup owed since ADR-632
 - `api/scripts/operator/` shadows the stdlib `operator` module for any script run BY PATH from

@@ -36,15 +36,6 @@ ROOTS = ("routes", "services", "jobs", "integrations", "mcp_server")
 
 # relpath → {name: why it is still here}
 ALLOWED: dict[str, dict[str, str]] = {
-    "services/primitives/write.py": {
-        "_process_agent": (
-            "the 'agent' entity branch of the write primitive — the pre-ADR-596 "
-            "agent model is DELETED (mig 248) and `_process_agent` went with it, "
-            "but the primitive still lists 'agent' as an entity kind. Removing "
-            "the kind is the ADR-596 D3(d) follow-up; until then this branch is "
-            "a documented NameError, not a hidden one."
-        ),
-    },
     "services/operator_proxy/scenarios.py": {
         n: "Hat-B harness: `establish_substrate` references a set of helpers that "
            "no longer exist in this module (half-retired evaluation scaffolding, "

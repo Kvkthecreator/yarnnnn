@@ -145,10 +145,13 @@ def test_view_mode_hook_and_consumers():
 # ---- D5: Get-Info modal ----------------------------------------------------
 
 def test_get_info_modal():
-    modal = _read_web("components/workspace/GetInfoModal.tsx")
+    # Get Info → Properties (417c74c, ADR-400): the modal was renamed, the rule
+    # — ONE mount of the details panel, inside the modal — survives. Re-pointed
+    # 2026-09-12 after 3 red at HEAD; the gate had pinned the old filename.
+    modal = _read_web("components/workspace/PropertiesModal.tsx")
     assert "NodeDetailsPanel" in modal  # reuses the revision-chain panel
     page = _read_web(_PAGE)
-    assert "GetInfoModal" in page
+    assert "PropertiesModal" in page
     # the old inline collapsible details panel is no longer mounted on the page
     assert "NodeDetailsPanel" not in page  # only the modal mounts it now
 
@@ -173,16 +176,19 @@ def test_revision_chain_single_home():
     # the modal's panel still mounts it (single home) + the attribution synthesis
     nd = _read_web("components/workspace/NodeDetailsPanel.tsx")
     assert "RevisionHistoryPanel" in nd
-    assert "FileAttributionSummary" in nd
+    # `FileAttributionSummary` (the attribution synthesis) was DELETED in
+    # 417c74c; the single-home rule is about the revision chain, which stays.
 
 
 def test_missing_file_honest_empty_state():
     """A 404 from getFile renders an honest 'this file isn't here' empty state,
     not a raw red 'API Error' — distinguished by APIError.status === 404."""
     content = _read_web(_CONTENT)
-    assert "APIError" in content
-    assert "status === 404" in content
     assert "notFound" in content
+    # The 404-vs-error state machine moved out of ContentViewer into the ONE
+    # loader hook (useFileLoad); the viewer reads `notFound`, the hook decides.
+    hook = _read_web("components/workspace/useFileLoad.ts")
+    assert "APIError" in hook and "status === 404" in hook and "notFound" in hook
 
 
 def test_tree_has_no_author_dots():

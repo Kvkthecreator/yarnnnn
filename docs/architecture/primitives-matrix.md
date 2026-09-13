@@ -333,7 +333,7 @@ When renaming, adding or removing a primitive, sweep these in the **same commit*
 | `UpdateTask` | `ManageTask(action="update")` | ADR-146 | One verb, typed action |
 | `PauseTask` | `ManageTask(action="pause")` | ADR-146 | One verb, typed action |
 | `ResumeTask` | `ManageTask(action="resume")` | ADR-146 | One verb, typed action |
-| `Write` | Specialized primitives (ManageAgent, ManageTask, UpdateContext) | ADR-146 | P1: no remaining unique purpose |
+| `Write` | Specialized primitives (ManageAgent, ManageTask, UpdateContext) | ADR-146 | P1: no remaining unique purpose  **File deleted 2026-09-12** — `services/primitives/write.py` outlived this row: unregistered since ADR-146, unreferenced, and its `agent` branch called a function the ADR-596 retirement had removed (found by `test_no_undefined_names.py`). |
 | `RefreshPlatformContent` | (none — flow dissolved) | ADR-153 | Platform sync removed; data flows through tracking tasks |
 | `Execute` | `ManageTask(action="trigger")` / `UpdateContext(target="agent")` / `ManageTask(action="update")` | ADR-168 Commit 2 *(shipped 2026-04-09)* | Actions dissolve into typed verbs. Also removed: `action` + `system` entity types from `refs.py` (vestigial — only served Execute's action-discovery surface). |
 | `CreateTask` | `ManageTask(action="create", title="...", type_key="..."\|agent_slug="...")` | ADR-168 Commit 3 *(shipped 2026-04-09)* | Symmetry with ManageAgent. Absorbed `title`, `type_key`, `agent_slug`, `focus`, `objective`, `success_criteria`, `output_spec` fields into `MANAGE_TASK_TOOL.input_schema`. Helpers (`_slugify`, `_build_custom_task_md`) moved into `manage_task.py`. File `primitives/task.py` deleted. |
