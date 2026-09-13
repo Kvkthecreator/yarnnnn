@@ -43,6 +43,20 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 - Genesis no longer needs `GET /api/workspace/state`; its remaining payload (program lifecycle,
   substrate_status) has no live reader except `/settings` behind a swallowed catch.
 
+## Files (ADR-649, 2026-09-12)
+- `/images/export` (the raster POST-back) raised NameError on every call from `0b9920f` (09-08) until
+  `faf668f` restored its two bounds; the restore is import- and gate-verified, NOT click-passed. Drive one
+  Download PNG on prod.
+- `services/primitives/write.py` still lists `agent` as an entity kind; its branch calls the deleted
+  `_process_agent` (allowlisted in `test_no_undefined_names.py` with its reason). Remove the kind — ADR-596 D3(d).
+- `services/operator_proxy/scenarios.py::establish_substrate` references eight helpers that no longer
+  exist (Hat-B, allowlisted). Repair or delete in an evaluations pass.
+- Rig `anr-scout@yarnnn.com` (ws `4023cb7b`) now holds `operation/first-folder/` from the click-pass; trash it
+  if a cold rig is wanted. `testacct` owns a workspace too — its "owns nothing" note in
+  `browser_login_link.py` is stale.
+- Top-level peer folders have no member door any more (D5 sends a folder from nowhere to Documents); if one
+  is ever needed, `NewFolderModal` grows a destination picker — never a second fallback.
+
 ## Billing (found 2026-08-20 / 09-02, unverified)
 - The undelivered-top-up banner has never rendered in a browser. To drive it: mint a top-up
   checkout, abandon it, wait out `TOPUP_DELIVERY_GRACE_MINUTES`, load Billing. Sweep LS order
@@ -72,7 +86,11 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 `test_adr404_member_invites` (1 red: greps the literal "Only the workspace owner can manage invites" in
 `routes/workspace.py`, which dropped it on 2026-07-31 in `5223750` — a stale literal, found 2026-09-12) ·
 `test_adr386_member_lifecycle` (1 red: `test_provider_id_resolves_via_registry` expects bare "Claude" to
-resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the test pins the pre-D2.a rule).
+resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the test pins the pre-D2.a rule)) ·
+`test_adr388_files_surface` (3/14: `GetInfoModal.tsx` gone, `FileAttributionSummary`, `status === 404`) ·
+`test_adr571_text_app` (115/279: node/sucrase shell-outs fail in this environment) · `test_adr242` (2/6) ·
+`test_adr445` (1/14) · `test_resend_webhooks` (collection error) · `test_adr427` ratchet — all identical at a
+clean HEAD worktree on 2026-09-12.
 
 ## Beta stage (ADR-629 D4)
 - Graduation is one deleted line (`stage` on `BRAND` in `web/lib/metadata.ts`); every annotation, the
