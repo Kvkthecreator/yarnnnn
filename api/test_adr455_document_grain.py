@@ -142,7 +142,14 @@ def run() -> bool:
            "yarnnn-scroll-to-block" in proj)
 
     _check("surface: the navigator collapses (desktop toggle)",
-           "navCollapsed" in surface and "md:hidden" in surface and "PanelLeft" in surface)
+           # (Re-pinned 2026-09-13: the rail is a pane slot and the desktop gate is
+           #  `threeColumn` (ADR-511/516 converged layout on CSS) — `md:hidden` is
+           #  gone. Pin the behavioural sites, never a bare "hidden" substring.)
+           "const navCollapsed = !rail.shown;" in surface
+           and "threeColumn && !navCollapsed ? 'flex' : 'hidden'" in surface
+           and "isPaged && threeColumn && (" in surface
+           and "onClick={toggleNav}" in surface
+           and "PanelLeft" in surface)
 
     print()
     failed = [label for label, ok in _results if not ok]
