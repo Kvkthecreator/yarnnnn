@@ -17,6 +17,7 @@ import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { STUDIO_ARTIFACT_REGION } from '@/components/authoring/artifactNaming';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 /** The default destination — the Documents home.
  *
@@ -102,7 +103,7 @@ export function NameDocumentModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void create();
+              if (isSubmitKey(e, { allowShift: true })) void create();
               if (e.key === 'Escape') onClose();
             }}
             placeholder="Founder intro transcript"

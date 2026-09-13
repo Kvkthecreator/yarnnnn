@@ -96,6 +96,7 @@ import { resolveSkinVar, skinVarMap } from './skinVars';
 // declares the tier. Imported rather than re-enumerated so the pane's fallback
 // cannot drift from the runtime's rule.
 import { HEADING_RUNGS, TEXT_BLOCK_KINDS } from '../workspace/viewers/projection';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 export type StructVerb = 'duplicate' | 'up' | 'down' | 'delete';
 
@@ -1105,7 +1106,7 @@ function MeasureField({
           placeholder="Auto"
           aria-label={`${m.label} (${m.unit})`}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (isSubmitKey(e, { allowShift: true })) {
               e.preventDefault();
               e.currentTarget.blur();
             }
@@ -2312,10 +2313,12 @@ export function StudioDesignTab({
                   disabled={nameBusy}
                   onBlur={(e) => void commitNameEdit(e.currentTarget.value)}
                   onKeyDown={(e) => {
-                    // ADR-483 — an IME composition owns Enter first (the
-                    // crumb's guard, kept in lockstep).
-                    if (e.nativeEvent.isComposing) return;
-                    if (e.key === 'Enter') {
+                    // ADR-483 D3 — an IME composition owns Enter first.
+                    // The guard is `isSubmitKey`, shared with every other
+                    // Enter in the app: the ruling was never Studio-specific,
+                    // only its spelling was, and "kept in lockstep" by hand is
+                    // what this module exists to stop.
+                    if (isSubmitKey(e, { allowShift: true })) {
                       e.preventDefault();
                       void commitNameEdit(e.currentTarget.value);
                     } else if (e.key === 'Escape') {

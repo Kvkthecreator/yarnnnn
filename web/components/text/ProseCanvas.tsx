@@ -81,6 +81,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags } from '@lezer/highlight';
 import { FACE, HEADING_SCALE, MARK_OPACITY, TABLE } from '@/components/text/readingFace';
 import { cn } from '@/lib/utils';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 import { resolveWorkspaceImageUrl } from '@/lib/workspace/imageUrl';
 
 /**
@@ -915,7 +916,11 @@ class TableWidget extends WidgetType {
           view.focus();
           return;
         }
-        if (e.key === 'Tab' || e.key === 'Enter') {
+        // A table cell is EDITABLE text, so the IME owns Enter here too: mid
+        // composition it commits the syllable, and moving a row down on that
+        // keystroke would strand the member's half-typed word in the old cell.
+        // Tab is unambiguous and always steps.
+        if (e.key === 'Tab' || isSubmitKey(e, { allowShift: true })) {
           e.preventDefault();
           const i = cells.indexOf(el);
           // Enter moves DOWN a row (the spreadsheet reflex); Tab moves across.

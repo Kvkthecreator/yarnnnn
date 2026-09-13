@@ -50,6 +50,7 @@ import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 interface LaneInfo {
   id: string;
@@ -882,7 +883,7 @@ export function ChatSurface() {
                   value={renameText}
                   onChange={(e) => setRenameText(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') void commitRename();
+                    if (isSubmitKey(e, { allowShift: true })) void commitRename();
                     if (e.key === 'Escape') setRenamingId(null);
                   }}
                   onBlur={() => void commitRename()}

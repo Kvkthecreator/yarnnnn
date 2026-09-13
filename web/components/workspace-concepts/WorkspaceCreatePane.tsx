@@ -29,6 +29,7 @@ import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 
 import { api, setActiveWorkspace } from "@/lib/api/client";
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 export function WorkspaceCreatePane() {
   const [name, setName] = useState("");
@@ -86,7 +87,7 @@ export function WorkspaceCreatePane() {
           placeholder="e.g. Acme Research"
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") handleCreate();
+            if (isSubmitKey(e, { allowShift: true })) handleCreate();
           }}
           className="w-full px-3 py-2 rounded-lg border bg-background text-sm disabled:opacity-60"
         />

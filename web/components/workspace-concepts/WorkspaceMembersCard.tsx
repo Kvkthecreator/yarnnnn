@@ -31,6 +31,7 @@ import { api, getActiveWorkspaceId } from '@/lib/api/client';
 import { useWorkspaceMemberships } from '@/lib/workspace/viewer';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 type Member = Awaited<ReturnType<typeof api.workspace.getMembers>>['members'][number];
 
@@ -743,7 +744,7 @@ export function WorkspaceMembersCard({
               type="email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && seatInfo?.available !== false) void onInvite(); }}
+              onKeyDown={(e) => { if (isSubmitKey(e, { allowShift: true }) && seatInfo?.available !== false) void onInvite(); }}
               placeholder="teammate@company.com"
               className="min-w-0 flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-sm"
               aria-label="Invite email"
@@ -1218,7 +1219,7 @@ function NarrowDialog({
               <input
                 value={newPath}
                 onChange={(e) => setNewPath(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addPath())}
+                onKeyDown={(e) => isSubmitKey(e, { allowShift: true }) && (e.preventDefault(), addPath())}
                 placeholder="e.g. operation/marketing/ or operation/reports/q3.md"
                 className="min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-ring"
               />

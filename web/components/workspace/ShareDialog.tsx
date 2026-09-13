@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils';
 import { CopyField } from '@/components/workspace/CopyField';
 import { relPath } from '@/lib/interop/fileHandle';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 type ShareRole = 'member' | 'viewer';
 type Tab = 'link' | 'people';
@@ -493,7 +494,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') void invite(); }}
+                    onKeyDown={(e) => { if (isSubmitKey(e, { allowShift: true })) void invite(); }}
                     placeholder="name@company.com"
                     className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary"
                     aria-label="Invite by email"

@@ -54,6 +54,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
+import { isSubmitKey, prefersSoftKeyboard } from '@/lib/shell/submit-key';
 import { useStickToBottom, JumpToLatest } from '@/hooks/useStickToBottom';
 import {
   ArrowUp,
@@ -506,6 +507,12 @@ export function LanePanel({
   // from scrollHeight. Shared with the shell drawer's composer — one rule.
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useAutoResize(textareaRef, input);
+
+  // Which gesture sends. Read once after mount rather than during render: the
+  // server has no `matchMedia`, so deciding at render time would have the
+  // markup claim one rule and hydration swap it under the member's hands.
+  const [softKeyboard, setSoftKeyboard] = useState(false);
+  useEffect(() => setSoftKeyboard(prefersSoftKeyboard()), []);
 
   /** Bind an EXISTING workspace artifact as a chip (ADR-512 D6 — no upload,
    *  no copy; the reference is the attachment). */
@@ -1735,7 +1742,11 @@ export function LanePanel({
                   setMentionHighlight((h) => Math.max(h - 1, 0));
                   return;
                 }
-                if (e.key === 'Enter' || e.key === 'Tab') {
+                // Tab always picks; Enter picks only when it is not the IME's
+                // commit key. Typing a colleague's name in Hangul opens the
+                // menu AND a composition session, so an unguarded Enter chose
+                // a mention with the name still half-assembled.
+                if (e.key === 'Tab' || isSubmitKey(e, { allowShift: true })) {
                   e.preventDefault();
                   pickMention(items[Math.min(mentionHighlight, items.length - 1)]);
                   return;
@@ -1746,7 +1757,16 @@ export function LanePanel({
                   return;
                 }
               }
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // Enter sends — on a keyboard that can also spell a newline.
+              //
+              // Shift+Enter is the newline everywhere in this app, and a SOFT
+              // keyboard has no modifier row to press it with. So on touch,
+              // Enter-to-send left no gesture that inserts a line break at all:
+              // a member could not type a second bullet, because the first
+              // Enter shipped the message. There, Enter is a newline and the
+              // send button (already beside the composer, and the only send
+              // affordance every mobile chat client offers) is the send.
+              if (isSubmitKey(e) && !softKeyboard) {
                 e.preventDefault();
                 void send();
               }
@@ -1801,6 +1821,10 @@ export function LanePanel({
                       : 'Write a message…'
             }
             rows={1}
+            // The phone paints its return key from this. Say what the key
+            // actually does under the rule above, so the keyboard never
+            // promises a send that Enter will not perform.
+            enterKeyHint={softKeyboard ? 'enter' : 'send'}
             style={{ maxHeight: COMPOSER_MAX_PX }}
             // No border, no ring, no ground of its own: the CARD is the box.
             // Two nested boxes is what made the old bar read as a form control

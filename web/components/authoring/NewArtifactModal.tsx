@@ -37,6 +37,7 @@ import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { STUDIO_ARTIFACT_REGION, canCreateFileIn } from './artifactNaming';
 import type { WorkspaceTreeNode } from '@/types';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 /** The path KEY for a typed name — mirrors `services/naming.py::path_slug`
  *  (ADR-469). Accents FOLD to their base letter (`café` → `cafe`) rather than
@@ -331,12 +332,13 @@ export function NewArtifactModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              // ADR-483 — the IME owns Enter first (the same guard the crumb's
-              // rename carries). Mid-composition Enter commits the SYLLABLE;
-              // acting on it here would create the artifact named with a
-              // half-formed jamo, which is then the name it keeps.
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === 'Enter') void submit();
+              // ADR-483 D3 — the IME owns Enter first. Mid-composition Enter
+              // commits the SYLLABLE; acting on it here would create the
+              // artifact named with a half-formed jamo, which is then the name
+              // it keeps. The guard now rides `isSubmitKey`, shared with every
+              // other Enter in the app, so there is no second copy to keep in
+              // lockstep with.
+              if (isSubmitKey(e, { allowShift: true })) void submit();
               if (e.key === 'Escape') onClose();
             }}
             placeholder="Name it (e.g. IR deck v3)"

@@ -101,6 +101,7 @@ import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layou
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 type LanesEnv = Awaited<ReturnType<typeof api.lanes.list>>;
 type LaneRow = LanesEnv['lanes'][number];
@@ -622,7 +623,10 @@ export function TextEditor({
       } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
         e.preventDefault();
         setSlashIndex((i) => (i - 1 + slashItems.length) % slashItems.length);
-      } else if (e.key === 'Enter') {
+      } else if (isSubmitKey(e, { allowShift: true })) {
+        // An IME commit must not take the palette's pick: typing a slash run
+        // in Hangul opens a composition, and the Enter that assembles the
+        // syllable would otherwise choose whatever row was highlighted.
         e.preventDefault();
         takeSlash(slashItems[slashIndex] ?? slashItems[0]);
       } else if (e.key === 'Escape') {

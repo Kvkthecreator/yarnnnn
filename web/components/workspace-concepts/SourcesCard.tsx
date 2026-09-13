@@ -35,6 +35,7 @@ import {
   type Attestation,
 } from '@/lib/content-shapes/sources';
 import { cn } from '@/lib/utils';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 export type SourcesVariant = 'full' | 'compact';
 
@@ -229,7 +230,7 @@ function AddSourceRow({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (isSubmitKey(e, { allowShift: true })) {
               e.preventDefault();
               add();
             }

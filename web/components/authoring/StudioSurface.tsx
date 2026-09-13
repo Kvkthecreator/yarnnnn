@@ -135,6 +135,7 @@ import {
   setTokenMany,
   type OpResult,
 } from './artifactOps';
+import { isSubmitKey } from '@/lib/shell/submit-key';
 
 /**
  * One step of the member's own edit lineage (ADR-523 D1).
@@ -3880,8 +3881,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                     // it had silently done nothing. The member gets a second
                     // Enter once the syllable is assembled, which is exactly
                     // the interaction every native text field gives them.
-                    if (e.nativeEvent.isComposing) return;
-                    if (e.key === 'Enter') {
+                    if (isSubmitKey(e, { allowShift: true })) {
                       e.preventDefault();
                       void commitRename(e.currentTarget.value);
                     } else if (e.key === 'Escape') {
