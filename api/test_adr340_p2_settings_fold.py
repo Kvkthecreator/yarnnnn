@@ -1,4 +1,4 @@
-"""ADR-340 P2 gate — System Settings consolidation (window-grade → pane-grade).
+"""ADR-340 P2 gate — System Settings consolidation (window-grade → pane-grade), recut 2026-09-12 to the live pane model.
 
 Python file-assertion gate (no JS test runner, per ADR-236 Rule 3). Verifies
 the one-door fold: five os-config surfaces (budget, autonomy, program,
@@ -22,41 +22,18 @@ _WEB = _API_ROOT.parent / "web"
 PASSED = 0
 FAILED = 0
 
-# ADR-340 P2 folded five os-config surfaces into one door. ADR-341
-# (2026-06-18) split it in two; ADR-347 (2026-06-19) REVERSED the split —
-# ALL operation panes (Governance/Contract included) fold into the ONE
-# Settings door (`workspace-settings`); the account moves to the UserMenu
-# (the `settings` slug is the account window, not a pane parent). The pane
-# *mechanism* is unchanged — only which door each pane folds into.
-# ACCOUNT_PANES (billing/usage/account) are page-local tabs on the account
-# window, NOT registry pane-grade surfaces, so they are not in the registry.
-# ADR-387 §6.4 (2026-06-30) moved the agent-scoped governance panes to
-# Freddie's roster pane; ADR-412 D5 (2026-07-06) REVERSED it — Freddie left
-# the /agents roster, and the panes re-homed to Workspace Settings as the
-# System Agent group.
-# ADR-421 (2026-07-08): the Constitution group is REMOVED — a workspace has no
-# constitution of its own (ADR-414 D6). mandate/identity/principles are dormant.
-# ADR-432 D2d (2026-07-09): Program's operator pane is RETIRED — `program` is now
-# dormant too (the hire machinery stays, the surface is non-navigable). So there
-# are NO os-config panes left on the Workspace-Settings door (Members is an Access
-# card, not an os-config pane). This set is empty.
-WORKSPACE_SETTINGS_PANES: set = set()
-# ADR-418 (2026-07-08) PURIFIED the System Agent group to the STEWARD's dials
-# (ADR-414 D2): autonomy + budget only. ADR-426 (2026-07-09) carved the group
-# onto its OWN door; ADR-454 D4 (2026-07-13) REVERSED it (the ambient steward)
-# — the dials are pane_of workspace-settings again, in the unbranded "System"
-# group.
-FREDDIE_PANES = {
-    "autonomy", "budget",              # governance/ dials — pane_of workspace-settings ("System")
-}
-# ADR-421: the Constitution pane set is EMPTY — a workspace has no constitution.
-CONSTITUTION_PANES = set()
-# ADR-425 (2026-07-09): connectors moved to the account door (pane_of settings);
-# sources is hidden (no pane_of). Neither is a workspace-settings pane anymore.
-PERCEPTION_PANES = set()
-# The full pane set spanning both settings doors + the system-agent door.
-EXPECTED_PANES = WORKSPACE_SETTINGS_PANES | FREDDIE_PANES | CONSTITUTION_PANES | {"connectors"}
-
+# 2026-09-12 recut. ADR-340 P2 folded five os-config surfaces into one door;
+# every one of them has since left: `autonomy` + `budget` (the steward's dials —
+# deleted with the steward, ADR-632; /budget is a stub into Usage, ADR-491 D3),
+# `connectors` + `sources` (`stage: internal`, ADR-592; Reach owns the connection
+# acts, ADR-645), `program` (dormant, ADR-432 D2d). What the fold LEFT BEHIND is
+# the live model this gate now pins: the pane MECHANISM (one SettingsPaneShell,
+# window-namespaced panes) and the account panes that ride it.
+ACCOUNT_PANES = {"notification-settings"}          # pane_of "settings" (the account window)
+WORKSPACE_PANES = {"billing", "usage"}             # pane_of "workspace-settings" (ADR-491 D1)
+INTERNAL_ROWS = {"connectors", "sources"}          # stage internal — off the roster, no pane_of
+DORMANT_ROWS = {"program"}                         # no route, no pane_group
+EXPECTED_PANES = ACCOUNT_PANES | WORKSPACE_PANES
 
 def check(label: str, condition: bool, detail: str = "") -> None:
     global PASSED, FAILED
@@ -74,61 +51,25 @@ def _read(rel: str) -> str:
 
 
 def test_registry_pane_model() -> None:
-    print("\n[registry] pane_of model in kernel_surfaces.py (ADR-341 two-door)")
-    from services.kernel_surfaces import KERNEL_SURFACES, kernel_pane_slugs
-
-    panes = kernel_pane_slugs()
-    # ADR-341: the pane set spans both doors (+ activity under recurrence,
-    # ADR-340 D8). Assert each ADR-341 pane is present, not strict equality
-    # (activity belongs to the D8 gate).
-    for slug in sorted(EXPECTED_PANES):
-        check(f"{slug} is pane-grade", slug in panes, f"panes={sorted(panes)}")
-
-    by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    # ADR-387 §6.4: Mandate + Program remain Workspace-Settings panes.
-    for slug in sorted(WORKSPACE_SETTINGS_PANES):
-        check(f"{slug}: pane_of == 'workspace-settings'", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-454 D4: the steward's DIALS live on Workspace Settings ("System" group).
-    for slug in sorted(FREDDIE_PANES):
-        check(f"{slug}: pane_of == 'workspace-settings' (ADR-454 D4)", by_slug[slug].get("pane_of") == "workspace-settings")
-        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # ADR-418: expected-output dormant. ADR-421: mandate/identity/principles
-    # dormant too (a workspace has no constitution of its own) — none pane-grade.
-    for slug in ("expected-output", "mandate", "identity", "principles"):
-        check(f"{slug} not pane-grade (dormant)", by_slug[slug].get("pane_of") is None)
-    # ADR-425: connectors is pane_of settings (the account door); sources is hidden.
-    check("connectors: pane_of == 'settings' (ADR-425)", by_slug["connectors"].get("pane_of") == "settings")
-    check("connectors: carries pane_group", bool(by_slug["connectors"].get("pane_group")))
-    check("sources not pane-grade (hidden — ADR-425 D2)", by_slug["sources"].get("pane_of") is None)
-    check(
-        "settings is a container window (no pane_of on itself)",
-        not by_slug["settings"].get("pane_of"),
-    )
-    check(
-        "workspace-settings is a container window (no pane_of on itself)",
-        not by_slug["workspace-settings"].get("pane_of"),
-    )
-    # ADR-349 D4: `settings` = the account door; `workspace-settings` = the operation door.
-    # 2026-07-08 naming-coherence pass (commit 4c0518c): "System Settings" → "User Settings".
-    check("settings titled 'User Settings'", by_slug["settings"]["title"] == "User Settings")
-    check("workspace-settings titled 'Workspace Settings' (ADR-349 D4)", by_slug["workspace-settings"]["title"] == "Workspace Settings")
-    check(
-        "setup stays window-grade (Sequence surface, ADR-331)",
-        not by_slug["setup"].get("pane_of"),
-    )
-    # ADR-454 D4 grouping — the steward's dials sit in the unbranded "System"
-    # group on Workspace Settings (the ADR-426 proper-noun door reversed).
-    for slug in sorted(FREDDIE_PANES):
-        check(f"{slug} grouped System (ADR-454 D4)", by_slug[slug]["pane_group"] == "System")
-    # ADR-425 (2026-07-09): connectors is grouped "Connections" on the account
-    # door; sources is hidden (no pane_group).
-    check("connectors grouped Connections (ADR-425)", by_slug["connectors"]["pane_group"] == "Connections")
-    check("sources has no pane_group (hidden — ADR-425 D2)", not by_slug["sources"].get("pane_group"))
-    # ADR-432 D2d: `program` is dormant (operator hire pane retired) — no
-    # pane_group, no pane_of. The Constitution group was already removed (ADR-421).
-    check("program is dormant (no pane_group)", not by_slug["program"].get("pane_group"))
-
+    print("\n[registry] the live pane model (2026-09-12)")
+    import sys
+    sys.path.insert(0, str(_API_ROOT))
+    from services.kernel_surfaces import KERNEL_SURFACES
+    by_slug = {row["slug"]: row for row in KERNEL_SURFACES}
+    panes = {slug for slug, row in by_slug.items() if row.get("pane_of")}
+    check("the pane set is exactly the live panes", panes == EXPECTED_PANES, f"panes={sorted(panes)}")
+    for slug in sorted(ACCOUNT_PANES):
+        check(f"{slug}: pane_of == 'settings'", by_slug[slug].get("pane_of") == "settings")
+    for slug in sorted(WORKSPACE_PANES):
+        check(f"{slug}: pane_of == 'workspace-settings' (ADR-491 D1)", by_slug[slug].get("pane_of") == "workspace-settings")
+    for slug in sorted(INTERNAL_ROWS):
+        check(f"{slug}: stage internal (ADR-592)", by_slug[slug].get("stage") == "internal")
+        check(f"{slug}: not pane-grade (Reach owns the acts, ADR-645)", by_slug[slug].get("pane_of") is None)
+    for slug in sorted(DORMANT_ROWS):
+        check(f"{slug}: dormant (no route, no pane_group — ADR-432 D2d)", not by_slug[slug].get("route") and not by_slug[slug].get("pane_group"))
+    for slug in ("autonomy", "budget", "system-agent"):
+        check(f"{slug}: no registry row (deleted with the steward, ADR-632)", slug not in by_slug)
+    check("settings + workspace-settings are windows, not panes", not by_slug["settings"].get("pane_of") and not by_slug["workspace-settings"].get("pane_of"))
 
 def test_settings_container() -> None:
     print("\n[container] both Settings doors mount the shared shell (ADR-341)")
@@ -165,38 +106,8 @@ def test_settings_container() -> None:
           "ProgramLifecycleDrawer" not in ws_src)
     check("Settings door NO LONGER carries the re-run-setup door",
           "Re-run setup" not in ws_src)
-    # ADR-454 D4 (2026-07-13): the ADR-426 door is REVERSED. The Settings door
-    # mounts the two dial panes again — via renderSystemAgentPane in an
-    # unbranded "System" group (never the branded SYSTEM_AGENT_PANE_GROUP,
-    # which stays dormant with the persona panes).
-    check(
-        "Settings door mounts the dial panes via renderSystemAgentPane (ADR-454 D4)",
-        "renderSystemAgentPane" in ws_src,
-    )
-    check(
-        "Settings door does not mount the branded group (dormant — ADR-454 D4)",
-        "SYSTEM_AGENT_PANE_GROUP" not in ws_src,
-    )
-    sa_src = _read("app/(authenticated)/system-agent/page.tsx")
-    check(
-        "/system-agent is a redirect stub, not a door (ADR-454 D4)",
-        "redirect('/workspace-settings?workspace-settings.pane=autonomy')" in sa_src
-        and "SettingsPaneShell" not in sa_src,
-    )
-    # ADR-418: SystemAgentPanes renders only the steward's DIALS (Autonomy,
-    # Budget) + the read-only Freddie panels. Principles moved to the
-    # workspace-settings Constitution group; Expected Output went dormant.
-    panes_src = _read("components/agents/SystemAgentPanes.tsx")
-    for needle, label in [
-        ("BudgetCard", "Budget"),
-        ("AutonomyCard", "Autonomy"),
-    ]:
-        check(f"SystemAgentPanes renders {label} (ADR-418)", needle in panes_src)
-    for needle, label in [
-        ("PrinciplesCard", "Principles (per-agent, ADR-421)"),
-        ("ExpectedOutputCard", "Expected Output (dormant)"),
-    ]:
-        check(f"SystemAgentPanes no longer renders {label} (ADR-418)", needle not in panes_src)
+    # 2026-09-12: the System group, its dial panes, SystemAgentPanes and the
+    # /system-agent stub are deleted with the steward (ADR-632) — nothing to pin.
     # ADR-421: the Settings door NO LONGER renders the Constitution panes — a
     # workspace has no constitution of its own (mandate/identity/principles are
     # per-agent, surfaced on the agent detail via AgentConstitutionBlock).
@@ -213,32 +124,22 @@ def test_settings_container() -> None:
 
 
 def test_redirect_stubs() -> None:
-    print("\n[stubs] old routes are ADR-308 server redirects to their pane home")
-    # ADR-387 §6.4: Mandate + Program stubs still point to Workspace Settings.
-    for slug in sorted(WORKSPACE_SETTINGS_PANES):
+    print("\n[stubs] old routes are ADR-308 server redirects to their live home")
+    # Every stub is pure server transport (ADR-308): `redirect()`, never 'use client'.
+    # The targets are the LIVE homes (2026-09-12), one per retired route.
+    STUBS = {
+        "billing": "/workspace-settings?workspace-settings.pane=billing",          # ADR-491 D1
+        "usage": "/workspace-settings?workspace-settings.pane=usage",              # ADR-491 D1
+        "budget": "/workspace-settings?workspace-settings.pane=usage",             # ADR-491 D3: budget IS usage
+        "notification-settings": "/settings?settings.pane=notification-settings",  # the account window
+        "program": "/workspace-settings",                                          # dormant — bare door, no dead pane param
+        "connectors": "/reach?reach.pane=connected",                               # ADR-645: Reach owns the connection acts
+        "sources": "/chat",                                                        # stage internal (ADR-592)
+    }
+    for slug, target in sorted(STUBS.items()):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        if not stub:
-            continue
-        # ADR-358 D6: stubs redirect with the window-NAMESPACED pane param.
-        target = f"/workspace-settings?workspace-settings.pane={slug}"
+        check(f"/{slug} stub exists (a route that left the roster keeps its bookmark, ADR-592)", bool(stub))
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
-        check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
-    # ADR-454 D4 (2026-07-13): the agent-scoped governance route stubs redirect
-    # into Workspace Settings → System (the ADR-426 door reversed).
-    for slug in sorted(FREDDIE_PANES):
-        stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        if not stub:
-            continue
-        target = f"/workspace-settings?workspace-settings.pane={slug}"
-        check(f"/{slug} → {target} (ADR-454 D4)", f"redirect('{target}')" in stub)
-        check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
-    # ADR-415: the Perception routes redirect to Workspace Settings.
-    for slug in sorted(PERCEPTION_PANES):
-        stub = _read(f"app/(authenticated)/{slug}/page.tsx")
-        if not stub:
-            continue
-        target = f"/workspace-settings?workspace-settings.pane={slug}"
-        check(f"/{slug} → {target} (ADR-415)", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
     # ADR-421: the mandate/identity/principles route stubs survive for BOOKMARK
     # SAFETY only — their panes were removed (dormant), so they redirect to the
@@ -249,7 +150,6 @@ def test_redirect_stubs() -> None:
               "redirect('/workspace-settings')" in stub
               and f"pane={slug}" not in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
-
 
 def test_window_manager_resolution() -> None:
     print("\n[nav] foregroundSurface resolves pane-grade slugs")

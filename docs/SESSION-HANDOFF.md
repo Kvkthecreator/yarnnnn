@@ -76,11 +76,9 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   row held ~36KB, and carried `content_type: text/markdown` on an `.html` artifact. Not chased.
 
 ## Email (ADR-650, 2026-09-12)
-- **Supabase Auth mail is a dashboard fact.** Confirmation / recovery / magic-link / email-change mail is
-  Supabase's, not ours. Check Auth → SMTP in the dashboard: custom SMTP through the Resend domain, or the
-  default sender (rate-limited, unbranded — the ADR-498 "least branded first contact" failure). Re-template
-  the four to the shell's look; record the state in `docs/database/ACCESS.md`. Receipt: the 2026-09-12
-  email sign-up sat unconfirmed.
+- **Paste the six auth templates** from `supabase/templates/auth/` into Authentication → Emails →
+  Templates (subjects in that folder's README). SMTP is on Resend and recorded in ACCESS.md; the templates
+  are rendered and gated but Supabase only reads them from the dashboard.
 - **Security-change mail** (the next tenants of the `account` kind, one hook each): a new AI connection
   on the OAuth code path (`_ensure_foreign_llm_grant`), a credential connected/removed on Reach, BYOK set
   or cleared.
@@ -88,7 +86,9 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   notification email is logged and dropped. Store the message id on the transport row to close it.
 
 ## Gates red at baseline — each needs its own ruling, none touched
-`test_adr297_navigation_enactment` · `test_adr340_p2_settings_fold` · `test_adr422_files_legibility` ·
+`test_adr224_kernel_boundary` (5 red: the alpha-trader bundle's task-type templates) ·
+`test_adr299_kernel_universal_capability` (1 red: `test_handler_refuses_llm_supplied_addressee_fields`) ·
+`test_adr353_composio_isolation` (1 red: the `_FakeQuery` fixture has no `.limit`) ·
 `test_eval_suite_gate` (an ADR-518 manifest missing `restore:`) ·
 `test_adr614_cast_follows_the_registration` (3 red: cast seeding + persisted engine) ·
 `test_adr346` / `test_adr349` (retire or re-anchor on ADR-603) ·
@@ -103,6 +103,14 @@ clean HEAD worktree on 2026-09-12.
 
 ## Cleanup owed since ADR-632
 - Strip the steward env vars from Render; drop the `wake_queue` and `tasks` tables; ADR-596 D3(d).
+- **Retired vocabulary, frozen by `api/test_retired_vocabulary_ratchet.py`** (per-file ceilings, only ever
+  lowered): canon 230 lines across 27 files (ADR-LEDGER 48 — historical by nature; FOUNDATIONS 37, GLOSSARY 37,
+  primitives-matrix 13) and code 273 lines across 75 modules (`judgment_log.py` 17, `review_policy.py` 15,
+  `orchestration.py` 12, `workspace.py` 11). A file is a session each, ADR-632/603/596 as the spec; lower its
+  ceiling in the same commit.
+- ADR-632 §3: the entity primitives (`LookupEntity`/`EditEntity`/`ListEntities`/`ManageDomains`) and the
+  trading primitives keep handlers nothing in the live frame reaches — each owes a caller audit, then
+  deletion or a declared reach.
 - `.claude/agents/alpha-operator.md` was deleted 2026-09-12: it instructed Reviewer auto-approval,
   `ManageRecurrence` and `_recurring.yaml`, all retired. If alpha rituals are still wanted, rebuild
   the agent against the live model (`docs/alpha/`, `api/scripts/alpha_ops/`).

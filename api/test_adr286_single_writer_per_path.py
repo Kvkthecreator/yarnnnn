@@ -9,16 +9,11 @@ Asserts the structural invariants from ADR-286:
     patches deleted, bundle-template-detection patches survive
   - D7: workspace_init no longer has the bundle_owned_paths skip block
 
-ADR-383 amendment (the steward-default carve): the three agent-universal paths
-MANDATE / persona-IDENTITY / persona-principles move from bundle-owned-absent to
-KERNEL-UNIVERSAL-SEEDED — but seeded ONLY in the `if not program_slug:` branch
-(the bare-Freddie workspace gets steward defaults; a program-fork writes its own
-versions, and the steward defaults carry STEWARD_DEFAULT_MARKER so the fork
-overwrites them). Single-writer-per-path is PRESERVED: for a program workspace the
-kernel does NOT write these (the conditional excludes them); for a bare workspace
-no bundle writes them. The dual-write pathology ADR-286 prevents is still
-prevented — this test now enforces the *conditional* discipline instead of a flat
-ban on the three steward paths.
+The ADR-383 steward-default carve this gate once also pinned (MANDATE / IDENTITY /
+principles seeded in the `if not program_slug:` branch, marked so a fork overwrites
+them) is DELETED: ADR-414 D2 made genesis pure, ADR-632 retired the steward, and the
+2026-09-12 residue sweep removed the constants and the four tests that named them.
+What remains is the single-writer discipline itself — D1/D2/D6/D7 above.
 
 Per discipline: AST + source-string assertions only. No live LLM call.
 """
@@ -115,51 +110,6 @@ def test_workspace_init_does_not_scaffold_bundle_owned_paths() -> None:
     )
 
 
-def test_steward_defaults_seeded_only_when_no_program() -> None:
-    """ADR-383 steward-default carve: the agent-universal steward paths
-    (MANDATE / persona-IDENTITY / persona-principles / governance-autonomy) ARE
-    seeded by the kernel, but ONLY inside the `if not program_slug:` conditional
-    — so a program-fork is still the single writer for a program workspace (no
-    dual-write). This is the conditional discipline that REPLACES ADR-286's flat
-    ban on these paths.
-
-    ADR-383 amendment (2026-07-02): GOVERNANCE_AUTONOMY_YAML_PATH joins the set —
-    the fourth agent-universal governance file, seeded as `delegation: manual`."""
-    src = _read_api("services/workspace_init.py")
-    steward_path_constants = (
-        "CONSTITUTION_MANDATE_PATH",
-        "PERSONA_IDENTITY_PATH",
-        "PERSONA_PRINCIPLES_PATH",
-        "GOVERNANCE_AUTONOMY_YAML_PATH",
-    )
-    # Each steward path must appear, and must appear AFTER the `if not
-    # program_slug:` guard (i.e. inside the conditional no-program block),
-    # not in the unconditional base dict.
-    guard = src.find("if not program_slug:")
-    assert guard != -1, "ADR-383 steward seeds must live under `if not program_slug:`"
-    base_dict_start = src.find("workspace_files = {")
-    base_dict_end = src.find("}\n", base_dict_start)
-    base_dict = src[base_dict_start:base_dict_end]
-    conditional_block = src[guard:src.find("for path, (content", guard)]
-    for const in steward_path_constants:
-        assert const not in base_dict, (
-            f"{const} must NOT be in the unconditional workspace_files dict "
-            f"(ADR-383: steward seeds are no-program-only — a program workspace's "
-            f"writer is the bundle-fork, single-writer-per-path)"
-        )
-        assert const in conditional_block, (
-            f"{const} must be seeded inside the `if not program_slug:` block "
-            f"(ADR-383 steward-default carve)"
-        )
-    # And the steward marker must exist so the fork overwrites these on a
-    # later program activation.
-    util_src = _read_api("services/workspace_utils.py")
-    assert "yarnnn:steward-default" in util_src, (
-        "is_skeleton_content must recognize STEWARD_DEFAULT_MARKER so a "
-        "program-fork overwrites the steward defaults (ADR-383)"
-    )
-
-
 def test_workspace_init_drops_bundle_owned_imports() -> None:
     """The bundle-owned constants (DEFAULT_MANDATE_MD, DEFAULT_IDENTITY_MD,
     etc.) must no longer be imported in workspace_init.py — they're dead
@@ -200,42 +150,6 @@ def test_workspace_init_drops_bundle_owned_imports() -> None:
 
 # -----------------------------------------------------------------------------
 # D2 — Kernel-universal paths survive in the scaffold
-# -----------------------------------------------------------------------------
-
-def test_workspace_init_scaffolds_kernel_universal_paths() -> None:
-    """Kernel-universal paths (no bundle ships them) must still be in
-    workspace_files. If this fails, the kernel-universal set was over-pruned."""
-    src = _read_api("services/workspace_init.py")
-    survivors = {
-        "CONSTITUTION_PRECEDENT_PATH",
-        "SYSTEM_PLAYBOOK_PATH",
-        "SYSTEM_STYLE_PATH",
-        "SYSTEM_NOTES_PATH",
-        "PERSONA_PRINCIPLES_YAML_PATH",
-        "PERSONA_REFLECTION_PATH",  # ADR-364: supersedes PERSONA_CALIBRATION_PATH
-    }
-    dict_start = src.find("workspace_files = {")
-    dict_end = src.find("}\n", dict_start)
-    dict_block = src[dict_start:dict_end]
-    missing = [s for s in survivors if s not in dict_block]
-    assert not missing, (
-        f"workspace_files dropped kernel-universal paths (ADR-286 D2 regression): "
-        f"{missing}"
-    )
-
-
-def test_workspace_guide_conditional_on_no_program() -> None:
-    """`_workspace_guide.md` is kernel-default ONLY for no-program workspaces
-    per ADR-286 D2. Test the conditional logic exists."""
-    src = _read_api("services/workspace_init.py")
-    assert "if not program_slug:" in src and "_workspace_guide.md" in src, (
-        "workspace_init must conditionally write _workspace_guide.md kernel "
-        "default only when program_slug is None per ADR-286 D2"
-    )
-
-
-# -----------------------------------------------------------------------------
-# D6 — is_skeleton_content simplification
 # -----------------------------------------------------------------------------
 
 def test_is_skeleton_content_kernel_default_patches_deleted() -> None:
@@ -313,31 +227,3 @@ def test_bundle_owned_paths_skip_block_deleted() -> None:
 # -----------------------------------------------------------------------------
 # Signature cleanup
 # -----------------------------------------------------------------------------
-
-def test_initialize_workspace_signature_drops_browser_tz() -> None:
-    """browser_tz parameter was dead under ADR-286 (IDENTITY.md is bundle-owned;
-    operator declares timezone via chat, not via kernel scaffold). Per Singular
-    Implementation, dead parameter is removed."""
-    from services.workspace_init import initialize_workspace
-    import inspect
-    sig = inspect.signature(initialize_workspace)
-    assert "browser_tz" not in sig.parameters, (
-        "initialize_workspace must drop dead browser_tz parameter per ADR-286"
-    )
-    expected = {"client", "user_id", "program_slug"}
-    actual = set(sig.parameters.keys())
-    assert actual == expected, (
-        f"initialize_workspace signature mismatch: expected {expected}, got {actual}"
-    )
-
-
-if __name__ == "__main__":
-    test_workspace_init_does_not_scaffold_bundle_owned_paths()
-    test_workspace_init_drops_bundle_owned_imports()
-    test_workspace_init_scaffolds_kernel_universal_paths()
-    test_workspace_guide_conditional_on_no_program()
-    test_is_skeleton_content_kernel_default_patches_deleted()
-    test_is_skeleton_content_template_detection_survives()
-    test_bundle_owned_paths_skip_block_deleted()
-    test_initialize_workspace_signature_drops_browser_tz()
-    print("ADR-286 single-writer-per-path: 8/8 PASS")

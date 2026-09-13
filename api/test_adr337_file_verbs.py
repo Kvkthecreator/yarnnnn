@@ -217,4 +217,5 @@ check("prompts CHANGELOG (2026-06 archive) has the ADR-337 entry", "ADR-337: wor
 
 
 print(f"\n{PASS} passed, {FAIL} failed")
-sys.exit(1 if FAIL else 0)
+if __name__ == "__main__":  # a module-level exit aborts pytest collection of the whole suite
+    sys.exit(1 if FAIL else 0)

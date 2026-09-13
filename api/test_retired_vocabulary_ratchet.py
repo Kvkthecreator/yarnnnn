@@ -63,7 +63,7 @@ CANON_CEILINGS = {
 }
 
 CODE_CEILINGS = {
-    "api/services/orchestration.py": 66,
+    "api/services/orchestration.py": 12,
     "api/services/judgment_log.py": 17,
     "api/services/review_policy.py": 15,
     "api/services/primitives/workspace.py": 11,

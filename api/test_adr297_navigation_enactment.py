@@ -413,7 +413,9 @@ def _be_navigable_slugs() -> set[str]:
     sys.path.insert(0, str(REPO_ROOT / "api"))
     from services.kernel_surfaces import KERNEL_SURFACES
 
-    return {s["slug"] for s in KERNEL_SURFACES if s.get("route")}
+    # ADR-592: `stage: internal` REMOVES a row from the served roster — the FE
+    # union must not carry it, so the navigable contract excludes it too.
+    return {s["slug"] for s in KERNEL_SURFACES if s.get("route") and s.get("stage") != "internal"}
 
 
 def _strip_line_comments(text: str) -> str:

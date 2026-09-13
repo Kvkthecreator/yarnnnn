@@ -1,6 +1,11 @@
 # Agent Capability & Output Substrate
 
-> **Status**: Canonical (ADR-130 + ADR-170). Phase 1 implemented. Phase 2 (compose integration) proposed.
+> **⚠ HISTORICAL REFERENCE (2026-09-12)** — This document describes the ADR-130/170 three-registry model (agent types → capabilities → runtimes) and the ADR-148 render pipeline. The agent type registry, `resolve_role()`, the runtime registry and the render service are DELETED (ADR-269, ADR-417, ADR-596, ADR-632). **For current state:**
+> - The capability table: `CAPABILITIES` + `required_tier`/`capability_available` in `api/services/orchestration.py`; the tool surface: [primitives-matrix.md](primitives-matrix.md)
+> - Rendering: the in-API compose engine (ADR-417) and artifact types (ADR-473/646); the compositor: [compositor.md](compositor.md)
+> - What an agent is: [agent-composition.md](agent-composition.md) (ADR-596 — identity ⊕ character ⊕ engine)
+>
+> **Status**: Historical (was: Canonical, ADR-130 + ADR-170).
 > **Date**: 2026-04-10 (revised; output-surfaces.md merged in 2026-05-04)
 > **Rule**: All capability, output, and rendering decisions should be consistent with this document.
 > **Related**: [compose-substrate.md](compose-substrate.md) — compose function architecture.

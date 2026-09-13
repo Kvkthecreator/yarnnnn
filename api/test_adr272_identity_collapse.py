@@ -82,38 +82,16 @@ def test_valid_specialist_roles_narrowed():
     )
 
 
-def test_production_roles_narrowed():
-    """ADR-417 follow-on: PRODUCTION_ROLES dict is empty."""
-    from services.orchestration import PRODUCTION_ROLES
-    assert_eq(
-        set(PRODUCTION_ROLES.keys()), set(),
-        "PRODUCTION_ROLES is empty (designer removed — ADR-417 follow-on)",
-    )
-
-
-def test_all_roles_surviving():
-    """ADR-417 follow-on: ALL_ROLES = SYSTEMIC_AGENTS only = {thinking_partner}."""
-    from services.orchestration import ALL_ROLES
-    assert_eq(
-        set(ALL_ROLES.keys()), {"thinking_partner"},
-        "ALL_ROLES has exactly {thinking_partner} (PRODUCTION_ROLES empty)",
-    )
-
-
-def test_legacy_role_map_only_survivors():
-    """ADR-417 follow-on: LEGACY_ROLE_MAP contains only thinking_partner."""
-    from services.orchestration import LEGACY_ROLE_MAP
-    legacy_targets = set(LEGACY_ROLE_MAP.values())
-    assert_eq(
-        legacy_targets, {"thinking_partner"},
-        "LEGACY_ROLE_MAP targets only {thinking_partner} — specialist targets absent",
-    )
-    # Dissolved + designer roles must NOT be present as keys either (passthrough
-    # to failed ALL_ROLES lookup is the discipline).
-    for dissolved in ("researcher", "analyst", "writer", "tracker", "executive", "reporting", "designer"):
+def test_role_registries_are_deleted():
+    """2026-09-12 residue sweep (ADR-596/632): the role registries and their
+    resolver are DELETED from orchestration.py, not merely emptied — an agent is
+    identity ⊕ character ⊕ engine from the one register (ADR-600); a role table
+    beside it was a second home for a fact. The absence is the assertion."""
+    src = _read("services/orchestration.py") if "_read" in globals() else open(__import__("os").path.join(__import__("os").path.dirname(__file__), "services", "orchestration.py"), encoding="utf-8").read()
+    for name in ("PRODUCTION_ROLES", "SYSTEMIC_AGENTS", "ALL_ROLES", "LEGACY_ROLE_MAP", "def resolve_role", "def get_agent_class_and_domain"):
         assert_true(
-            dissolved not in LEGACY_ROLE_MAP,
-            f"LEGACY_ROLE_MAP does not map {dissolved!r} (loud failure preferred)",
+            name not in src.split('"""', 2)[2] if src.startswith('"""') else name not in src,
+            f"orchestration.py must not reintroduce {name} — the one register is agents_registry.AGENTS (ADR-600)",
         )
 
 

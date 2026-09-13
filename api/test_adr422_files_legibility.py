@@ -153,7 +153,13 @@ def test_sys_word_removed_from_tree():
     # The literal `sys` badge span text is gone (the glyph replaces it).
     assert ">\n            sys\n" not in src and ">sys<" not in src, \
         "the `sys` badge text must be removed (ADR-422 D1)"
-    assert "fileLegibilityState" in src, "the tree must classify via fileLegibilityState"
+    # 2026-08-20 two-pane recut: the tree lists FOLDERS ONLY, so file rows (and their
+    # legibility glyphs) left it for the centre pane + Get-Info. The classifier's one
+    # home is web/lib/workspace/legibility.ts; NodeDetailsPanel is where it renders.
+    assert "fileLegibilityState" not in src, "the tree holds no file rows to classify (folders only)"
+    for rel in ("web/lib/workspace/legibility.ts", "web/components/workspace/NodeDetailsPanel.tsx"):
+        with open(os.path.join(here, rel), encoding="utf-8") as f:
+            assert "fileLegibilityState" in f.read(), f"{rel} must carry the legibility classification"
 
 
 # ── ADR-423 follow-on: the Finder-vocabulary tree reshape (Documents/Downloads/

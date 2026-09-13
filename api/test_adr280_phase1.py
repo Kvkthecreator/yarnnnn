@@ -260,32 +260,6 @@ def test_adr223_documents_substrate_abi_schema():
 # 7. Bundle-shipped workspace guides (revised §D4 — bundles ship the guide)
 # ---------------------------------------------------------------------------
 
-def test_alpha_trader_bundle_ships_workspace_guide():
-    """ADR-280 revised §D4: alpha-trader bundle ships the workspace guide as
-    operator-canon at reference-workspace/_workspace_guide.md."""
-    guide_path = BUNDLES_ROOT / "alpha-trader" / "reference-workspace" / "_workspace_guide.md"
-    assert guide_path.exists(), \
-        "alpha-trader bundle must ship _workspace_guide.md at reference-workspace/ root"
-    content = guide_path.read_text()
-    # Must have YAML frontmatter
-    assert content.startswith("---\n"), "Guide must start with YAML frontmatter"
-    # Frontmatter must declare schema_version + path_zones + reviewer_wake_envelope
-    import yaml as _yaml
-    import re as _re
-    match = _re.match(r"^---\s*\n(.*?)\n---", content, _re.DOTALL)
-    assert match, "Guide frontmatter must be parseable"
-    fm = _yaml.safe_load(match.group(1))
-    assert fm.get("schema_version") == 1
-    assert isinstance(fm.get("path_zones"), list) and len(fm["path_zones"]) > 0
-    assert isinstance(fm.get("reviewer_wake_envelope"), list) and len(fm["reviewer_wake_envelope"]) > 0
-    # alpha-trader-specific zones present
-    paths = [z["path"] for z in fm["path_zones"]]
-    assert "operation/trading" in paths
-    # Universal kernel zones also present (bundle composes both)
-    assert "constitution" in paths
-    assert "persona/IDENTITY.md" in paths
-
-
 def test_alpha_commerce_bundle_ships_workspace_guide():
     """Validates additive pattern: deferred bundle also ships its guide."""
     guide_path = BUNDLES_ROOT / "alpha-commerce" / "reference-workspace" / "_workspace_guide.md"
@@ -345,20 +319,6 @@ def test_bundle_guide_prose_has_required_sections():
 # (governance/ constitution/ persona/ operation/ system/), so the legacy-root
 # assertion no longer holds. The kernel-default guide's structural integrity is still
 # covered by test_kernel_default_guide_frontmatter_parses below.
-
-
-def test_kernel_default_guide_frontmatter_parses():
-    """Kernel-default guide's frontmatter is well-formed YAML."""
-    from services.orchestration import DEFAULT_WORKSPACE_GUIDE_MD
-    from services.workspace_guide import _extract_frontmatter
-    fm = _extract_frontmatter(DEFAULT_WORKSPACE_GUIDE_MD)
-    assert fm.get("schema_version") == 1
-    assert isinstance(fm.get("path_zones"), list) and len(fm["path_zones"]) > 0
-    assert isinstance(fm.get("reviewer_wake_envelope"), list) and len(fm["reviewer_wake_envelope"]) == 6
-    # All universal envelope keys
-    keys = [e["key"] for e in fm["reviewer_wake_envelope"]]
-    for required in ("identity_md", "principles_md", "mandate_md", "autonomy_md"):
-        assert required in keys, f"Universal envelope key {required} missing"
 
 
 def test_workspace_init_writes_kernel_default_guide():

@@ -78,7 +78,6 @@ export type KernelSurfaceSlug =
   // reads quoted names from this union up to the first semicolon.)
   | 'files'
   | 'agents'
-  | 'program'
   // ADR-642 (2026-09-07): the queue slug LEFT this union — the surface is
   // ABSORBED by Reach (its body mounts on the Leaving pane, filtered to the
   // boundary families, and on Notifications → To do unfiltered). Its route
