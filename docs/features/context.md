@@ -1,6 +1,6 @@
 # Context
 
-> **HISTORICAL (2026-09-12).** This feature doc describes the pre-ADR-297/632 product — the four-tab desktop, the steward, recurrences and the task pipeline are all deleted. It is kept because ADRs and code comments cite it; the live surface contracts are [docs/design/WORKSPACE.md](../design/WORKSPACE.md) and the live model is [docs/architecture/SERVICE-MODEL.md](../architecture/SERVICE-MODEL.md).
+> **HISTORICAL (2026-09-12).** This feature doc describes the pre-ADR-297/632 product — the four-tab desktop, the systemic agent, that era's scheduled work and the task pipeline are all deleted. It is kept because ADRs and code comments cite it; the live surface contracts are [docs/design/WORKSPACE.md](../design/WORKSPACE.md) and the live model is [docs/architecture/SERVICE-MODEL.md](../architecture/SERVICE-MODEL.md).
 
 > Layer 3 of 4 in the YARNNN four-layer model (ADR-063)
 > **Updated**: 2026-04-03 — cleanup after ADR-153/156; stale sync-era references removed
