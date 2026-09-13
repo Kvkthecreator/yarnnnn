@@ -180,20 +180,12 @@ def main() -> int:
         + (f" — FOUND: {handler_present}" if handler_present else ""),
     )
 
-    # 4. The entity layer no longer addresses agents.
-    from services.primitives.refs import ENTITY_TYPES, TABLE_MAP  # noqa: E402
-
-    check("agent" not in ENTITY_TYPES, "`agent` is not an entity type")
-    check("version" not in ENTITY_TYPES, "`version` is not an entity type")
-    check("agent" not in TABLE_MAP, "TABLE_MAP has no `agent` row")
-    check("version" not in TABLE_MAP, "TABLE_MAP has no `version` row")
-    # ⚠️ The two literals must agree — a type in one but not the other either
-    # raises "No table mapping" or becomes silently unaddressable.
-    check(
-        set(ENTITY_TYPES) == set(TABLE_MAP),
-        f"ENTITY_TYPES == TABLE_MAP keys (types={sorted(ENTITY_TYPES)}, "
-        f"tables={sorted(TABLE_MAP)})",
-    )
+    # 4. The entity layer no longer addresses agents — because there is no
+    #    entity layer: read/edit/list/scaffold/refs were DELETED on 2026-09-13
+    #    (ADR-632 §3 caller audit: no live surface ever carried them).
+    import importlib.util as _ilu
+    check(_ilu.find_spec("services.primitives.refs") is None, "the entity-ref layer is gone")
+    check(_ilu.find_spec("services.primitives.scaffold") is None, "ManageDomains is gone")
 
     # 5. Migration 248 exists and drops all eight tables.
     mig = REPO / "supabase" / "migrations" / "248_retire_the_pre_adr596_agent_model.sql"

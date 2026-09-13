@@ -19,13 +19,9 @@ Key consolidations + dissolutions:
 - ManageAgent action enum tightened (ADR-235 D2): no chat-surface 'create'.
 """
 
-from .refs import EntityRef, parse_ref, resolve_ref
 from .registry import PRIMITIVES, execute_primitive
 
 __all__ = [
-    "EntityRef",
-    "parse_ref",
-    "resolve_ref",
     "PRIMITIVES",
     "execute_primitive",
 ]

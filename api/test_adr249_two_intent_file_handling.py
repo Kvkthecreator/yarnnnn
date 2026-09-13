@@ -117,7 +117,11 @@ check(
 
 # 6. primitives/refs.py: document is no longer an entity type (ADR-322).
 #    Document enrichment was DELETED — documents are files (read via ReadFile).
-refs = read(os.path.join(API_ROOT, "services", "primitives", "refs.py"))
+refs_path = os.path.join(API_ROOT, "services", "primitives", "refs.py")
+# The entity-ref layer was DELETED on 2026-09-13 (ADR-632 §3 caller audit);
+# the rule this check protected (no document enrichment from filesystem_chunks)
+# holds vacuously — an absent module enriches nothing.
+refs = read(refs_path) if os.path.exists(refs_path) else ""
 check(
     "primitives/refs.py: document removed from entity layer (ADR-322), no filesystem_chunks",
     "async def _enrich_document_with_content" not in refs and "filesystem_chunks" not in refs,

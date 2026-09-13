@@ -170,7 +170,7 @@ Each entity-bearing context domain has a visible `assets/` subfolder for visual 
 /workspace/context/{domain}/assets/{entity-slug}-favicon.png
 ```
 
-Favicons fetched automatically via ManageDomains when entities have a `url` field. Available to all agents reading the domain during synthesis.
+Favicons were fetched by `ManageDomains` (retired with the render service, ADR-417; the primitive itself deleted 2026-09-13 — unreached since ADR-414 D4's pure genesis).
 
 ---
 

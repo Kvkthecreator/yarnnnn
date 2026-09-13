@@ -59,9 +59,6 @@ class PermissionDecision(str, Enum):
 # fail-closed) be treated as consequential.
 READ_ONLY_PRIMITIVES: frozenset[str] = frozenset({
     # Entity layer — reads
-    "LookupEntity",
-    "ListEntities",
-    "SearchEntities",
     # File layer — reads
     "ReadFile",
     "ListFiles",
@@ -152,7 +149,6 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     # silently applied. A name costs nothing here; removing it is the only edit
     # that could ever make this list more permissive.
     "ManageAgent",
-    "ManageDomains",
     # ADR-325: Embed is consequential + autonomy-governed (the autonomy mode IS
     # the embed policy). Under bounded/manual a Reviewer Embed QUEUEs; under
     # autonomous it applies. Carries an orthogonal cost ceiling (embed daily cap)

@@ -21,9 +21,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Imports — only live primitives
 # ---------------------------------------------------------------------------
-from .read import LOOKUP_ENTITY_TOOL, handle_lookup_entity
-from .edit import EDIT_ENTITY_TOOL, handle_edit_entity
-from .list import LIST_ENTITIES_TOOL, handle_list_entities
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 # ADR-568 D3: the second kernel-resolved capability (see capabilities.py).
 from .generate_image import GENERATE_IMAGE_TOOL, handle_generate_image
@@ -47,7 +44,6 @@ from .embed import EMBED_TOOL, handle_embed
 # live MCP surface is open/remember/recall/trace per ADR-512.)
 # ADR-417 follow-on: DispatchSpecialist NOT imported — removed from the LLM
 # registry (its only role, designer, is retired; module stays dormant as a seam).
-from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_FILE_TOOL, handle_read_file,
     WRITE_FILE_TOOL, handle_write_file,
@@ -243,9 +239,6 @@ PRIMITIVES: list[dict] = list({
 
 HANDLERS: dict[str, Callable] = {
     # Entity layer (ADR-168 Commit 4: renamed from Read/List/Search/Edit)
-    "LookupEntity": handle_lookup_entity,
-    "EditEntity": handle_edit_entity,
-    "ListEntities": handle_list_entities,
     # "Execute": DELETED (ADR-168 Commit 2 — finish ADR-146 Phase 3)
     # "RefreshPlatformContent": DELETED (ADR-153)
     "WebSearch": handle_web_search,
@@ -296,7 +289,6 @@ HANDLERS: dict[str, Callable] = {
     # routes through the metered executor (read_foreign_tool). First binding:
     # repo file reads via GitHub MCP get_file_contents. Dispatcher-only; not
     # LLM-callable.
-    "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,
     "WriteFile": handle_write_file,

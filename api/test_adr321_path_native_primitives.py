@@ -148,14 +148,12 @@ def test_no_context_root_in_primitive_descriptions():
     # Collect every tool description from the primitive modules and assert none
     # references context/ as a workspace root.
     from services.primitives import workspace as ws
-    from services.primitives import read as rd
-    from services.primitives import search as se
+    # The entity layer (LookupEntity / SearchEntities) is DELETED (2026-09-13,
+    # ADR-632 §3 caller audit: no live surface ever carried it).
 
     tool_objs = [
         ws.WRITE_FILE_TOOL, ws.SEARCH_FILES_TOOL, ws.LIST_FILES_TOOL,
         ws.QUERY_KNOWLEDGE_TOOL, ws.READ_FILE_TOOL,
-        rd.LOOKUP_ENTITY_TOOL,
-        se.SEARCH_ENTITIES_TOOL,
     ]
     offenders = []
     pat = re.compile(r"/workspace/context/|(?<![\w.])context/\{?domain")

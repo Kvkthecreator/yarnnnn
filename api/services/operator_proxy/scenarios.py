@@ -766,11 +766,11 @@ async def establish_substrate(
 
     A `requires: [{path, field, equals}]` precondition is CHECKED by
     check_preconditions, never established here: the field-establishment
-    helper (b93476a) wrote the steward's dial files and left with the steward
-    in 85c4f7b (ADR-632) — which also cut that helper's head and spliced its
-    body into this function, so every non-accumulating eval raised NameError
-    at pre-flight until 2026-09-13. A scenario that needs a field value writes
-    it with its own `setup: write_substrate` step.
+    helper (b93476a) wrote the retired seat's dial files and left with that
+    seat in 85c4f7b (ADR-632) — which also cut the helper's head and spliced
+    its body into this function, so every non-accumulating eval raised
+    NameError at pre-flight until 2026-09-13. A scenario that needs a field
+    value writes it with its own `setup: write_substrate` step.
 
     All writes carry the operator-proxy eval-suite-runner attribution. Returns
     {deleted: [...], wrote: [...], expired_proposals: N} for the SESSION.md

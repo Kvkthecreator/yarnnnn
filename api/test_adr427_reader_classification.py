@@ -89,7 +89,6 @@ CLASSIFICATION: dict[str, str] = {
     "services/ask_builder.py": "text-only-by-contract",         # authored md
     "services/workspace_guide.py": "text-only-by-contract",     # _workspace_guide.md
     "services/context_inference.py": "text-only-by-contract",   # identity/brand md merge
-    "services/primitives/scaffold.py": "text-only-by-contract", # seed/skeleton text templates
     "services/capture/declarations.py": "text-only-by-contract",# _captures.yaml
     "services/operator_proxy/scenarios.py": "text-only-by-contract",       # Hat-B harness, authored scenario files
     "services/operator_proxy/persona_snapshot.py": "text-only-by-contract",# Hat-B harness

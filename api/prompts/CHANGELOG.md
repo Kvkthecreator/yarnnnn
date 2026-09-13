@@ -15,6 +15,19 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.13.1] - The entity primitives are deleted (ADR-632 §3 caller audit)
+
+### Changed
+- `services/primitives/read.py` · `edit.py` · `list.py` · `scaffold.py` · `refs.py`: DELETED — `LookupEntity`, `EditEntity`, `ListEntities`, `ManageDomains` and the entity-ref grammar. The caller audit found no route, job, lane surface (`lane_tools_openai` is a fixed list), MCP verb (`_INTEROP_VERBS` is file-native) or capture directive that reached them.
+- `services/primitives/registry.py`: four HANDLERS rows and their imports gone (27 handlers remain); `permission.py` drops the four names from its read-only/queueable lists.
+- Expected behavior: NONE observable — no prompt ever carried these tools, so no lane, standing run or connector sees a different surface. The perception/trading primitives stay: a capture declaration's `@primitive:` directive can name them (`services/capture/lane.py`).
+
+### Why
+- ADR-632 §3 left them "pending a caller audit"; the audit is the change. A registered tool nothing reaches is a second surface waiting to drift (the `write.py` precedent, deleted 2026-09-12 after outliving its own ledger row).
+
+### Gate
+- `test_agent_model_is_retired.py` asserts the modules are gone; `test_adr307_permission_taxonomy.py` rosters re-cut; `test_no_undefined_names.py` 220/220.
+
 ## [2026.09.09.1] - ADR-648: a read is bounded and says so; history bounded in chars
 
 ### Changed

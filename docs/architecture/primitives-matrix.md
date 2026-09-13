@@ -31,7 +31,7 @@ Primitives are the **vocabulary of the Mechanism dimension** (Axiom 5). An agent
 | **Standing run** (unattended) | a member's standing declaration | **none — toolless** | the target's head and the declared sources ride the message (ADR-603/639); the run answers once |
 | **The desktop** | the member's own click | `Restore` (Trash) · `DuplicateFile` · `MoveFile` / `MoveFolder` / `DeleteFolder` (the Files menu, the fan-outs) · `ExecuteProposal` / `RejectProposal` (Reach → Leaving, Notifications → To do) | the routes call the same handlers the lane does — one act, one head-blob form |
 
-**What no surface holds.** `DiffRevisions`, `ListRevisions`, `ReadRevision`, `EditEntity`, `ListEntities`, `LookupEntity`, `ManageDomains`, `Embed`, `SyncPlatformState`, `TrackRegime`, `TrackUniverse`, `TrackWebSources` are registered with handlers but composed into no live surface and called from no live route — the residue of the steward's rosters. ADR-632 §3 left each to its own caller audit; until one lands they are inert, and a doc that lists them as available is wrong.
+**What no surface holds.** `DiffRevisions`, `ListRevisions`, `ReadRevision`, `Embed`, `SyncPlatformState`, `TrackRegime`, `TrackUniverse`, `TrackWebSources` are registered with handlers but composed into no live surface and called from no live route — the residue of the steward's rosters. ADR-632 §3 left each to its own caller audit; until one lands they are inert, and a doc that lists them as available is wrong.
 
 ---
 
@@ -64,10 +64,6 @@ Every primitive is **read-only** (reads and narration — `READ_ONLY_PRIMITIVES`
 | `DiffRevisions` | revisions | read-only | ○ | ○ | **none — registered, no live surface** | Compare two revisions of the same workspace file. |
 | `ListRevisions` | revisions | read-only | ○ | ○ | **none — registered, no live surface** | List the revision chain for a workspace file. |
 | `ReadRevision` | revisions | read-only | ○ | ○ | **none — registered, no live surface** | Read a specific historical revision of a workspace file. |
-| `EditEntity` | entity | consequential | ○ | ○ | **none — registered, no live surface** | Modify an existing entity by typed ref. |
-| `ListEntities` | entity | read-only | ○ | ○ | **none — registered, no live surface** | Find entities by pattern (structural navigation). |
-| `LookupEntity` | entity | read-only | ○ | ○ | **none — registered, no live surface** | Look up a database-backed entity by reference. Returns the full row. |
-| `ManageDomains` | domains | queueable | ○ | ○ | **none — registered, no live surface** | Manage entities in workspace context domains (competitors, market, relationships, projects, content_research). |
 | `ExecuteProposal` | proposals | consequential | ○ | ○ | `routes/proposals` (the member's click) | Approve-and-execute a previously proposed action by its proposal_id (ADR-193 + ADR-194 v2 Phase 2a). |
 | `ProposeAction` | proposals | consequential | ○ | ○ | the trading emit contract; the operator-proxy harness (Hat B) | Propose a write action for user approval instead of executing it directly (ADR-193). |
 | `RejectProposal` | proposals | consequential | ○ | ○ | `routes/proposals` (the member's click) | Reject a pending proposal by its proposal_id (ADR-193 + ADR-194 v2 Phase 2a). |
@@ -90,7 +86,6 @@ Artifact cards: a lane's call on `EditFile` · `GenerateImage` · `MoveFile` · 
 - **`file`** — the virtual filesystem over Postgres (`workspace_files`), path-based; every write an attributed revision through `write_revision` (ADR-209). `ReadFile` is capped with a notice and a real `offset` (ADR-648). Two scopes on the file verbs: `workspace` (the shared commons by meaning-path — the grant governs whether a path is yours) and `agent` (the caller's own home).
 - **`folder`** — a folder is a marker row plus whatever files share its prefix (ADR-588), so a folder verb is a **fan-out**: one attributed revision per file, locked children refused and named, capped at `MAX_FAN_OUT` (500). `Restore` puts back one file or one trashed folder as a unit.
 - **`revisions`** — the chain (`ListRevisions` / `ReadRevision` / `DiffRevisions`); revert is `ReadRevision` + `WriteFile` (ADR-209 D7), never a pointer flip.
-- **`entity`** — typed refs over the two DB-backed objects the filesystem cannot express (`platform` — a connection row; `session`). No live surface composes the entity verbs today.
 - **`proposals`** — the witness gate's queue (ADR-307): an agent `ProposeAction`s; the member executes or rejects from Reach or Notifications; the verdict lands in the judgment log (the verdict-giver is the member — ADR-632 D2).
 - **`projection`** — a non-text raw becomes model-consumable only as a cited projection (`ExtractTextFromBlob`, ADR-395 / DP34); `Embed` makes a file rankable by `QueryKnowledge` (ADR-325).
 - **`external`** — `WebSearch`; `GenerateImage` (rented generation, ADR-568 — the only generation verb, ADR-417); `SyncPlatformState` (ADR-264 — registered, unreached).
@@ -300,12 +295,6 @@ Artifact cards: a lane's call on `EditFile` · `GenerateImage` · `MoveFile` · 
 | `workspace` | the shared commons by meaning-path — `operation/` and the member-named folders, `inbound/`, `uploads/`, the agent homes under their grants | the lane, interop |
 | `agent` | the calling agent's own home (`agents/{slug}/`) | an agent writing its `memory/` |
 
-### `ManageDomains.action`
-
-`scaffold` · `add` · `remove` · `list` — registered, unreached.
-
----
-
 ## Rename protocol
 
 When renaming, adding or removing a primitive, sweep these in the **same commit** as the code change:
@@ -321,6 +310,10 @@ When renaming, adding or removing a primitive, sweep these in the **same commit*
 
 | Old name | Replaced by | Superseding ADR | Rationale |
 |---|---|---|---|
+| `LookupEntity` | (none — the two DB-backed objects it addressed, `platform` and `session`, are read by their own routes) | ADR-632 §3 caller audit *(2026-09-13)* | Registered, no live surface, no caller in routes/jobs/mcp/lanes/capture. Deleted with `refs.py`. |
+| `EditEntity` | (none) | ADR-632 §3 caller audit *(2026-09-13)* | Same audit — no caller anywhere. |
+| `ListEntities` | (none) | ADR-632 §3 caller audit *(2026-09-13)* | Same audit — no caller anywhere. |
+| `ManageDomains` | (none — a context domain is a FOLDER under `operation/`, made by the folder verbs) | ADR-632 §3 caller audit *(2026-09-13)* | ADR-155/157 onboarding scaffold; the pure-genesis ADR-414 D4 left it unreached. |
 | `TrackForeign` | `services/attached_connectors.py` (the member's attached MCP connector, reached in their own turn — not a primitive, a surface the lane composes) | ADR-635 D8 *(2026-09-03)* | The steward-era mechanical MCP watch (ADR-335 Crawl-B / ADR-356) was on no live surface after ADR-632 and production held zero watch-bound rows. The attached connector is the ONE MCP binding, read through the ADR-577 credential path; `foreign_read.py` and `_resolve_binding` went with it. |
 | `CaptureConnector` | `services/connectors.py::drain_due_connector_captures` (a direct scheduler walk, not a primitive) | ADR-582 *(2026-08-19)* | The connector is a WRITER, not a pipeline: its only production caller was a `@primitive:` directive string seeded into `_captures.yaml` (production carried zero seeded rows), reading a `_watch.yaml` mirror of a selection the DB row already held. The fan-out insight (per-selector reads over a declared aperture) survives inside the walk. Files `primitives/capture_connector.py` + `services/connector_watch.py` deleted. |
 | `RuntimeDispatch` | (none — generation retired) | ADR-417 *(2026-07-08)* | The render service (yarnnn-render) is decommissioned — generation is rented, not owned; yarnnn hosts no generation engine. Asset generation (chart/mermaid/image/video) retired; the `designer` role collapses to compose-only; `has_asset_capabilities()` returns `False` universally. Compose (section→HTML) moved in-API (`services/compose/engine.py`). File `primitives/runtime_dispatch.py` deleted. |

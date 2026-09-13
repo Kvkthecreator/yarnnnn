@@ -69,7 +69,7 @@ YARNNN is the intelligence layer. It reads context, assesses state, and makes ju
 - Rich context (working memory, WORKSPACE.md, workspace_state, navigation state)
 - Clear priorities (identity before brand before tasks)
 - Behavioral philosophy (one thing at a time, act then adjust, don't overwhelm)
-- Tools to act (Schedule, ManageHook, ManageDomains, the file family, etc.)
+- Tools to act (the file family; standing work by declaration — ADR-639)
 
 **We do NOT give YARNNN:**
 - State machines ("IF identity == empty THEN only suggest identity")
@@ -87,9 +87,9 @@ YARNNN is the intelligence layer. It reads context, assesses state, and makes ju
 YARNNN manages what's in the workspace filesystem. Every primitive is a filesystem write with judgment about what to write and where.
 
 - Reads: working memory, WORKSPACE.md, workspace_state, navigation context
-- Writes: WriteFile (scope="workspace"), Schedule, ManageHook, ManageDomains
+- Writes: WriteFile (scope="workspace") and the folder verbs; a context domain is a folder under `operation/`
 - Routes feedback to the right scope (workspace / agent / task)
-- Scaffolds context domains: after processing identity, YARNNN reasons about what entities should exist and calls ManageDomains to pre-populate (ADR-155). No separate inference service — YARNNN IS the inference layer.
+- Context domains are folders the member or an agent names (ADR-424); nothing scaffolds them at genesis (ADR-414 D4)
 
 ### 2. Work Orchestrator
 YARNNN creates and manages tasks. It knows the task type catalog, understands which agents handle what, and matches user intent to the right task configuration.
@@ -114,7 +114,7 @@ YARNNN guides users through workspace setup and ongoing use. It sees what's miss
 YARNNN reads the workspace state (workspace_state) and uses judgment to guide the user. It doesn't force a sequence. It suggests what would be most valuable RIGHT NOW.
 
 - Empty workspace + no context: "Tell me about yourself and your work" (ContextSetup component on `/context`)
-- User provides identity: YARNNN processes → UpdateContext → ManageDomains (pre-populates all domains with entity stubs)
+- User provides identity: the agent writes what it learned into the commons (genesis is pure — ADR-414 D4; nothing is pre-populated)
 - User says "track competitors": YARNNN creates the task immediately (doesn't gate on brand being set)
 - User browses empty context/competitors/: "This is your competitor intelligence folder. Want to start tracking?"
 

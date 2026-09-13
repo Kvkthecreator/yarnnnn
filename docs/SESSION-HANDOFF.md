@@ -65,15 +65,6 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   `browser_login_link.py` is stale.
 - Top-level peer folders have no member door any more (D5 sends a folder from nowhere to Documents); if one
   is ever needed, `NewFolderModal` grows a destination picker — never a second fallback.
-- OPEN, operator-reported 2026-09-13: **delete on the Files surface opens the file in Text**. The trash
-  succeeds; the navigation after it is spurious. NOT the portal-unmount re-target — that was diagnosed,
-  driven in Chrome, and FALSIFIED (removing an element mid-click leaves the original target; the browser
-  does not re-dispatch). Leading suspect: `handleFileClick` in `web/app/(authenticated)/files/page.tsx`
-  opens on `(e?.detail ?? 0) >= 2`, the UA multi-click counter, which no element appearing or disappearing
-  between two clicks at one point resets — and the confirm button sits dead-centre over the listing
-  (measured). Needs a real pointer or CDP `Input.dispatchMouseEvent` with fixed x/y and rising `clickCount`;
-  it cannot be synthesized from JS. The modal hardening in `5c3b143` may MASK the symptom without fixing
-  the cause — verify against that commit's parent.
 
 ## Billing (found 2026-08-20 / 09-02, unverified)
 - The undelivered-top-up banner has never rendered in a browser. To drive it: mint a top-up
@@ -98,6 +89,8 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 `test_adr346` / `test_adr349` (retire or re-anchor on ADR-603) ·
 `test_adr404_member_invites` (1 red: greps the literal "Only the workspace owner can manage invites" in
 `routes/workspace.py`, which dropped it on 2026-07-31 in `5223750` — a stale literal, found 2026-09-12) ·
+`test_adr307_permission_taxonomy` (2 red: a probe roster missing `Restore`, and a delegation test that still names the
+deleted `Schedule` primitive under a retired `freddie_caller` flag — stale, found 2026-09-13) ·
 `test_adr386_member_lifecycle` (1 red: `test_provider_id_resolves_via_registry` expects bare "Claude" to
 resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the test pins the pre-D2.a rule)) ·
 `test_adr571_text_app` (115/279: node/sucrase shell-outs fail in this environment) · `test_adr242` (2/6) ·
@@ -118,9 +111,10 @@ re-anchored the same day (14/14) and leaves this list.
   primitives-matrix 13) and code 273 lines across 75 modules (`judgment_log.py` 17, `review_policy.py` 15,
   `orchestration.py` 12, `workspace.py` 11). A file is a session each, ADR-632/603/596 as the spec; lower its
   ceiling in the same commit.
-- ADR-632 §3: the entity primitives (`LookupEntity`/`EditEntity`/`ListEntities`/`ManageDomains`) and the
-  trading primitives keep handlers nothing in the live frame reaches — each owes a caller audit, then
-  deletion or a declared reach.
+- ADR-632 §3, second half: the perception/trading primitives (`TrackRegime` · `TrackUniverse` ·
+  `TrackWebSources` · `SyncPlatformState`) keep a DECLARED reach — a capture declaration's `@primitive:`
+  directive dispatches any registry name (`services/capture/lane.py`). Whether a live declaration names any
+  of them is unaudited; if none does, they are the next `write.py`. (The entity half was deleted 2026-09-13.)
 - `.claude/agents/alpha-operator.md` was deleted 2026-09-12: it instructed Reviewer auto-approval,
   `ManageRecurrence` and `_recurring.yaml`, all retired. If alpha rituals are still wanted, rebuild
   the agent against the live model (`docs/alpha/`, `api/scripts/alpha_ops/`).

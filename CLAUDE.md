@@ -58,7 +58,7 @@ external system does something differently, check whether an ADR already explain
   `api/services/reach_status.py`; a reach sentence anywhere else is a defect (ADR-644). Reach follows the acting
   member: a credential is a human's, keyed by `user_id`, and an agent caller is refused
   (`api/services/platform_credentials.py`, ADR-577). Credential adoption and mirroring are CLOSED (ADR-645 D1).
-- **Retired — do not reintroduce**: the steward / Reviewer / Freddie seat with its prompt layer, wake sources, queue
+- **Retired — do not reintroduce**: the steward / Reviewer / Freddie seat with its prompt layer, wake sources, queue; the entity primitives (`LookupEntity`/`EditEntity`/`ListEntities`/`ManageDomains` + `refs.py`, ADR-632 §3 audit 2026-09-13 — no caller anywhere).
   and drainer (ADR-632); recurrences and their dispatch (ADR-603 D5); the pre-ADR-596 agent model and its eight tables
   (mig 248); the strings app and Supervisor (ADR-639); the output gateway and asset generation (ADR-417); platform sync
   workers (ADR-153). The ledger of deletions and their gates is in ADR-LEDGER. `freddie:` survives only as a

@@ -55,8 +55,7 @@ def test_every_read_primitive_is_read_only():
     from services.primitives.permission import is_read_only
 
     must_be_read_only = [
-        # entity reads
-        "LookupEntity", "ListEntities", "SearchEntities",
+        # (the entity reads left with the entity layer, 2026-09-13)
         # file reads
         "ReadFile", "ListFiles", "SearchFiles", "ReadAgentFile",
         # revision reads
@@ -86,9 +85,9 @@ def test_consequential_default_is_fail_closed():
     # __nonexistent_primitive__ entry covers the unknown-name-is-consequential case.
     # ADR-417: RuntimeDispatch removed (render service retired).
     for name in ("WriteFile", "Schedule",
-                 "ManageHook", "ManageAgent", "ManageDomains", "ProposeAction",
+                 "ManageHook", "ManageAgent", "ProposeAction",
                  "ExecuteProposal", "FireInvocation",
-                 "Compose", "EditEntity",
+                 "Compose",
                  "SyncPlatformState", "__nonexistent_primitive__"):
         assert not is_read_only(name), (
             f"{name} must be treated as consequential (fail-closed) per ADR-307 D2"
@@ -222,8 +221,7 @@ def test_gate_covers_all_consequential_primitives():
     the uniform gate (queue under bounded/manual, apply under autonomous).
     ADR-417: RuntimeDispatch + DispatchSpecialist removed."""
     from services.primitives.permission import GATE_QUEUEABLE_PRIMITIVES
-    for name in ("WriteFile", "Schedule", "ManageHook", "ManageAgent",
-                 "ManageDomains"):
+    for name in ("WriteFile", "Schedule", "ManageHook", "ManageAgent"):
         assert name in GATE_QUEUEABLE_PRIMITIVES, (
             f"{name} must be gate-queueable per ADR-307 D5"
         )
