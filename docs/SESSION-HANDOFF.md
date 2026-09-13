@@ -29,8 +29,6 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 ## Standing work / apps
 - Carried since 2026-09-04: `projection.ts`'s second CSV parser · a Files door for declaring
   standing work · blogger's first real standing declaration (compose-only) · the `/images` export click-pass.
-- Text's create modal wrote the told-name into the path: two phantom `/workspace/Documents/` files
-  exist on prod; the PATCH door runs no `HOME_ALIASES` pass.
 - IMAGES tagline promises live rendering "on the canvas" — true via Designer in the lane, not a
   button; whether it wants an explicit affordance is a product call.
 - `test_adr472_images.py` is 24/27 at baseline: it pins ADR-488's hidden state, reversed by
@@ -81,8 +79,6 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 - The undelivered-top-up banner has never rendered in a browser. To drive it: mint a top-up
   checkout, abandon it, wait out `TOPUP_DELIVERY_GRACE_MINUTES`, load Billing. Sweep LS order
   history for orders the stale `api.ep-0.com` hook swallowed before 2026-09-02.
-- `post.html` for the ADR-627 click-pass post read 0 bytes over `GET /api/workspace/file` while the
-  row held ~36KB, and carried `content_type: text/markdown` on an `.html` artifact. Not chased.
 
 ## Email (ADR-650, 2026-09-12)
 - **Paste the six auth templates** from `supabase/templates/auth/` into Authentication → Emails →
