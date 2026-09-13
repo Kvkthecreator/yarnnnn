@@ -36,6 +36,17 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 - `test_adr472_images.py` is 24/27 at baseline: it pins ADR-488's hidden state, reversed by
   ADR-629 D3. Re-pin to the beta state or retire — a decision, not a cleanup.
 
+## Workspace binding (ADR-548 D9/D10, found 2026-09-13)
+- **Three files sit in the wrong workspace and have no copy in the right one** — written while the session
+  was bound to `SK Personal` (9dc80079) but owner-resolved into `yarnnn workspace` (d5b9029b) by the
+  pre-`8b4977d` write path: `/workspace/operation/ideas.md`, `/workspace/operation/personal-notes.md`,
+  `/workspace/operation/test.md`. All three are personal content. The code defect is fixed; MOVING them is a
+  data repair and the operator's call — confirm intent before touching, and move via `write_revision` at the
+  correct binding rather than an UPDATE of `workspace_id` (the revision chain is the record).
+- Exposed population is exactly **2 accounts** — the only principals owning more than one live workspace.
+  `resolve_owner_workspace_id`'s docstring still claims a user owns "AT MOST one"; that has never been true
+  (no unique constraint on `workspaces.owner_id`). Correct the docstring or cap ownership, but not both.
+
 ## Genesis (ADR-414 D4 · 465; found 2026-09-12)
 - No live workspace on prod has the governance dials, so `initialize_workspace` in
   `api/services/workspace_init.py` is effectively dead the way the state route was; `budget.py` degrades
