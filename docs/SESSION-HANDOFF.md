@@ -108,8 +108,10 @@ shapes (Studio-era chrome pins, the ADR-209 live phases, retired-model subjects,
   ceiling in the same commit.
 - ADR-632 §3, second half: the perception/trading primitives (`TrackRegime` · `TrackUniverse` ·
   `TrackWebSources` · `SyncPlatformState`) keep a DECLARED reach — a capture declaration's `@primitive:`
-  directive dispatches any registry name (`services/capture/lane.py`). Whether a live declaration names any
-  of them is unaudited; if none does, they are the next `write.py`. (The entity half was deleted 2026-09-13.)
+  directive dispatches any registry name (`services/capture/lane.py`). **Audited 2026-09-13: zero rows on prod
+  contain `@primitive:` at all** — no `_captures.yaml` names any of them, and the ADR-582 connector drain is its
+  own walk. Deleting them removes a CAPABILITY (web-source watch, regime/universe tracking), not plumbing —
+  the operator's call. (The entity half was deleted 2026-09-13.)
 - `.claude/agents/alpha-operator.md` was deleted 2026-09-12: it instructed Reviewer auto-approval,
   `ManageRecurrence` and `_recurring.yaml`, all retired. If alpha rituals are still wanted, rebuild
   the agent against the live model (`docs/alpha/`, `api/scripts/alpha_ops/`).
