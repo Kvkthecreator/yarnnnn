@@ -27,11 +27,20 @@ const proj = readFileSync('web/components/workspace/viewers/projection.ts', 'utf
 const pane = readFileSync('web/components/authoring/StudioDesignTab.tsx', 'utf8');
 const ops = readFileSync('web/components/authoring/artifactOps.ts', 'utf8');
 const kernel = readFileSync('api/services/authoring.py', 'utf8');
-// The Docs module lives under the apps package (ADR-518 D3's module boundary,
-// re-homed with the rest of `services/apps/*`). This path was stale and the
-// gate CRASHED on contact — it never ran a single check. Repaired by ADR-574,
-// independent of that ADR's decisions.
-const docs = readFileSync('api/services/apps/docs.py', 'utf8');
+// The Docs app is GONE — ADR-599 D4-D6 deleted it when Studio became Slides.
+//
+// This is the SECOND time this constant crashed the gate on a path that moved
+// out from under it (ADR-574 repaired the first, when Docs merely moved into
+// `services/apps/`). That repair re-pointed the read; it could not survive the
+// app being deleted, and the gate has been dead on contact ever since —
+// exiting before assertion one while reporting success.
+//
+// So the subject is not re-pointed, it is RESOLVED. Exactly one assertion below
+// consumed this source, asking whether the Docs kernel skin declares
+// `section[data-block]`. A deleted app declares nothing, so that premise is now
+// permanently false and is spelled as the constant it has become. The other 35
+// assertions have live subjects and are untouched.
+const DOCS_SKIN_DECLARES_SECTION = false;
 
 let pass = 0,
   fail = 0;
@@ -182,10 +191,20 @@ const mkEl = (tag, attrs = {}, classes = []) => ({
 const areaRoleBlock = labels.match(/AREA_ROLE_LABELS[^=]*=\s*(\{[\s\S]*?\n\});/);
 const areaLabelFn = labels.match(/export function areaLabel\([\s\S]*?\n\}/);
 const labelForFn = labels.match(/export function labelForElement\([\s\S]*?\n\}/);
-t('D5: the label ladder and its role map are both extractable', !!areaRoleBlock && !!areaLabelFn && !!labelForFn);
+// `frameNoun` decides the FRAME rung's noun (ADR-633 D2). It is extracted for
+// the same reason as the other two rather than re-spelled here: the gate must
+// execute the real source. It was NOT extracted originally — `labelForElement`
+// gained the call afterwards, so the eval threw `frameNoun is not defined` and
+// killed the gate. The crash sat behind a `readFileSync` on the deleted Docs
+// app, so nothing reported it: two dead gates, one silence.
+const frameNounFn = labels.match(/export function frameNoun\([\s\S]*?\n\}/);
+t(
+  'D5: the label ladder, its role map and the frame noun are all extractable',
+  !!areaRoleBlock && !!areaLabelFn && !!labelForFn && !!frameNounFn,
+);
 
 let labelForElement = null;
-if (areaRoleBlock && areaLabelFn && labelForFn) {
+if (areaRoleBlock && areaLabelFn && labelForFn && frameNounFn) {
   // Replace each TS signature wholesale with a plain-JS one, then keep the
   // BODY verbatim — so the executed ladder is the real source, and only the
   // types are discarded. (A per-annotation regex sweep cannot survive the
@@ -196,9 +215,11 @@ if (areaRoleBlock && areaLabelFn && labelForFn) {
   };
   const src =
     `const AREA_ROLE_LABELS = ${areaRoleBlock[1]};\n` +
+    bodyOf(frameNounFn[0], 'objectModel').replace('__f', 'frameNoun') +
+    '\n' +
     bodyOf(areaLabelFn[0], 'role, place').replace('__f', 'areaLabel') +
     '\n' +
-    bodyOf(labelForFn[0], 'el, blockLabels, mode').replace('__f', 'labelForElement') +
+    bodyOf(labelForFn[0], 'el, blockLabels, mode, objectModel').replace('__f', 'labelForElement') +
     '\nreturn labelForElement;';
   try {
     labelForElement = new Function(src)();
@@ -373,8 +394,9 @@ t('D6: STRUCTURAL_PAGE_SEL is declared once', !!pageSel);
 if (pageSel) {
   // Does the selector admit a plain <section> under main/article/body?
   const admitsPlainSection = /:is\([^)]*\)\s*>\s*section/.test(pageSel[1]);
-  // Does the Docs kernel skin declare that very shape?
-  const docsDeclaresSection = /section\[data-block\]/.test(docs);
+  // Does the Docs kernel skin declare that very shape? It cannot — the app is
+  // deleted (ADR-599 D4-D6), so the premise is a resolved constant.
+  const docsDeclaresSection = DOCS_SKIN_DECLARES_SECTION;
   // If BOTH are true, the "always null" premise needs a mode gate to be honest.
   const premiseNeedsGate = admitsPlainSection && docsDeclaresSection;
   // Assert the BINDING's own condition, not a proximity window: extract what

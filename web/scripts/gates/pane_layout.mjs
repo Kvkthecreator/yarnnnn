@@ -39,10 +39,31 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const ROOT = process.cwd();
-const read = (p) => readFileSync(`${ROOT}/${p}`, 'utf8');
 
 let pass = 0;
 const failures = [];
+
+/**
+ * Read a file the gate asserts over — and FAIL rather than die when it moved.
+ *
+ * This gate sat dead for eleven days. ADR-631 renamed `desk/DeskHousing.tsx` to
+ * `pane/PaneHousing.tsx`; `readFileSync` threw at module scope, so the process
+ * exited before assertion one and the gate reported NOTHING — not a red, an
+ * absence. A crashed gate is worse than a missing one: the radar shows a lane
+ * with a gate, and the gate has no opinion.
+ *
+ * So a moved path is now a recorded failure naming the file, and every later
+ * assertion still runs. The missing source reads as empty, which fails the
+ * assertions about it honestly rather than vacuously passing them.
+ */
+const read = (p) => {
+  try {
+    return readFileSync(`${ROOT}/${p}`, 'utf8');
+  } catch {
+    failures.push(`the gate reads a path that no longer exists — ${p} (renamed or deleted; re-anchor this gate)`);
+    return '';
+  }
+};
 const ok = (name, cond, detail = '') => {
   if (cond) {
     pass++;
@@ -270,7 +291,7 @@ const LADDER_CONSUMERS = [
   'web/components/authoring/StudioSurface.tsx',
   'web/components/text/TextEditor.tsx',
   'web/components/chat-surface/ChatSurface.tsx',
-  'web/components/desk/DeskHousing.tsx',
+  'web/components/pane/PaneHousing.tsx',
   'web/components/settings/SettingsPaneShell.tsx',
 ];
 for (const f of LADDER_CONSUMERS) {
