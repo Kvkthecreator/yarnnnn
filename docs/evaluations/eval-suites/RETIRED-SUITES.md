@@ -164,3 +164,31 @@ ADR-364 D2a verdict-source move to `action_proposals`.
   can judge them against actual use.
 - **`SESSION-TEMPLATE.md`**, **`EVAL-SUITE-DISCIPLINE.md`**,
   **`EVAL-ARCHITECTURE.md`** — the framework outlives the manifests.
+
+---
+
+## 2026-09-13 — `freddie-bare-workspace-steward.yaml` (kept in place, `status: superseded`)
+
+**Verdict state: EXERCISED — PASS on the core thesis, then DECIDED-ELSEWHERE.**
+Fired once (2026-06-29, `bare-kernel`, $0.15) through its probe — not the
+runner: the manifest's `persona: bare-workspace-steward` was never a registry
+slug, so `run_eval_suite.py` crashed at persona resolution every time (the
+2026-07-31 audit). The read said the bare workspace reasoned as a substrate
+steward ([finding](../2026-06-29-freddie-bare-workspace-steward-FINDING.md)).
+Then ADR-632 (2026-09-02) deleted the steward, its wake stack and its dial
+files: the thesis has no subject. Retired without deletion because the
+manifest is the only complete record of the seeded situation.
+
+**What this retirement revealed in the harness (same day):** 85c4f7b cut the
+head of `_establish_field_equals` and spliced its body into
+`establish_substrate`, so every non-accumulating eval raised NameError at
+pre-flight after 2026-09-02 — invisible because no thesis suite fired after
+the steward left. Repaired 2026-09-13; `field/equals` preconditions are now
+CHECKED, never established (a scenario writes what it needs with
+`setup: write_substrate`).
+
+**The next current thesis suite** measures a lane turn (`send_message` — the
+one measured-turn shape the runner still has, alongside the proposal verbs)
+and goes current by editing `DECLARED_CURRENT` in `api/test_eval_suite_gate.py`
+and the README registry in the same commit. Zero current thesis suites is the
+honest count until then.

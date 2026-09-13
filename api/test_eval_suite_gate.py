@@ -214,10 +214,21 @@ def test_all_suite_manifests_mechanically_sound():
     )
 
 
-def test_exactly_one_current_suite_and_it_is_the_declared_one():
+# The thesis registry's current suite(s). Empty since the steward suite retired
+# (ADR-632 deleted what it measured). At most one entry.
+DECLARED_CURRENT: list[str] = []
+
+
+def test_at_most_one_current_thesis_suite_and_it_is_the_declared_one():
     """The registry's CURRENT designation is singular and named. If a second
     suite goes current, or the current one changes, this test forces the
-    change to be deliberate (update here + README in the same commit)."""
+    change to be deliberate (update here + README in the same commit).
+
+    ZERO is the honest count since ADR-632 (2026-09-02): the one current thesis
+    suite measured a STEWARD wake, and the steward is deleted. It was retired
+    on 2026-09-13 (RETIRED-SUITES.md); the next current thesis suite measures
+    a lane turn (`send_message`) and goes current by editing DECLARED_CURRENT
+    here + the README registry in the same commit."""
     current = []
     for fname in _suite_files():
         raw = yaml.safe_load(open(os.path.join(SUITES_DIR, fname), encoding="utf-8"))
@@ -229,11 +240,10 @@ def test_exactly_one_current_suite_and_it_is_the_declared_one():
             continue
         if raw.get("status") == "current":
             current.append(fname)
-    assert current == ["freddie-bare-workspace-steward.yaml"], (
-        f"current suites = {current}; expected exactly "
-        "['freddie-bare-workspace-steward.yaml']. Going current requires the "
-        "suite to pass live pre-flight — update this assertion + the README "
-        "registry deliberately in the same commit."
+    assert current == DECLARED_CURRENT, (
+        f"current thesis suites = {current}; expected {DECLARED_CURRENT}. Going "
+        "current requires the suite to pass live pre-flight — update "
+        "DECLARED_CURRENT + the README registry deliberately in the same commit."
     )
 
 

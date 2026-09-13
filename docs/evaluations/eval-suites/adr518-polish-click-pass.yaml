@@ -146,6 +146,11 @@ steps:
       matches /^Docs: /.
 
   # ------------------------------------------------------------ BREADCRUMB
+    restore: |
+      Undone by step cleanup-trash-test-document (trash is a lifecycle
+      transition, ADR-337 D2 — the document and its 'Docs:' revision stay
+      walkable in the chain; Files → Trash → Restore brings it back).
+
   - step: breadcrumb-walks-the-chain-on-a-deck
     principal: owner
     surface: /studio (workbench on a rig deck)
@@ -182,3 +187,6 @@ steps:
     receipt: |
       Authed files listing equals the baseline roster captured before the
       revision-voice step.
+    restore: |
+      This step IS the restore of docs-revision-speaks-as-docs. Trash is
+      reversible: Files → Trash → Restore on the suite-created path.

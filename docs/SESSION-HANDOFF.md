@@ -55,8 +55,11 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   substrate_status) has no live reader except `/settings` behind a swallowed catch.
 
 ## Files (ADR-649, 2026-09-12)
-- `services/operator_proxy/scenarios.py::establish_substrate` references eight helpers that no longer
-  exist (Hat-B, allowlisted). Repair or delete in an evaluations pass.
+- **No current thesis suite** (evaluations): the steward suite retired 2026-09-13; the runner's
+  measured turn is now `send_message` (a lane turn). Cutting the next one is a Hat-B decision with a cost
+  line — candidates: the register (ADR-638), the skills index (ADR-630). `DECLARED_CURRENT` in
+  `test_eval_suite_gate.py` + the README registry go together. The `scenarios/` corpus still spells
+  steward-era setup; a corpus pass belongs to whoever cuts that suite.
 - Rig `anr-scout@yarnnn.com` (ws `4023cb7b`) now holds `operation/first-folder/` from the click-pass; trash it
   if a cold rig is wanted. `testacct` owns a workspace too — its "owns nothing" note in
   `browser_login_link.py` is stale.

@@ -156,6 +156,10 @@ steps:
       Authed GET /api/workspace/file?path=<created> from the session:
       content carries data-template="document"; the head revision exists and
       is operator-attributed.
+    restore: |
+      Undone by step cleanup-trash-test-document (trash is a lifecycle
+      transition, ADR-337 D2 — the row and its revision chain stay; Files →
+      Trash → Restore brings it back if the cleanup step is ever wrong).
 
   - step: studio-offers-layout-media-only
     principal: owner
@@ -228,3 +232,7 @@ steps:
     receipt: |
       Authed files listing equals the baseline roster captured before step
       create-document-in-docs.
+    restore: |
+      This step IS the restore of create-document-in-docs. Trash is
+      reversible: Files → Trash → Restore on the suite-created path returns the
+      roster to the post-create state if a later read needs the document.

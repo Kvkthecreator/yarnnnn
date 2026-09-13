@@ -2,7 +2,7 @@
 
 `status:` is a machine-readable field in each manifest, gate-checked by
 `api/test_eval_suite_gate.py` (persona resolves, scenarios exist, `requires:`
-operators supported, exactly one `current` suite). The runner refuses
+operators supported, at most one `current` thesis suite — zero since 2026-09-13, see RETIRED-SUITES.md). The runner refuses
 `status: superseded` at load.
 
 **One suite is live. Eight were retired and deleted 2026-07-31**
@@ -15,7 +15,7 @@ receipts: [`../2026-07-31-eval-layer-audit-FINDING.md`](../2026-07-31-eval-layer
 
 | suite | subject | kind | status |
 |---|---|---|---|
-| `freddie-bare-workspace-steward.yaml` | Freddie (Rung 1, bare workspace, steward defaults) | `thesis` | **current** — the launch-path suite. Repaired 2026-07-31 (persona `bare-kernel`; supported `absent:` program-marker asserts); pre-flight verified live 4/4. Latest full run: [`../2026-07-03-freddie-bare-steward-sonnet-rerun/`](../2026-07-03-freddie-bare-steward-sonnet-rerun/FINDING.md) |
+| `freddie-bare-workspace-steward.yaml` | Freddie (Rung 1, bare workspace, steward defaults) | `thesis` | **superseded 2026-09-13** — ADR-632 deleted the steward it measured; verdict + re-cut note in RETIRED-SUITES.md |
 | `settings-surfaces-click-pass.yaml` | the two settings doors, owner × member | `browser` | **current** — registered 2026-07-31, not yet run. Portable form: [`../OPERATOR-PACKET-settings-click-pass.md`](../OPERATOR-PACKET-settings-click-pass.md) |
 | `studio-editing-click-pass.yaml` | the Studio editing surface, `document` × `deck` | `browser` | **current** — registered 2026-07-31, **not yet run** (browser tools were not present in the authoring session; they freeze at session start). Covers the interaction-polish pass (`4318904`), the ADR-509 insert re-cut (`817eecd`), the colour swatch row (`f5a9515`) and the four interaction debts (`9c79a57`) — every one of which is keyboard/scroll/focus-shaped and therefore invisible to a static gate. Baseline receipts EXECUTED against prod before registration. |
 
@@ -29,7 +29,7 @@ principal, never by the LLM runner. The separation is gate-asserted
 stays `{"thesis"}`, because firing a click-path as a wake would silently produce
 a thesis read of a suite that has no scenario.
 
-The "exactly one current suite" rule governs the **thesis** registry only; a
+The "at most one current suite" rule (`DECLARED_CURRENT` in the gate; empty since 2026-09-13) governs the **thesis** registry only; a
 current browser manifest does not contend for that slot (different firing
 instrument, different failure mode).
 

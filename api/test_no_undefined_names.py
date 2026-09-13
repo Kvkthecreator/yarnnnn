@@ -35,14 +35,7 @@ API = pathlib.Path(__file__).resolve().parent
 ROOTS = ("routes", "services", "jobs", "integrations", "mcp_server")
 
 # relpath → {name: why it is still here}
-ALLOWED: dict[str, dict[str, str]] = {
-    "services/operator_proxy/scenarios.py": {
-        n: "Hat-B harness: `establish_substrate` references a set of helpers that "
-           "no longer exist in this module (half-retired evaluation scaffolding, "
-           "out of system canon). Repair or delete it in an evaluations pass."
-        for n in ("_establish_field_equals", "_read", "_y", "client", "load_workspace_yaml", "loop", "norm", "value")
-    },
-}
+ALLOWED: dict[str, dict[str, str]] = {}
 
 _IMPLICIT = {"__file__", "__name__", "__doc__", "__spec__", "__builtins__", "__package__", "__loader__"}
 

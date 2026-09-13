@@ -1,9 +1,11 @@
 eval_suite_schema_version: 3
 eval_suite: freddie-bare-workspace-steward
 
-# CURRENT — the launch-path suite; persona + requires repaired by the 2026-07-31 eval-layer audit
-# (2026-07-31 eval-layer audit; machine-checked by api/test_eval_suite_gate.py)
-status: current
+# SUPERSEDED 2026-09-13 — ADR-632 deleted the steward this suite measured (its
+# wake was the measured turn; there is no wake). Verdict state and the re-cut
+# note live in RETIRED-SUITES.md. Kept in place as the record, not deleted;
+# `superseded` is the status the runner refuses (current | dormant | superseded).
+status: superseded
 suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
 
 # The behavioral confirmation for ADR-383 (the consistent agent framework) +
