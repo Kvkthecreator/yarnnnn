@@ -106,6 +106,16 @@ replaced by a sentence that points at the server's own `tools/list` rather
 than copying the roster (the ADR-635 D9 rule, already applied to the
 discovery card).
 
+**Close-out (same day).** llms.txt's pricing summary also carried a
+steward-era sentence — a budget cap *"the agent paces its own work to stay
+under it"* — with no enforcing code since ADR-632: `services/budget.py`'s
+only live reader is the read-only pane in `routes/budget.py`. It is replaced
+by the balance floor, which `lane_runner.py` and `standing_work.py` enforce
+(ADR-561 D1). The gate anchors the RELATION — a declared stage is a
+`ProductStage` literal, declared once — not the value, and `tsc` was run
+with the `stage` line deleted, so graduation needs no gate edit and is
+proven to compile.
+
 ## Gate
 
 D1–D3: folded into `test_adr627_blogger_pairing.py` (stage/badge/pin

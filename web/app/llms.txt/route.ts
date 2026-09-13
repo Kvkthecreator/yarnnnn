@@ -81,7 +81,11 @@ export async function GET() {
     "",
     "- The workspace and your memory are free for two people — files, chat, context reachable from any AI via MCP. No feature gates.",
     `- Two pricing axes: (1) seats — the first two humans (owner + one teammate) are free; each additional human is a paid seat (${PRICE_COPY.seat}/mo); AI connections are always free and never a seat. (2) usage — pure pay-as-you-go from one shared balance the owner funds, readable line by line; top up any amount from ${PRICE_COPY.topUpMin} (top-ups never expire); hard stop at zero.`,
-    "- Budget cap (separate from the plan): you set a monthly ceiling per operation and the agent paces its own work to stay under it. Two guardrails: a budget ceiling you plan, and a zero-balance floor that pauses without losing anything.",
+    // ADR-561 D1 (close-out 2026-09-12) — the "budget cap … the agent paces its
+    // own work" sentence named a pacing agent ADR-632 retired; services/budget.py's
+    // only live reader is the read-only pane in routes/budget.py. The floor is what
+    // lane_runner.py and standing_work.py enforce (balance_exhausted).
+    "- Balance floor: when the shared balance reaches zero, work pauses and nothing is deleted — top up to resume.",
     `- Every workspace starts with a ${PRICE_COPY.signupGrant} usage balance — enough to feel the loop before you spend a cent.`,
     "",
     "## Feeds and discovery",

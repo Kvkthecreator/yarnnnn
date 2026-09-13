@@ -96,8 +96,14 @@ meta_code = code(meta)
 
 check("the Brand type declares `stage` OPTIONAL (graduation = deleting a line, and it compiles)",
       bool(re.search(r"stage\?\s*:\s*ProductStage", meta_code)))
-check("BRAND declares the stage today (retire this check with the line when the product graduates)",
-      bool(re.search(r'^\s*stage:\s*"beta",?\s*$', meta_code, re.M)))
+stage_decl = re.search(r'^\s*stage:\s*"([a-z]+)",?\s*$', meta_code, re.M)
+alias = re.search(r"ProductStage\s*=\s*([^;\n]+)", meta_code)
+alias_literals = re.findall(r'"([a-z]+)"', alias.group(1)) if alias else []
+print(f"     stage declared today: {stage_decl.group(1) if stage_decl else 'none (graduated)'}")
+check("a declared stage is a ProductStage literal, declared once — graduation deletes the line and this stays green",
+      stage_decl is None
+      or (len(re.findall(r'^\s*stage:\s*"', meta_code, re.M)) == 1 and stage_decl.group(1) in alias_literals),
+      f"declared={stage_decl.group(1) if stage_decl else None} alias={alias_literals}")
 check("STAGE_NOTICE derives from BRAND.stage (the sentence is null once there is no stage)",
       "STAGE_NOTICE" in meta_code
       and bool(re.search(r"STAGE_NOTICE[^=]*=\s*BRAND\.stage\s*\?", meta_code)))

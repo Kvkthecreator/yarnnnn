@@ -90,12 +90,6 @@ resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the t
 `test_adr445` (1/14) · `test_resend_webhooks` (collection error) · `test_adr427` ratchet — all identical at a
 clean HEAD worktree on 2026-09-12.
 
-## Beta stage (ADR-629 D4)
-- Graduation is one deleted line (`stage` on `BRAND` in `web/lib/metadata.ts`); every annotation, the
-  FAQ entry and llms.txt's status derive from it. Retire the gate's "declares the stage today" check with it.
-- llms.txt's pricing summary still says "the agent paces its own work" under a budget cap — steward-era
-  (ADR-632); `budget.py` keeps a windowed ceiling but no pacing agent. An ADR-561 pass over llms.txt is owed.
-
 ## Cleanup owed since ADR-632
 - Strip the steward env vars from Render; drop the `wake_queue` and `tasks` tables; ADR-596 D3(d).
 - `.claude/agents/alpha-operator.md` was deleted 2026-09-12: it instructed Reviewer auto-approval,
