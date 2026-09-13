@@ -88,12 +88,15 @@ def run() -> bool:
     # ── 2. the runtime (optimistic in-frame) ─────────────────────────────
     _check(
         "Enter mid-block splits (splitHalves) instead of falling to native",
-        "var halves = splitHalves();" in proj
+        # (Re-pinned 2026-09-13: splitHalves takes its host explicitly — the
+        #  2026-07-25 cloneNode-of-null fix. Pin the ENTER site (editingEl); a
+        #  pattern admitting the merge site's  passed with Enter's removed.)
+        "var halves = splitHalves(editingEl);" in proj
         and "type: 'yarnnn-split-block'" in proj,
     )
     _check(
         "splitHalves refuses inside a citation island",
-        "function splitHalves()" in proj
+        "function splitHalves(host) {" in proj
         and "if (caretInIsland()) return null;" in proj,
     )
     _check(
@@ -140,7 +143,10 @@ def run() -> bool:
     _check(
         "a citation in a half forces a re-project (reload:true) so it resolves",
         "const hasCitation = /data-ref=/.test(beforeInner)" in surface
-        and bool(re.search(r"`Studio: split block`,\s*\n\s*hasCitation", surface)),
+        # (Re-pinned 2026-09-13: `${app.label}: …` — ADR-636/599; the merge twin
+        #  computes hasCitation the same way and is pinned beside it.)
+        and bool(re.search(r"`\$\{app\.label\}: split block`,\s*\n\s*hasCitation", surface))
+        and bool(re.search(r"`\$\{app\.label\}: merge block`,\s*\n\s*hasCitation", surface)),
     )
     _check(
         "both handlers are wired into the canvas mount",

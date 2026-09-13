@@ -9,7 +9,7 @@ Rulings already applied this day: `test_adr388` re-anchored (14/14) · `test_adr
 entity layer, is gone) · `test_adr477` re-pointed to the moved StudioCanvas · `test_adr647` derived from the
 one-home rule · `test_eval_suite_gate` green (browser manifests restorable) · `test_adr565` + `test_adr567`
 deleted (their subject, the radar app, was deleted by 15403f1 on 2026-08-21 — "radar deleted, docs hidden") ·
-`test_quality_e2e` deleted (a smoke test of the task pipeline ADR-231 dissolved; it imported `services.task_types`).
+`test_quality_e2e` deleted (a smoke test of the task pipeline ADR-231 dissolved; it imported `services.task_types`) · the seven `test_studio_*` gates re-anchored (2026-09-13): six failures were one root cause — write messages and the crumb label became `${app.label}` (ADR-636/599) — plus the shared submit rule (ADR-483 D3), the explicit host of `splitHalves`, the sixth reload site (the member-pressed reload control); the flow-root Tab checks retired (ADR-560 D8) and the toolbar's gallery-dismissal check retired (ADR-586 D1/616 D1/589 D3) — every re-anchor falsified in-process.
 Environment, not defects:
 `test_adr573_connector_workspace_binding` and `test_adr584` are py3.11-only (green under `python3.11`).
 
@@ -99,13 +99,6 @@ Environment, not defects:
 | `test_resend_webhooks.py` | pytest | collection error — fixture or import | 1 error in 0.44s |
 | `test_settings_polish_2026_08_21.py` | script | drift — re-anchor or retire (needs its own ruling) | FAIL  the page's own fallback agrees with it  the page would load one pane's data while th |
 | `test_smart_defaults.py` | pytest | drift — one check behind | 1 failed, 7 passed in 0.09s |
-| `test_studio_chrome_and_load.py` | script | drift — a few checks behind the live surface | FAIL: 14/17 checks |
-| `test_studio_enter_makes_block.py` | script | drift — a few checks behind the live surface | FAIL: 12/13 checks |
-| `test_studio_interaction_debts.py` | script | drift — re-anchor or retire (needs its own ruling) | FAIL: 15 checks |
-| `test_studio_invisible_save.py` | script | drift — a few checks behind the live surface | FAIL: 18/20 checks |
-| `test_studio_name_is_one_fact.py` | script | drift — a few checks behind the live surface | FAIL: 32/33 checks |
-| `test_studio_slash_anywhere.py` | script | drift — a few checks behind the live surface | FAIL: 50/51 checks |
-| `test_studio_split_merge.py` | script | drift — a few checks behind the live surface | FAIL: 17/20 checks |
 | `test_supabase_client_teardown.py` | pytest | drift — re-anchor or retire (needs its own ruling) | 2 failed, 1 passed in 0.77s |
 | `test_trash_visibility.py` | script | drift — a few checks behind the live surface | FAIL: 10/12 checks |
 | `test_url_honest_to_foreground.py` | pytest | drift — one check behind | 1 failed, 6 passed in 0.08s |

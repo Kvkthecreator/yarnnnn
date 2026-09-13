@@ -97,20 +97,12 @@ def main() -> int:
         )
 
     print("\n-- C. browser defaults we inherit --")
-    # Tab took the contenteditable default (move focus OUT), which fired the
-    # flow blur handler: commit + caret lost, mid-paragraph. No writing tool
-    # ends a session on Tab.
-    tab = re.search(r"if \(e\.key !== 'Tab'\) return;[\s\S]{0,400}?\}\);", PROJ)
-    _check("flow handles Tab at all", bool(tab))
-    if tab:
-        _check(
-            "Tab is swallowed so it cannot blur-and-commit the flow root",
-            "preventDefault()" in tab.group(0),
-        )
-        _check(
-            "Shift+Tab inserts nothing (no outdent exists to pair with it)",
-            "e.shiftKey" in tab.group(0),
-        )
+    # The Tab checks (swallow Tab so it cannot blur-and-commit the flow root;
+    # Shift+Tab inserts nothing) were RETIRED 2026-09-13: their subject — a
+    # contenteditable flow root inside the projection iframe — was deleted by
+    # ADR-560 D8 (290257c, the legacy flow editing lane), and no registered
+    # layout has `mode: "flow"` any more (ADR-599 D5 / ADR-646). A check that
+    # regexes for a handler that cannot exist would only ever pass by accident.
     # `all: unset` strips the UA focus ring and the buttons stay in tab order.
     fmt = re.search(r"const FMT_CSS = `([\s\S]*?)\n`;", PROJ)
     _check("FMT_CSS is findable", bool(fmt))

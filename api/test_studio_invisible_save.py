@@ -85,7 +85,8 @@ def run() -> bool:
     # TEXT edits: reload=false; STRUCTURAL ops: reload=true. Assert both calls.
     _check(
         "TEXT edit (onEdit) writes with reload=false (no iframe reload)",
-        bool(re.search(r"`Studio: edit \$\{blockId\} block`,\s*\n\s*false", surface)),
+        # (Re-pinned 2026-09-13: the message is `${app.label}: …` — ADR-636/599.)
+        bool(re.search(r"`\$\{app\.label\}: edit \$\{blockId\} block`,\s*\n\s*false", surface)),
     )
     # A STRUCTURAL op does NOT reload either (2026-07-15). The reload was
     # redundant — the canvas re-projects on every CONTENT change and the
@@ -115,9 +116,18 @@ def run() -> bool:
     _check(
         # 4 → 5 with the courteous 409 (ADR-466 D7): the retry path earned its
         # own `if (reload)` bump (same contract as the first-attempt success).
-        "reloadKey survives ONLY for writes the FE did not compute (5, each earned)",
-        "// A FOREIGN write (the lane) genuinely changed the file — reload." in surface
-        and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\);", surface)) == 5
+        # 5 → 6 (2026-09-13): the sixth is the member-pressed reload control
+        # (`onClick={() => setReloadKey((k) => k + 1)}`) — server bytes asked
+        # for by hand, not a computed op. The ceiling is the check; never `>=`.
+        "reloadKey survives ONLY for writes the FE did not compute (6, each earned)",
+        # (Re-pinned 2026-09-13: the comment was reworded when ADR-523 made the
+        #  history a lineage — pin the SITE: the foreign-write branch bumps.)
+        re.search(
+            r"// A FOREIGN write \(the lane\) genuinely changed the file[^\n]*\n[^\n]*\n\s*setReloadKey\(\(k\) => k \+ 1\);",
+            surface,
+        ) is not None
+        and len(re.findall(r"setReloadKey\(\(k\) => k \+ 1\)", surface)) == 6
+        and "onClick={() => setReloadKey((k) => k + 1)}" in surface
         and "if (reload) setReloadKey((k) => k + 1);" in surface
         and "setReloadKey((k) => k + 1); // the retitle is a server-side write" in surface,
     )

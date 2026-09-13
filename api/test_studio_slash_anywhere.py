@@ -184,14 +184,12 @@ def run() -> bool:
         "Insert is laid out in the left cluster, NOT absolutely centred (D4)",
         "absolute inset-x-0 flex justify-center" not in toolbar,
     )
-    _check(
-        "moving INTO the cluster took on the cluster's dismissal duty — Insert "
-        "closes an open gallery (menuRef no longer counts it as 'outside')",
-        # ADR-509 gave onInsert an argument (the button's own rect, so the paged
-        # menu drops from the control pressed), so the argless literal went
-        # stale. The DUTY is what matters and is unchanged: close, then act.
-        "setOpen(null);" in toolbar and "onInsert({ x:" in toolbar,
-    )
+    # The dismissal-duty check ("Insert closes an open gallery — setOpen(null)")
+    # was RETIRED 2026-09-13: the toolbar holds no open-menu state any more —
+    # ADR-586 D1 collapsed the insert doors to one, ADR-616 D1 deleted Update,
+    # ADR-589 D3 moved the Layout gallery to the Properties pane — so there is
+    # no sibling gallery for Insert to close. The positive half (the button
+    # calls onInsert from its own rect, ADR-509) is pinned by shape above.
     _check(
         # ADR-586 — the TYPED gesture still rides EDIT_SCRIPT ungated (the
         # keydown handler + shared opener live in the one injected script).

@@ -100,7 +100,10 @@ def run() -> bool:
     # backstop, which is why removing the reload does not break Enter.
     _check(
         "the new block is written WITHOUT a reload — landedId still drives the caret",
-        bool(re.search(r"`Studio: add block`,\s*\n\s*false", surface))
+        # (Re-pinned 2026-09-13: every write message is `${app.label}: …` — one app
+        #  declaration per side (ADR-636), Studio is Slides (ADR-599). The backtick
+        #  and the prefix stay in the pattern so a prose comment cannot match.)
+        bool(re.search(r"`\$\{app\.label\}: add block`,\s*\n\s*false", surface))
         and "if (!r?.landedId) return null;" in surface
         and "newId = r.landedId;" in surface,
     )

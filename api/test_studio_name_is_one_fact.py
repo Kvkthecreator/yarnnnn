@@ -246,7 +246,15 @@ def run() -> bool:
         "the Studio's rename is the CRUMB, committed on Enter/blur (never per-keystroke)",
         "const commitRename = useCallback(" in surface
         and "api.studio.renameArtifact(artifactPath, trimmed)" in surface
-        and "if (e.key === 'Enter') {" in surface,
+        # (Re-pinned 2026-09-13: the Enter/IME guard lives in the one shared rule,
+        #  `web/lib/shell/submit-key.ts` (ADR-483 D3, 80b9874/e31904b); the crumb
+        #  commits on the submit key and on blur.)
+        and "import { isSubmitKey } from '@/lib/shell/submit-key';" in surface
+        and re.search(
+            r"if \(isSubmitKey\(e[^)]*\)\) \{\s*\n[\s\S]{0,200}?commitRename\(e\.currentTarget\.value\)",
+            surface,
+        ) is not None
+        and "onBlur={(e) => void commitRename(e.currentTarget.value)}" in surface,
     )
     _check(
         # ADR-646 — assert the RELATION, not two exact spellings. `rename: () =>

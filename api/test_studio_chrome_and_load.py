@@ -71,11 +71,21 @@ def run() -> bool:
     )
     _check(
         "Chat declares self-located (lane column + conversation header name it)",
-        "useSelfLocatedSurface('chat', true);" in chat,
+        # (Re-pinned 2026-09-13: 7a9b222 made the declaration viewport-conditional —
+        #  on a narrow screen a drilled-in lane hides the list, so the strip stays.
+        #  The exact condition is the rule; a bare prefix would pass on `false`.)
+        "useSelfLocatedSurface('chat', !(isNarrow && activeLane));" in chat,
     )
     _check(
         "Studio still RENDERS its own crumb (suppressing the strip must not orphan it)",
-        'onClick={() => setParam({ file: null })}' in studio and ">\n                Studio\n              </button>" in studio,
+        # (Re-pinned 2026-09-13: the crumb's label is the app's own declaration —
+        #  `{app.label}` (ADR-482 D7 / ADR-518 D7) — and Studio is Slides (ADR-599),
+        #  so the literal can never return. The rule: a click-back button whose
+        #  label is the app declaration.)
+        re.search(
+            r"onClick=\{\(\) => setParam\(\{ file: null \}\)\}[\s\S]{0,600}?\{app\.label\}\s*\n\s*</button>",
+            studio,
+        ) is not None,
     )
 
     # ── 2. controls don't buckle ────────────────────────────────────────────
@@ -136,7 +146,10 @@ def run() -> bool:
     # lands.
     _check(
         "the staged auto-fit re-measures once the projection lands (not [isStaged] alone)",
-        "}, [isStaged, stageW, projected]);" in canvas,
+        # (Re-pinned 2026-09-13: `stageW` became a local destructure inside the
+        #  effect (ADR-471 per-template stage width); the behavioural fact is that
+        #  `projected` is a dep of the fit effect — not the exact dep list.)
+        re.search(r"\}, \[isStaged,[^\]]*\bprojected\]\);", canvas) is not None,
     )
     _check(
         "the fit feeds the zoom the runtime applies (fitScale × zoom)",
