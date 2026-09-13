@@ -213,7 +213,35 @@ export function TextEditor({
   // The single-pane rung shows ONE pane at a time with a bottom tab bar — the
   // Docs ladder's last rung. Without it the rail would be unreachable on a
   // phone (the ADR-519 lesson: never ship an inescapable state).
-  const [activePane, setActivePane] = useState<'canvas' | 'chat'>('canvas');
+  //
+  // THREE panes, because the surface has three. It used to offer two —
+  // Document and "Editor" — and tapping Editor opened the rail, which carries
+  // its own Properties|Chat strip at the TOP of the pane. So one selection was
+  // driven by two tab strips at opposite edges of the screen, and chat was
+  // nested a level below a tab named for the agent. Flattened: each pane is
+  // one tap, and the rail's internal strip belongs to the rungs where the rail
+  // is a real column beside the canvas. Studio's bar is already built this way
+  // (a variable-length array, three tabs when the mode has three), so this is
+  // convergence on the sibling surface, not a new grammar.
+  const [activePane, setActivePane] = useState<'canvas' | 'properties' | 'chat'>('canvas');
+
+  /**
+   * Show a rail pane — from anywhere, at any rung.
+   *
+   * A caller wanting the chat open ("Rewrite the selection") should not have to
+   * know which rung is live. Before this, one such caller set `rightTab` only,
+   * which is correct in a column and a no-op on a phone, where the bottom bar
+   * still said `canvas`. Both states are written here, and the rung decides
+   * which one is read.
+   */
+  const showPane = useCallback((tab: 'properties' | 'chat') => {
+    setRightTab(tab);
+    setActivePane(tab);
+    // The slot's contract is a TOGGLE, deliberately — one rule, one spelling.
+    // So ask for it only when it is actually withdrawn, rather than widening
+    // the shared module's API for one caller.
+    if (!side.shown) side.toggle();
+  }, [side]);
 
   const [shareTarget, setShareTarget] = useState<{ path: string; name: string } | null>(null);
 
@@ -929,8 +957,8 @@ export function TextEditor({
         range: focusPoint.range,
       },
     }));
-    setRightTab('chat');
-  }, [focusPoint, path]);
+    showPane('chat');
+  }, [focusPoint, path, showPane]);
 
   // ADR-612 D5 — land the member back on the work. When the lane's write
   // arrives, the document has already replaced itself; without this the member
@@ -985,7 +1013,16 @@ export function TextEditor({
   // At single-pane the tab bar decides; above it the member's own show/hide
   // does. A column the member has withdrawn is not rendered at all — hiding it
   // with a class would leave its border painting a seam against the canvas.
-  const showRail = singlePane ? activePane === 'chat' : sideOpen;
+  const showRail = singlePane ? activePane !== 'canvas' : sideOpen;
+  // ONE selection, whichever strip the member used to make it. At single-pane
+  // the bottom bar IS the rail's tab strip (the strip itself is hidden there),
+  // so the rail must show the pane the bar names; above that rung the rail is
+  // a column with its own strip and `rightTab` answers alone.
+  //
+  // Two states for one selection is what made `showPane('chat')` below a
+  // silent no-op on a phone: it set `rightTab` while `activePane` still said
+  // `canvas`, so "Rewrite the selection" opened a pane nobody could see.
+  const railTab = singlePane && activePane !== 'canvas' ? activePane : rightTab;
 
   return (
     <div ref={setWorkbenchNode} className="flex h-full min-h-0 flex-col">
@@ -1424,6 +1461,12 @@ export function TextEditor({
                 : 'shrink-0 border-l',
           )}
         >
+          {/* The rail's own strip belongs to the rungs where the rail is a
+              real column or an overlay BESIDE the canvas. At single-pane the
+              bottom bar already names these two panes, and rendering both put
+              two tab strips at opposite edges of one phone screen driving one
+              selection — with chat a level below a tab named for the agent. */}
+          {!singlePane && (
           <div className="flex shrink-0 border-b border-border">
             {([['properties', 'Properties'], ['chat', 'Chat']] as const).map(([tab, label]) => (
               <button
@@ -1432,7 +1475,7 @@ export function TextEditor({
                 onClick={() => setRightTab(tab)}
                 className={cn(
                   'flex-1 py-1.5 text-[11px] font-medium transition-colors',
-                  rightTab === tab
+                  railTab === tab
                     ? 'border-b-2 border-foreground text-foreground'
                     : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground',
                 )}
@@ -1441,12 +1484,13 @@ export function TextEditor({
               </button>
             ))}
           </div>
+          )}
 
           {/* Properties — what a prose document HAS. Docs' inspector answers
               block properties AND carries the document's Outline (ADR-526 D2
               put the outline in the pane, not a rail); Text mirrors the
               outline and answers the document itself for the rest. */}
-          <div className={cn('min-h-0 flex-1 overflow-auto', rightTab === 'properties' ? 'block' : 'hidden')}>
+          <div className={cn('min-h-0 flex-1 overflow-auto', railTab === 'properties' ? 'block' : 'hidden')}>
             <div className="space-y-4 p-3 text-xs">
               {/* The file itself — the same organize verbs every other surface
                   offers, behind the Docs FILE-card `⋯` served from the SHARED
@@ -1571,7 +1615,7 @@ export function TextEditor({
           </div>
 
           {/* Chat — Editor's bound lane. Mounted always, hidden by CSS. */}
-          <div className={cn('min-h-0 flex-1 flex-col', rightTab === 'chat' ? 'flex' : 'hidden')}>
+          <div className={cn('min-h-0 flex-1 flex-col', railTab === 'chat' ? 'flex' : 'hidden')}>
             {lanesEnabled === false ? (
               <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
                 Lanes are not enabled on this deployment — Editor needs the model
@@ -1634,13 +1678,29 @@ export function TextEditor({
 
       {/* The single-pane rung's bottom tab bar: one pane at a time. 44px is
           the touch floor (Apple/Google) and this is the PRIMARY navigation on
-          a phone — the Docs ladder's last rung, ported. */}
+          a phone — the Docs ladder's last rung, ported.
+          
+          THREE tabs, one per pane. It offered two — Document and "Editor" —
+          while the surface had three, so Chat was reached by tapping "Editor"
+          and then a SECOND strip at the top of the pane that opened on
+          Properties. One selection, two strips, opposite edges of the screen,
+          and the only word for the branch was the agent's own name: a tab that
+          reads as a person and opens an inspector.
+
+          `Chat` rather than the agent's name, matching Studio's bar and the
+          Properties|Chat strip this replaces — the name belongs to the
+          conversation inside the pane, where it already appears. */}
       {singlePane && (
         <nav className="flex shrink-0 border-t border-border">
-          {([['canvas', 'Document'], ['chat', 'Editor']] as const).map(([pane, label]) => (
+          {([
+            ['canvas', 'Document'],
+            ['properties', 'Properties'],
+            ['chat', 'Chat'],
+          ] as const).map(([pane, label]) => (
             <button
               key={pane}
               type="button"
+              aria-current={activePane === pane ? 'page' : undefined}
               onClick={() => setActivePane(pane)}
               className={cn(
                 'min-h-[44px] flex-1 py-2 text-xs font-medium transition-colors',

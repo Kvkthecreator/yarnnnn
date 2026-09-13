@@ -278,6 +278,47 @@ ok(
   'the bottom tab bar is the primary navigation on a phone',
 );
 
+// ── 6b. Every pane is ONE tap at the single-pane rung ─────────────────────
+// Text offered two tabs — Document and "Editor" — while the surface had THREE
+// panes. Tapping "Editor" opened the rail, which carries its own
+// Properties|Chat strip at the TOP of the pane: one selection driven by two tab
+// strips at opposite edges of a phone screen, with chat nested a level below a
+// tab named for the agent.
+//
+// Asserted as a COUNT derived from the rail's own panes, never as a list of
+// labels — a gate that pins the words goes red on a rename and green on a
+// regression (the ADR-544 lesson this file already carries).
+const textSrc = read('web/components/text/TextEditor.tsx');
+const textNoComments = textSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+{
+  // The rail's panes, from the strip that names them.
+  const strip = textNoComments.match(/\(\[\['properties'[^\]]*\], \['chat'[^\]]*\]\] as const\)/);
+  const railPanes = strip ? (strip[0].match(/\['(?:properties|chat)'/g) ?? []).length : 0;
+  // The bottom bar's tabs.
+  const bar = textNoComments.match(/\(\[\s*\['canvas'[\s\S]*?\] as const\)\.map/);
+  const barTabs = bar ? (bar[0].match(/\['[a-z]+',/g) ?? []).length : 0;
+  ok('the rail still declares its panes', railPanes === 2, `found ${railPanes}`);
+  ok(
+    'the bottom bar offers the canvas PLUS every rail pane — no pane is nested',
+    barTabs === railPanes + 1,
+    `bar has ${barTabs} tabs for ${railPanes} rail panes + canvas`,
+  );
+  ok(
+    'the rail strip is withheld at single-pane (the bottom bar IS that strip there)',
+    /\{!singlePane && \(\s*<div className="flex shrink-0 border-b/.test(textNoComments),
+    'two strips at opposite edges drove one selection',
+  );
+  ok(
+    'the rail shows whichever pane the bar names (one selection, not two)',
+    /singlePane && activePane !== 'canvas' \? activePane : rightTab/.test(textNoComments),
+  );
+  ok(
+    'a caller opening a pane reaches it at EVERY rung',
+    /showPane\(/.test(textNoComments) && !/setRightTab\('chat'\)/.test(textNoComments),
+    'setRightTab alone is a no-op on a phone',
+  );
+}
+
 // ── 7. THE HOUSING CONTRACT — one ladder, one toggle rule, one width ──────
 // The half the old gate could not see. It read two files, both Studio's, so a
 // second spelling of the ladder in Chat (600px, hand-rolled) stayed green for

@@ -25,9 +25,10 @@
  *      native event;
  *   3. Shift+Enter is not a submit by default (every multi-line composer in
  *      this app spells a newline that way) and IS one under `allowShift`;
- *   4. the soft-keyboard rule keys on POINTER PRECISION, never a width or a
- *      user-agent string — an iPad with a keyboard reports `fine` and keeps
- *      Enter-to-send;
+ *   4. the soft-keyboard rule reads the SHARED coarse-pointer hook — pointer
+ *      CAPABILITY, never a width or a user-agent string, and never a second
+ *      spelling of `(pointer: coarse)`. An iPad with a keyboard reports `fine`
+ *      and keeps Enter-to-send;
  *   5. the CENSUS: no handler acts on a bare `key === 'Enter'` any more. This
  *      is the half that keeps the rule from being forgotten at site
  *      twenty-one, and it is why the fix is a module rather than 20 guards.
@@ -66,11 +67,8 @@ const js = SRC
   .replace(/\)\s*:\s*boolean/g, ')')
   .replace(/export /g, '');
 let isSubmitKey;
-let prefersSoftKeyboard;
 try {
-  ({ isSubmitKey, prefersSoftKeyboard } = new Function(
-    `${js}\nreturn { isSubmitKey, prefersSoftKeyboard };`,
-  )());
+  ({ isSubmitKey } = new Function(`${js}\nreturn { isSubmitKey };`)());
   t('the rule is extractable and evaluates', true);
 } catch (e) {
   t('the rule is extractable and evaluates', false, e.message);
@@ -106,15 +104,28 @@ if (isSubmitKey) {
   );
 }
 
-// 4. The soft-keyboard rule reads pointer precision, and is SSR-safe.
-if (prefersSoftKeyboard) {
-  t('with no window (SSR) the desktop rule is reported', prefersSoftKeyboard() === false);
-}
-const softSrc = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+// 4. The soft-keyboard rule reads pointer CAPABILITY, from the hook this app
+// already owns. A second spelling of `(pointer: coarse)` is the drift this
+// codebase names repeatedly — the composer asks the same hook the file
+// surfaces ask for touch parity.
+const composer = read('web/components/chat-surface/LanePanel.tsx')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
 t(
-  'the soft-keyboard test keys on POINTER precision, not a width or a UA string',
-  /\(pointer:\s*coarse\)/.test(softSrc) &&
-    !/innerWidth|userAgent|iPhone|Android/i.test(softSrc),
+  'the composer reads the SHARED coarse-pointer hook, not its own media query',
+  /useCoarsePointer\(\)/.test(composer) && !/matchMedia|innerWidth|userAgent/i.test(composer),
+);
+t(
+  'Enter sends only where a newline can still be spelled (soft keyboards excepted)',
+  /isSubmitKey\(e\)\s*&&\s*!softKeyboard/.test(composer),
+);
+t(
+  'the return key says which gesture it performs',
+  /enterKeyHint=\{softKeyboard \? 'enter' : 'send'\}/.test(composer),
+);
+t(
+  'the coarse-pointer hook has ONE home',
+  /\(pointer:\s*coarse\)/.test(read('web/hooks/useCoarsePointer.ts')),
 );
 
 // ── 5. The census ─────────────────────────────────────────────────────────

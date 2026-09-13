@@ -54,7 +54,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
-import { isSubmitKey, prefersSoftKeyboard } from '@/lib/shell/submit-key';
+import { isSubmitKey } from '@/lib/shell/submit-key';
+import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 import { useStickToBottom, JumpToLatest } from '@/hooks/useStickToBottom';
 import {
   ArrowUp,
@@ -508,11 +509,12 @@ export function LanePanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useAutoResize(textareaRef, input);
 
-  // Which gesture sends. Read once after mount rather than during render: the
-  // server has no `matchMedia`, so deciding at render time would have the
-  // markup claim one rule and hydration swap it under the member's hands.
-  const [softKeyboard, setSoftKeyboard] = useState(false);
-  useEffect(() => setSoftKeyboard(prefersSoftKeyboard()), []);
+  // Which gesture sends. `(pointer: coarse)` is the capability — a phone or a
+  // tablet has no modifier row to press Shift+Enter with; a narrow desktop
+  // window still does, and an iPad with a keyboard attached reports `fine` and
+  // correctly keeps Enter-to-send. The hook is the one this app already uses
+  // for touch parity on the file surfaces, not a second spelling of the query.
+  const softKeyboard = useCoarsePointer();
 
   /** Bind an EXISTING workspace artifact as a chip (ADR-512 D6 — no upload,
    *  no copy; the reference is the attachment). */

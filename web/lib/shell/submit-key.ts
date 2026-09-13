@@ -79,26 +79,3 @@ export function isSubmitKey(e: SubmitKeyEvent, { allowShift = false } = {}): boo
   if (isComposingKey(e)) return false;
   return allowShift || !e.shiftKey;
 }
-
-/**
- * Is the member typing on a SOFT keyboard — one with no Shift+Enter?
- *
- * A multi-line composer that submits on Enter needs an escape hatch for the
- * newline, and on every desktop that hatch is Shift+Enter. A touch keyboard has
- * no modifier row: there is no Shift+Enter to press, so Enter-to-send leaves NO
- * gesture that inserts a line break. That is why a second bullet could not be
- * typed into the chat composer at all — the first Enter shipped the message.
- *
- * The test is `(pointer: coarse)`, not a width or a user-agent string. Width
- * lies (a narrow desktop window is not a phone) and UA sniffing rots. `pointer`
- * reports the PRIMARY input's precision, which is exactly the question being
- * asked: a phone and a tablet report `coarse`; a laptop reports `fine`; an iPad
- * with a keyboard attached reports `fine` and correctly keeps Enter-to-send.
- *
- * SSR-safe: with no `window` it reports false, so the server renders the
- * desktop rule and hydration does not flip a gesture under the member's hands.
- */
-export function prefersSoftKeyboard(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(pointer: coarse)').matches;
-}
