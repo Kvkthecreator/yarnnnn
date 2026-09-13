@@ -33,8 +33,8 @@ CANON_TERMS = re.compile(r"\bReviewer\b|\bFreddie\b|\bsteward\b|wake_queue|wake 
 CODE_TERMS = re.compile(r"\bReviewer\b|\bFreddie\b|\bsteward\b|wake_queue|ManageRecurrence|FireInvocation", re.I)
 
 CANON_CEILINGS = {
-    "docs/architecture/FOUNDATIONS.md": 144,
-    "docs/architecture/GLOSSARY.md": 109,
+    "docs/architecture/FOUNDATIONS.md": 37,
+    "docs/architecture/GLOSSARY.md": 37,
     "docs/design/WORKSPACE.md": 82,
     "docs/architecture/agent-composition.md": 69,
     "docs/architecture/WORKSPACE.md": 67,
