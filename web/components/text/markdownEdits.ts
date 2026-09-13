@@ -104,13 +104,107 @@ function openNewLine(text: string, start: number, end: number, marker: string): 
 }
 
 /**
+ * The leading BLOCK syntax of a line: a list bullet, an ordered number, a
+ * quote arrow, a task box, or any nesting indent. An inline marker wraps a
+ * line's CONTENT, so this prefix is what it has to step over — wrapping from
+ * column zero would put the `~~` before the `-` and strike the bullet itself.
+ */
+const LINE_PREFIX = /^(\s*(?:> ?)*\s*(?:(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?)?)/;
+
+/**
+ * ⭐ Wrap each block of the selection separately (the multi-line case).
+ *
+ * ## Why one pair per LINE and not one pair around the selection
+ *
+ * An inline emphasis delimiter is resolved INSIDE a single block. A `~~` that
+ * opens on one list item and closes on another sits either side of a block
+ * boundary, so GFM resolves neither: no `Strikethrough` node is emitted, and
+ * the `~~` survives into the rendered document as literal text. Driven
+ * against `@lezer/markdown` before the fix was written:
+ *
+ *   `- ~~item a\n- item b~~`   -> NONE (literal `~~` stays as text)
+ *   `- ~~item a~~\n- ~~item b~~` -> Strikethrough, Strikethrough
+ *   `~~soft\nwrap~~`           -> Strikethrough  (ONE paragraph, so legal)
+ *
+ * That first line is the operator's report: selecting across two bullets and
+ * pressing Strikethrough showed `~~` at the selection's start and end with no
+ * line through anything. The same defect was latent on Bold and Italic, which
+ * share this path — markdown treats all three delimiters identically.
+ *
+ * A blank line is left alone: it is the block SEPARATOR, and an empty `~~~~`
+ * on it would be a new delimiter run rather than nothing.
+ */
+function wrapPerBlock(text: string, start: number, end: number, marker: string): Edit {
+  const sel = text.slice(start, end);
+  const wrapped = sel
+    .split('\n')
+    .map((line) => {
+      const prefix = LINE_PREFIX.exec(line)?.[0] ?? '';
+      const body = line.slice(prefix.length);
+      // Trailing spaces stay OUTSIDE the marker: a delimiter run closing on
+      // whitespace is not a closer, so `~~text ~~` would not resolve either.
+      const trimmed = body.trimEnd();
+      if (!trimmed) return line;
+      const tail = body.slice(trimmed.length);
+      return prefix + marker + trimmed + marker + tail;
+    })
+    .join('\n');
+  return {
+    text: text.slice(0, start) + wrapped + text.slice(end),
+    selectionStart: start,
+    selectionEnd: start + wrapped.length,
+  };
+}
+
+/** Is every non-blank line of the selection already wrapped in the marker? */
+function allBlocksWrapped(sel: string, marker: string): boolean {
+  const lines = sel.split('\n').filter((l) => l.slice((LINE_PREFIX.exec(l)?.[0] ?? '').length).trim());
+  if (!lines.length) return false;
+  return lines.every((line) => {
+    const body = line.slice((LINE_PREFIX.exec(line)?.[0] ?? '').length).trim();
+    return body.length >= 2 * marker.length && body.startsWith(marker) && body.endsWith(marker);
+  });
+}
+
+/** Strip one marker pair from each non-blank line's content. */
+function unwrapPerBlock(text: string, start: number, end: number, marker: string): Edit {
+  const m = marker.length;
+  const stripped = text
+    .slice(start, end)
+    .split('\n')
+    .map((line) => {
+      const prefix = LINE_PREFIX.exec(line)?.[0] ?? '';
+      const body = line.slice(prefix.length);
+      const trimmed = body.trimEnd();
+      if (!trimmed.startsWith(marker) || !trimmed.endsWith(marker)) return line;
+      return prefix + trimmed.slice(m, -m) + body.slice(trimmed.length);
+    })
+    .join('\n');
+  return {
+    text: text.slice(0, start) + stripped + text.slice(end),
+    selectionStart: start,
+    selectionEnd: start + stripped.length,
+  };
+}
+
+/**
  * Wrap the selection in a marker, or unwrap it if already wrapped (a toggle,
  * the way ⌘B behaves in every editor). With no selection, insert the marker
  * pair and place the caret between them so typing continues inside.
+ *
+ * A selection crossing a newline wraps PER BLOCK — see `wrapPerBlock` for the
+ * parse receipt showing why one pair around the whole span renders as literal
+ * `~~`.
  */
 export function toggleWrap(text: string, start: number, end: number, marker: string): Edit {
   const sel = text.slice(start, end);
   const m = marker.length;
+
+  if (sel.includes('\n')) {
+    return allBlocksWrapped(sel, marker)
+      ? unwrapPerBlock(text, start, end, marker)
+      : wrapPerBlock(text, start, end, marker);
+  }
 
   // Already wrapped INSIDE the selection → strip.
   if (sel.length >= 2 * m && sel.startsWith(marker) && sel.endsWith(marker)) {

@@ -29,6 +29,24 @@ from pathlib import Path
 API = Path(__file__).parent
 WEB = API.parent / "web"
 
+
+def _sucrase() -> str:
+    """Where sucrase actually is.
+
+    Every node probe below transpiles TypeScript through sucrase, and each was
+    handed the literal `web/node_modules/sucrase`. Under pnpm that path does
+    not exist — the package lives in the content-addressed store and is only
+    linked into `node_modules` for DIRECT dependencies. So `require()` threw,
+    every probe returned `{"error": ...}`, and 164 of this gate's 279 checks
+    reported a failure that was about the harness rather than the product.
+    A gate that cannot run its probe is not red; it is reporting nothing.
+    """
+    direct = WEB / "node_modules" / "sucrase"
+    if direct.exists():
+        return str(direct)
+    store = sorted((WEB / "node_modules" / ".pnpm").glob("sucrase@*/node_modules/sucrase"))
+    return str(store[-1]) if store else str(direct)
+
 results: list[tuple[str, bool, str]] = []
 
 
@@ -236,7 +254,7 @@ try:
             [
                 "node", "-e", _ROUTING_PROBE,
                 str(WEB / "lib" / "file-types" / "index.ts"),
-                str(WEB / "node_modules" / "sucrase"), str(WEB),
+                _sucrase(), str(WEB),
             ],
             capture_output=True, text=True, timeout=30, check=True,
         ).stdout
@@ -494,6 +512,43 @@ out.no_local_find = typeof M.findAll === 'undefined'
 out.offset_first = M.offsetOfLine('aa\nbb\ncc', 0) === 0;
 out.offset_third = M.offsetOfLine('aa\nbb\ncc', 2) === 6;
 
+// ⭐⭐⭐ An inline marker across BLOCKS wraps each block separately.
+//
+// The operator's report: selecting two bullet items and pressing
+// Strikethrough left `~~` visible at the selection's ends with no line
+// through anything. An emphasis delimiter resolves INSIDE one block, so a
+// pair straddling a block boundary resolves on NEITHER side and survives as
+// literal text. The old code wrapped the whole span with one pair, so the
+// feature had never worked across lines — on Bold and Italic too, which
+// share this path.
+//
+// Parsed with the canvas's OWN parser below (`strike_renders`), because the
+// string shape is not the claim: the claim is that it renders struck.
+const bul = M.toggleWrap('- item a\n- item b', 2, 17, '~~');
+out.strike_wraps_each_block = bul.text === '- ~~item a~~\n- ~~item b~~';
+out.strike_round_trips =
+  M.toggleWrap(bul.text, 2, bul.text.length, '~~').text === '- item a\n- item b';
+// A blank line is the block SEPARATOR — an empty `~~~~` on it would be a new
+// delimiter run rather than nothing.
+out.strike_skips_blank =
+  M.toggleWrap('para one\n\npara two', 0, 18, '~~').text
+  === '~~para one~~\n\n~~para two~~';
+// The wrap steps OVER the line's block syntax — from column zero the `~~`
+// would land before the `-` and strike the bullet itself.
+out.strike_keeps_prefix =
+  M.toggleWrap('1. a\n2. b', 3, 9, '~~').text === '1. ~~a~~\n2. ~~b~~'
+  && M.toggleWrap('> a\n> b', 2, 7, '~~').text === '> ~~a~~\n> ~~b~~'
+  && M.toggleWrap('- [ ] a\n- [ ] b', 6, 15, '~~').text === '- [ ] ~~a~~\n- [ ] ~~b~~';
+// A closer may not sit on whitespace, so trailing spaces stay outside.
+out.strike_trailing_space_outside =
+  M.toggleWrap('a  \nb', 0, 5, '~~').text === '~~a~~  \n~~b~~';
+// Bold/Italic shared the defect and share the fix.
+out.bold_wraps_each_block =
+  M.toggleWrap('- a\n- b', 2, 7, '**').text === '- **a**\n- **b**';
+// The single-line case is UNCHANGED — a fix that wrapped per line always
+// would still pass everything above while altering settled behaviour.
+out.strike_single_line_unchanged = M.toggleWrap('hello', 0, 5, '~~').text === '~~hello~~';
+
 console.log(JSON.stringify(out));
 """
 
@@ -551,7 +606,7 @@ def _run_probe(script: str, target: Path) -> dict:
     try:
         return json.loads(
             subprocess.run(
-                ["node", "-e", script, str(target), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+                ["node", "-e", script, str(target), _sucrase(), str(WEB)],
                 capture_output=True, text=True, timeout=30, check=True,
             ).stdout
         )
@@ -562,6 +617,13 @@ def _run_probe(script: str, target: Path) -> dict:
 _edits = _run_probe(_EDITS_PROBE, _TEXT / "markdownEdits.ts")
 for _key, _label in [
     ("bold_wraps", "6m bold WRAPS the selection in markdown characters"),
+    ("strike_wraps_each_block", "6m1 \u2b50\u2b50\u2b50 an inline marker across BLOCKS wraps EACH block. The operator selected two bullets, pressed Strikethrough, and got literal `~~` at the ends with nothing struck: one pair straddling a block boundary resolves on neither side, so the multi-line case had never worked."),
+    ("strike_round_trips", "6m2 \u2026and pressing it again removes every pair, byte-identical"),
+    ("strike_skips_blank", "6m3 a BLANK line is left alone \u2014 it is the block separator, and `~~~~` on it is a new delimiter run rather than nothing"),
+    ("strike_keeps_prefix", "6m4 the wrap steps OVER the line's block syntax (bullet, number, quote, task box) \u2014 from column zero the marker strikes the bullet instead of the words"),
+    ("strike_trailing_space_outside", "6m5 trailing spaces stay OUTSIDE the closer \u2014 a delimiter run closing on whitespace is not a closer, so `~~text ~~` would not resolve either"),
+    ("bold_wraps_each_block", "6m6 Bold shares the path, shared the defect, and shares the fix"),
+    ("strike_single_line_unchanged", "6m7 the SINGLE-line case is unchanged \u2014 a fix that always wrapped per line would pass every check above while altering settled behaviour"),
     ("bold_selects_inner", "6n the selection survives the wrap"),
     ("bold_untoggles", "6o bold toggles OFF — the bytes round-trip exactly"),
     ("heading_sets", "6p a heading is set as ATX source"),
@@ -685,7 +747,7 @@ console.log(JSON.stringify({
 try:
     _r = json.loads(
         subprocess.run(
-            ["node", "-e", _RENDER_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _RENDER_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=120, check=True,
         ).stdout
     )
@@ -781,7 +843,7 @@ _c = _run_probe_web = None
 try:
     _c = json.loads(
         subprocess.run(
-            ["node", "-e", _CONFLICT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _CONFLICT_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -879,7 +941,7 @@ _cm = _run_probe_cm = None
 try:
     _cm = json.loads(
         subprocess.run(
-            ["node", "-e", _CM_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _CM_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -1055,7 +1117,7 @@ console.log(JSON.stringify(out));
 try:
     _d10 = json.loads(
         subprocess.run(
-            ["node", "-e", _CANVAS_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _CANVAS_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1217,7 +1279,7 @@ console.log(JSON.stringify({
 try:
     _e = json.loads(
         subprocess.run(
-            ["node", "-e", _EMPTY_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _EMPTY_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -1400,7 +1462,7 @@ console.log(JSON.stringify({
 try:
     _d11 = json.loads(
         subprocess.run(
-            ["node", "-e", _D11_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D11_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -1555,7 +1617,7 @@ console.log(JSON.stringify({
 try:
     _d12 = json.loads(
         subprocess.run(
-            ["node", "-e", _D12_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D12_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1659,7 +1721,7 @@ console.log(JSON.stringify({
 try:
     _d13 = json.loads(
         subprocess.run(
-            ["node", "-e", _D13_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D13_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1770,7 +1832,7 @@ console.log(JSON.stringify({
 try:
     _d14 = json.loads(
         subprocess.run(
-            ["node", "-e", _D14_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D14_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -1904,7 +1966,7 @@ console.log(JSON.stringify({
 try:
     _d15 = json.loads(
         subprocess.run(
-            ["node", "-e", _D15_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D15_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -2016,7 +2078,7 @@ console.log(JSON.stringify({
 try:
     _d17 = json.loads(
         subprocess.run(
-            ["node", "-e", _D17_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D17_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -2154,7 +2216,7 @@ process.stdout.write(JSON.stringify(out));
 try:
     _d17h = json.loads(
         subprocess.run(
-            ["node", "-e", _IMAGE_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase")],
+            ["node", "-e", _IMAGE_PROBE, str(WEB), _sucrase()],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -2277,7 +2339,7 @@ console.log(JSON.stringify({
 try:
     _d18 = json.loads(
         subprocess.run(
-            ["node", "-e", _D18_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D18_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -2729,7 +2791,7 @@ console.log(JSON.stringify({
 try:
     _d20 = json.loads(
         subprocess.run(
-            ["node", "-e", _D20_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D20_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=180, check=True,
         ).stdout
     )
@@ -2852,12 +2914,71 @@ console.log(JSON.stringify({
 try:
     _d20b = json.loads(
         subprocess.run(
-            ["node", "-e", _D20B_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _D20B_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
 except Exception as exc:  # noqa: BLE001
     _d20b = {"error": str(exc)[:300]}
+
+_STRIKE_PARSE_PROBE = r"""
+const WEB = process.argv[1];
+const { transform } = require(process.argv[2]);
+const fs = require('fs');
+const js = transform(fs.readFileSync(WEB + '/components/text/markdownEdits.ts', 'utf8'),
+  { transforms: ['typescript', 'imports'] }).code;
+const mod = { exports: {} };
+new Function('module', 'exports', 'require', js)(mod, mod.exports, () => ({}));
+const M = mod.exports;
+
+// The CANVAS's own parser (ProseCanvas mounts `markdown({ base:
+// markdownLanguage })`), so this asserts what the member SEES, not a string
+// shape. A source that looks right and does not parse is the whole defect.
+const { markdownLanguage } = require(WEB + '/node_modules/@codemirror/lang-markdown');
+const parser = markdownLanguage.parser;
+const strikes = (src) => {
+  let n = 0;
+  parser.parse(src).iterate({ enter: (x) => { if (x.name === 'Strikethrough') n += 1; } });
+  return n;
+};
+
+const bullets = M.toggleWrap('- item a\n- item b', 2, 17, '~~').text;
+const paras = M.toggleWrap('para one\n\npara two', 0, 18, '~~').text;
+console.log(JSON.stringify({
+  // The operator's exact gesture: two struck items, not zero.
+  bullets_render_struck: strikes(bullets) === 2,
+  paragraphs_render_struck: strikes(paras) === 2,
+  // The pre-fix output is the control: it produced NO node at all, which is
+  // why the `~~` showed up as text on screen.
+  old_shape_rendered_nothing: strikes('- ~~item a\n- item b~~') === 0,
+  // A soft wrap inside ONE paragraph is legal and must stay one node.
+  soft_wrap_still_one: strikes('~~soft\nwrap~~') === 1,
+}));
+"""
+
+try:
+    _strike = json.loads(
+        subprocess.run(
+            ["node", "-e", _STRIKE_PARSE_PROBE, str(WEB), _sucrase(), str(WEB)],
+            capture_output=True, text=True, timeout=60, check=True,
+        ).stdout
+    )
+except Exception as exc:  # noqa: BLE001
+    _strike = {"error": str(exc)[:300]}
+
+check("6m8 ⭐⭐⭐ …and the wrapped source RENDERS STRUCK through the canvas's "
+      "own parser — two bullets give two Strikethrough nodes. This is the "
+      "check the string comparisons above cannot make: the operator's report "
+      "was not that the source looked wrong, it was that `~~` appeared on "
+      "screen. The pre-fix shape is asserted as the control at ZERO nodes, so "
+      "this is measuring the defect rather than restating the fix.",
+      _strike.get("bullets_render_struck") is True
+      and _strike.get("paragraphs_render_struck") is True
+      and _strike.get("old_shape_rendered_nothing") is True, str(_strike)[:300])
+check("6m9 …and a soft wrap INSIDE one paragraph is still a single "
+      "strikethrough — block boundaries are the constraint, newlines are not, "
+      "so a fix that split on every newline would be wrong here.",
+      _strike.get("soft_wrap_still_one") is True, str(_strike)[:300])
 
 check("20h ⭐ A LIST IS NOT A HEADING. Found by driving the canvas: pressing "
       "Enter at the end of a bulleted list leaves `- ` on its own line, which "
@@ -3026,7 +3147,7 @@ console.log(JSON.stringify({
 try:
     _ins = json.loads(
         subprocess.run(
-            ["node", "-e", _INSERT_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _INSERT_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=60, check=True,
         ).stdout
     )
@@ -3155,7 +3276,7 @@ console.log(JSON.stringify(out));
 try:
     _jump = json.loads(
         subprocess.run(
-            ["node", "-e", _JUMP_PROBE, str(WEB), str(WEB / "node_modules" / "sucrase"), str(WEB)],
+            ["node", "-e", _JUMP_PROBE, str(WEB), _sucrase(), str(WEB)],
             capture_output=True, text=True, timeout=120, check=True,
         ).stdout
     )
