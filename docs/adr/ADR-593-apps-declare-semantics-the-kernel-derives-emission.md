@@ -91,6 +91,7 @@ ratification:
 | `reports` | kernel | dial, default `none` | recurring reports addressed to you (today: the daily P&L reconciliation) — opt-in preserved |
 | `mentions` | chat | **declared, unwired** *(WIRED 2026-08-25 by [ADR-605](ADR-605-a-mention-reaches-its-person.md): default `all`, on/off dial)* | the ADR-495 D6 standing gap; the pane names the absence instead of hiding it |
 | `runs` | agents | **declared, unwired** | failures already reach the bell as `material` via the weight derivation; email lands only when a real send path exists |
+| `account` | kernel | **FIXED — always sent, no dial** *(added 2026-09-12 by [ADR-650](ADR-650-account-email-the-always-on-class.md))* | the account's own correspondence: welcome, joined, removed, farewell. Consent-by-relationship — a welcome cannot be opt-in. Excluded from `EMAIL_DIAL_DEFAULTS`, refused by the validator, never fail-closed; the pane renders "Always sent" |
 
 The registry is served (`GET /api/notification-kinds`) so the pane renders
 backend-driven vocabulary — a hand-kept FE copy is the drift ADR-592 exists to
@@ -132,8 +133,12 @@ on an actual send, then sends. Two amendments:
   composed emails ride the same chokepoint.
 
 **Exemptions, named**: the workspace invite (the recipient is a raw email
-address — no principal exists yet to hold a pref or key a transport row) and
-`POST /api/account/test-email` (an explicitly requested diagnostic to self).
+address — no principal exists yet to hold a pref or key a transport row),
+`POST /api/account/test-email` (an explicitly requested diagnostic to self),
+and — *added by [ADR-650 D3](ADR-650-account-email-the-always-on-class.md)* — the
+account farewell, sent from `DELETE /account/deactivate` AFTER the auth row is
+gone (no principal remains to key a transport row; the route is already on the
+roster, so the roster does not grow).
 The gate enforces the roster: `jobs.email` is importable only by
 `services/notifications.py`, `services/workspace_invites.py`,
 `routes/account.py`, and the email-shell/test scaffolding.
@@ -200,6 +205,11 @@ Ratified in-discourse after ADR-605's opt-in amendment: **the system-internal
 BEFORE outbound expansion.** Email/push/digest are Layer 2 — machinery a
 member turns on, never a default the system assumes; every kind's dial is
 opt-in-or-quiet until Layer 2 opens as its own deliberate arc.
+
+*Scope note (2026-09-12, [ADR-650](ADR-650-account-email-the-always-on-class.md)):
+this rule governs notifications about workspace ACTIVITY. The account's own
+correspondence (welcome, joined, removed, farewell) is consent-by-relationship
+and is the one FIXED kind — not a Layer-2 opening, and not a precedent for one.*
 
 **Layer 1 scope** (from the comprehensiveness audit,
 `docs/evaluations/2026-08-25-notifications-layer1-comprehensiveness-audit.md`

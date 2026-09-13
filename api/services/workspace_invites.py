@@ -253,6 +253,16 @@ def accept_invite(*, token: str, user_id: str, user_email: Optional[str]) -> dic
         "accepted_principal_id": user_id,
     }).eq("id", invite["id"]).execute()
 
+    # ADR-650 D2 — a FIRST membership is the joiner's first day on yarnnn, so
+    # the welcome names the workspace they landed in. An established member's
+    # later joins are on the timeline (ADR-608) and get no mail.
+    try:
+        from services.account_email import dispatch, is_first_membership, send_welcome_joined
+        if is_first_membership(user_id, invite["workspace_id"]):
+            dispatch(send_welcome_joined(user_id, invite["workspace_id"], invite.get("workspace_name")))
+    except Exception as e:  # noqa: BLE001 — the grant is minted; mail never undoes it
+        logger.warning("[ADR-650] joined-welcome dispatch failed for %s: %s", user_id[:8], e)
+
     return {
         "workspace_id": invite["workspace_id"],
         "workspace_name": invite.get("workspace_name"),

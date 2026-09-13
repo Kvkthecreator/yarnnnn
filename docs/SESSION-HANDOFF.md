@@ -50,11 +50,29 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
 - `post.html` for the ADR-627 click-pass post read 0 bytes over `GET /api/workspace/file` while the
   row held ~36KB, and carried `content_type: text/markdown` on an `.html` artifact. Not chased.
 
+## Email (ADR-650, 2026-09-12)
+- **Supabase Auth mail is a dashboard fact.** Confirmation / recovery / magic-link / email-change mail is
+  Supabase's, not ours. Check Auth → SMTP in the dashboard: custom SMTP through the Resend domain, or the
+  default sender (rate-limited, unbranded — the ADR-498 "least branded first contact" failure). Re-template
+  the four to the shell's look; record the state in `docs/database/ACCESS.md`. Receipt: the 2026-09-12
+  email sign-up sat unconfirmed.
+- **Live receipt owed**: the next cold sign-up against prod should leave an `account` row in
+  `notifications` and a welcome in a real inbox (`probe_cold_user_genesis.py` is the instrument).
+- **Security-change mail** (the next tenants of the `account` kind, one hook each): a new AI connection
+  on the OAuth code path (`_ensure_foreign_llm_grant`), a credential connected/removed on Reach, BYOK set
+  or cleared.
+- `routes/webhooks.py` reconciles Resend delivery events only against `export_log` (0 rows); a bounce on a
+  notification email is logged and dropped. Store the message id on the transport row to close it.
+
 ## Gates red at baseline — each needs its own ruling, none touched
 `test_adr297_navigation_enactment` · `test_adr340_p2_settings_fold` · `test_adr422_files_legibility` ·
 `test_eval_suite_gate` (an ADR-518 manifest missing `restore:`) ·
 `test_adr614_cast_follows_the_registration` (3 red: cast seeding + persisted engine) ·
-`test_adr346` / `test_adr349` (retire or re-anchor on ADR-603).
+`test_adr346` / `test_adr349` (retire or re-anchor on ADR-603) ·
+`test_adr404_member_invites` (1 red: greps the literal "Only the workspace owner can manage invites" in
+`routes/workspace.py`, which dropped it on 2026-07-31 in `5223750` — a stale literal, found 2026-09-12) ·
+`test_adr386_member_lifecycle` (1 red: `test_provider_id_resolves_via_registry` expects bare "Claude" to
+resolve to None; ADR-373 D2.a made it resolve to `claude.ai` by design — the test pins the pre-D2.a rule).
 
 ## Beta stage (ADR-629 D4)
 - Graduation is one deleted line (`stage` on `BRAND` in `web/lib/metadata.ts`); every annotation, the

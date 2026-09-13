@@ -89,6 +89,13 @@ def overview_url(
     return _build("/desktop", params)
 
 
+def notification_settings_url() -> str:
+    """The Notifications pane on the account door (ADR-593 D5) — the ONE manage
+    link every email footer carries (ADR-202: deep_links is the single URL
+    source of truth; ADR-650 made the second footer that needed it)."""
+    return f"{app_url()}/settings?settings.pane=notification-settings"
+
+
 def review_url(
     *,
     identity: Optional[str] = None,

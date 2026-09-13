@@ -60,8 +60,11 @@ def test_d1_kind_registry() -> None:
         if k["email_default"] is None:
             _assert(bool(k.get("email_note")),
                     f"unwired kind '{k['key']}' prints a refusal, not a dead dial")
-    _assert(set(EMAIL_DIAL_DEFAULTS) == {k["key"] for k in NOTIFICATION_KINDS if k["email_default"]},
-            "EMAIL_DIAL_DEFAULTS is derived from the registry (wired kinds only)")
+    # Amended by ADR-650 D1: a FIXED kind (the account class) is wired but has
+    # no dial, so it is excluded from the dial map by construction.
+    _assert(set(EMAIL_DIAL_DEFAULTS) == {k["key"] for k in NOTIFICATION_KINDS
+                                         if k["email_default"] and not k.get("fixed")},
+            "EMAIL_DIAL_DEFAULTS is derived from the registry (wired, dialled kinds only)")
 
 
 def test_d2_validated_writer() -> None:
@@ -105,11 +108,16 @@ def test_d3_chokepoint() -> None:
             "an unreadable prefs store FAILS CLOSED")
     _assert(_pref_allows(None, "direct", "normal") is True,
             "'direct' is ungated by policy (explicitly instructed acts)")
+    _assert(_pref_allows(None, "account", "normal") is True,
+            "'account' is FIXED (ADR-650 D1): no dial to consult, never fail-closed")
 
     # The import roster: only these modules may reach the raw Resend wire.
     # Named exemptions (ADR-593 D3): the invite (recipient is a raw email
     # address — no principal exists yet) and the account test email (an
     # explicitly requested diagnostic to self).
+    # ADR-650 D3 adds the account farewell — but it is sent FROM routes/account.py,
+    # already on the roster, so the roster does not grow; the composer
+    # (services/account_email.py) never touches the wire.
     allowed = {
         "services/notifications.py",
         "services/workspace_invites.py",

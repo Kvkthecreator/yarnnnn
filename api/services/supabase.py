@@ -250,6 +250,15 @@ def ensure_owner_workspace(user_id: str) -> str:
         raise
     _resolve_owner_workspace_id_cached.cache_clear()
     logger.info("[ADR-465 D2] lazily minted owner workspace for %s", user_id)
+    # ADR-650 D2 — the welcome rides the mint, and ONLY the mint: this branch
+    # runs once per account by construction (every later call short-circuits
+    # on the re-check above), so the send needs no idempotency key of its own.
+    # Non-blocking and best-effort: genesis never waits on, or fails for, mail.
+    try:
+        from services.account_email import dispatch, send_welcome
+        dispatch(send_welcome(user_id, workspace_id))
+    except Exception as e:  # pragma: no cover — mail is never load-bearing for genesis
+        logger.warning("[ADR-650] welcome dispatch failed for %s: %s", user_id[:8], e)
     return workspace_id
 
 

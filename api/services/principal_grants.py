@@ -546,6 +546,15 @@ def evict_principal(
     svc = _svc()
     svc.table("principal_grants").update({"status": "revoked"}).eq("id", grant["id"]).execute()
 
+    # ADR-650 D2 — a HUMAN member is told their access ended. The AI-connection
+    # cascade (ADR-431 D5) re-enters here with non-human roles and sends nothing.
+    if grant.get("role") == "member":
+        try:
+            from services.account_email import dispatch, send_removed
+            dispatch(send_removed(principal_id, workspace_id))
+        except Exception as exc:  # noqa: BLE001 — the grant is revoked; mail never undoes it
+            logger.warning("[ADR-650] removal mail dispatch failed for %s: %s", principal_id[:8], exc)
+
     # Delete the principal's OAuth tokens (the eviction). ADR-373 D2.a: the
     # foreign-LLM principal_id is the PROVIDER host-id (e.g. `claude.ai`), but
     # tokens are keyed on `client_id` — and a provider has MANY client_ids (one

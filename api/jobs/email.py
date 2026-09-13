@@ -108,19 +108,20 @@ async def send_email(
 
 
 async def send_test_email(to: str) -> EmailResult:
-    """Send a test email to verify configuration."""
+    """Send a test email to verify configuration — through the one house shell
+    (ADR-498 D2): a diagnostic is still something yarnnn sends."""
+    from services.email_shell import paragraph, render_email
+
     return await send_email(
         to=to,
         subject="Test email from yarnnn",
-        html="""
-        <html>
-        <body>
-            <h1>Test Email</h1>
-            <p>If you're seeing this, email delivery is working!</p>
-            <p>- yarnnn</p>
-        </body>
-        </html>
-        """,
-        text="Test Email\n\nIf you're seeing this, email delivery is working!\n\n- yarnnn",
+        html=render_email(
+            preheader="A test from yarnnn.",
+            heading="Email delivery is working",
+            body_html=paragraph(
+                "If you're reading this, the wire from yarnnn to this inbox is live."
+            ),
+        ),
+        text="Email delivery is working\n\nIf you're reading this, the wire from yarnnn to this inbox is live.\n\n— yarnnn",
     )
 

@@ -3110,6 +3110,7 @@ export const api = {
         description: string;
         email_default: 'all' | 'high' | 'none' | null;
         email_note: string | null;
+        fixed?: boolean; // ADR-650: no dial — always sent (the account class)
       }>;
       email_defaults: Record<string, 'all' | 'high' | 'none'>;
     }>("/api/notification-kinds"),

@@ -76,6 +76,7 @@ type NotificationKind = {
   description: string;
   email_default: EmailDial | null;
   email_note: string | null;
+  fixed?: boolean; // ADR-650: the account class has no dial — always sent
 };
 
 // The `settings` surface is the ACCOUNT window — genuinely user_id-scoped, the
@@ -539,7 +540,14 @@ export default function SettingsPage() {
                       <div className="text-xs text-muted-foreground">{k.description}</div>
                     </div>
                   </div>
-                  {k.email_default ? (
+                  {k.fixed ? (
+                    /* ADR-650 D1: a FIXED kind has no dial. Account mail is
+                       consent-by-relationship (a welcome cannot be opt-in), so
+                       the row states the fact instead of offering a select. */
+                    <span className="shrink-0 text-right text-[11px] leading-snug text-muted-foreground">
+                      Always sent
+                    </span>
+                  ) : k.email_default ? (
                     <select
                       value={notificationPrefs.email[k.key] ?? k.email_default}
                       onChange={(e) => handleNotificationChange(k.key, e.target.value as EmailDial)}

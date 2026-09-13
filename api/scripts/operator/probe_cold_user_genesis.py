@@ -17,9 +17,15 @@ Creates a throwaway auth user, calls the API as them, asserts:
      dependency, not a particular route
   3. POST /api/lanes succeeds and the lane carries the workspace + a cast
   4. no NULL-workspace chat_sessions row is left behind
+  5. ADR-650: the mint dispatched the WELCOME — a transport row
+     (notifications, source_type=account) reaches status sent/failed within
+     the poll window. The row is cascaded away with the user at teardown, so
+     the probe is the only reader that can see it; pass `--email` with a
+     deliverable address (Resend's `delivered@resend.dev` accepts and records
+     without bouncing) — the default `.invalid` domain would bounce.
 Then deletes the user and everything minted for them.
 
-Run:  python3 scripts/operator/probe_cold_user_genesis.py [--api URL]
+Run:  python3 scripts/operator/probe_cold_user_genesis.py [--api URL] [--email ADDR]
 """
 import argparse
 import json
@@ -61,6 +67,8 @@ def _req(method, url, headers=None, body=None):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--api", default="https://yarnnn-api.onrender.com")
+    ap.add_argument("--email", default=None,
+                    help="probe address (default: a unique @yarnnn-probe.invalid — the ADR-650 welcome BOUNCES there)")
     args = ap.parse_args()
     _load_env()
 
@@ -70,7 +78,7 @@ def main() -> int:
     SVC = {"apikey": KEY, "Authorization": f"Bearer {KEY}",
            "Content-Type": "application/json", "Prefer": "return=representation"}
 
-    email = f"probe-cold-{uuid.uuid4().hex[:10]}@yarnnn-probe.invalid"
+    email = args.email or f"probe-cold-{uuid.uuid4().hex[:10]}@yarnnn-probe.invalid"
     password = uuid.uuid4().hex + "Aa1!"
     results, uid = [], None
 
@@ -146,6 +154,23 @@ def main() -> int:
         _, orphans = _req("GET", f"{SB}/rest/v1/chat_sessions?workspace_id=is.null&select=id", SVC)
         check("4 no NULL-workspace lane rows exist", not (orphans or []),
               f"{len(orphans or [])} found")
+
+        # 5. ADR-650 D2/D7 — the welcome rode the mint. The send is dispatched
+        #    off the request (a daemon thread under the sync auth dependency),
+        #    so poll the transport ledger rather than expect it synchronously.
+        import time
+        row = None
+        for _ in range(20):
+            _, rows = _req("GET",
+                           f"{SB}/rest/v1/notifications?user_id=eq.{uid}"
+                           f"&source_type=eq.account&select=status,message,error_message", SVC)
+            row = (rows or [None])[0]
+            if row and row.get("status") in ("sent", "failed"):
+                break
+            time.sleep(0.5)
+        check("5 the mint dispatched the welcome (ADR-650: one account transport row)",
+              bool(row) and row.get("status") == "sent",
+              f"row={row}")
 
     finally:
         # ── teardown: the probe owns everything it made ───────────────────

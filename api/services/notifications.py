@@ -12,9 +12,17 @@ records an outbound send to a recipient principal, workspace-stamped
 `send_notification` is the ONE chokepoint for system-Resend email to a
 principal (ADR-593 D3): it gates by the recipient's per-kind dial, records,
 then sends. Named exemptions — the workspace invite (recipient is a raw email
-address; no principal exists yet) and the account test email (an explicitly
-requested diagnostic to self). Everything else that emails a principal routes
-here; the ADR-593 gate enforces the `jobs.email` import roster.
+address; no principal exists yet), the account test email (an explicitly
+requested diagnostic to self), and the account farewell (ADR-650 D3: sent from
+`routes/account.py` AFTER the auth row is gone, so no principal remains to key
+a transport row). Everything else that emails a principal routes here; the
+ADR-593 gate enforces the `jobs.email` import roster.
+
+The `account` kind (ADR-650 D1) is FIXED: it has no dial, never reads the
+store, and is always recorded. Account correspondence — a welcome, a farewell,
+a revoked membership — is consent-by-relationship, not a notification about
+workspace activity, so the §6 opt-in-or-quiet rule does not govern it. The
+composer is `services/account_email.py`; nothing else names the kind.
 
 Preference gating reads member_state['notification_prefs'] — the ONE prefs
 store (ADR-489 D5, keying preserved: per (workspace, principal) — mute one
@@ -94,15 +102,34 @@ NOTIFICATION_KINDS: list[dict] = [
         "email_default": None,  # failures already reach the bell as material (ADR-489 D1)
         "email_note": "In-app only — failures already surface in the bell. Email lands when a real send path exists.",
     },
+    {
+        "key": "account",
+        "owner": "kernel",
+        "label": "Account",
+        "description": "Your account itself: a welcome when it is created, a note when a workspace removes you, a farewell when it is deleted.",
+        # ADR-650 D1 — FIXED: no dial. A welcome cannot be opt-in (no
+        # preference exists before the account) and a farewell cannot be
+        # (no principal exists after it). The pane states "always sent"
+        # instead of offering a select; the validator refuses a stored pref.
+        "email_default": "all",
+        "email_note": None,
+        "fixed": True,
+    },
 ]
 
-# Derived, never hand-kept beside the registry.
+# Derived, never hand-kept beside the registry. A FIXED kind (ADR-650 D1) is
+# excluded from the dial map: the validator therefore refuses a stored pref
+# for it, and the pane renders the fact instead of a select.
+FIXED_KINDS: frozenset = frozenset(k["key"] for k in NOTIFICATION_KINDS if k.get("fixed"))
 EMAIL_DIAL_DEFAULTS: dict = {
-    k["key"]: k["email_default"] for k in NOTIFICATION_KINDS if k["email_default"]
+    k["key"]: k["email_default"]
+    for k in NOTIFICATION_KINDS
+    if k["email_default"] and not k.get("fixed")
 }
 
-# The wired kinds + the ungated-but-recorded direct kind (ADR-593 D3).
-NotificationKind = Literal["decisions", "reports", "mentions", "direct"]
+# The wired kinds + the ungated-but-recorded direct kind (ADR-593 D3) + the
+# fixed account class (ADR-650 D1).
+NotificationKind = Literal["decisions", "reports", "mentions", "direct", "account"]
 
 _VALID_DIALS = ("all", "high", "none")
 
@@ -181,8 +208,10 @@ def _pref_allows(prefs: Optional[dict], kind: NotificationKind, urgency: str) ->
     """The gate (ADR-593 D3). prefs=None means the store was unreadable →
     fail closed. 'direct' is ungated by policy (an explicitly instructed
     operator-addressed act — the instruction is the consent) but still
-    recorded by send_notification."""
-    if kind == "direct":
+    recorded by send_notification. A FIXED kind (ADR-650 D1) has no dial to
+    consult: the account relationship is the consent, and the fail-closed
+    rule guards dials, not the relationship."""
+    if kind == "direct" or kind in FIXED_KINDS:
         return True
     if prefs is None:
         return False
@@ -225,7 +254,11 @@ async def send_notification(
     except Exception:
         workspace_id = None
 
-    prefs = await get_notification_prefs(db_client, user_id, workspace_id)
+    # ADR-650 D1: a fixed kind never reads the store — there is no dial, so an
+    # unreadable store cannot silence it (fail-closed guards dials only).
+    prefs = None if kind in FIXED_KINDS else await get_notification_prefs(
+        db_client, user_id, workspace_id
+    )
     if not _pref_allows(prefs, kind, urgency):
         reason = "prefs unreadable — failing closed" if prefs is None else f"dial quiet for kind={kind}"
         logger.info(f"[NOTIFICATION] Skipped ({reason}): {message[:50]}...")
@@ -312,11 +345,22 @@ async def _send_notification_email(
     urgency: str,
     context: Optional[dict],
 ) -> "EmailResult":
-    """Send a notification email via Resend."""
-    from jobs.email import send_email, EmailResult
-    from services.deep_links import app_url as _app_url, team_url, review_url, overview_url
+    """Send a notification email via Resend — through the one house shell.
 
-    app_url = _app_url()
+    ADR-498 D2 made `email_shell` the single frame for everything yarnnn sends;
+    this template kept its own inline HTML for another six weeks (the "sixth
+    private variant" the shell was written to end). Folded in under ADR-650 §6.
+    `message` is PLAIN TEXT from the caller (a mention label, a witness line —
+    user-controlled strings); it is escaped here, and a caller with composed
+    HTML passes `html=` to `send_notification` instead.
+    """
+    import html as _html
+
+    from jobs.email import send_email, EmailResult
+    from services.deep_links import (
+        notification_settings_url, team_url, review_url, overview_url,
+    )
+    from services.email_shell import paragraph, render_email
 
     # Build context-aware CTA if available.
     # ADR-202 §2: notifications are pointer-only — deep-link CTA, never
@@ -344,9 +388,11 @@ async def _send_notification_email(
             cta_label = "View details"
         else:
             url = overview_url()
-            cta_label = "Open cockpit"
-        cta_html = f'<a href="{url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">{cta_label}</a>'
+            cta_label = "Open yarnnn"
         cta_text = f"\nView: {url}"
+    else:
+        url = None
+        cta_label = None
 
     # Urgency affects subject prefix
     subject_prefix = ""
@@ -354,21 +400,27 @@ async def _send_notification_email(
         subject_prefix = "[Action Required] "
 
     # ADR-593 D5: the manage link lands on the Notifications pane itself.
-    manage_url = f"{app_url}/settings?settings.pane=notification-settings"
+    manage_url = notification_settings_url()
 
-    html = f"""
-    <html>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <p style="color: #333; font-size: 16px; line-height: 1.5;">{message}</p>
-        {cta_html}
-        <p style="color: #888; font-size: 12px; margin-top: 32px;">
-            — yarnnn
-            <br>
-            <a href="{manage_url}" style="color: #888;">Manage notifications</a>
-        </p>
-    </body>
-    </html>
-    """
+    # Use first line of message as subject (truncated); the rest is the body.
+    lines = message.split("\n")
+    subject_line = lines[0][:60]
+    if len(lines[0]) > 60:
+        subject_line += "..."
+    rest = "\n".join(lines[1:]).strip()
+    body_text = rest or message
+    body_html = paragraph(_html.escape(body_text).replace("\n", "<br>"))
+
+    html = render_email(
+        preheader=_html.escape(lines[0][:120]),
+        heading=_html.escape(lines[0]),
+        body_html=body_html,
+        cta_label=cta_label,
+        cta_url=url,
+        footer_html=(
+            f'<a href="{manage_url}" style="color:inherit;">Manage notifications</a>'
+        ),
+    )
 
     text = f"""{message}
 {cta_text}
@@ -376,11 +428,6 @@ async def _send_notification_email(
 — yarnnn
 Manage notifications: {manage_url}
 """
-
-    # Use first line of message as subject (truncated)
-    subject_line = message.split('\n')[0][:60]
-    if len(message.split('\n')[0]) > 60:
-        subject_line += "..."
 
     return await send_email(
         to=to,

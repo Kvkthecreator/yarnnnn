@@ -679,6 +679,14 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
     try:
         service_client = get_service_client()
 
+        # ADR-650 D3 — resolve the address BEFORE the auth row goes: after
+        # `delete_user` there is no principal to look up, and no transport row
+        # can reference one (notifications.user_id cascades on auth delete).
+        recipient: Optional[str] = auth.email
+        if not recipient:
+            from jobs.unified_scheduler import get_user_email
+            recipient = await get_user_email(service_client, user_id)
+
         # Best-effort: delete workspace_files + revisions + MCP oauth before auth cascade
         # (ADR-209 revision rows are not FK-cascaded from auth.users — wipe explicitly).
         # Null head_version_id pointers first to avoid the files→versions FK violation.
@@ -708,6 +716,24 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         except Exception as auth_error:
             logger.error(f"[ACCOUNT] Failed to delete auth user {user_id}: {auth_error}")
             raise HTTPException(status_code=500, detail="Failed to deactivate account")
+
+        # ADR-650 D3 — the farewell goes to the raw address over the wire
+        # directly: the third named exemption to the ADR-593 D3 chokepoint
+        # (the invite is the first, the test email the second). Sent only
+        # AFTER the delete succeeded, so the mail never claims what didn't
+        # happen. Best-effort: the deletion is done and reported either way.
+        if recipient:
+            try:
+                from jobs.email import send_email
+                from services.account_email import compose_account_deleted
+                subject, html, text = compose_account_deleted(recipient)
+                mail = await send_email(to=recipient, subject=subject, html=html, text=text)
+                logger.info(
+                    f"[ACCOUNT] farewell to={recipient} success={mail.success} "
+                    f"message_id={mail.message_id} error={mail.error}"
+                )
+            except Exception as mail_error:  # noqa: BLE001
+                logger.warning(f"[ACCOUNT] farewell mail failed for {recipient}: {mail_error}")
 
         logger.info(f"[ACCOUNT] User {user_id} deactivated account: {deleted}")
 
