@@ -56,7 +56,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Compartment, EditorSelection, EditorState, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
+import { Compartment, EditorSelection, EditorState, Prec, RangeSetBuilder, StateEffect, StateField, type Extension } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -70,7 +70,12 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands';
-import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import {
+  deleteMarkupBackward,
+  insertNewlineContinueMarkupCommand,
+  markdown,
+  markdownLanguage,
+} from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { tags } from '@lezer/highlight';
@@ -1682,6 +1687,40 @@ export function ProseCanvas({
         EditorView.editable.of(true),
       ]),
       EditorView.lineWrapping,
+      // ⭐ The list CONTINUES when you press Enter.
+      //
+      // `markdownKeymap` binds Enter to `insertNewlineContinueMarkup` (after
+      // `- item`, the next line opens as `- `; on an empty `- `, the list ENDS)
+      // and Backspace to `deleteMarkupBackward` (at the head of `- `, the
+      // marker comes off, not the line). It ships with `@codemirror/lang-markdown`
+      // — already installed for the language — and was simply never wired.
+      //
+      // Without it a member typed `- ` again for every item. On a desktop
+      // keyboard that is a shrug; on a phone `-` and the space live on a symbol
+      // layer, so a list was the one thing a thumb could not write. The toolbar
+      // path (`markdownEdits.ts`) was polished across three ADR-cited fixes
+      // while the TYPING path — the one a thumb actually uses — had no rule.
+      //
+      // Precedence is load-bearing and the library says so: `defaultKeymap`
+      // binds Enter to a plain newline, so a keymap listed after it never sees
+      // the key. `Prec.high` puts the markdown bindings first; each returns
+      // false when the caret is not on block markup, falling through to the
+      // generic command, so ordinary prose is untouched (driven: on
+      // `a sentence` the command reports handled=false).
+      //
+      // `nonTightLists: false` is the one departure from the stock
+      // `markdownKeymap`, and it is the gesture that ENDS a list. By default,
+      // Enter on an empty bullet inserts a blank line ABOVE it to start a
+      // "loose" CommonMark list — so `- a` + Enter + Enter left `- a\n\n- `,
+      // a stray bullet under a gap, and the member pressed Enter again. With
+      // it off the empty marker is removed and the list closes: `- a\n`. Both
+      // measured by driving the real command.
+      Prec.high(
+        keymap.of([
+          { key: 'Enter', run: insertNewlineContinueMarkupCommand({ nonTightLists: false }) },
+          { key: 'Backspace', run: deleteMarkupBackward },
+        ]),
+      ),
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
