@@ -68,11 +68,6 @@ export interface BulkImportRequest {
   text: string;
 }
 
-export interface BulkImportResponse {
-  memories_extracted: number;
-  project_id: string;
-}
-
 // Workspace Upload (ADR-249: persistent uploads at /workspace/uploads/*.md)
 export interface WorkspaceUpload {
   path: string;       // e.g. /workspace/uploads/acme-brief.md
@@ -200,17 +195,6 @@ export interface CancelResponse {
 // ADR-019: Agent Types System
 // =============================================================================
 
-export type AgentStatus = "active" | "paused" | "archived";
-// ADR-066: Added "delivered" and "failed" for delivery-first model
-// Legacy statuses (staged, reviewing, approved, rejected) kept for backwards compatibility
-export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "delivered" | "failed";
-export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
-// ADR-029 Phase 2: Added integration_import for Slack/Notion data sources
-export type DataSourceType = "url" | "document" | "description" | "integration_import";
-
-// Integration import source provider
-export type IntegrationProvider = "slack" | "notion" | "github";
-
 // ADR-109: Scope × Skill × Trigger Framework
 export type Scope =
   | "platform"        // Single platform (inferred: 1 provider in sources)
@@ -231,11 +215,11 @@ export type Role =
   | "notion_bot"
   | "github_bot"
   | "thinking_partner"
-  // The system agent's judgment rows carry role='freddie'; MessageDispatch
-  // keys the freddie-bubble on it (ADR-414 §8 — was 'reviewer-bubble').
-  // (Previously absent here, forcing an `as` cast on history reads — ADR-351.)
+  // Historical rows only: the retired systemic agent (ADR-632) signed as
+  // 'freddie'; the literal stays so history reads need no cast (ADR-351).
   | "freddie"
-  // Legacy roles kept for backward-compat DB reads (mapped via LEGACY_ROLE_MAP)
+  // Legacy role values that survive on historical rows; the server-side role
+  // registry that once mapped them is DELETED (ADR-596, 2026-09-12 sweep).
   | "competitive_intel"
   | "market_research"
   | "business_dev"
@@ -259,172 +243,14 @@ export type Role =
 // ADR-109: Role Configurations
 // =============================================================================
 
-export interface DigestConfig {
-  focus?: string;
-  reply_threshold?: number;
-  reaction_threshold?: number;
-}
-
-// PrepareConfig — no type_config fields consumed by build_skill_prompt().
-export type PrepareConfig = Record<string, unknown>;
-
-export interface SynthesizeConfig {
-  subject?: string;
-  audience?: "manager" | "stakeholders" | "team" | "executive";
-  detail_level?: "brief" | "standard" | "detailed";
-  tone?: "formal" | "conversational";
-}
-
-export interface MonitorConfig {
-  domain?: string;
-  signals?: string[];
-}
-
-// ResearchConfig — no type_config fields consumed by build_skill_prompt().
-export type ResearchConfig = Record<string, unknown>;
-
-export interface OrchestrateConfig {
-  domain?: string;
-  dispatch_rules?: string[];
-}
-
-export interface CustomConfig {
-  description?: string;
-  structure_notes?: string;
-}
-
-export type RoleConfig =
-  | DigestConfig
-  | PrepareConfig
-  | SynthesizeConfig
-  | MonitorConfig
-  | ResearchConfig
-  | OrchestrateConfig
-  | CustomConfig
-  | Record<string, unknown>;
-
-export interface RecipientContext {
-  name?: string;
-  role?: string;
-  priorities?: string[];
-  notes?: string;  // ADR-104: not consumed by backend, frontend cleanup deferred
-}
-
-export interface ScheduleConfig {
-  frequency: ScheduleFrequency;
-  day?: string;
-  time?: string;
-  timezone?: string;
-  cron?: string;
-}
-
-export interface DataSource {
-  type: DataSourceType;
-  value?: string;
-  label?: string;
-  // DB schema fields (from agents.sources JSONB)
-  resource_id?: string;
-  resource_name?: string;
-  // ADR-029 Phase 2: Integration import configuration
-  provider?: IntegrationProvider;  // Required when type = "integration_import"
-  source?: string;                 // "inbox", "thread:<id>", "query:<query>", channel ID, page ID
-}
-
-// Quality trend for feedback loop tracking (ADR-018)
-export type QualityTrend = "improving" | "stable" | "declining";
-
 // ADR-028: Destination-first agents
 // ADR-029: Destination platforms
 export type DestinationPlatform = "slack" | "notion" | "email" | "download";
-export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
-
 export interface Destination {
   platform: DestinationPlatform;
   target?: string;  // Channel ID, page ID, or null for download
   format?: string;  // message, thread, page, markdown, html
   options?: Record<string, unknown>;
-}
-
-// ADR-087: Agent memory observation
-export interface AgentObservation {
-  date: string;
-  source?: string;
-  note: string;
-}
-
-// ADR-087: Agent memory goal
-export interface AgentGoal {
-  description: string;
-  status: string;
-  milestones?: string[];
-}
-
-// ADR-092: Review log entry (proactive/coordinator modes)
-export interface AgentReviewLogEntry {
-  date: string;
-  action: string;  // 'generate' | 'observe' | 'sleep'
-  note: string;
-  next_review_at?: string;
-}
-
-// ADR-087/092/101/117/143: Agent memory structure
-export interface AgentMemory {
-  goal?: AgentGoal;
-  created_agents?: Array<{
-    date: string;
-    title: string;
-    agent_id?: string;
-    dedup_key?: string;
-  }>;
-  last_generated_at?: string;
-  // ADR-143/149: Unified feedback + reflections (replaces preferences, observations, supervisor_notes, review_log)
-  feedback?: string;           // memory/feedback.md content (rolling 10 entries)
-  reflections?: string;        // memory/reflections.md content (rolling 5 entries, ADR-149 rename)
-}
-
-// The Agent / AgentRun / AgentSession / Version / OutputManifest type family
-// is DELETED (2026-08-26) with the pre-ADR-596 agent model it described:
-// ADR-109 Scope x Role x Trigger over the `agents` + `agent_runs` tables.
-// Both tables were EMPTY in production and the /api/agents router that served
-// them is deleted. A BEING (ADR-596/600) is described by the `beings` entry on
-// the lane envelope — see components/agents/AgentsSurface.tsx.
-
-// =============================================================================
-// ADR-025: Slash Commands
-// =============================================================================
-
-export type CommandTier = "core" | "beta";
-
-export interface SlashCommand {
-  name: string;
-  description: string;
-  command: string;
-  tier: CommandTier;
-  trigger_patterns: string[];
-}
-
-export interface CommandListResponse {
-  commands: SlashCommand[];
-  total: number;
-}
-
-// Multi-destination delivery result
-export interface DestinationDeliveryResult {
-  destination_index: number;
-  platform: string;
-  target?: string;
-  status: "delivered" | "failed" | "pending";
-  external_id?: string;
-  external_url?: string;
-  error?: string;
-}
-
-export interface MultiDestinationResult {
-  total_destinations: number;
-  succeeded: number;
-  failed: number;
-  results: DestinationDeliveryResult[];
-  all_succeeded: boolean;
 }
 
 // =============================================================================
@@ -463,45 +289,6 @@ export interface ActiveDomainResponse {
   source: "agent" | "single_domain" | "ambiguous";
   domain_count?: number;
 }
-
-// =============================================================================
-// ADR-072: Jobs/Operations Status
-// =============================================================================
-
-export interface PlatformSyncStatus {
-  platform: string;
-  connected: boolean;
-  last_synced_at?: string | null;
-  next_sync_at?: string | null;
-  source_count: number;
-  status: "healthy" | "stale" | "pending" | "disconnected" | "unknown";
-}
-
-export interface ScheduledAgent {
-  id: string;
-  title: string;
-  role: string;
-  next_run_at: string;
-  destination_platform?: string | null;
-}
-
-export interface BackgroundJobStatus {
-  job_type: string;
-  last_run_at?: string | null;
-  last_run_status: "success" | "failed" | "never_run" | "unknown";
-  last_run_summary?: string | null;
-  items_processed: number;
-}
-
-export interface JobsStatusResponse {
-  platform_sync: PlatformSyncStatus[];
-  scheduled_agents: ScheduledAgent[];
-  background_jobs: BackgroundJobStatus[];
-  tier: string;
-  sync_frequency: string;
-}
-
-// ADR-153: PlatformContentItem and PlatformContentResponse DELETED — platform_content sunset
 
 // =============================================================================
 // Workspace Explorer (ADR-152)
@@ -649,60 +436,6 @@ export interface WorkspaceFileWithRevision {
 // Context Pages: Shared Platform Types
 // =============================================================================
 
-export type PlatformProvider = 'slack' | 'notion' | 'github';
-
-export type ApiProvider = "slack" | "notion" | "github";
-
-/** Map frontend platform names to backend provider names (identity after provider streamlining) */
-export const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
-  slack: ['slack'],
-  notion: ['notion'],
-  github: ['github'],
-};
-
-/** Get the provider to use for API calls (identity mapping) */
-export const getApiProvider = (platform: PlatformProvider): ApiProvider => {
-  return platform;
-};
-
-export interface IntegrationData {
-  id: string;
-  provider: string;
-  status: string;
-  workspace_name: string | null;
-  created_at: string;
-  last_used_at: string | null;
-  metadata?: {
-    email?: string;
-    [key: string]: unknown;
-  };
-}
-
-export interface SelectedSource {
-  id: string;
-  type: string;
-  name: string;
-  last_sync_at: string | null;
-}
-
-// ADR-172: Usage-first billing — balance is the single gate
-export interface BalanceSummary {
-  balance_usd: number;           // effective remaining balance
-  spend_usd: number;             // total token spend this month (display only)
-  is_subscriber: boolean;        // active Pro subscription
-  subscription_plan?: string | null;
-  next_refill?: string | null;   // ISO timestamp of next subscription billing
-}
-
-/** @deprecated Use BalanceSummary (ADR-172) */
-export type TierLimits = BalanceSummary;
-
-// The Recurrence type family is DELETED (2026-08-26). ADR-603 D5 retired
-// recurrences on 2026-08-24 (0 declarations in production); these types
-// outlived it only as the shape the legacy `agents`-table readers named,
-// and those readers are gone. Run receipts live on the Notifications
-// Activity ledger.
-
 // Process step types (used by run-status responses)
 export interface ProcessStepSummary {
   agent_type: string;
@@ -718,16 +451,12 @@ export interface ProcessStepOutput {
   tokens?: { input_tokens: number; output_tokens: number };
 }
 /** @deprecated Use ProcessStepOutput */
-export type PipelineStepOutput = ProcessStepOutput;
-
 export interface ProcessStepsResponse {
   steps: ProcessStepOutput[];
   process_definition?: ProcessStepSummary[];
   type_key?: string;
 }
 /** @deprecated Use ProcessStepsResponse */
-export type PipelineStepsResponse = ProcessStepsResponse;
-
 export interface RunStatus {
   status: 'running' | 'completed' | 'failed' | 'not_found';
   current_step: number;
