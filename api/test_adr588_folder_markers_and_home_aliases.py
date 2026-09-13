@@ -152,10 +152,47 @@ def run() -> int:
                  "is_folder_marker" in inspect.getsource(UserMemory.list))
 
     import routes.workspace as rw
+    import pathlib as _pl
+    _API = _pl.Path(__file__).resolve().parent
     ok &= _check("D1 Recents excludes folder markers",
                  "is_folder_marker" in inspect.getsource(rw._is_authored_substrate_path))
     ok &= _check("D1 roots counts markers as EXISTENCE, not as files",
                  "marker_segs" in inspect.getsource(rw.get_workspace_roots))
+
+    # ── D2 at the WEB doors (2026-09-13): a told-name resolves everywhere ────
+    # The MCP door resolved told-names through parse_file_reference; the browser
+    # doors did not, and the Text create modal minted a PHANTOM
+    # `/workspace/Documents/` root on 2026-08-16 that nothing at the door could
+    # catch. One resolver, every door — DRIVEN on the resolver, STRUCTURAL on
+    # the doors (a door that stops calling it goes red).
+    from services.workspace_paths import resolve_told_workspace_path, folder_marker_path
+    for told, real in [
+        ("Documents/q3.md", "/workspace/operation/q3.md"),
+        ("/workspace/Documents/q3.md", "/workspace/operation/q3.md"),
+        ("documents/q3.md", "/workspace/operation/q3.md"),          # case-insensitive
+        ("Downloads/slack/x.md", "/workspace/inbound/slack/x.md"),
+        ("operation/q3.md", "/workspace/operation/q3.md"),          # a kernel path is unchanged
+        ("/workspace/operation/q3.md", "/workspace/operation/q3.md"),
+        ("/other/root/x", "/other/root/x"),                          # another root: byte-identical
+    ]:
+        ok &= _check(f"D2-web {told!r} resolves to {real}", resolve_told_workspace_path(told) == real)
+    ok &= _check("D2-web a folder marker resolves a told-name parent",
+                 folder_marker_path("Documents/deal") == "/workspace/operation/deal/"
+                 and folder_marker_path("/workspace/Downloads/x") == "/workspace/inbound/x/")
+    import re as _re
+    _doors = {
+        "routes/studio.py": 4,      # create · rename · retitle · mechanical write
+        "routes/workspace.py": 1,   # PATCH /workspace/file
+        "routes/documents.py": 2,   # move: src + dst (folders resolve in folder_marker_path)
+    }
+    for _f, _n in _doors.items():
+        _src = _re.sub(r"(^|\s)#[^\n]*", r"\1", (_API / _f).read_text(), flags=_re.M)
+        ok &= _check(f"D2-web {_f} routes {_n} door path(s) through resolve_told_workspace_path",
+                     _src.count("resolve_told_workspace_path(") == _n,
+                     f"found {_src.count('resolve_told_workspace_path(')}")
+    _docs = (_API / "routes/documents.py").read_text()
+    ok &= _check("D2-web create_folder derives its absolute folder from the RESOLVED marker",
+                 'abs_folder = marker_path.rstrip("/")' in _docs)
 
     # ── D2: the told-name is an accepted address ─────────────────────────────
     # PARTICIPANT_FILESYSTEM_MODEL hands the participant these names, so the

@@ -883,7 +883,7 @@ def folder_marker_path(folder_path: str) -> str:
     rel = (folder_path or "").strip().lstrip("/")
     if rel.startswith("workspace/"):
         rel = rel[len("workspace/"):]
-    rel = rel.strip("/")
+    rel = resolve_home_alias(rel.strip("/"))   # ADR-588 D2: a told-name home is an address
     return f"/workspace/{rel}/" if rel else "/workspace/"
 
 
@@ -1035,6 +1035,28 @@ def display_home_alias(rel_path: str) -> str:
     if told is None:
         return rel
     return f"{told}{sep}{tail}" if sep else told
+
+
+def resolve_told_workspace_path(raw: str) -> str:
+    """A path as a CLIENT spells it → the kernel's absolute path (ADR-588 D2 at
+    the web doors). `Documents/q3.md`, `/workspace/Documents/q3.md` and
+    `operation/q3.md` all → `/workspace/operation/q3.md`; `Downloads/x` →
+    `/workspace/inbound/x`. An absolute path under another root is returned
+    byte-identical (the door's own checks refuse it). The MCP door resolves
+    the same told-names through `parse_file_reference`; this is the same
+    resolution for every door that takes a path from a browser or a hand-built
+    POST — the Text create modal once composed the told-name into the path and
+    minted a PHANTOM `/workspace/Documents/` root (2026-08-16), and nothing at
+    the door could have caught it. Now every door can.
+    """
+    s = (raw or "").strip()
+    if s.startswith("/workspace/"):
+        rel = s[len("/workspace/"):]
+    elif s.startswith("/"):
+        return s
+    else:
+        rel = s
+    return f"/workspace/{resolve_home_alias(rel)}"
 
 
 def resolve_home_alias(rel_path: str) -> str:

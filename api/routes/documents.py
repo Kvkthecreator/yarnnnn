@@ -143,6 +143,9 @@ _MIME_EXTS = {
     "text/plain": "txt",
     "text/markdown": "md",
     "text/csv": "csv",
+    "text/html": "html",
+    "application/json": "json",
+    "application/yaml": "yaml",
     "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
     "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
     "audio/mpeg": "mp3", "audio/wav": "wav", "audio/mp4": "m4a", "audio/ogg": "ogg",
@@ -1179,8 +1182,9 @@ async def move_document(body: MoveRequest, auth: UserClient):
     the operator's to reorganize. Delegates to the MoveFile primitive (attributed,
     gated, overwrite-safe).
     """
-    src = body.path if body.path.startswith("/") else "/" + body.path
-    dst = body.new_path if body.new_path.startswith("/") else "/" + body.new_path
+    from services.workspace_paths import resolve_told_workspace_path
+    src = resolve_told_workspace_path(body.path)       # ADR-588 D2: told-names resolve at every door
+    dst = resolve_told_workspace_path(body.new_path)
 
     # ADR-643 D2 — both ends. The MoveFile primitive below consults the
     # principal too (it is `_PATH_ADDRESSED_QUEUEABLE`); asking here as well is
@@ -1568,8 +1572,8 @@ async def create_folder(body: CreateFolderRequest, auth: UserClient):
         if not parent_segments or any(s == ".." or s == "." for s in parent_segments):
             raise HTTPException(status_code=400, detail="That destination folder isn't valid.")
         rel_folder = "/".join(parent_segments) + "/" + rel_folder
-    abs_folder = f"/workspace/{rel_folder}"
-    marker_path = folder_marker_path(rel_folder)
+    marker_path = folder_marker_path(rel_folder)      # resolves a told-name parent (ADR-588 D2)
+    abs_folder = marker_path.rstrip("/")
 
     # ADR-588 D3 — a TOP-LEVEL folder may not wear a kernel home's display name.
     # `reserved_top_level_folder_reason` is the singular check; it is scoped to

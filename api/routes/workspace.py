@@ -3173,10 +3173,8 @@ async def edit_workspace_file(
 
     # ADR-209 + ADR-235 Option A: align with GET handler — accept both
     # absolute and workspace-relative paths. Stored shape is absolute.
-    if not raw_path.startswith("/"):
-        path = f"/workspace/{raw_path}"
-    else:
-        path = raw_path
+    from services.workspace_paths import resolve_told_workspace_path
+    path = resolve_told_workspace_path(raw_path)   # ADR-588 D2: told-names resolve at every door
 
     # ADR-570 D4: the prose text class — .md/.markdown/.txt — is editable at
     # ANY path that survives the standing placement carves (system/, raw

@@ -728,8 +728,8 @@ async def write_artifact(req: WriteArtifactRequest, auth: UserClient) -> dict:
     from services.authored_substrate import StaleWriteError, write_revision
     from services.workspace_paths import operator_can_organize
 
-    raw = (req.path or "").strip()
-    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    from services.workspace_paths import resolve_told_workspace_path
+    path = resolve_told_workspace_path(req.path)   # ADR-588 D2: told-names resolve at every door
     # ONE placement law (ADR-555 D2): the same predicate create_artifact,
     # create_folder and upload_documents ask. The old STUDIO_ARTIFACT_REGION
     # prefix fence outlived the create door's relaxation (ADR-549 D3 made the
@@ -816,8 +816,8 @@ async def rename_artifact(req: RenameArtifactRequest, auth: UserClient) -> dict:
     from services.authoring import STUDIO_ARTIFACT_REGION
     from services.workspace_context import substrate_scope_filter
 
-    raw = (req.path or "").strip()
-    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    from services.workspace_paths import resolve_told_workspace_path
+    path = resolve_told_workspace_path(req.path)   # ADR-588 D2: told-names resolve at every door
     if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
         raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
 
@@ -1034,8 +1034,8 @@ async def retitle_artifact(req: RetitleArtifactRequest, auth: UserClient) -> dic
     `artifact_name`. See that helper for the full contract."""
     from services.authoring import STUDIO_ARTIFACT_REGION
 
-    raw = (req.path or "").strip()
-    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    from services.workspace_paths import resolve_told_workspace_path
+    path = resolve_told_workspace_path(req.path)   # ADR-588 D2: told-names resolve at every door
     if not path.endswith(".html") or ".." in path or not path.startswith(STUDIO_ARTIFACT_REGION):
         raise HTTPException(status_code=403, detail=f"Not a Studio artifact path: {path}")
     return _retitle_to(auth, path)
@@ -1204,7 +1204,8 @@ async def create_artifact(req: CreateArtifactRequest, auth: UserClient) -> dict:
             status_code=422,
             detail="A new artifact needs a name — send the path it should live at.",
         )
-    path = raw if raw.startswith("/") else f"/workspace/{raw}"
+    from services.workspace_paths import resolve_told_workspace_path
+    path = resolve_told_workspace_path(raw)   # ADR-588 D2: told-names resolve at every door
 
     # Validate BEFORE any placement query — `_redirect_to_free_key` runs a
     # prefix search against this path, and a `..` or out-of-region path must be

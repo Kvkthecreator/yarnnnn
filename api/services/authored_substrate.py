@@ -896,6 +896,15 @@ def write_revision(
     else:
         sha = _sha256(content)
         _upsert_blob(db_client, sha, content, workspace_id)
+        # The type is DERIVED here too (ADR-427 D5 said it for bytes; text got
+        # the column default instead). Every `.html` artifact on prod was typed
+        # `text/markdown` — 18 live rows on 2026-09-13 — because no Studio door
+        # passed a type and the default filled it. `derive_content_type` maps
+        # the extension (`.md` stays text/markdown, `.html` → text/html, `.yaml`
+        # → application/yaml, unknown → the historic text default), so a write
+        # heals a mistyped row on its next revision.
+        if content_type is None:
+            content_type = derive_content_type(path, None)
 
     parent_version_id = _read_head_revision_id(db_client, user_id, path, workspace_id)
 
@@ -1127,12 +1136,12 @@ def _head_content_form(db_client: Any, row: dict) -> dict:
     # is non-text (the type is DERIVED at write time, ADR-427 D5). Raising keeps
     # the act atomic — the caller reports a failed move/restore and the file is
     # untouched, which is always recoverable. A silent empty write is not.
+    from services.content_types import is_text_type
     content_type = row.get("content_type") or ""
-    is_texty = (
-        not content_type
-        or content_type.startswith("text/")
-        or content_type in ("application/json", "image/svg+xml")
-    )
+    # ONE definition of "texty" (content_types.is_text_type — ADR-427 §8): a
+    # second list here drifted the day `application/yaml` became a derivable
+    # type, which would have classified every dial file as binary.
+    is_texty = not content_type or is_text_type(content_type) or content_type == "image/svg+xml"
     if not is_texty and not (row.get("content") or ""):
         raise RuntimeError(
             f"refusing to carry a binary file forward by its empty text denorm "
