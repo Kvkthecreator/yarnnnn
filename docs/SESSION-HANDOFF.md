@@ -67,6 +67,15 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   `browser_login_link.py` is stale.
 - Top-level peer folders have no member door any more (D5 sends a folder from nowhere to Documents); if one
   is ever needed, `NewFolderModal` grows a destination picker — never a second fallback.
+- OPEN, operator-reported 2026-09-13: **delete on the Files surface opens the file in Text**. The trash
+  succeeds; the navigation after it is spurious. NOT the portal-unmount re-target — that was diagnosed,
+  driven in Chrome, and FALSIFIED (removing an element mid-click leaves the original target; the browser
+  does not re-dispatch). Leading suspect: `handleFileClick` in `web/app/(authenticated)/files/page.tsx`
+  opens on `(e?.detail ?? 0) >= 2`, the UA multi-click counter, which no element appearing or disappearing
+  between two clicks at one point resets — and the confirm button sits dead-centre over the listing
+  (measured). Needs a real pointer or CDP `Input.dispatchMouseEvent` with fixed x/y and rising `clickCount`;
+  it cannot be synthesized from JS. The modal hardening in `5c3b143` may MASK the symptom without fixing
+  the cause — verify against that commit's parent.
 
 ## Billing (found 2026-08-20 / 09-02, unverified)
 - The undelivered-top-up banner has never rendered in a browser. To drive it: mint a top-up
