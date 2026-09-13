@@ -81,7 +81,10 @@ def run() -> bool:
            and "organizeVerbs.onDelete({ path: artifactPath" in surface
            and "useFileOrganizeVerbs" in surface
            and "onRenameCommit={commitRename}" in surface
-           and "isComposing" in design)
+           # (Re-pinned 2026-09-13: the IME guard lives in the one shared rule,
+           #  `web/lib/shell/submit-key.ts` (ADR-483 D3, 80b9874); the tab USES it.)
+           and "import { isSubmitKey } from '@/lib/shell/submit-key';" in design
+           and "isSubmitKey(" in design)
     _check("the Design tab makes no organize API calls of its own (no fork)",
            "api.workspace" not in design and "api.files" not in design)
     # (Re-pinned 2026-07-21: ADR-473 made the Studio surface app-generic —
