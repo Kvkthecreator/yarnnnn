@@ -34,7 +34,7 @@ import { ChevronRight, ChevronDown, Folder, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
-import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
+import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
 
 export type PickerMode = 'file' | 'folder';
 
@@ -345,7 +345,7 @@ export function WorkspacePickerModal({
       <div
         className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
         style={{ zIndex: Z_CONFIRM_BACKDROP }}
-        onClick={onClose}
+        onClick={dismissModal(onClose)}
       />
       <div
         className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
@@ -357,6 +357,7 @@ export function WorkspacePickerModal({
           aria-modal="true"
           aria-label={title}
           style={{ maxHeight: '70vh' }}
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start justify-between border-b border-border px-5 py-3.5">
             <div className="min-w-0">
@@ -365,7 +366,7 @@ export function WorkspacePickerModal({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={dismissModal(onClose)}
               className="shrink-0 text-muted-foreground/60 transition-colors hover:text-foreground"
               aria-label="Close"
             >
@@ -378,7 +379,12 @@ export function WorkspacePickerModal({
               {...body}
               selected={selected}
               onSelect={setSelected}
-              onCommit={(p) => (!canConfirm || canConfirm(p)) && onConfirm(p)}
+              // Double-click-to-commit unmounts this portal too, so it gets the
+              // same deferred commit as the footer button (see `dismissModal`).
+              onCommit={(p) => {
+                if (canConfirm && !canConfirm(p)) return;
+                requestAnimationFrame(() => onConfirm(p));
+              }}
             />
           </div>
 
@@ -389,7 +395,7 @@ export function WorkspacePickerModal({
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={dismissModal(onClose)}
                 className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
               >
                 Cancel
@@ -397,7 +403,7 @@ export function WorkspacePickerModal({
               <button
                 type="button"
                 disabled={!ok}
-                onClick={() => ok && onConfirm(selected!)}
+                onClick={dismissModal(() => { if (ok) onConfirm(selected!); })}
                 className={cn(
                   'rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
                   ok

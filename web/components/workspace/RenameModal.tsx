@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
+import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
 
 interface RenameModalProps {
   /** The file OR FOLDER being renamed (null = closed). `isFolder` (2026-08-21)
@@ -64,7 +64,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
       <div
         className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
         style={{ zIndex: Z_CONFIRM_BACKDROP }}
-        onClick={onClose}
+        onClick={dismissModal(onClose)}
       />
       <div
         className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
@@ -74,6 +74,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
           className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
           role="dialog"
           aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
         >
           <h3 className="text-base font-semibold text-card-foreground">Rename</h3>
           <input
@@ -98,7 +99,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
           <div className="mt-5 flex justify-end gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={dismissModal(onClose)}
               className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
               Cancel
@@ -106,7 +107,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
             <button
               type="button"
               disabled={!canSubmit}
-              onClick={submit}
+              onClick={dismissModal(submit)}
               className={cn(
                 'rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
                 canSubmit

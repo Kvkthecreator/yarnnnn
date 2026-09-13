@@ -68,3 +68,56 @@ export const Z_LAUNCHER_OVERLAY = 400;
 export const Z_CONFIRM_BACKDROP = 500;
 export const Z_CONFIRM_DIALOG = 501;
 export const Z_TOAST = 550;
+
+// ---------------------------------------------------------------------------
+// The dismissal half of the modal contract (2026-09-13)
+// ---------------------------------------------------------------------------
+
+/**
+ * A MODAL'S COMMITTING CLICK ENDS AT THE MODAL.
+ *
+ * Hardening, NOT a diagnosed fix — the distinction is recorded because the
+ * commit that added this began from a WRONG diagnosis and the wrong one is
+ * seductive.
+ *
+ * The claim that was falsified: "the portal unmounts inside the click's own
+ * dispatch, so the click re-targets onto the row underneath." It does not.
+ * Removing an element during `mousedown`, or during its own `click` handler,
+ * leaves the original target intact — the browser does not re-dispatch to
+ * whatever is revealed. Driven in Chrome both ways, 2026-09-13. Any future
+ * reader tempted by that story should re-run it before believing it.
+ *
+ * What IS true and worth keeping:
+ *   - A modal button sits dead-centre over the Files listing (measured: the
+ *     confirm's centre and the page centre are the same point), so anything
+ *     that does leak past it lands on a row, and a row is
+ *     `<button onClick={onNavigate}>` -> `openPath` -> another surface.
+ *   - `stopPropagation` keeps the commit off any ancestor handler.
+ *   - Deferring the commit past the current event means the state change
+ *     cannot interleave with the rest of THIS gesture's dispatch.
+ *
+ * Neither is load-bearing against a proven bug today; together they make the
+ * modal's click self-contained, which is cheap and removes a class of
+ * coupling between a dialog and the surface it floats over.
+ *
+ * THE STILL-OPEN SUSPECT for the reported "delete opens the file in Text":
+ * `handleFileClick` in app/(authenticated)/files/page.tsx opens on
+ * `(e?.detail ?? 0) >= 2`. `detail` is the UA's multi-click counter for
+ * successive clicks at one point; it is not reset by an element appearing or
+ * disappearing between them. Proving or refuting that needs a real pointer, or
+ * CDP `Input.dispatchMouseEvent` with a fixed x/y and rising `clickCount` —
+ * it cannot be synthesized from JS, which is why it is still open.
+ *
+ * A z-tier does not speak to any of this: layering decides who receives a
+ * click while both are mounted. This lives beside the ladder because it is the
+ * other half of the same question, not because a tier implies it.
+ */
+export function dismissModal(fn: () => void) {
+  return (e: { preventDefault: () => void; stopPropagation: () => void }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Past the dispatch of THIS click — the state change cannot interleave
+    // with the rest of this gesture.
+    requestAnimationFrame(() => fn());
+  };
+}

@@ -45,7 +45,7 @@ import {
 import { createPortal } from 'react-dom';
 import { Check, AlertCircle, Info, Loader2, X, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Z_TOAST, Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
+import { Z_TOAST, Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -422,7 +422,7 @@ function ConfirmDialog({
       <div
         className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
         style={{ zIndex: Z_CONFIRM_BACKDROP }}
-        onClick={onCancel}
+        onClick={dismissModal(onCancel)}
       />
       <div
         className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
@@ -432,6 +432,7 @@ function ConfirmDialog({
           className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 motion-reduce:animate-none"
           role="alertdialog"
           aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-start gap-3">
             {opts.danger && (
@@ -448,7 +449,7 @@ function ConfirmDialog({
             {opts.cancelLabel !== '' && (
               <button
                 type="button"
-                onClick={onCancel}
+                onClick={dismissModal(onCancel)}
                 className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
               >
                 {opts.cancelLabel ?? 'Cancel'}
@@ -456,7 +457,7 @@ function ConfirmDialog({
             )}
             <button
               type="button"
-              onClick={onConfirm}
+              onClick={dismissModal(onConfirm)}
               autoFocus
               className={cn(
                 'rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
