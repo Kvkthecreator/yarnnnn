@@ -14,21 +14,34 @@ Platform credentials are yours, not the workspace's — they're keyed to your ac
 
 ## Available
 
-| Platform | Auth | What you scope |
-|---|---|---|
-| **Slack** | OAuth | Channels |
-| **Notion** | OAuth | Pages and databases |
-| **GitHub** | OAuth | Repositories |
-| **Lemon Squeezy** | API key | — |
-| **Alpaca Trading** | API key | — |
+| Platform | Auth | Direction | What you scope |
+|---|---|---|---|
+| **Slack** | OAuth | Inbound | Channels |
+| **Notion** | OAuth | Inbound | Pages and databases |
+| **GitHub** | OAuth | Inbound | Repositories |
+| **WordPress** | OAuth | **Outbound** | The site you publish to |
 
 ## Connecting
 
-1. **Settings → Connections**
+1. Open **[Reach](../apps/reach.md)** → Connected
 2. Pick a platform and authorise it
-3. In the connection's **Manage** view, choose which channels, pages, or repos are in scope
+3. Choose which channels, pages, or repos are in scope
 
-Access is read-only. YARNNN doesn't post in Slack or edit your Notion pages.
+## Inbound and outbound
+
+**Slack, Notion and GitHub are read-only.** YARNNN doesn't post in Slack or edit
+your Notion pages — it reads what you've put in scope.
+
+**WordPress is the exception**, and deliberately so: it's the path a
+[Blogger](../apps/blogger.md) post takes to get published. Anything heading out
+that way surfaces on Reach's **Leaving** pane for you to execute first. Nothing
+crosses the boundary without a member's click.
+
+## Connections are yours, not the workspace's
+
+A connection is held under **your** account. Other members of the same workspace
+hold and see their own, and an agent is never handed your credential — when an
+agent's work needs to cross the boundary, it surfaces for you to click.
 
 ## Retention
 

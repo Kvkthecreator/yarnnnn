@@ -4,7 +4,7 @@
 
 ### What is YARNNN?
 
-A workspace that holds everything you and your AI produce — notes, decisions, documents, decks, images — attributed to whoever made it, with the full history of every change. You work in it two ways: **Chat** for thinking, **Studio** for making. And you can reach the same workspace from ChatGPT, Claude, or any AI that speaks MCP.
+A workspace that holds everything you and your AI produce — notes, decisions, documents, decks, images — attributed to whoever made it, with the full history of every change. You work in it two ways: **Chat** for thinking, and the making apps — Text, Slides, Blogger, Images — for building the thing. And you can reach the same workspace from ChatGPT, Claude, or any AI that speaks MCP.
 
 ### How is this different from ChatGPT's or Claude's memory?
 
@@ -34,7 +34,7 @@ Yes. Invite by email; everyone writes into the same workspace and every change c
 
 ### How do I get things in?
 
-Three routes: **upload** them in Files (PDF, DOCX, TXT, MD, ZIP), **save** them from a connected AI over MCP, or **author** them here in Chat and Studio.
+Three routes: **upload** them in Files (PDF, DOCX, TXT, MD, ZIP), **save** them from a connected AI over MCP, or **author** them here in Chat, Text, Slides, Blogger or Images.
 
 ### Which AI models does it work with?
 
@@ -46,13 +46,9 @@ Engines are deliberately swappable. The memory is the thing that stays.
 
 You can authorise Slack, Notion, and GitHub and choose what's in scope. **Scheduled background pulling isn't running yet**, so connecting alone doesn't populate your workspace today. Uploads and MCP are the reliable routes in for now.
 
-### What's the "second set of eyes"?
-
-That's Freddie — the workspace's own steward. He tends the record: organising, deriving, noticing what needs your attention. He's in beta, does only reversible things, and you meet him in the activity log rather than in a chat window. See [Freddie](../concepts/freddie.md).
-
 ### Can I undo things?
 
-Yes, at several levels. **⌘Z** in Studio. **Revert** on any previous revision of any file. **Restore** from Trash, which has no timer. Even permanent delete keeps the record of what existed.
+Yes, at several levels. **⌘Z** while you're editing. **Revert** on any previous revision of any file. **Restore** from Trash, which has no timer. Even permanent delete keeps the record of what existed.
 
 ## Pricing
 
@@ -68,7 +64,7 @@ Never. Connect as many as you like.
 
 Yes — set a workspace budget at Workspace Settings → System. And the balance itself is a hard floor: at zero, AI work stops rather than overdrafting.
 
-### What if my allowance runs out?
+### What if my balance runs out?
 
 Work pauses until you top up. Nothing is lost. Your files, history, and MCP access are unaffected — reading and keeping your workspace is free.
 
@@ -84,4 +80,4 @@ Upload the documents you already work from. An empty workspace can't ground anyt
 
 ### What should I not expect yet?
 
-Scheduled background work from connected platforms, and Freddie as a conversational partner. Both are named plainly in these docs where they come up.
+Scheduled pulling from connected platforms — the capture lane is off, so connecting a platform doesn't populate your workspace on a cadence yet. What *does* run unattended is standing work: a file you've declared should be kept current. Nothing else acts on its own.

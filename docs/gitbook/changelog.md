@@ -3,7 +3,39 @@
 Notable updates to YARNNN and these docs.
 
 <!-- AUTO_SYNC_START -->
+## Documentation status
+
+- Last checked against the product: `2026-09-15`
+- Docs version: `v5.0.0-docs.20260915`
+- Product commit: `b98999b`
+
+Product changes are listed below, newest first.
 <!-- AUTO_SYNC_END -->
+
+## September 2026
+
+### The docs caught up with the product (Sep 16)
+- These pages had drifted about six months. Everything false was corrected, and three shipped apps that had **no documentation at all** — Blogger, Images and Reach — now have pages.
+- Gone: Freddie (the steward seat is retired), Radar (deleted, not paused), and the Thinker/Researcher/Critic roster, which no longer exists.
+- Renamed: **Docs → Text**, **Studio → Slides**. Studio's outward half — posts, essays, landing pages — is now **Blogger**, its own app with its own agent.
+
+### You can reset your password (Sep 15)
+- There was no way to. Now there's a **Forgot your password?** link on sign-in, and the reset link takes you to a screen that actually sets the new one.
+
+### Reach: the boundary has a door (Sep)
+- One surface for what's connected, what's about to leave, and what already crossed. The approval queue moved here — a proposal is something about to cross the boundary, so it belongs at the boundary.
+
+### Blogger, and Images back on the Dock (Sep)
+- **Blogger** ships: posts and pages for a reader outside the workspace, with its own resident agent. It inherited the article and landing-page material that used to live in Studio.
+- **Images** returns to the Dock, badged beta.
+
+### Chat asks which engine, not which colleague (Sep)
+- Starting a conversation is choosing a model — Claude, GPT, Gemini or DeepSeek — not a character. The old four-colleague picker is gone.
+- A lane can hold more than you and the model: the **cast** shows who else is in the room.
+
+### Pricing: free for two (Jul 28, corrected here Sep 16)
+- The free tier covers **two** people, not one; the third person is the first paid seat.
+- The monthly usage allowance is **retired**. Usage is pure pay-as-you-go from one balance, with a hard stop at zero.
 
 ## August 2026
 
@@ -27,7 +59,7 @@ Notable updates to YARNNN and these docs.
 - Dropping back to two people cancels the paid plan at the end of the period you already paid for — nothing is lost
 
 ### Images went internal (Jul 28)
-- The Images app left the Dock while it's polished to parity — it's an internal preview for now, not part of the shipped desk
+- The Images app left the Dock while it's polished to parity — an internal preview, not part of the shipped desk *(reversed since: Images returned to the Dock, badged beta — see September 2026)*
 - Existing compositions are untouched: they stay in Files with their full history, and open normally
 
 ### Docs rewritten for the current product (Jul 23)

@@ -19,25 +19,50 @@ Public docs may simplify. They should never contradict the canonical layer. Wher
 
 | Field | Value |
 |---|---|
-| Last reviewed (UTC) | `2026-07-23` |
-| Docs version | `v7.0.0-docs.20260723` |
-| Source commit | `4f18b2a` |
-| Basis | Full rewrite against ESSENCE v16 (ADR-457 Think · Make), ADR-414, ADR-445 |
+| Last synced (UTC) | `2026-09-15 23:54:04Z` |
+| Docs version | `v5.0.0-docs.20260915` |
+| API version | `5.0.0` |
+| Web version | `5.0.0` |
+| Source commit | `b98999b` |
+| Source range | `deaa24f..7dc5ae8` |
+| New commits since last sync | `0` |
+
+## Recent sync history
+
+| Synced at (UTC) | Docs version | Commit | Range | Commits |
+|---|---|---|---|---|
+| `2026-09-15 23:53:25Z` | `v5.0.0-docs.20260915` | `b98999b` | `174b43d..b98999b` | `2486` |
+| `2026-03-22T15:30:00Z` | `v6.0.0-docs.20260322` | `174b43d` | `147a7bc..174b43d` | `165` |
+| `2026-03-17 02:18:50Z` | `v5.0.0-docs.20260317` | `147a7bc` | `45ff552..147a7bc` | `157` |
+| `2026-03-04 07:32:45Z` | `v5.0.0-docs.20260304` | `45ff552` | `0c9ab5e..45ff552` | `18` |
 <!-- GITBOOK_VERSIONING_END -->
 
-## What the 7.0 rewrite changed
+## What the 8.0 rewrite changed
 
-The docs had drifted roughly four months behind the product. Everything describing the previous service model was replaced:
+The docs had drifted roughly six months behind the product — they were last synced
+2026-03-22 and still described a service model that no longer exists. Everything
+false was replaced:
 
-- **Thinking Partner** — retired as a concept; the roster is now named colleagues, and orchestration isn't personified
-- **Tasks, agents-as-workforce, multi-agent pipelines** — the task abstraction was dissolved; work happens in Chat and Studio
-- **Slack/Notion-first onboarding** — no longer the entry path; the workspace is useful from signup with nothing connected
-- **Platform bots, projects, meeting rooms, rendered PDF/PPTX/XLSX deliverables** — all removed from the product
-- **Plans** — replaced with the current two-axis model (seats + a pooled meter)
-- **MCP tools** — the intent tools and the memory verbs are both gone; the surface is `open`/`list`/`search`/`save`/`history`/`share` (ADR-543)
-- **MCP URL** — now `https://mcp.yarnnn.com`
+- **Freddie, the workspace steward** — the page is deleted and every reference
+  removed. The steward seat is retired: judgment is a grant a member holds, and
+  nothing in the workspace acts on its own initiative.
+- **Studio → Slides, Docs → Text** — and Studio's outward half (posts, essays,
+  landing pages) moved to **Blogger**, which is its own app with its own agent.
+- **Radar** — deleted, not paused. The page that described it is gone.
+- **Blogger, Images and Reach** — three shipped, Dock-pinned apps that had no
+  documentation at all. They have pages now.
+- **The agent roster** — Thinker, Researcher and Critic never existed as anything
+  a reader could use. The live roster is Editor, Designer and Blogger, each bound
+  to an app, none of them hireable.
+- **Chat** — you pick an ENGINE, not a colleague. The old "you pick who, not which
+  model" framing was exactly inverted.
+- **Plans** — the monthly allowance is retired; "$0 for one person" and "Starter"
+  are gone. Free is two people; the third is a seat; usage is pure pay-as-you-go.
+- **The Dock** — five apps became eight.
 
-New pages cover the five apps, the record, Freddie, and team use.
+The standing rule below is what this rewrite was measured against, and what the
+docs had been violating: *public docs may simplify, but they must never contradict
+the canonical layer.*
 
 ## Auto-sync
 

@@ -6,16 +6,11 @@ Ten minutes to your first useful thing. No setup flow, no connections required.
 
 Go to [app.yarnnn.com](https://app.yarnnn.com). Your workspace exists as soon as you do — empty, and yours.
 
-You'll land on a desk with five apps in the Dock: **Chat · Studio · Radar · Files · Agents**.
+You'll land on a desk with eight apps in the Dock: **Chat · Text · Slides · Blogger · Images · Files · Agents · Reach**.
 
 ## 2. Think something through
 
-Open **Chat** and start a lane. You pick a colleague, not a model:
-
-- **Thinker** for working out a hard call
-- **Researcher** for digging up material, with sources
-- **Designer** for making something
-- **Critic** for finding the hole in an idea
+Open **Chat** and start a lane. You pick the engine you want — Claude, GPT, Gemini or DeepSeek — and the conversation is grounded in your workspace. Your last pick is remembered, so this isn't a decision you re-make every time.
 
 Ask a real question. Something you actually need an answer to today.
 
@@ -29,7 +24,7 @@ The file lands in your workspace, attributed to you, citing the conversation it 
 
 ## 4. Make something from it
 
-Open **Studio** and start a Document or a Deck. On the right there's a chat lane bound to what you're editing — point it at the note you just made:
+Open **Text** for a document, or **Slides** for a deck. On the right there's a chat lane bound to what you're editing — point it at the note you just made:
 
 > "Turn this into a five-slide deck."
 

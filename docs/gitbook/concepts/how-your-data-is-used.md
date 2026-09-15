@@ -15,7 +15,7 @@ Nothing is scraped from your activity. There's no background inference building 
 
 **Grounds your conversations.** When you ask a chat lane something, it can search and read your workspace so the answer starts from your material.
 
-**Feeds the work.** Studio artifacts, derived summaries, and anything an agent produces draw on the files you point them at.
+**Feeds the work.** Decks, documents, posts, images, derived summaries, and anything an agent produces draw on the files you point them at.
 
 **Gets sent to model providers to do that work.** This is worth being plain about: when a lane reasons over a file, that file's relevant content is sent to whichever model is running the lane — Anthropic, OpenAI, Google, or DeepSeek. Which engine a colleague runs on is shown on its card.
 

@@ -1,40 +1,43 @@
 # Usage and Spend Controls
 
-## What draws from the pool
+## What draws from the balance
 
-Only **AI reasoning** costs anything: a chat turn, a Studio draft, an image composition, a derived summary.
+Only **AI reasoning** costs anything: a chat turn, a draft in Slides or Text, a post in Blogger, an image composition, a run of standing work.
 
 These are free:
 
 - Writing, storing, and keeping every revision of a file
 - File operations — rename, move, trash, restore
 - Searching your workspace
-- Reading, saving, and tracing over MCP
+- Reading, saving, and walking a file's history over MCP
 - Connecting an AI, or having several connected
 
-## The pool is shared
+## The balance is shared
 
-One workspace, one pool. You, your teammates, the agents, and every connected AI all draw from the same place, and the owner funds it.
+One workspace, one balance. You, your teammates, the agents, and every connected AI all draw from the same place, and the owner funds it.
 
-Every draw is attributed — the workspace can see which principal spent what, so a shared pool doesn't mean an unaccountable one.
+Every draw is attributed — the workspace can see which principal spent what, so a shared balance doesn't mean an unaccountable one.
 
 ## The draw order
 
-1. **Monthly allowance** — $15/mo on Starter, refreshed each billing cycle. Unspent allowance doesn't roll over.
-2. **Topped-up balance** — what you've added yourself. This never expires and is never reset by a refill.
-3. **Zero** — AI work stops. A hard stop, not an overdraft.
+1. **Your balance** — the $3 every new workspace starts with, plus anything you've topped up. Top-ups never expire and are never reset by a refill.
+2. **Zero** — AI work stops. A hard stop, not an overdraft.
 
-Free workspaces begin with a $3 balance. Top-ups start at $5 and you choose the amount.
+That's the whole order. There is no monthly allowance on any plan: nothing is granted each cycle, so nothing is lost at the end of one.
+
+Top-ups start at $5 and you choose the amount.
 
 ## Seeing where you are
 
-**Settings → Usage** shows how much of the current cycle you've used. There's also an indicator in the app chrome so you're not surprised.
+**Workspace Settings → Usage** shows the balance and where it went. There's also an indicator in the app chrome so you're not surprised.
 
 ## Setting a budget
 
-**Workspace Settings → System → Budget.**
+**Workspace Settings → Usage.**
 
-The budget is the ceiling the workspace paces itself against. Set it lower and the steward does less on its own initiative; set it to zero and background work stops entirely while your own chats keep working from the balance.
+The budget is the ceiling the workspace paces itself against. Set it to zero and unattended work stops entirely — your own chats keep working from the balance.
+
+The unattended work it bounds is **standing work**: a file you've declared should be kept current on a schedule. Nothing else in the workspace acts on its own.
 
 This is the dial to reach for if you want spend to be a decision rather than a discovery.
 
@@ -42,7 +45,7 @@ This is the dial to reach for if you want spend to be a decision rather than a d
 
 In a team workspace, the owner can set a spend cap on an individual member from the members card — a **Set spend cap** action on their row.
 
-> **Note:** this is currently enforced on the main addressed chat path. It does not yet bound every route by which the pool can be drawn. If you need a hard bound on total spend right now, use the workspace budget and the balance, which do bound everything.
+> **Note:** the cap binds a member's own addressed work. It does not bound **standing work**, which attributes to the workspace owner and is never capped — by design, since the owner is the one who funded it. If you need a hard bound on total spend, use the workspace budget and the balance, which do bound everything.
 
 ## Running out
 

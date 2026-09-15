@@ -15,7 +15,7 @@ So you can think messily without an audience, and share the conclusion rather th
 
 **Workspace Settings → Access → Workspace Members.** Invite by email; they get a link that only works for that address. Accepting mints their membership and drops them into the workspace.
 
-The first person in a workspace — the owner — is free. Each additional person is a billed seat. See [Plans and pricing](../plans/plans.md).
+The first two people in a workspace — you and one teammate — are free. From the third person, each is a billed seat. See [Plans and pricing](../plans/plans.md).
 
 ## The members roster
 

@@ -228,25 +228,26 @@ def build_changelog_auto_block(
     new_commits_count: int,
     displayed_commits: list[Commit],
 ) -> str:
+    # ⚠️ THIS BLOCK IS PUBLIC. It renders on the customer-facing changelog, so it
+    # carries the STAMP (when these docs were last checked against the product)
+    # and nothing else.
+    #
+    # It used to append the last 20 raw commit subjects. On 2026-09-16 that meant
+    # publishing "fix(gates): ADR-483's D2 checks follow the IME guard into the
+    # shared rule", migration numbers and internal ADR references to anyone
+    # reading the docs — engineering chatter on a page a prospective member reads
+    # to decide whether to trust us. The commit log is a real record; it is simply
+    # not this audience's. Human-written entries below the marker are the product
+    # changelog.
     lines = [
-        "## Auto-synced updates",
+        "## Documentation status",
         "",
-        f"- Last synced: `{now.strftime('%Y-%m-%d %H:%M:%SZ')}`",
+        f"- Last checked against the product: `{now.strftime('%Y-%m-%d')}`",
         f"- Docs version: `{docs_version}`",
-        f"- Source commit: `{head[:7]}`",
-        f"- Source range: `{range_label}`",
-        f"- New commits since last sync: `{new_commits_count}`",
-        f"- Displayed commits: `{len(displayed_commits)}`",
+        f"- Product commit: `{head[:7]}`",
         "",
-        "### Recent commits",
+        "Product changes are listed below, newest first.",
     ]
-
-    if not displayed_commits:
-        lines.append("- No relevant commits found since last sync.")
-        return "\n".join(lines)
-
-    for commit in displayed_commits[:20]:
-        lines.append(f"- {commit.date} `{commit.sha[:7]}` {commit.subject}")
 
     return "\n".join(lines)
 

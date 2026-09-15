@@ -4,7 +4,7 @@ Chat is where you think. It's a set of conversation **lanes**, each one grounded
 
 ## Lanes, not one long thread
 
-A lane is a single conversation. You can have many — up to **20 active lanes** at a time (archive old ones to make room). Bound lanes inside Studio don't count toward that limit.
+A lane is a single conversation. You can have many — up to **20 active lanes** at a time (archive old ones to make room). Bound lanes inside Text, Slides, Blogger and Images don't count toward that limit.
 
 Each lane is **private to you**. In a shared workspace, your teammates never see your lanes. What gets shared is what lands in Files.
 
@@ -14,26 +14,31 @@ Lanes are listed newest-first. You can:
 - **Pin** it so it sorts to the top
 - **Archive** it when you're done
 - **Search** across lane names and transcript content
-- **Filter by colleague** — see all your Researcher lanes, for instance
 
-## You pick who, not which model
+## You pick an engine
 
-When you start a new lane, you choose a **colleague**, not an engine:
+Starting a conversation is choosing a **model**, not a character. Chat is the raw-LLM surface: you're talking to an engine, grounded in your workspace.
 
-| Colleague | What they're for |
+The current roster spans four providers:
+
+| Provider | Models |
 |---|---|
-| **Thinker** | Thinks a problem through with you — writing, judgment, hard calls |
-| **Researcher** | Digs through material fast — your workspace and the web, with sources |
-| **Designer** | Makes the thing itself — decks, docs, the artifact in front of you |
-| **Critic** | Pressure-tests an idea — finds the hole before it costs you |
+| **Anthropic** | Claude Opus 5 · Claude Sonnet 5 · Claude Haiku 4.5 |
+| **OpenAI** | GPT-5 · GPT-4o mini |
+| **Google** | Gemini 2.5 Pro · Gemini 3.5 Flash Lite |
+| **DeepSeek** | DeepSeek |
 
-The engine behind each colleague stays visible as a chip on the lane, but it isn't the thing you choose. You can also hire and name your own colleagues on the [Agents](agents.md) surface — a lane started with them works identically.
+Your last choice is remembered, so you don't re-pick every time, and the full list is one click away. The engine is visible on the lane, because a revision it writes is signed with it — reading your own history has to tell you which model authored what.
 
-Under the hood the roster spans Claude, GPT, Gemini, and DeepSeek models. Which one is running is a fact you can see, not a decision you have to make.
+They differ in price and in what they're good at. The [engines page](https://www.yarnnn.com/engines) is the current public reference.
+
+If you want a *character* rather than an engine — someone with a job and a posture — that's an app's bound lane. See [Agents](agents.md).
+
+## Who else is in the room
+
+A lane isn't necessarily just you and a model. The **cast** shows who's in the conversation, and you can bring in another person from your workspace or an agent. What they say lands in the same transcript.
 
 ## What a lane can do
-
-Every colleague has the same capabilities — no agent can do something another can't.
 
 - **Read and search your workspace** — semantic search across everything you've authored
 - **Search the web**
@@ -62,7 +67,10 @@ Grounding is strongest for material that's been indexed — files you've settled
 | Active lanes | 20 per person, per workspace |
 | Lane name | 60 characters |
 | Message length | 32,000 characters |
-| History sent per turn | Last 20 messages |
-| Response timeout | 120 seconds |
+| History carried per turn | The most recent ~120,000 characters |
+
+When a conversation outgrows the history window, the **oldest** messages drop first — never the middle, so the thread you're in stays intact.
+
+A long file a lane reads is capped too, and it says so when it truncates rather than pretending it read the whole thing.
 
 On a phone, the lane list and the conversation are separate screens — pick a lane to open it, and there's a way back.

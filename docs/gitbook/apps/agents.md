@@ -1,43 +1,43 @@
 # Agents
 
-Agents are the colleagues you work with. The roster starts with four and grows as you name your own.
+Agents is the roster: who works with you here. Each one lives in an app, so you meet them where the work is rather than summoning them from a list.
 
-## The base roster
+## The roster
 
-| Name | What they do | Engine |
+| Agent | What they do | Where you meet them |
 |---|---|---|
-| **Thinker** | Thinks a problem through with you — writing, judgment, hard calls | Claude Sonnet |
-| **Researcher** | Digs through material fast — your workspace and the web, with sources | Gemini Flash |
-| **Designer** | Makes the thing itself — decks, docs, the artifact in front of you | Claude Sonnet |
-| **Critic** | Pressure-tests an idea — finds the hole before it costs you | Claude Sonnet |
+| **Editor** | Writes with you — decks and documents | [Text](text.md), [Slides](slides.md) |
+| **Designer** | Makes images | [Images](images.md) |
+| **Blogger** | Writes posts for readers outside the workspace | [Blogger](blogger.md) |
 
-There are three base capabilities, not one per model — they map to three things you actually ask for: *acquire*, *reason*, *produce*. Critic is a **stance** over the Thinker: same capability, different character.
+That's the whole roster. Three agents, each bound to the surface where its work happens.
 
-The engine each one runs on is shown on its card. It's a fact you can see, not a decision you have to make.
+## They live in apps, not on a bench
 
-## Hiring your own
+You don't hire an agent, name it, or assign it a task from this page. Open the app and the agent is already there in the bound lane, because the app *is* where that kind of work gets done.
 
-You can hire any base agent and give it your **own name, tone, colour, and avatar**. A "Maya" who runs the Researcher capability with your house style is a real colleague on your roster, and starting a chat with her opens a lane like any other.
+The reason the roster is small is that an agent here is a **character with a job**, not a general-purpose assistant with a costume. Editor writes your document in your voice; Blogger writes for a stranger who has never seen your workspace. Those two postures genuinely conflict, which is why they're two agents rather than one agent with an instruction.
 
-Naming is free and gates nothing. It exists because working with *someone* is different from working with a dropdown.
+If you want a general-purpose model to think with, that's [Chat](chat.md) — where you pick an engine, not a character.
 
-## Capability is uniform
+## What an agent is
 
-Every agent — base or hired — holds exactly the same abilities: read, write, edit, search, and list files, plus workspace search and web search.
+An agent is identity, character, and engine. Nothing else.
 
-The Designer isn't the one *permitted* to make artifacts. It's the one whose *character* is making. This matters: you never have to work out which colleague is allowed to do the thing you need.
+It carries **no authority of its own**. It has no permission dial, no budget of its own, no schedule, and no standing right to act. Everything an agent is allowed to do comes from somewhere else:
 
-## What agents don't have
+- **Permission** comes from a grant — the same kind of grant a human member holds.
+- **Spend** comes from the workspace balance and budget.
+- **Anything that crosses the boundary** surfaces on [Reach](reach.md) for a member to execute.
 
-There is no authority dial on an agent. You won't find a "let this one act without asking" setting, because that isn't a property of a colleague — it's a property of the workspace.
+This is deliberate and structural, not a setting. An agent working in your lane acts as your hands, and the record says so: revisions it writes are attributed *"you via <engine>"*, never to an autonomous actor.
 
-Those dials live in **Workspace Settings → System**:
+## What agents don't do
 
-- **Autonomy** — when work needs your eyes before it binds
-- **Budget** — the spend envelope for the workspace
+**Nothing wakes on its own initiative.** An agent works in a member's lane, or on a member's standing declaration — a file you've declared should be kept current on a schedule. There is no third mode where something decides on its own that work needs doing.
 
-See [Freddie, the workspace steward](../concepts/freddie.md).
+**No background inference.** Agents don't watch your workspace and form opinions about it. What they know is what's in the files you point them at.
 
-## Starting work
+## Faces
 
-From any agent card, **Start chat** opens a lane in [Chat](chat.md). In [Studio](studio.md), the bound lane defaults to the Designer.
+Each agent has a face and a colour so you can tell at a glance who wrote what — in a lane, on a file's history, and in the roster. Where a member has set their own face, the member's wins.

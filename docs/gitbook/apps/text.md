@@ -1,14 +1,14 @@
-# Docs
+# Text
 
-Docs is where you write. A document is one continuous writing surface — you type into it, it flows, and an AI lane sits beside it, bound to the file you're editing.
+Text is where you write. A document is one continuous writing surface — you type into it, it flows, and an AI lane sits beside it, bound to the file you're editing.
 
 ## What a document is
 
-Notes, drafts, PRDs, meeting records — the internal working documents your workspace revolves around. A document is captured and revised forever, not laid out: there are no slides, no bands, no positioning. If you're making something for a stage or for the outside web, that's [Studio](studio.md).
+Notes, drafts, PRDs, meeting records — the internal working documents your workspace revolves around. A document is captured and revised forever, not laid out: there are no slides, no bands, no positioning. If you're making something for a stage, that's [Slides](slides.md); for a reader outside the workspace, that's [Blogger](blogger.md).
 
 ## Writing
 
-Open Docs and you either pick up where you left off, or start a new document. You name it and choose where it lives — Docs doesn't own a folder; documents go where they make sense in your workspace, next to the rest of your work.
+Open Text and you either pick up where you left off, or start a new document. You name it and choose where it lives — Text doesn't own a folder; documents go where they make sense in your workspace, next to the rest of your work.
 
 You write at the caret, like any good editor. The **outline** in the right-hand panel is a derived table of contents — your headings, read back to you in order. Click one to jump to it. It is not a structure you maintain: write a heading and it appears there. Documents speak three heading levels; pasted content with deeper headings arrives at Heading 3, so nothing you paste can hide from the outline. Type `/` anywhere to insert something richer than text:
 
@@ -26,7 +26,7 @@ Figures and galleries cite real workspace files — an image in your document is
 
 ## The bound lane
 
-The right-hand column is a chat lane bound to the document you have open. It's the same machinery as [Chat](chat.md), with two differences: it knows which file you're editing, and it defaults to the **Designer**.
+The right-hand column is a chat lane bound to the document you have open. It's the same machinery as [Chat](chat.md), with two differences: it knows which file you're editing, and the agent beside you is **Editor**, who writes with you across decks and documents.
 
 Two hands write to the same file:
 

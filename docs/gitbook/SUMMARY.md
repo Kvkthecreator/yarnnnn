@@ -11,15 +11,17 @@
 
 * [The desk: Think and Make](concepts/the-desk.md)
 * [Chat](apps/chat.md)
-* [Docs](apps/docs.md)
-* [Studio](apps/studio.md)
+* [Text](apps/text.md)
+* [Slides](apps/slides.md)
+* [Blogger](apps/blogger.md)
+* [Images](apps/images.md)
 * [Files](apps/files.md)
 * [Agents](apps/agents.md)
+* [Reach](apps/reach.md)
 
 ## How It Works
 
 * [How your work is recorded](concepts/how-your-work-is-recorded.md)
-* [Freddie, the workspace steward](concepts/freddie.md)
 * [Working with a team](concepts/working-with-a-team.md)
 * [How your data is used](concepts/how-your-data-is-used.md)
 

@@ -4,11 +4,11 @@
 
 It's a workspace where everything you and your AI produce — notes, decisions, documents, decks, images — lands in one place you own. Every file has an author. Every change is recorded. Nothing resets when a session ends.
 
-You work in it two ways: **Chat** for thinking, **Studio** for making. And you can reach the same workspace from ChatGPT, Claude, or any AI that speaks MCP.
+You work in it two ways: **Chat** for thinking, and the making apps — Text, Slides, Blogger, Images — for building the thing. And you can reach the same workspace from ChatGPT, Claude, or any AI that speaks MCP.
 
 ## The short version
 
-Think in Chat. Make in Studio. Everything lands in Files — attributed, versioned, and yours. Tell one AI something today, and every AI you connect knows it tomorrow.
+Think in Chat. Make in Text, Slides, Blogger or Images. Everything lands in Files — attributed, versioned, and yours. Tell one AI something today, and every AI you connect knows it tomorrow.
 
 ## Why this is different
 
@@ -22,8 +22,8 @@ Think in Chat. Make in Studio. Everything lands in Files — attributed, version
 
 ## What you can do with YARNNN
 
-- **Think** — hold conversations with named colleagues (Thinker, Researcher, Designer, Critic), grounded in your own workspace rather than a vendor's memory scrapings
-- **Make** — author documents, decks, articles, and landing pages in Studio, with an AI lane bound to the artifact you're editing
+- **Think** — hold conversations with the engine of your choice (Claude, GPT, Gemini, DeepSeek), grounded in your own workspace rather than a vendor's memory scrapings
+- **Make** — author documents, decks, posts and images, each in the app that fits its shape, with an AI lane bound to the artifact you're editing
 - **Keep everything** — Files holds every file in the workspace, with full revision history and reversible delete
 - **Trace anything** — see who changed a file, when, and what the change was
 - **Reach it from anywhere** — connect ChatGPT, Claude, or any MCP-capable AI to the same workspace

@@ -14,7 +14,7 @@ Uploaded documents land in **Downloads** and become searchable. Your lanes can r
 
 Not a test question — an actual one. The point of grounding is that the answer starts from your material, and you can only tell whether that's working on something you know the answer to.
 
-Try a Researcher lane for something that needs sources, or a Thinker lane for a decision you're stuck on.
+Try a frontier engine for a decision you're stuck on, or a fast one for something routine — you pick per conversation.
 
 ## Day 3 — Settle something
 
@@ -26,7 +26,7 @@ Why it matters: a conversation you don't settle is gone in a week. A file you se
 
 ## Day 4 — Make the artifact
 
-Open Studio. Build the thing the thinking was for — a doc, a deck, a page.
+Open the app that fits what you're building — Text for a document, Slides for a deck, Blogger for a post, Images for a picture.
 
 Use the bound lane to draft from what you settled, then shape it yourself. The lane is faster at the first 60%; you're better at the last 40%.
 
@@ -64,5 +64,5 @@ Their chat lanes stay private. What they settle into Files is shared. Every revi
 
 ## What not to expect yet
 
-- **Scheduled background work.** Connected platforms can be authorised and scoped, but automatic pulling on a cadence is not running yet.
-- **Freddie as a chat partner.** He's ambient — you see his work in the record, not in a conversation window.
+- **Scheduled pulling from connected platforms.** They can be authorised and scoped, but automatic pulling on a cadence is not running yet.
+- **Anything that acts on its own initiative.** Work happens in your lane, or on a standing declaration you made. There is no third mode.

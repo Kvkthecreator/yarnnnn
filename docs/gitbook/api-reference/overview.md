@@ -26,13 +26,13 @@ Generate a client from that rather than transcribing endpoints from documentatio
 |---|---|---|
 | Workspace | `/api/workspace` | Files, revisions, members, shares |
 | Lanes | `/api/lanes` | Chat lanes and turns |
-| Studio | `/api/studio` | Artifacts, layouts, blocks |
+| Studio | `/api/studio` | Artifacts, layouts, blocks (the route kept its original name after the app became Slides) |
 | Documents | `/api/documents` | Uploads |
-| Agents | `/api/agents` | The roster and hired agents |
+| Agents | `/api/agents` | The roster |
 | Integrations | `/api/integrations` | Platform connections |
 | Subscription | `/api/subscription` | Plan, balance, top-ups |
 | Budget | `/api/budget` | Spend envelope |
-| Recurrences | `/api/recurrences` | Scheduled work and activity |
+| Standing work | `/api/standing` | Files declared to stay current on a schedule |
 | Account | `/api/account` | Account-level state |
 
 ## Errors

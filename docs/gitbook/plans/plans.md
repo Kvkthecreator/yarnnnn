@@ -1,32 +1,32 @@
 # Plans and Pricing
 
-**Free for one. A seat for the team.**
+**Free for two. A seat for the rest.**
 
 Pricing has two parts, and only two:
 
-1. **Seats** — you're free. Each teammate you add is a seat.
-2. **Usage** — one shared pool for the whole workspace, whoever spends it.
+1. **Seats** — you and one teammate are free. From the third person, each is a seat.
+2. **Usage** — one shared pay-as-you-go balance for the whole workspace, whoever spends it.
 
 ## The plans
 
-| | **Free** | **Starter** |
+| | **Free** | **Team** |
 |---|---|---|
-| Price | **$0** for one person | **$20** /seat/mo |
-| Your own seat | Free | Free |
-| Additional people | Not available | $20/mo each |
-| Monthly usage included | — | **$15**, one shared pool |
-| Starting balance | $3 | — |
+| Price | **$0** for two people | **$20** /extra seat/mo |
+| People included | You and one teammate | The same two, free — then $20/mo each |
+| Additional people | From the 3rd person, a seat | No headcount cap |
+| Starting balance | $3 | $3 |
+| Usage | Pay-as-you-go | Pay-as-you-go |
 | Connect any AI over MCP | Included | Included |
 | Connected AIs count as seats | Never | Never |
 | Workspace, files, revision history | Included | Included |
 
-Everything in Free is in Starter, and your own seat stays free on both.
+Everything in Free is in Team, and your first two seats stay free on both.
 
 ## How seats work
 
-The first person in a workspace — you, the owner — is always free. That's true forever, not as a trial.
+**The first two humans in a workspace are free** — you and one teammate. That's true forever, not a trial. Inviting one person into your workspace is the thing the product is *for*, so it isn't the thing you pay for.
 
-Adding a second person is what makes a workspace paid. From there the team grows freely: each additional human is a $20/mo seat, with no headcount cap.
+Adding a **third** person is what makes a workspace paid. From there the team grows freely: each additional human is a $20/mo seat, with no headcount cap.
 
 **AI principals are never seats.** Connect ChatGPT, Claude, or any number of MCP clients — none of them is billed as a person.
 
@@ -34,37 +34,40 @@ You can spin up as many workspaces as you want. Each is billed on its own.
 
 ## How usage works
 
-A seat buys **access**, not a token bucket. Usage is a single pool the whole workspace draws from — you, your teammates, the agents, the connected AIs.
+A seat buys **access for a person**, not a token bucket. Usage is separate: a single balance the whole workspace draws from — you, your teammates, the agents, the connected AIs.
 
 The draw order:
 
-1. **Your monthly allowance** — $15/mo on Starter, refreshed each cycle
-2. **Your topped-up balance** — anything you've added, which never expires
-3. **Stop.** At zero, AI work stops until you top up. There's no surprise bill.
+1. **Your balance** — the $3 every new workspace starts with, plus anything you've topped up. Top-ups never expire.
+2. **Stop.** At zero, AI work stops until you top up. There's no surprise bill and no overdraft.
 
-Free workspaces start with a $3 balance and top up from there; top-ups start at $5.
+There is no monthly usage allowance on any plan, and nothing to "use up" before the month resets. You pay for what actually ran.
 
-Only AI reasoning draws from the pool. Writing files, storing them, keeping revision history, searching, and reaching the workspace over MCP are all free.
+Top-ups start at $5.
+
+Only AI reasoning draws from the balance. Writing files, storing them, keeping revision history, searching, and reaching the workspace over MCP are all free.
 
 → [Usage and spend controls](usage.md)
 
 ## Two guardrails
 
-- **A ceiling you set** — the workspace budget, at Workspace Settings → System
+- **A ceiling you set** — the workspace budget, in Workspace Settings
 - **A floor you can't cross** — a zero balance stops the draw
 
 ## Managing your plan
 
-**Settings → Billing.** Plan, balance, and top-ups are all there. Billing is per workspace — the workspace is what's being paid for — and you switch which one you're looking at from the avatar menu.
+**Workspace Settings → Billing.** Plan, balance, and top-ups are all there. Billing is per workspace — the workspace is what's being paid for — and you switch which one you're looking at from the avatar menu.
 
 ## Common questions
 
-**What does a seat cost?** $20/mo, and only for people after the first.
+**What does a seat cost?** $20/mo, and only for people after the first two.
 
-**What counts as usage?** AI reasoning — a chat turn, a Studio draft, an image composition. Not storage, not file operations, not MCP reads.
+**What counts as usage?** AI reasoning — a chat turn, a draft in Slides or Text, an image composition. Not storage, not file operations, not MCP reads.
 
-**Why a plan instead of pure pay-as-you-go?** The included allowance covers ordinary use without you thinking about it, and the seat is what opens the workspace to a team. Beyond the allowance you're only ever paying for what you actually used.
+**Which model am I paying for?** Whichever engine you pick for that chat. They differ in price and in what they're good at — see the [engines page](https://www.yarnnn.com/engines) for the current list.
 
-**What if the allowance runs out?** Work pauses until you top up. Nothing is lost and nothing overdrafts.
+**Why pay-as-you-go instead of an included bundle?** Because a bundle is either too small to be useful or big enough that most people overpay for it. A balance you top up is what you actually used, and nothing expires at the end of a month.
+
+**What if my balance runs out?** Work pauses until you top up. Nothing is lost and nothing overdrafts.
 
 **Can I cap what it spends?** Yes — set a budget. See [Usage and spend controls](usage.md).

@@ -4,7 +4,7 @@ There are two ways material moves between YARNNN and the outside world.
 
 ## 1. The MCP connector — your other AI reaches in
 
-This is the main one. Connect ChatGPT, Claude, or any MCP-capable client to `https://mcp.yarnnn.com` and it can save to, search, and trace your workspace directly.
+This is the main one. Connect ChatGPT, Claude, or any MCP-capable client to `https://mcp.yarnnn.com` and it can save to, search, and walk the history of your workspace directly.
 
 This is what makes YARNNN shared memory rather than another app with its own memory: you keep working wherever you already work, and everything lands in one place you own.
 

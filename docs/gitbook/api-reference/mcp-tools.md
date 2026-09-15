@@ -1,6 +1,6 @@
 # MCP Tool Reference
 
-The MCP server exposes nine file-native tools. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
+The MCP server exposes eleven file-native tools. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
 
 **Endpoint:** `https://mcp.yarnnn.com`
 **Transport:** streamable-http, served at the root path
@@ -15,9 +15,27 @@ The MCP server exposes nine file-native tools. For setup, see the [MCP connector
 
 ---
 
+## `whoami`
+
+Name where you are standing. A read.
+
+Returns which workspace this connection is bound to, whether that is the one the
+operator chose, who your writes will be signed as, and which of these verbs your
+token actually authorizes.
+
+Call it once at the start of real work, and **always before writing somewhere the
+user assumed** — a person can belong to more than one workspace, and a reference
+like "my notes" means different files in each.
+
+---
+
 ## `open`
 
 Read one exact file. A read.
+
+A binary file — image, PDF, video, font — answers `binary: true` with its type,
+size and a short-lived `content_url` instead of text. It has bytes, not content,
+and it is never empty.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
@@ -157,6 +175,15 @@ when, what changed, the revision id, and a diff against its predecessor. If
 the file cites sources (`derived_from`), each cited file's chain is appended.
 An unknown path returns `found: false` — search first when you only know the
 topic. Read-only and idempotent.
+
+---
+
+## `request_upload`
+
+Get a short-lived URL to upload a file into the workspace. A write.
+
+For content that arrives as bytes rather than text — an image, a PDF, an export.
+The upload lands as an attributed file like any other.
 
 ---
 

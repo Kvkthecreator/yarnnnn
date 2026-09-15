@@ -63,7 +63,7 @@ ChatGPT connects MCP servers through Developer mode.
 
 <figure><img src="../.gitbook/assets/mcp connect - openai3.png" alt=""><figcaption></figcaption></figure>
 
-ChatGPT also renders YARNNN's results as inline cards — a trace timeline, recall cards, a save receipt — rather than plain text.
+ChatGPT also renders YARNNN's results as inline cards — a history timeline, search-result cards, a save receipt — rather than plain text.
 
 ---
 

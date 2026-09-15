@@ -1,5 +1,5 @@
 {
-  "docs_version": "v6.0.0-docs.20260322",
+  "docs_version": "v5.0.0-docs.20260915",
   "history": [
     {
       "commit_count": 18,
@@ -21,8 +21,15 @@
       "head": "174b43dd9b1a4007febf96d8799b272ec75f04d1",
       "range": "147a7bc..174b43d",
       "synced_at": "2026-03-22T15:30:00Z"
+    },
+    {
+      "commit_count": 2486,
+      "docs_version": "v5.0.0-docs.20260915",
+      "head": "b98999bd05b2daf94770d01728f2f448a4595599",
+      "range": "174b43d..b98999b",
+      "synced_at": "2026-09-15 23:53:25Z"
     }
   ],
-  "last_synced_at": "2026-03-22T15:30:00Z",
-  "last_synced_commit": "174b43dd9b1a4007febf96d8799b272ec75f04d1"
+  "last_synced_at": "2026-09-15 23:54:04Z",
+  "last_synced_commit": "b98999bd05b2daf94770d01728f2f448a4595599"
 }
