@@ -15,9 +15,16 @@ It reuses the SAME mechanism as the Embed primitive (Singular Implementation):
 
 Usage:
     cd /Users/macbook/yarnnn/api
-    python scripts/backfill_embeddings.py <email>            # one user
-    python scripts/backfill_embeddings.py --all              # every user with files
-    python scripts/backfill_embeddings.py <email> --dry-run  # report only, no embeds
+    python3 -m scripts.backfill_embeddings <email>            # one user
+    python3 -m scripts.backfill_embeddings --all              # every user with files
+    python3 -m scripts.backfill_embeddings <email> --dry-run  # report only, no embeds
+
+    RUN IT WITH -m, NEVER BY PATH. A by-path run puts api/scripts/ first on
+    sys.path, where the `operator/` probe package shadows the stdlib `operator`
+    module; the next stdlib import (pathlib -> re -> functools -> collections)
+    then dies with `ImportError: cannot import name 'eq' from 'operator'`.
+    `-m` never adds that entry. (Reproduced 2026-09-13 and again 2026-09-16,
+    the second time by a brand-new script in this directory.)
 
 Idempotent: only embeds rows where embedding IS NULL and the path is eligible.
 Re-running after a partial run resumes cleanly. Honors no daily cap (this is an

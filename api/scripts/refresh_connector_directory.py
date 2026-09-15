@@ -7,7 +7,11 @@ repository and commit it was derived from. Re-run it to pick up upstream
 changes; the diff is the change.
 
 Usage:
-    python3 scripts/refresh_connector_directory.py [/path/to/knowledge-work-plugins]
+    python3 -m scripts.refresh_connector_directory [/path/to/knowledge-work-plugins]
+
+    RUN IT WITH -m, NOT BY PATH: api/scripts/operator/ shadows the stdlib
+    `operator` module for a by-path run, and the interpreter dies at import.
+    See backfill_embeddings.py for the full note.
 
 Without a path it clones a shallow copy into a temp dir.
 """

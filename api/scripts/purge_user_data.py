@@ -4,7 +4,11 @@ Purge all data for a specific user to test cold-start/onboarding flow.
 
 Usage:
     cd /Users/macbook/yarnnn/api
-    python scripts/purge_user_data.py <email> [--dry-run]
+    python3 -m scripts.purge_user_data <email> [--dry-run]
+
+    RUN IT WITH -m, NOT BY PATH: api/scripts/operator/ shadows the stdlib
+    `operator` module for a by-path run, and the interpreter dies at import.
+    See backfill_embeddings.py for the full note.
 
 This gives a TRUE cold-start. Wipe order (FK-safe):
 1. workspace_file_versions (ADR-209 Authored Substrate revisions — delete
