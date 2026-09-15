@@ -107,7 +107,15 @@ export default function PrivacyPage() {
             <strong>Vercel:</strong> Web hosting and analytics
           </li>
           <li>
-            <strong>AI providers (Anthropic, OpenAI, Google, DeepSeek):</strong>{" "}
+            {/* This list is a DISCLOSURE, not a description — it must name every
+                provider a member's content can reach. xAI was missing until
+                2026-09-16 while `xai/grok-4.6` was live in the engine whitelist
+                and named on /engines: the page billed as the complete list was
+                the one that was short. Adding a provider to LANE_MODELS adds it
+                here, in the same change. */}
+            <strong>
+              AI providers (Anthropic, OpenAI, Google, DeepSeek, xAI):
+            </strong>{" "}
             when you ask an AI to work, the files needed for that task are sent
             to the provider running it. Which provider depends on the model
             chosen for the task. Content sent this way is processed under each

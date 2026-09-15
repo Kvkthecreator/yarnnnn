@@ -70,7 +70,11 @@ const TRUST_MARKS = [
 
 const RECIPIENTS = [
   {
-    name: "Anthropic · OpenAI · Google · DeepSeek",
+    // Every provider a member's content can reach — xAI included since
+    // `xai/grok-4.6` is live in LANE_MODELS (added here 2026-09-16, which is
+    // when the omission was found). A page billed as the complete list has to
+    // be complete.
+    name: "Anthropic · OpenAI · Google · DeepSeek · xAI",
     role: "Run the AI task you asked for",
     data: "The files needed for that task, depending on the model chosen",
   },
