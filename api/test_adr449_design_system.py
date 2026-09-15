@@ -131,11 +131,20 @@ def run() -> int:
     )
     from services import lane_runner
 
+    # (Re-pinned 2026-09-13: ADR-606 D3 (92d37b0) moved the composition out of
+    #  the kernel into the app posture builder — `studio_pane_posture` composes
+    #  the section, and lane_runner reaches that builder ONLY under its
+    #  `if artifact_path:` branch. Same rule, two receipts; never a bare
+    #  "design_system" substring, which lane_runner does not contain.)
+    from services import authoring as _authoring
     lr_src = inspect.getsource(lane_runner.build_lane_conventions)
+    posture_src = inspect.getsource(_authoring.studio_pane_posture)
     passed &= _check(
         "lane_runner composes the section for bound lanes only (inside the artifact_path branch)",
-        "build_design_system_section" in lr_src
-        and lr_src.index("if artifact_path:") < lr_src.index("build_design_system_section"),
+        "build_design_system_section(client, user_id)" in posture_src
+        and "_builder(client, user_id, artifact_path, artifact)" in lr_src
+        and lr_src.index("if artifact_path:") < lr_src.index("studio_pane_posture")
+        and lr_src.index("if artifact_path:") < lr_src.index("_builder(client, user_id, artifact_path, artifact)"),
     )
     # (No "studio.py untouched" ratchet: the ADR-447 D7 inspector pass is
     # EXPECTED to wire these functions into studio-side files — the collision
@@ -343,8 +352,13 @@ def run() -> int:
     passed &= _check(
         "var-editor permission: the design-system check is ADDITIVE — it does "
         "not replace the fixed editable_prefixes safety list",
+        # (Re-pinned 2026-09-13: the condition is multi-line with an
+        #  `editable_prose` disjunct first; assert over whitespace-normalised
+        #  source so the invariant — the DS check is ONE conjunct of an AND of
+        #  negations beside the prefix list — survives reformatting.)
         "editable_ds" in edit_src and "editable_prefixes" in edit_src
-        and "not editable_ds and not any" in edit_src,
+        and "not editable_ds and not any(path.startswith(p) or path == p for p in editable_prefixes)"
+        in " ".join(edit_src.split()),
     )
 
     # ── 6. purity: no write path in the module ────────────────────────────
