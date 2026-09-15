@@ -125,8 +125,11 @@ def run() -> bool:
     # OBJECT-ONLY on flow, matching the boundary FLOW_POINTER_CSS already drew
     # for the hover cue. The asymmetry D2 fixed stays fixed for objects.
     _check(
+        # (Re-pinned 2026-09-13: ADR-525 D2 (ad1abbd) moved the cue decision to
+        #  the ONE chokepoint, __yarnnnSelect — tier-gated; both halves pinned.)
         "D2+484 flow left-click applies the selection cue to OBJECTS ONLY",
-        "if (cur && TEXT_KINDS.indexOf(cur.getAttribute('data-block')) === -1) {" in proj,
+        "if (tierOf(el) !== 'text') el.classList.add('yarnnn-pointed');" in proj
+        and "return flow && TEXT_KINDS.indexOf(kind) !== -1 ? 'text' : 'object';" in proj,
     )
 
     # ── D3 — the chrome waits for the mode ────────────────────────────────
@@ -227,12 +230,16 @@ def run() -> bool:
 
     # ── D9 — prose is never boxed on flow; the menu offers no impossible act ──
     _check(
+        # (Re-pinned 2026-09-13: the local guard is gone — the contextmenu
+        #  handler routes its mark through the chokepoint, which owns the tier.)
         "D9 right-click does NOT box a TEXT block on flow",
-        "if (!flowNow || TEXT_KINDS.indexOf(markKind) === -1) {" in proj,
+        "window.__yarnnnSelect(mark);" in proj
+        and "if (tierOf(el) !== 'text') el.classList.add('yarnnn-pointed');" in proj,
     )
     _check(
         "D9 left-click keeps the same boundary (objects only)",
-        "if (cur && TEXT_KINDS.indexOf(cur.getAttribute('data-block')) === -1) {" in proj,
+        "window.__yarnnnSelect(blk)" in proj
+        and "if (tierOf(el) !== 'text') el.classList.add('yarnnn-pointed');" in proj,
     )
     _check(
         "D9 Paste here is gated on there being something to paste",
@@ -248,7 +255,8 @@ def run() -> bool:
         # is the coverage hole ADR-509 exists to close. Still a real guard: the
         # early return must remain, and must still consider block + clipboard.
         "if (!hasBlock && !hasClipboard && !hasInsert) return null;" in menu
-        and "const hasInsert = !!onInsert && isPaged;" in menu,
+        # (Re-pinned 2026-09-13: onInsert → onInsertKind, ADR-579 D6.a.)
+        and "const hasInsert = !!onInsertKind && isPaged;" in menu,
     )
     _check(
         "D9 the surface passes the clipboard state",
@@ -262,8 +270,10 @@ def run() -> bool:
         "const isPaged = mode === 'paged';" in menu,
     )
     _check(
+        # (Re-pinned 2026-09-13: ADR-541 D4 added the set-withdrawal term; the
+        #  rows sit under the enclosing hasBlock branch.)
         "D5 Move up/down render only on paged",
-        "{hasBlock && isPaged && (" in menu,
+        "{isPaged && !inSet && (" in menu and "{hasBlock && (" in menu,
     )
     _check(
         "D5 the surface passes the RESOLVED mode",
@@ -358,14 +368,16 @@ def run() -> bool:
         "PRESERVED the selection box + handles still live in GUTTER_SCRIPT",
         "yarnnn-selbox" in objects,
     )
-    _check(
-        "PRESERVED paste stays plain-text in BOTH grains (the §7 refusal)",
-        proj.count("getData('text/plain')") == 2,
-    )
-    _check(
-        "PRESERVED the flow root is still the editing host (ADR-480 D1)",
-        "root.setAttribute('contenteditable', 'true');" in proj,
-    )
+    # Two PRESERVED checks were RETIRED 2026-09-13, subject gone:
+    #  - "paste stays plain-text in BOTH grains (the §7 refusal)" — ADR-521
+    #    reversed the refusal (paste is rich, sanitised through
+    #    sanitizePastedHtml), and ADR-560 D8 (290257c) deleted the second lane
+    #    that made the count two.
+    #  - "the flow root is still the editing host (ADR-480 D1)" — the flow root
+    #    was deleted by ADR-560 D8; no registered layout has mode flow (ADR-599
+    #    D5). The only live contenteditable host is the per-block PAGED one,
+    #    which "D4 EDIT_CSS is applied only on paged" already pins — re-pointing
+    #    here would silently invert the check's meaning.
 
     passed = sum(1 for _, ok in _results if ok)
     total = len(_results)

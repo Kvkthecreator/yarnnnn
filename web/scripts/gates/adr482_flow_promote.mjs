@@ -37,8 +37,19 @@ function extractConst(decl) {
 const labelsSrc = readFileSync('web/components/authoring/structureLabels.ts', 'utf8');
 const pageSelLit = labelsSrc.match(/export const STRUCTURAL_PAGE_SEL = ('[^']+');/)?.[1];
 if (!pageSelLit) throw new Error('gate: STRUCTURAL_PAGE_SEL literal not found');
+// 946fe03 grew normalizeStructure's promoted-predicate to read REGION_SEL (an
+// empty region can be addressed) — the same lesson again: a grown function
+// grows its harness dependencies. Sourced from the one home, never restated.
+const regionSelLit = labelsSrc.match(/export const REGION_SEL = ('[^']+');/)?.[1];
+if (!regionSelLit) throw new Error('gate: REGION_SEL literal not found');
+// The promoted-predicate also reads the module-local isCitationIsland helper;
+// it is lifted from the live source (types stripped), never restated.
+const islandSrc = src.match(/function isCitationIsland\(el: Element\): boolean \{[\s\S]*?\n\}/)?.[0];
+if (!islandSrc) throw new Error('gate: isCitationIsland not found in artifactOps.ts');
 const prelude = [
   `const PAGE_SEL = ${pageSelLit};`,
+  `const REGION_SEL = ${regionSelLit};`,
+  islandSrc.replace('(el: Element): boolean', '(el)'),
   extractConst('const PROMOTE_KIND: Record<string, string> = {').replace(
     ': Record<string, string>',
     '',
