@@ -34,11 +34,9 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   fixed; MOVING the remaining file is a data repair and the operator's call — confirm intent, then move via
   `write_revision` at the correct binding (`SK Personal`, 9dc80079), never an UPDATE of `workspace_id` (the
   revision chain is the record).
-- Exposed population re-probed 2026-09-15: exactly **2 accounts** own more than one live workspace, and BOTH are
-  the operator's own (`kvkthecreator@gmail.com` → SK Personal + yarnnn workspace; the alpha-trader persona
-  instrument → My Workspace + seulkim tester). No stranger is exposed. `resolve_owner_workspace_id`'s docstring
-  claimed "AT MOST one" — **corrected 2026-09-15** to describe what it actually is (the HOME resolver, oldest-first);
-  ownership is deliberately NOT capped. All 19 live workspaces carry an active owner grant (0 orphans).
+- CLOSED 2026-09-15 (`b4f251f`): the multi-ownership exposure is 2 accounts, BOTH the operator's own — no
+  stranger affected — and the "AT MOST one" docstring is corrected. All 19 live workspaces carry an active
+  owner grant (0 orphans). Ownership is deliberately not capped.
 
 ## Genesis (ADR-414 D4 · 465; found 2026-09-12)
 - No live workspace has the governance dials, so `initialize_workspace` (`api/services/workspace_init.py`) is
@@ -83,27 +81,46 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 The authoritative list is `docs/evaluations/2026-09-13-gate-census.md` — 42 pytest + 28 script rows remain after the
 Studio-era cluster (26 gates) was ruled 2026-09-13/14; the still-open shapes (ADR-209 live phases, retired-model subjects, the settings pane move) are named there. A ruling lowers the list in the same commit.
 
-## A send that left no trace (found 2026-09-15, ws d5b9029b lane 506b7bbf)
-- The operator's Text-bound send with two image attachments (2026-09-13 15:53Z) reached NO handler: no access
-  line, no `chat_sessions` read, no error, 0 messages — while both uploads succeeded and the identical send ran
-  green on the rig (lane 5dd54228, `tools=5 artifacts=1`). Of the three defects behind the generic message:
-  - **(a) RULED 2026-09-15, mitigated not cured.** `get_user_client` is a sync dependency on the `lru_cache`d
-    shared service client, whose HTTP/2 pool throws `httpx.ReadError: [Errno 11]` under concurrent requests
-    (7 bursts, 5 instances, 09-12→13). The reach lookup now retries once on a transient transport fault
-    (`_retry_once_on_transport`, `services/supabase.py`), which recovers the dropped socket. THE CURE — not
-    sharing one pool across threadpool workers — is a client-lifecycle change and still owed its own ADR.
-  - **(c) RULED 2026-09-15.** `principal_reaches_workspace` raised nothing and returned False on ANY exception,
-    so a socket error read as "No active grant". It now raises `ReachUndecidable`; all four call sites answer
-    503 ("Could not verify your access just now") instead of a false 403. Gate:
-    `api/test_reach_undecidable_is_not_a_denial.py` (18/18, every assertion falsified).
-  - **(b) STILL OPEN.** `streamLaneTurn` has no deadline before the first byte (ADR-651 D3 bounds `request()`
-    and the idle window only), so the edge's cutoff becomes "The lane turn failed" with no cause and the
-    attachment chips are dropped. Needs its own ruling.
+## A send that left no trace (found 2026-09-15) — two of three ruled, see `b4f251f`
+- **(b) STILL OPEN.** `streamLaneTurn` has no deadline before the first byte (ADR-651 D3 bounds `request()`
+  and the idle window only), so the edge's cutoff becomes "The lane turn failed" with no cause and the
+  attachment chips are dropped. Needs its own ruling.
+- **(a) mitigated, not cured.** The reach lookup retries once on a transient transport fault, which recovers
+  the dropped socket. THE CURE — `get_user_client` is a sync dependency sharing one `lru_cache`d HTTP/2 pool
+  across every threadpool worker — is a client-lifecycle change and still owes its own ADR.
+
+## Beta readiness (pass run 2026-09-15) — what is OWED before strangers arrive
+The core loop is PROVEN on prod: a chat send wrote `operation/beta-readiness-probe.md` in ws `bf5b25a9`,
+revision `41708c79`, attributed `member:67c5c637 via anthropic/claude-sonnet-5`, ~13s send→durable write,
+with the ADR-651 bounded wait visible live. Fixed this session: the reach 503, the sign-up success riding the
+error channel, the 7× composition fetch, password reset (it did not exist), the undeliverable-address 500.
+Still owed, none of them code in this repo:
+- **Paste the six auth templates** into the Supabase dashboard (already listed under Email below). Highest
+  priority of the remainder: every beta user's first contact is a Supabase-sent email.
+- **Docs contradict `/pricing` on the free tier** — the marketing page says $0 for TWO people and paid from the
+  3rd; `yarnnn.gitbook.io/docs/plans-and-billing/plans` says $0 for ONE, paid at the second, calls the plan
+  "Starter" not "Team", and promises a $15/mo included pool the pricing page does not. Both are footer-linked.
+  A buyer who checks the docs finds a different, costlier model. GitBook edit, not a repo change.
+- **Every conversion CTA lands on Sign IN** ("Connect your AI", "Start free", "Bring the team", "Open yarnnn"
+  → `/auth/login`, which defaults to sign-in mode). A new visitor must find the small "Sign up" toggle.
+  `/auth/login` accepts no mode param today — adding one is a small repo change, not yet made.
+- **Docs still document Freddie** ("the workspace steward", 1 of 4 entries under HOW IT WORKS, with Autonomy
+  and Budget dials) — retired by ADR-632. Also app-name drift: docs say Docs/Studio, the product says
+  Text/Slides, and `/how-it-works` uses both spellings on one page.
+- `/terms` is 1,625 chars, dated 2026-01-28 (vs `/privacy` 2026-07-08), mentions no refund/billing/subscription
+  while the site sells $20/seat, and carries no nav or footer. `/invest` repeats the old pricing model;
+  `/engines` lists xAI while `/privacy` §4 — billed as the complete third-party list — omits it.
+- Two prod probe accounts to tear down: `beta-cold-01@yarnnn.com` (3cd3cf45) and
+  `probe-nodomain@thisdomaindoesnotexist-zzz.com` (9af29121), created 2026-09-15 while isolating the signup
+  500. Use the product's purge path, not a hand-written DELETE.
+- NOT covered by this pass, and each is its own run: a real cold sign-up driven end-to-end through the
+  browser (the API half is probed by `probe_cold_user_genesis.py`; the UI half is not), N>2 members, a paid
+  tier, any connected platform, a real phone, and the Slides/Blogger/Images authoring surfaces beyond load.
 
 ## Waiting (ADR-651, 2026-09-13)
-- Prod click-pass once both deploys are live: a lane turn shows "Lisa is working… 12s"; the network tab shows
-  `: ping` every 15s during a silence; a killed connection ends in "The reply stopped arriving" with the composer
-  text restored. The primitive was driven in Chrome (light, dark, reduced motion); the live path was not.
+- ~~Prod click-pass of a live turn~~ — DONE 2026-09-15 (see Beta readiness above): "is working…" rendered for
+  ~8s on a real lane turn and resolved into an attributed write. The `: ping` heartbeat and the killed-connection
+  "The reply stopped arriving" arm were NOT driven and are still owed.
 - `framer-motion` is a dead dependency (imported nowhere) — removing it needs a lockfile write; `pnpm` is not on
   this machine's PATH and Vercel installs frozen.
 
