@@ -49,7 +49,7 @@ Per ADR-596 D3's ordering, the frame's protections were inventoried before delet
 ## 3. What this deliberately leaves
 
 - **ProposeAction / ReturnVerdict / the queue / the autonomy and budget dials** stay. They are ADR-307's gate and ADR-596 D3 phase (d)'s territory — review as a grant plus policy declaration — and the operator is the verdict-giver until that ADR lands. No producer of proposals exists today; the surface tells the truth about that.
-- **The `wake_queue` and `tasks` tables** stay as data until a follow-up migration drops them.
+- **The `wake_queue` table** was dropped by migration 254 (2026-09-14; 15,388 rows, all completed/failed — receipts in the migration header). **`tasks` stays**: ADR-639 D3 re-founded it as the ONE drain loop's index (`kind='standing'`, the capture lane beside it), so it is live by code and is not dropped.
 - **The entity primitives** (`LookupEntity`/`EditEntity`/`ListEntities`/`ManageDomains`) and the trading primitives keep their handlers; each deserves its own caller audit. **Audited 2026-09-13**: the four entity primitives had no caller in any route, job, lane surface, MCP verb or capture directive — DELETED with `refs.py` (rows in the primitives-matrix deleted ledger). The perception/trading primitives (`TrackRegime` · `TrackUniverse` · `TrackWebSources` · `SyncPlatformState`) KEEP a declared reach: the capture lane dispatches any registry name a `@primitive:` directive names (`services/capture/lane.py`).
 - **The `freddie:` prefix** on historical revisions is display-resolved, never rewritten.
 

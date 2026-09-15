@@ -339,10 +339,9 @@ def purge_l2_workspace(
     """The L2 ("clear workspace") purge sequence — workspace-scoped wipe.
 
     Verbatim port of `routes/account.py::clear_workspace` Phase 1, preserving
-    the ADR-209 FK ordering (null head pointers → revisions → files) and the
-    ADR-298 wake_queue purge (transient compute, no auth cascade — stale
-    `pending` rows would otherwise drain a Reviewer wake against substrate that
-    no longer exists after reinit).
+    the ADR-209 FK ordering (null head pointers → revisions → files). (The
+    ADR-298 wake-queue purge left with the seat — ADR-632; the table was
+    dropped by migration 254.)
 
     PRESERVES (L2 invariant): platform_connections, user_admin_flags,
     member_state notification_prefs (ADR-489 D5), execution_events (cost
@@ -407,14 +406,6 @@ def purge_l2_workspace(
     )
     deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id, workspace_id=ws)
     deleted["activity_log"] = _delete_rows(client, "activity_log", user_id, workspace_id=ws)
-    # ADR-298 wake queue — transient Reviewer-execution compute. `user_id` is NOT
-    # FK-cascaded to auth.users (RLS service-role-only, transient by design), so it
-    # survives a workspace wipe unless purged explicitly. Stale `pending` rows would
-    # otherwise drain a Reviewer wake against substrate that no longer exists.
-    deleted["wake_queue"] = _delete_rows(
-        client, "wake_queue", user_id, optional=True, workspace_id=ws
-    )
-
     # ADR-476 D1: genuinely USER-scoped — these have no `workspace_id` column and
     # should not acquire one. A member's notifications and MCP OAuth tokens are
     # THEIRS (ADR-431: an AI connection belongs to the member who authorized it);

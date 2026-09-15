@@ -434,7 +434,6 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     - filesystem_documents (cascades filesystem_chunks via FK)
     - notifications
     - event_trigger_log (ADR-040 cooldown tracking)
-    - wake_queue (ADR-298 transient wake compute — no auth cascade, purged explicitly)
     - mcp_oauth_codes/access_tokens/refresh_tokens (MCP sessions)
 
     Preserved (L2 invariant):
@@ -551,8 +550,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         a reset is a true fresh start.
       - Task state: tasks.
       - Interaction: chat_sessions (cascades session_messages), activity_log,
-        notifications, execution_events (ADR-291 cost ledger),
-        wake_queue (ADR-298 transient wake compute — no auth cascade).
+        notifications, execution_events (ADR-291 cost ledger).
       - Integrations: platform_connections, sync_registry, integration_sync_config,
         export_log, destination_delivery_log, event_trigger_log.
       - Uploads: filesystem_documents (cascades filesystem_chunks).
@@ -596,7 +594,6 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "platform_connections",
             "sync_registry",
             "execution_events",           # ADR-291 unified cost ledger
-            "wake_queue",                 # ADR-298 transient wake compute — no auth cascade, must purge explicitly
             "user_admin_flags",           # ADR-194 v2 Phase 2b admin scope
         ]
         for table in tables:
@@ -704,8 +701,6 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         deleted["workspace_blobs"] = _delete_workspace_blobs(
             service_client, user_id, blob_shas
         )
-        # ADR-298 wake queue has no auth.users FK cascade — wipe before auth delete.
-        deleted["wake_queue"] = _delete_rows(service_client, "wake_queue", user_id, optional=True)
         for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
             deleted[table] = _delete_rows(service_client, table, user_id, optional=True)
 

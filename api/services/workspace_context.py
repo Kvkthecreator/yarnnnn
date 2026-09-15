@@ -107,8 +107,9 @@ def substrate_scope_filter(
     request binding, or owner resolution); legacy user_id fallback otherwise
     (byte-identical in N=1). Applies to every table carrying workspace_id:
     the substrate pair (migration 189), execution_events (200), and the
-    Phase-1 set — tasks, agents, agent_runs, activity_log, wake_queue,
-    action_proposals (201). NOT for member-experience tables (chat_sessions,
+    Phase-1 set — tasks, activity_log, action_proposals (201; the agent tables
+    went with migration 248, the wake queue with 254). NOT for
+    member-experience tables (chat_sessions,
     notifications, member_state) — those key on the principal. NOT for
     platform_connections — ADR-425 re-scoped the CREDENTIAL to the HUMAN's
     account (a platform credential is an account object); use

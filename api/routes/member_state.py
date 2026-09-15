@@ -49,7 +49,7 @@ async def get_member_state(key: str, auth: UserClient) -> dict:
     try:
         # member_state is RLS service-role-only (migration 202): authorization
         # is the verified JWT principal + grant-checked workspace resolution,
-        # not client-role row policies — activity_log/wake_queue precedent.
+        # not client-role row policies — the activity_log precedent.
         result = (
             get_service_client().table("member_state")
             .select("value, updated_at")

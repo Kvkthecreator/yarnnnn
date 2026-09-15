@@ -1,0 +1,46 @@
+-- 254 — drop `wake_queue`: the steward's transient wake compute (ADR-298),
+--       retired with the seat by ADR-632 ("stays as data until a follow-up
+--       migration drops it" — this is that migration).
+--
+-- WHAT THIS RETIRES
+-- ADR-298's per-workspace queue for single-lane Reviewer execution. Its
+-- service (`services/wake_queue.py`), drainer, walker and all five wake
+-- sources were deleted by ADR-632 (85c4f7b, 2026-09-02); no live module has read or
+-- written the table since. The only code that still names it is the purge
+-- paths (`optional=True`, which already tolerate a missing relation), the
+-- workspace-delete blocking list, and the Hat-B eval runner's steward-era
+-- completion poll — every one of those references leaves in the commit that
+-- carries this migration (singular implementation: no dead name survives).
+--
+-- ⚠️ `tasks` is NOT dropped, though ADR-632 named the two together. ADR-639
+-- re-founded `tasks` as the thin index the ONE drain loop rides (`kind =
+-- 'standing'` for standing work, the capture lane beside it — `claim_run` /
+-- `record_run` in services/scheduling.py, `services/standing_work.py`,
+-- `services/capture/scheduling.py`). It measured 0 rows on 2026-09-13 because
+-- no standing declaration is currently indexed, not because nothing reads it.
+-- Dropping it would break unattended work at its next declaration.
+--
+-- MEASURED BEFORE WRITING (production, 2026-09-13, read-only probe through
+-- the dry-run runner):
+--   wake_queue              15,388 rows — completed 15,260 · failed 128 ·
+--                           pending 0 · locked 0 (nothing in flight)
+--   tasks                        0 rows (see above — live by code, empty by data)
+--   FK constraints INTO wake_queue      0
+--   views over wake_queue               0
+--   dependents: policy `wake_queue_service_role_only`, trigger
+--               `trg_fill_workspace_id` (its function,
+--               `fill_workspace_id_from_owner()`, is SHARED — migration 201
+--               attached it to a loop of tables; the function stays)
+-- The rows are a completed history of a retired seat's wakes; the outcomes
+-- they produced live in `execution_events` and the substrate (ADR-298:
+-- "operators do NOT read queue directly"). Nothing is lost that anything reads.
+--
+-- Plain DROP, no CASCADE: the only dependents are the table's own policy and
+-- trigger, which fall with it. Idempotent: IF EXISTS. The runner supplies the
+-- transaction (--single-transaction); no BEGIN/COMMIT here.
+
+DROP TABLE IF EXISTS public.wake_queue;
+
+-- VERIFY (run after, expect 0 rows):
+--   SELECT relname FROM pg_class WHERE relname = 'wake_queue';
+-- and a PostgREST schema-cache refresh if the API is queried for it (PGRST205).

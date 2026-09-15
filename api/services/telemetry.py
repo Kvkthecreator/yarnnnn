@@ -326,9 +326,9 @@ def record_execution_event(
                             (fail-open — the row still lands, unscoped).
 
         ADR-298 Phase 5 cleanup (2026-05-22): the `wake_dedup_key` kwarg
-        was DELETED. Cross-source dedup migrated to wake_queue.dedup_key
-        with the UNIQUE constraint enforced at INSERT time per ADR-298 D6;
-        execution_events is no longer the dedup surface for wakes.
+        was DELETED; execution_events stopped being the dedup surface for
+        wakes (that moved to the wake queue, which retired with the seat —
+        ADR-632, dropped by migration 254).
         Migration 180 drops the column from execution_events. Callers in
         services/wake.py stopped passing wake_dedup_key in the same Phase
         5 commit.

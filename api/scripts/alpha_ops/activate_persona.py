@@ -320,7 +320,7 @@ def main() -> int:
             "services.workspace_purge.clear_workspace_for_user) before re-"
             "activating. Use for soak/eval clean-slate — gives a true revision-1 "
             "ledger. Preserves auth + platform_connections; purges substrate + "
-            "tasks + agents + chat + proposals + wake_queue."
+            "tasks + chat + proposals."
         ),
     )
     args = ap.parse_args()
@@ -359,7 +359,7 @@ def main() -> int:
         print("DRY RUN. No writes.")
         if args.clean_slate:
             print(f"Step 1 CLEAN-SLATE: clear_workspace_for_user({persona.user_id}) "
-                  f"[DESTRUCTIVE: purge substrate+tasks+agents+chat+proposals+wake_queue, "
+                  f"[DESTRUCTIVE: purge substrate+tasks+chat+proposals, "
                   f"reinit + re-fork program={persona.program}]")
         print(f"Step 2 init: initialize_workspace(program_slug=None) [idempotent, kernel skeleton + YARNNN agent row]")
         print(f"Step 3 fork: docs/programs/{persona.program}/reference-workspace/* → /workspace/* (.md + .yaml)")
@@ -384,8 +384,7 @@ def main() -> int:
             reinit = cs.get("reinit_summary", {})
             print(f"  OK purged: workspace_files={deleted.get('workspace_files', 0)}, "
                   f"workspace_file_versions={deleted.get('workspace_file_versions', 0)}, "
-                  f"agents={deleted.get('agents', 0)}, tasks={deleted.get('tasks', 0)}, "
-                  f"wake_queue={deleted.get('wake_queue', 0)}")
+                  f"tasks={deleted.get('tasks', 0)}")
             print(f"  OK captured prior_program={cs.get('prior_program_slug')!r}, "
                   f"reinit re-forked program={reinit.get('activated_program')!r}, "
                   f"agents_created={reinit.get('agents_created', [])}")

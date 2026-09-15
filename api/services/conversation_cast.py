@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 def _svc():
     """The cast table is service-role-only RLS (migration 226), matching the
-    `wake_queue` / `member_state` precedent: the API mediates authorization
+    `member_state` precedent: the API mediates authorization
     (workspace grant + cast membership), the table is not directly reachable.
 
     THE BUG THIS FIXES (live 500, 2026-07-29): every function here took a

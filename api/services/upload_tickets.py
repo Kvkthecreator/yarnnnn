@@ -176,7 +176,7 @@ def claim_upload_ticket(service: Any, token: str) -> dict:
     `redeemed_at IS NULL` and both proceed, so one ticket writes two files. The
     UPDATE below filters on `redeemed_at IS NULL` and returns the row it
     actually changed — the same CAS discipline `write_revision` uses for the
-    revision chain (ADR-406) and `wake_queue` uses for its lock.
+    revision chain (ADR-406).
 
     Claiming BEFORE the bytes are processed is deliberate: a ticket is spent by
     the ATTEMPT, not by the success. The alternative (claim on success) leaves a

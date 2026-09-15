@@ -61,7 +61,6 @@ class WorkspaceDeleteError(Exception):
 _BLOCKING_TABLES = (
     "action_proposals",
     "execution_events",
-    "wake_queue",
     "tasks",
     "chat_sessions",
     "activity_log",

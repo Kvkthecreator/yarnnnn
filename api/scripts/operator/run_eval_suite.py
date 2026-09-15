@@ -375,9 +375,10 @@ def _extract_triggering_revision_ids(evaluations: list[dict]) -> list[str]:
     """Pull revision_ids that should trigger Reviewer substrate-event wakes.
 
     flip_frontmatter_field / write_substrate turns on hook-bound paths fire
-    the bundle's substrate-event hook; the revision_id becomes the wake_queue
-    dedup_key (ADR-298 D6). Seed_draft first-writes don't transition status,
-    so they don't trigger — excluded.
+    the bundle's substrate-event hook (historically the revision_id became the
+    wake queue's dedup_key — ADR-298 D6; that queue retired with the seat,
+    ADR-632, and the ids are now reported only). Seed_draft first-writes don't
+    transition status, so they don't trigger — excluded.
     """
     revs: list[str] = []
     for ev in evaluations:
@@ -389,7 +390,9 @@ def _extract_triggering_revision_ids(evaluations: list[dict]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Completion gate — poll wake_queue + execution_events until wakes settle
+# Completion gate — poll execution_events until the fired turns settle
+# (the substrate-event half polled wake_queue; those wakes retired with the
+# seat — ADR-632 — and the table was dropped by migration 254)
 # (read-kind-agnostic; survives the v2 reshape unchanged)
 # ---------------------------------------------------------------------------
 
@@ -408,8 +411,8 @@ async def wait_for_completion(
     expected_revs: set[str] = set()
     addressed_turn_count = 0
     # manual_fire wakes (the {fire: <slug>} setup/turn path). Per ADR-296 v2 +
-    # ADR-298, a manual_fire of a JUDGMENT recurrence enqueues to wake_queue and
-    # drains via the deployed scheduler — identical context shape to a real
+    # ADR-298, a manual_fire of a JUDGMENT recurrence enqueued to the (now
+    # dropped) wake queue and drained via the deployed scheduler — the same shape as a real
     # cron_tick of the same recurrence (the eval-suite's faithful proxy for the
     # autonomous recurrence-fire path, ADR-318). Mechanical-mode fires (e.g.
     # track-account) run inline with no Reviewer wake, so we count fired slugs
@@ -420,8 +423,6 @@ async def wait_for_completion(
     for r in eval_results:
         if not r.get("fired"):
             continue
-        for rev in r.get("triggering_revision_ids", []) or []:
-            expected_revs.add(rev)
         for ev in r.get("evaluations", []) or []:
             if ev.get("action") == "send_message" and ev.get("phase") == "turn":
                 addressed_turn_count += 1
@@ -494,19 +495,6 @@ async def wait_for_completion(
     manual_fire_expected_slugs = set(manual_fire_slugs)
     manual_fire_baseline_ids = await loop.run_in_executor(None, _snapshot_manual_fire_ids)
 
-    def query_substrate_event_status() -> dict[str, str]:
-        if not expected_revs:
-            return {}
-        resp = (
-            client.table("wake_queue")
-            .select("dedup_key, status")
-            .eq("user_id", user_id)
-            .eq("wake_source", "substrate_event")
-            .in_("dedup_key", list(expected_revs))
-            .execute()
-        )
-        return {row["dedup_key"]: row["status"] for row in (resp.data or [])}
-
     def query_addressed_count() -> int:
         resp = (
             client.table("execution_events")
@@ -570,7 +558,7 @@ async def wait_for_completion(
             timed_out = True
             break
 
-        substrate_status = await _safe(query_substrate_event_status, substrate_status)
+        substrate_status = {}  # no substrate-event wakes exist to await (ADR-632)
         addressed_count = await _safe(query_addressed_count, addressed_count)
         manual_fire_settled, manual_fire_seen = await _safe(
             query_manual_fire_status, (manual_fire_settled, manual_fire_seen)
@@ -613,7 +601,7 @@ async def wait_for_completion(
         await asyncio.sleep(COMPLETION_GATE_POLL_SEC)
 
     elapsed = int((datetime.now(timezone.utc) - started_at).total_seconds())
-    final_substrate = await _safe(query_substrate_event_status, substrate_status)
+    final_substrate: dict[str, str] = {}
     final_addressed = await _safe(query_addressed_count, addressed_count)
     final_mf_settled, final_mf_seen = await _safe(
         query_manual_fire_status, (manual_fire_settled, manual_fire_seen)
