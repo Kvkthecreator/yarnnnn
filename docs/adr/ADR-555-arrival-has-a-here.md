@@ -217,6 +217,24 @@ GC, cron or deletion path for uploads, and none is to be added.**
 
 Retention is an operator ruling (2026-09-16), not an oversight.
 
+### Click-pass — driven in a browser on prod (2026-09-16)
+
+The amendment's server half was proven by the gates; the composer half could
+only be proven by the gesture. Driven against the deployed build at `2953499`
+(API deploy `dep-dakt3m7lk1mc7396q87g` live), rig principal, isolated browser
+context:
+
+- A real PNG attached through the chat composer's own file input landed at
+  **`/workspace/inbound/uploads/chat/clickpass-shot.png`** — the new shelf, no
+  `{principal}/` segment. `POST /api/documents/upload` → 200.
+- The substrate row carried `content_type=image/png`, `lifecycle=active`, and
+  the head revision `revision_kind='observation'` with `authored_by='operator'`
+  — the badge D1 rests on, and attribution intact while the address changed.
+- The newest `inbound/uploads/operator/` row still predates the pass, so the
+  run created nothing under the retired shape.
+- Probe rows removed after the observation; the chat shelf is empty again.
+
+
 ### Falsifiers (added to §5)
 
 8. An upload with no destination lands at `/workspace/inbound/uploads/{slug}.{ext}` — no `operator/` segment anywhere in the path.
