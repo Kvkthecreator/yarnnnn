@@ -151,14 +151,26 @@ class AuthenticatedClient:
 def resolve_owner_workspace_id(user_id: str) -> Optional[str]:
     """Resolve the workspace id a human user owns (ADR-373 D1, amended ADR-465 D2).
 
-    The zero-or-one resolver: a user owns AT MOST one workspace (ADR-465 D2
-    join-only genesis, ratified 2026-08-03 — was "exactly one" under the
-    migration-106 auto-mint trigger, retired by migration 233). A member-only
-    principal (arrived through a share/invite, never took an owner-act) owns
-    none, and every caller either tolerates None or routes through
-    ``resolve_workspace_for_principal`` (which falls back to the newest active
-    grant). Owner-genesis is lazy and explicit: ``ensure_owner_workspace``,
+    The HOME resolver: it answers "which workspace is this user's home", which
+    is zero-or-one, and is NOT the same claim as "a user owns at most one
+    workspace". Nothing enforces that: ``workspaces.owner_id`` carries no
+    unique constraint, and on 2026-09-15 two live accounts owned two apiece.
+    Genesis mints at most one (ADR-465 D2 join-only, ratified 2026-08-03 — was
+    "exactly one" under the migration-106 auto-mint trigger, retired by
+    migration 233), but a workspace created by any other path adds a row, so
+    this resolver picks the OLDEST (see the ORDER BY below — load-bearing, and
+    the reason it must never become an arbitrary pick).
+
+    A member-only principal (arrived through a share/invite, never took an
+    owner-act) owns none, and every caller either tolerates None or routes
+    through ``resolve_workspace_for_principal`` (which falls back to the newest
+    active grant). Owner-genesis is lazy and explicit: ``ensure_owner_workspace``,
     called from the cold-user door only — never from an accept path.
+
+    ⚠️ A caller that needs the workspace the member is CURRENTLY WORKING IN must
+    not use this: that is the session binding (ADR-548 D9), and resolving here
+    instead is what wrote six routes' revisions into the oldest workspace while
+    the read used the session pin.
 
     Cached per-process: the owner→workspace mapping is stable, so this is safe
     to memoize and keeps the hot auth path off a per-request DB round-trip.
@@ -374,12 +386,83 @@ def _workspace_is_live(workspace_id: str) -> bool:
         return False
 
 
+class ReachUndecidable(RuntimeError):
+    """The reach question could not be ANSWERED (2026-09-15).
+
+    Not "no" — *unknown*. Raised when the grant lookup itself fails (a dropped
+    socket, a Supabase outage), so the caller can fail closed on the REQUEST
+    without telling the member something false about their PERMISSIONS.
+
+    THE DEFECT THIS ENDS. ``principal_reaches_workspace`` returned False on any
+    exception, and every caller renders False as "No active grant into workspace
+    X". The shared service client's HTTP/2 socket throws ``httpx.ReadError:
+    [Errno 11]`` under concurrent requests — observed in 7 bursts across 5
+    instances (2026-09-12→13), including three 403s at 16:23:49Z. A member whose
+    grant was perfectly valid was told they had none, and the log line was a
+    warning nobody reads. An infrastructure fault must never wear an
+    authorization answer's clothes: the member retries a permissions problem
+    that does not exist, and the real fault goes uninvestigated.
+
+    Fail-closed is UNCHANGED — the request still fails. Only the words and the
+    status change: 503 (transient, retry) instead of 403 (you lack a grant).
+    """
+
+
+#: Transport faults worth ONE retry on the shared service client (2026-09-15).
+#: Matched on the exception's text, not its type: the supabase/postgrest stack
+#: re-wraps httpx errors in its own classes, so a type check here would pass a
+#: green test and catch nothing in production.
+_TRANSIENT_TRANSPORT_MARKERS = (
+    "readerror",
+    "remoteprotocolerror",
+    "connecterror",
+    "connectionreset",
+    "errno 11",
+    "server disconnected",
+    "connection aborted",
+)
+
+
+def _is_transient_transport_error(exc: BaseException) -> bool:
+    """Whether this exception looks like a dropped socket rather than an answer."""
+    text = f"{type(exc).__name__} {exc}".lower()
+    return any(marker in text for marker in _TRANSIENT_TRANSPORT_MARKERS)
+
+
+def _retry_once_on_transport(operation, *, what: str):
+    """Run ``operation``; on a transient transport fault, run it exactly once more.
+
+    WHY THIS EXISTS (2026-09-15). ``get_service_client`` is ``lru_cache``d — ONE
+    client, one HTTP/2 connection pool, shared by every request. ``get_user_client``
+    is a SYNC FastAPI dependency, so it executes in the threadpool and several
+    threads reach that single pool at once. Under that concurrency the pool throws
+    ``httpx.ReadError: [Errno 11]`` — 7 bursts across 5 instances on 2026-09-12→13.
+    The socket is dead, not the database; the very next call on a fresh connection
+    succeeds.
+
+    ONE retry, not a loop: a real outage must stay fast and loud, and this sits on
+    the authenticated hot path where every added second is every request's second.
+    The retry is the mitigation; the cure is not sharing one pool across threads,
+    which is a client-lifecycle change with its own ADR.
+    """
+    try:
+        return operation()
+    except Exception as exc:  # noqa: BLE001 — classified immediately below
+        if not _is_transient_transport_error(exc):
+            raise
+        logger.warning("[transport] transient fault during %s — retrying once: %s", what, exc)
+        return operation()
+
+
 def principal_reaches_workspace(user_id: str, workspace_id: str) -> bool:
     """Whether a human principal may bind a request to a workspace (ADR-373).
 
     True iff they own it OR hold an active grant into it. Consulted when a
     request carries ``X-Workspace-Id``. NOT cached: a revoked member must
     lose reach on their next request, not at cache eviction.
+
+    :raises ReachUndecidable: the lookup failed, so reach is UNKNOWN. Callers
+        fail closed, but must not report it as a missing grant.
     """
     try:
         # EVERY owned workspace, not just the home one. The singular resolver
@@ -387,24 +470,32 @@ def principal_reaches_workspace(user_id: str, workspace_id: str) -> bool:
         # branches here and was locked out of their own commons (2026-08-18).
         if workspace_id in resolve_owned_workspace_ids(user_id):
             return True
-        client = get_service_client()
-        result = (
-            client.table("principal_grants")
-            .select("id")
-            .eq("principal_id", user_id)
-            .eq("workspace_id", workspace_id)
-            .eq("status", "active")
-            .limit(1)
-            .execute()
+        # Retried once on a dropped socket: this lookup is the observed site of
+        # the shared pool's [Errno 11], and a dead socket is not an answer about
+        # anyone's grant.
+        result = _retry_once_on_transport(
+            lambda: (
+                get_service_client()
+                .table("principal_grants")
+                .select("id")
+                .eq("principal_id", user_id)
+                .eq("workspace_id", workspace_id)
+                .eq("status", "active")
+                .limit(1)
+                .execute()
+            ),
+            what="principal_grants reach lookup",
         )
         # ADR-578 D1: a grant into a soft-deleted workspace grants nothing.
         return bool(result.data) and _workspace_is_live(workspace_id)
     except Exception as exc:  # pragma: no cover — validation is fail-closed
+        # NOT `return False`. See ReachUndecidable: False means "decided no",
+        # and the caller says so to the member's face. This is "could not ask".
         logger.warning(
-            "[ADR-373] workspace reach check failed for %s→%s: %s",
+            "[ADR-373] workspace reach check FAILED (undecidable) for %s→%s: %s",
             user_id, workspace_id, exc,
         )
-        return False
+        raise ReachUndecidable(str(exc)) from exc
 
 
 def resolve_workspace_for_principal(
@@ -420,6 +511,11 @@ def resolve_workspace_for_principal(
       N=1). A principal with NO owner workspace (a fresh invitee before
       their own workspace exists) falls back to their newest active grant's
       workspace — the invited-member landing case.
+
+    :raises ReachUndecidable: propagated from ``principal_reaches_workspace``
+        when the grant lookup itself failed. Deliberately NOT collapsed into
+        None: None here means "decided: unreachable" and the caller renders a
+        403 naming the missing grant. Callers must catch it and answer 503.
     """
     if requested_workspace_id:
         return (
@@ -619,7 +715,22 @@ def get_user_client(
     # validated fail-closed (an unreachable workspace is 403, never a silent
     # fallback to a different workspace than the client addressed). A fresh
     # invitee with no owned workspace lands on their newest grant's workspace.
-    workspace_id = resolve_workspace_for_principal(user_id, x_workspace_id)
+    # ReachUndecidable (2026-09-15) is NOT a 403. The grant lookup failing is an
+    # infrastructure fault; saying "no active grant" for it tells the member a
+    # falsehood about their own permissions and hides the real fault. Still
+    # fail-closed — the request dies either way — but with the honest status.
+    try:
+        workspace_id = resolve_workspace_for_principal(user_id, x_workspace_id)
+    except ReachUndecidable as exc:
+        close_supabase_client(client)
+        logger.error(
+            "[ADR-373] binding refused (reach undecidable) for %s→%s: %s",
+            user_id, x_workspace_id, exc,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Could not verify your access just now. Please try again.",
+        ) from exc
     if x_workspace_id and workspace_id is None:
         close_supabase_client(client)
         raise HTTPException(

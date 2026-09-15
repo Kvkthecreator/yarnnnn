@@ -1519,7 +1519,11 @@ async def share(
 
     try:
         from services.deep_links import app_url
-        from services.supabase import principal_reaches_workspace, resolve_workspace_for_principal
+        from services.supabase import (
+            ReachUndecidable,
+            principal_reaches_workspace,
+            resolve_workspace_for_principal,
+        )
         from services.workspace_shares import ShareError, assert_may_mint_share, create_share
 
         workspace_id = resolve_workspace_for_principal(auth.user_id)
@@ -1532,7 +1536,16 @@ async def share(
         # the reach check this origin always should have had, then the same
         # mint-authority gate (write-holders mint; viewers never; the
         # workspace dial can tighten to owner-only).
-        if not principal_reaches_workspace(auth.user_id, workspace_id):
+        try:
+            reaches = principal_reaches_workspace(auth.user_id, workspace_id)
+        except ReachUndecidable:
+            # Reach UNKNOWN. Refuse, but never as "no_grant" — that names a
+            # permissions state we could not actually read.
+            return _present("share", {
+                "success": False, "error": "reach_unavailable",
+                "message": "Could not verify your access just now. Please try again.",
+            }, client_name=client_name)
+        if not reaches:
             return _present("share", {
                 "success": False, "error": "no_grant",
                 "message": "You do not have a grant to this workspace.",

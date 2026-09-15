@@ -28,14 +28,17 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   button; whether it wants an explicit affordance is a product call.
 
 ## Workspace binding (ADR-548 D9/D10, found 2026-09-13)
-- **Three personal files sit in the wrong workspace with no copy in the right one** — written bound to `SK Personal`
-  (9dc80079) but owner-resolved into `yarnnn workspace` (d5b9029b) by the pre-`8b4977d` path: `operation/ideas.md`,
-  `operation/personal-notes.md`, `operation/test.md`. The code defect is fixed; MOVING them is a data repair and the
-  operator's call — confirm intent, then move via `write_revision` at the correct binding, never an UPDATE of
-  `workspace_id` (the revision chain is the record).
-- Exposed population: exactly **2 accounts** own more than one live workspace. `resolve_owner_workspace_id`'s
-  docstring still claims "AT MOST one" (no unique constraint on `workspaces.owner_id`) — correct the docstring or
-  cap ownership, not both.
+- **One personal file sits in the wrong workspace** — re-probed 2026-09-15: of the three, `operation/ideas.md` is
+  still `active` in `yarnnn workspace` (d5b9029b) where it was owner-resolved by the pre-`8b4977d` path;
+  `operation/personal-notes.md` and `operation/test.md` are now `archived` and need no repair. The code defect is
+  fixed; MOVING the remaining file is a data repair and the operator's call — confirm intent, then move via
+  `write_revision` at the correct binding (`SK Personal`, 9dc80079), never an UPDATE of `workspace_id` (the
+  revision chain is the record).
+- Exposed population re-probed 2026-09-15: exactly **2 accounts** own more than one live workspace, and BOTH are
+  the operator's own (`kvkthecreator@gmail.com` → SK Personal + yarnnn workspace; the alpha-trader persona
+  instrument → My Workspace + seulkim tester). No stranger is exposed. `resolve_owner_workspace_id`'s docstring
+  claimed "AT MOST one" — **corrected 2026-09-15** to describe what it actually is (the HOME resolver, oldest-first);
+  ownership is deliberately NOT capped. All 19 live workspaces carry an active owner grant (0 orphans).
 
 ## Genesis (ADR-414 D4 · 465; found 2026-09-12)
 - No live workspace has the governance dials, so `initialize_workspace` (`api/services/workspace_init.py`) is
@@ -83,13 +86,19 @@ Studio-era cluster (26 gates) was ruled 2026-09-13/14; the still-open shapes (AD
 ## A send that left no trace (found 2026-09-15, ws d5b9029b lane 506b7bbf)
 - The operator's Text-bound send with two image attachments (2026-09-13 15:53Z) reached NO handler: no access
   line, no `chat_sessions` read, no error, 0 messages — while both uploads succeeded and the identical send ran
-  green on the rig (lane 5dd54228, `tools=5 artifacts=1`). Three defects sit behind the generic message:
-  (a) `get_user_client` is a sync dependency on the `lru_cache`d shared service client, whose HTTP/2 socket
-  throws `httpx.ReadError: [Errno 11]` under concurrent requests (7 bursts, 5 instances, 09-12→13; a 500 on
-  `GET /api/lanes` 04:51Z, three 403s 16:23:49Z) — a thread stuck there is invisible; (b) `streamLaneTurn` has no
-  deadline before the first byte (ADR-651 D3 bounds `request()` and the idle window only), so the edge's cutoff
-  becomes "The lane turn failed" with no cause and the attachment chips are dropped; (c) `principal_reaches_workspace`
-  returns False on ANY exception, so a socket error reads as "No active grant". Each needs its own ruling.
+  green on the rig (lane 5dd54228, `tools=5 artifacts=1`). Of the three defects behind the generic message:
+  - **(a) RULED 2026-09-15, mitigated not cured.** `get_user_client` is a sync dependency on the `lru_cache`d
+    shared service client, whose HTTP/2 pool throws `httpx.ReadError: [Errno 11]` under concurrent requests
+    (7 bursts, 5 instances, 09-12→13). The reach lookup now retries once on a transient transport fault
+    (`_retry_once_on_transport`, `services/supabase.py`), which recovers the dropped socket. THE CURE — not
+    sharing one pool across threadpool workers — is a client-lifecycle change and still owed its own ADR.
+  - **(c) RULED 2026-09-15.** `principal_reaches_workspace` raised nothing and returned False on ANY exception,
+    so a socket error read as "No active grant". It now raises `ReachUndecidable`; all four call sites answer
+    503 ("Could not verify your access just now") instead of a false 403. Gate:
+    `api/test_reach_undecidable_is_not_a_denial.py` (18/18, every assertion falsified).
+  - **(b) STILL OPEN.** `streamLaneTurn` has no deadline before the first byte (ADR-651 D3 bounds `request()`
+    and the idle window only), so the edge's cutoff becomes "The lane turn failed" with no cause and the
+    attachment chips are dropped. Needs its own ruling.
 
 ## Waiting (ADR-651, 2026-09-13)
 - Prod click-pass once both deploys are live: a lane turn shows "Lisa is working… 12s"; the network tab shows

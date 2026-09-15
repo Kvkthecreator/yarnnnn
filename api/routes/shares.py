@@ -19,7 +19,12 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from services.machine_projection import file_type_of, project_for_machine
-from services.supabase import UserClient, principal_reaches_workspace, resolve_owner_workspace_id
+from services.supabase import (
+    ReachUndecidable,
+    UserClient,
+    principal_reaches_workspace,
+    resolve_owner_workspace_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +116,15 @@ def _acting_workspace(auth: UserClient) -> str:
     ws = auth.workspace_id or resolve_owner_workspace_id(auth.user_id)
     if not ws:
         raise HTTPException(status_code=400, detail="No workspace resolved for this principal")
-    if not principal_reaches_workspace(auth.user_id, ws):
+    try:
+        reaches = principal_reaches_workspace(auth.user_id, ws)
+    except ReachUndecidable as exc:
+        # Reach UNKNOWN, not denied — fail closed without misreporting the grant.
+        raise HTTPException(
+            status_code=503,
+            detail="Could not verify your access just now. Please try again.",
+        ) from exc
+    if not reaches:
         raise HTTPException(status_code=403, detail="You do not have a grant to this workspace")
     return ws
 

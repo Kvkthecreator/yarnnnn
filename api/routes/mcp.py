@@ -236,9 +236,23 @@ async def mcp_oauth_callback(
     # straight back, with the operator believing they chose.
     bound_workspace: Optional[str] = None
     if workspace_id:
-        from services.supabase import principal_reaches_workspace
+        from services.supabase import ReachUndecidable, principal_reaches_workspace
 
-        if not principal_reaches_workspace(auth.user_id, workspace_id):
+        try:
+            reaches = principal_reaches_workspace(auth.user_id, workspace_id)
+        except ReachUndecidable as exc:
+            # The lookup broke; reach is UNKNOWN. Refuse the bind (fail-closed)
+            # but never as "you do not have access" — that is a claim about the
+            # operator's grant we are in no position to make.
+            logger.error(
+                "[ADR-573] reach undecidable for %s→%s — refusing bind: %s",
+                auth.user_id[:8], workspace_id[:8], exc,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Could not verify your access just now. Please try again.",
+            ) from exc
+        if not reaches:
             logger.warning(
                 "[ADR-573] user %s cannot reach workspace %s — refusing bind",
                 auth.user_id[:8], workspace_id[:8],
