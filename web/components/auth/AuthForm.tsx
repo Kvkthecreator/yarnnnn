@@ -23,6 +23,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { STAGE_NOTICE } from "@/lib/metadata";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+
+/**
+ * Is this address one the mail provider can actually deliver to?
+ *
+ * `<input type="email">` and the auth provider both accept a bare, TLD-less
+ * domain (`me@gmail`, `you@localhost`) as syntactically valid. The mail
+ * provider then refuses it, and the signup call fails with HTTP 500
+ * `unexpected_failure` / "Error sending confirmation email" — a message that
+ * blames OUR infrastructure for THEIR typo, with no correction offered.
+ * Reproduced 3/3 on 2026-09-15 during the beta-readiness pass, where a
+ * first-time visitor read it as "this product is broken" and nearly left.
+ *
+ * A nonexistent-but-well-formed domain (`you@thisdomaindoesnotexist-zzz.com`)
+ * is NOT caught here and must not be: it succeeds at signup and simply bounces
+ * later, which is the mail system's job to report, not the form's to guess.
+ * The only thing checked is the structural property the provider requires — a
+ * dot-bearing domain with a plausible TLD.
+ */
+function looksDeliverable(email: string): boolean {
+  const at = email.lastIndexOf("@");
+  if (at < 1 || at === email.length - 1) return false;
+  const domain = email.slice(at + 1);
+  return /^[^\s.@]+(\.[^\s.@]+)*\.[a-z]{2,}$/i.test(domain);
+}
 
 function GoogleIcon() {
   return (
@@ -98,6 +123,15 @@ export function AuthForm({
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Caught HERE rather than at the provider: a TLD-less domain returns a 500
+    // that reads as our failure. Say what is wrong and let them fix it.
+    if (!looksDeliverable(email)) {
+      setNotice({
+        tone: "error",
+        text: "That email address looks incomplete — check the part after the @.",
+      });
+      return;
+    }
     setLoading(true);
     setNotice(null);
     try {
@@ -118,11 +152,59 @@ export function AuthForm({
         });
       }
     } catch (err) {
+      const raw = err instanceof Error ? err.message : "";
+      // The provider's own words for an undeliverable address name OUR mail
+      // infrastructure ("Error sending confirmation email"), so a person reads
+      // a typo as our outage. Re-say it as something they can act on, and keep
+      // the Google door in view — it is unaffected by mail delivery.
+      const undeliverable = /sending confirmation email|unexpected_failure/i.test(raw);
       setNotice({
         tone: "error",
-        text: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+        text: undeliverable
+          ? "We couldn't send to that address. Check it for a typo, or continue with Google."
+          : raw || "Something went wrong. Please try again.",
       });
     } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Send a password-reset link (2026-09-15).
+   *
+   * Until the beta-readiness pass there was NO reset path anywhere in the
+   * product — no `resetPasswordForEmail` call and no route — so a member who
+   * forgot their password was permanently locked out of their own substrate
+   * with no self-service door. The Supabase template
+   * (`supabase/templates/auth/reset-password.html`) has existed the whole time;
+   * only the door was missing.
+   *
+   * The response is deliberately the SAME whether or not the address has an
+   * account: a differing message turns this box into an account-existence
+   * oracle for anyone who wants to enumerate members.
+   */
+  const handlePasswordReset = async () => {
+    if (!looksDeliverable(email)) {
+      setNotice({
+        tone: "error",
+        text: "Enter your email address above, then choose Reset password.",
+      });
+      return;
+    }
+    setLoading(true);
+    setNotice(null);
+    try {
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: callbackRedirect,
+      });
+    } catch {
+      // Swallowed on purpose — see the oracle note above. A failure and a
+      // success must be indistinguishable from outside.
+    } finally {
+      setNotice({
+        tone: "success",
+        text: "If that address has an account, a reset link is on its way.",
+      });
       setLoading(false);
     }
   };
@@ -209,8 +291,16 @@ export function AuthForm({
               required
               className="mt-1 bg-white/50 border-[#1a1a1a]/10 text-[#1a1a1a] placeholder:text-[#1a1a1a]/40 focus:border-[#1a1a1a]/30"
               placeholder="••••••••"
-              minLength={6}
+              minLength={MIN_PASSWORD_LENGTH}
             />
+            {mode === "signup" && (
+              // Stated BEFORE the submit. The native minLength popup fires only
+              // after a failed submit, which reads as a rejection rather than a
+              // rule a person could have followed.
+              <p className="mt-1 text-xs text-[#1a1a1a]/50">
+                At least {MIN_PASSWORD_LENGTH} characters.
+              </p>
+            )}
           </div>
 
           {notice && (
@@ -231,6 +321,19 @@ export function AuthForm({
           >
             {loading ? "Loading..." : mode === "login" ? loginSubmitLabel : signupSubmitLabel}
           </Button>
+
+          {mode === "login" && (
+            // The only way back in for a member who forgot their password.
+            // Sign-up mode has nothing to reset, so it is shown only here.
+            <button
+              type="button"
+              onClick={handlePasswordReset}
+              disabled={loading}
+              className="w-full text-center text-xs text-[#1a1a1a]/50 hover:text-[#1a1a1a]/80 transition-colors disabled:opacity-50"
+            >
+              Forgot your password?
+            </button>
+          )}
         </form>
 
         <p className="text-center text-sm text-[#1a1a1a]/60">
