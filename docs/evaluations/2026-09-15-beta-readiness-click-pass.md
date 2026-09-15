@@ -81,8 +81,8 @@ findings are receipted before being believed, and exactly why it is still worth 
 
 | Strength | Applies to |
 |---|---|
-| **Probed** | the core loop (§1); reach 200/403/403 on the live API after deploy; every surface in §2; the signup 200-vs-500 discrimination; auth fixes #2/#4/#5 re-driven on the deployed Vercel build (below) |
-| **Verified by code + live data** | the compositor cache (#3) — semantics driven in isolation (7 simultaneous mounts → 1 call; force refetches; a failure does not poison), but the 7→1 collapse is NOT re-observed in a browser against the deployed build |
+| **Probed** | ALL FIVE FIXES, plus the core loop (§1), every surface in §2, and the signup 200-vs-500 discrimination. Each re-driven against its own deployed build. |
+| **Verified by code + live data** | nothing remains at this tier |
 | **Inferred** | nothing is claimed at this tier |
 
 ### Post-deploy re-probe (both deploys live)
@@ -109,6 +109,7 @@ The third case is the one that matters: the fix did **not** convert genuine deni
 | the success tone is DECLARED | reset notice `role="status"`, `color: rgb(5, 150, 105)` — green, so the tone fix does not mis-colour the success path |
 | password reset exists and answers | *"If that address has an account, a reset link is on its way."* |
 | the rule is stated before submit | "At least 6 characters" rendered in sign-up mode |
+| the composition is fetched ONCE (#3) | a fresh cache-bypassed `/desktop` load shows exactly **one** `GET /api/programs/surfaces` (reqid 819 of 13 XHRs), down from seven |
 
 ## §5 What a beta launch still owes — none of it code in this repo
 
