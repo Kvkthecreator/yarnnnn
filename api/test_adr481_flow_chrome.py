@@ -82,10 +82,16 @@ def run() -> bool:
         "D1 the mode seam still names the paged kind (flow left with Docs)",
         {v["mode"] for v in all_layouts().values()} >= {"paged"},
     )
-    # The toolbar derives from the served set — no flag, no slug test.
+    # The arrangement affordance derives from the served set — no flag, no slug
+    # test. (Re-pinned 2026-09-13: the gallery left the toolbar — ADR-589 D3 /
+    # ADR-616 D2 gave it the Properties pane's page scope — and there it still
+    # reads the served vocabulary and gates on the set's length.)
+    _design = (web / "components/authoring/StudioDesignTab.tsx").read_text()
     _check(
-        "D1 the toolbar's arrangement affordances derive from the served set",
-        "isPaged && arrangements.length > 0" in toolbar,
+        "D1 the arrangement affordance derives from the served set (Properties pane, ADR-589 D3)",
+        "const arrangements = vocabulary?.arrangements?.[layout] ?? [];" in _design
+        and "{arrangements.length > 0 && (" in _design
+        and "arrangements.length > 0" not in toolbar,
     )
 
     # ── D2 — the gutter is deleted on flow; insert is caret-located ────────
