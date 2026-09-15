@@ -15,6 +15,22 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.16.1] - The ExtractTextFromBlob example shows the path uploads actually take
+### Changed
+- api/services/primitives/extract_text_from_blob.py: the usage example's `raw_path`/`write_to`
+  dropped the `{principal}/` segment — `/workspace/inbound/uploads/acme-brief.pdf`, the shape
+  ADR-555's amendment ships.
+- Expected behavior: none intended. The example is illustrative, not an instruction; this keeps
+  a model reading the tool definition from inferring a lane segment that no longer exists.
+### Why
+Not a behavioral failure — a truthfulness one. The amendment removed the `{principal}/` sublane
+(it had one value, `operator`, across all 67 production rows), and a tool definition that still
+showed the retired shape is a model-facing doc contradicting shipped behavior. A path example in
+a tool definition is the kind of detail a model copies verbatim.
+### Gate
+test_adr632_the_seat_retires.py §5 73/73 · test_adr630_skills.py 147/147 ·
+test_adr555_arrival_has_a_here.py 39/39 (RED 37/39 against the old shape).
+
 ## [2026.09.13.1] - The entity primitives are deleted (ADR-632 §3 caller audit)
 
 ### Changed
