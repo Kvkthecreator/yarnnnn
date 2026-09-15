@@ -81,7 +81,10 @@ def main() -> bool:
     )
     _check(
         "it SELECTS the block under the cursor (one gesture, not two)",
-        "mark.classList.add('yarnnn-pointed');" in proj
+        # (Re-pinned 2026-09-13: ADR-525 D2 made __yarnnnSelect the one place
+        #  that may draw a box — the contextmenu handler routes its mark there.)
+        "var mark = blk || el || ctxCont;" in proj
+        and "window.__yarnnnSelect(mark);" in proj
         and "type: 'yarnnn-context-menu'," in proj,
     )
     _check(
@@ -166,9 +169,12 @@ def main() -> bool:
         # (structureLabels.ts labelForJS) — same operator words everywhere.
         "the label speaks the frame's OWN name, in operator words (never a "
         "class name or a selector — ADR-443 D3, one ladder per ADR-511)",
+        # (Re-pinned 2026-09-13: ADR-633 D3 — the frame's noun is the APP's
+        #  word, not the class's; the one ladder is parameterised by objectModel
+        #  and the runtime reads the same noun from the window.)
         "labelForJS('frameLabel')" in proj
-        and "return 'column';" in _read("web/components/authoring/structureLabels.ts")
-        and "return 'slide';" in _read("web/components/authoring/structureLabels.ts"),
+        and "return frameNoun(objectModel);" in _read("web/components/authoring/structureLabels.ts")
+        and "var FRAME = window.__yarnnnFrameNoun ||" in _read("web/components/authoring/structureLabels.ts"),
     )
     _check(
         "it borrows the slot label's grammar rather than inventing a second "
@@ -195,8 +201,11 @@ def main() -> bool:
         ">\n          AI\n        </span>" not in menu,
     )
     _check(
-        "the judged verbs are gone from the menu",
-        "Rewrite…" not in menu
+        # (Re-pinned 2026-09-13: ADR-613 moved the judged act to the one
+        #  selection-anchored gesture — Check and Ask left; ADR-619 D2 then gave
+        #  REWRITE a second entrance here, calling the same seedRewrite.)
+        "the judged verbs left the menu (ADR-613) — Rewrite alone re-enters as ADR-619 D2's second door",
+        "Rewrite…" in menu
         and "Check this…" not in menu
         and "Ask about this…" not in menu,
     )
@@ -205,16 +214,18 @@ def main() -> bool:
         '<span className="truncate">Ask</span>' not in menu
         and "askOpen" not in menu,
     )
+    # "the mechanical tier survives and still names its VERB" (the Update
+    # submenu) was RETIRED 2026-09-13: ADR-619 D1 deleted the UPDATE tier —
+    # its rows (Turn into, Move up/down, Bring forward/backward) are flat now,
+    # and "Turn into ACTS in the menu" below still pins them.
     _check(
-        "the mechanical tier survives and still names its VERB",
-        "Write with AI" not in menu
-        and '<span className="truncate">Update</span>' in menu,
-    )
-    _check(
-        "the surface's judged seed producers are deleted, not orphaned",
-        "menuRewrite" not in surface
-        and "menuCheck" not in surface
-        and "askAboutSelection" not in surface,
+        # (Re-pinned 2026-09-13: menuCheck and askAboutSelection are gone
+        #  (ADR-613); menuRewrite is ADR-619 D2's live producer and must stay
+        #  WIRED — an orphaned one is exactly what this check guards.)
+        "the surface's judged seed producers are deleted, not orphaned — the one survivor is wired",
+        "menuCheck" not in surface
+        and "askAboutSelection" not in surface
+        and "onRewrite={menuRewrite}" in surface,
     )
     _check(
         "free rows keep their shortcut affordance",
@@ -259,13 +270,17 @@ def main() -> bool:
     _check(
         "the carry sweeps EVERY target slot, not querySelector's first "
         "(a two-column's `side` used to collapse into `main`)",
-        "const targetSlots = Array.from(el.querySelectorAll('[data-slot]'));" in _fn(ops, "applyArrangement")
+        # (Re-pinned 2026-09-13: the region grain — REGION_SEL is
+        #  '[data-area], [data-slot]' (ADR-544 D2); the sweep is unchanged.)
+        "const targetSlots = Array.from(el.querySelectorAll(REGION_SEL));" in _fn(ops, "applyArrangement")
         and "const slot = el.querySelector('[data-slot]');" not in _fn(ops, "applyArrangement"),
     )
     _check(
         "content is distributed by SOURCE slot name (side → side)",
-        "const from = b.closest('[data-slot]')?.getAttribute('data-slot') ?? null;" in ops
-        and "byName.get(from)" in ops,
+        # (Re-pinned 2026-09-13: the source is read on the region grain and the
+        #  authored NAME breaks the same-role tie — side → side.)
+        "const from = b.closest(REGION_SEL);" in ops
+        and "target = sameRole.find((s) => nameOf(s) === fromName) ?? sameRole[0];" in ops,
     )
     _check(
         "a slotless target REFUSES rather than deleting (title/section-header/"
