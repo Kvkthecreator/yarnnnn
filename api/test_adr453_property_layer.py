@@ -281,20 +281,31 @@ def run() -> bool:
     )
 
     toolbar = (web / "components/authoring/StudioToolbar.tsx").read_text()
+    _design_src = (web / "components/authoring/StudioDesignTab.tsx").read_text()
+    _insert_src = (web / "components/authoring/StudioBlockInsertMenu.tsx").read_text()
     _check(
         # ADR-466 D5 amends ADR-453 D3: the toolbar pairs the page verbs —
         # New ‹noun› beside Layout (re-lay the CURRENT page), the PowerPoint
         # pair. The old single mixed-grain "Arrange ▾" menu stays deleted; the
         # Layout gallery is the same grammar as the Properties page scope
         # (arrangementCarryNote is the shared forewarning).
-        "toolbar: the page-verb pair (New ‹noun› · Layout), carry-note shared (ADR-466 D5)",
-        "New {pageNoun}" in toolbar
-        and "onApplyArrangement" in toolbar
-        and "arrangementCarryNote" in toolbar,
+        # (Re-pinned 2026-09-13: the pair dissolved into two homes — ADR-589 D3
+        #  moved the Layout gallery and its carry note to the Properties pane's
+        #  page scope; ADR-579 D6.a put New ‹noun› inside the New door. Each
+        #  half is pinned where it lives; the toolbar carries neither.)
+        "Properties pane: the Layout gallery with its shared carry note (ADR-589 D3)",
+        "onApplyArrangement(a)" in _design_src
+        and "arrangementCarryNote(a, carriedCount ?? null, pageNoun, groupCount)" in _design_src
+        and "arrangementCarryNote(" not in toolbar,
     )
     _check(
-        "toolbar: the gallery renders derived wireframes",
-        "ArrangementThumb" in toolbar,
+        "New door: New ‹noun› rides the served arrangements (ADR-579 D6.a)",
+        "label: `New ${pageSection!.noun}`" in _insert_src
+        and "pageSection!.arrangements.map" in _insert_src,
+    )
+    _check(
+        "Properties pane: the gallery renders derived wireframes",
+        "<ArrangementThumb" in _design_src and "<ArrangementThumb" not in toolbar,
     )
     _check(
         "the old StudioInsertMenu is deleted (Singular Implementation)",
