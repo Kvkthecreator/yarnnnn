@@ -49,6 +49,15 @@ function LoginForm() {
             window.location.href = nextPath;
           }}
           callbackRedirect={callbackRedirect}
+          // `?mode=signup` opens in sign-up (2026-09-16). Every conversion CTA
+          // on the marketing site — "Start free", "Connect your AI", "Bring the
+          // team" — used to land here in SIGN-IN mode, so the first thing a
+          // stranger who just decided to try the product saw was a form asking
+          // for a password they do not have, with the actual sign-up affordance
+          // a small link at the bottom. Observed in a first-time-visitor pass,
+          // 2026-09-15. Anything but "signup" stays on sign-in, so an
+          // unrecognised value degrades to today's behaviour.
+          initialMode={searchParams.get("mode") === "signup" ? "signup" : "login"}
           loginSubheading="Sign in to your account"
           signupSubheading="Create your account"
           initialError={initialError}

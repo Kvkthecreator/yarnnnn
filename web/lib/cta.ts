@@ -29,8 +29,19 @@
  * unused until then.
  */
 export const CTA = {
-  /** Live bare-workspace entry. There is no separate signup route — login IS the entry. */
-  signup: "/auth/login",
+  /**
+   * Live bare-workspace entry. There is no separate signup ROUTE — `/auth/login`
+   * is the one auth surface — but a conversion CTA must open it in SIGN-UP mode.
+   *
+   * Until 2026-09-16 this was a bare `/auth/login`, which defaults to sign-in. So
+   * every "Start free" / "Connect your AI" / "Bring the team" click put a person
+   * who had just decided to try the product in front of a form asking for a
+   * password they do not have, with the real affordance a small link underneath.
+   * A first-time-visitor pass on 2026-09-15 hit exactly that and nearly left.
+   *
+   * The name of this key is the contract: `signup` must land on sign-up.
+   */
+  signup: "/auth/login?mode=signup",
   /** Secondary sitewide CTA target. */
   howItWorks: "/how-it-works",
   /** Pricing page (for cross-page "See pricing" links). */
