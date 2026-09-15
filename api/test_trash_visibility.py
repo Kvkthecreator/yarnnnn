@@ -45,6 +45,20 @@ def main() -> int:
     studio = (root / "api/routes/studio.py").read_text()
     workspace = (root / "api/routes/workspace.py").read_text()
     docs = (root / "api/routes/documents.py").read_text()
+    substrate = (root / "api/services/authored_substrate.py").read_text()
+
+    def _fn_src(text: str, name: str) -> str:
+        """The body of one top-level function, by text (no import of services)."""
+        start = text.index(f"\ndef {name}(")
+        nxt = text.find("\ndef ", start + 1)
+        return text[start: nxt if nxt != -1 else len(text)]
+
+    # (Re-pinned 2026-09-13: the routes delegate to ONE delete and ONE restore
+    #  in the substrate (2026-08-21) — the lifecycle literals live in
+    #  archive_live_file / restore_live_file. Asserted on the FUNCTION bodies,
+    #  never the whole file: its docstrings spell the same literals in prose.)
+    archive_src = _fn_src(substrate, "archive_live_file")
+    restore_src = _fn_src(substrate, "restore_live_file")
     mig = (root / "supabase/migrations/218_search_excludes_archived.sql").read_text()
 
     NULL_TOLERANT = "lifecycle.is.null,lifecycle.neq.archived"
@@ -53,11 +67,14 @@ def main() -> int:
     print("── 1. Delete stays trash-not-erase (nothing here erases) ──────")
     _check(
         "delete writes an ARCHIVED REVISION, not a row deletion",
-        'lifecycle="archived"' in docs and "write_revision(" in docs,
+        "archive_live_file(" in docs
+        and 'lifecycle="archived"' in archive_src and "write_revision(" in archive_src,
     )
     _check(
         "restore writes an ACTIVE revision (symmetric, reversible)",
-        'lifecycle="active"' in docs and "Restored from trash" in docs,
+        "restore_live_file(" in docs and "Restored from trash" in docs
+        and 'if row.get("lifecycle") != "archived":' in docs
+        and 'lifecycle="active"' in restore_src and "write_revision(" in restore_src,
     )
     _check(
         "no hard-delete of workspace_files in the documents routes",
