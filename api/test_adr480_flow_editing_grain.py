@@ -73,12 +73,34 @@ def run() -> bool:
     # boundary, not a file count — a new Studio/IMAGES module may legitimately
     # speak blocks; `authored_substrate.py` or `primitives/` doing so would
     # mean the premise has changed.
-    APP_LAYER = ("services/authoring.py", "routes/studio.py", "services/images/")
+    # (Re-pinned 2026-09-13. The boundary is unchanged; the corpus was stale
+    #  three ways: the IMAGES app lives at services/apps/ (with blogger beside
+    #  it — ADR-627 restored the desk that owns its scaffold's block grammar);
+    #  a bare "data-block" substring also matched `data-block-id` — the ADR-448
+    #  identity key F4 explicitly permits — and prose in comments/docstrings;
+    #  and the one-shots under scripts/oneshot/ are frozen repairs, not the
+    #  live substrate. The token is now the ATTRIBUTE form on a code line.)
+    APP_LAYER = ("services/authoring.py", "routes/studio.py", "services/apps/")
+    _attr = re.compile(r"""data-block(?!-id)[="']""")
+
+    _docstrings = re.compile(r'"""[\s\S]*?"""|\'\'\'[\s\S]*?\'\'\'')
+
+    def _speaks_blocks(text: str) -> bool:
+        # Code lines only: a docstring's usage example (the EditFile anchor
+        # door shows `<p data-block="body" data-block-id="b7">`) is prose that
+        # teaches the id key F4 permits, not a primitive parsing the grammar.
+        return any(
+            _attr.search(line) and not line.lstrip().startswith("#")
+            for line in _docstrings.sub("", text).splitlines()
+        )
+
     leaks = sorted(
         str(p.relative_to(root / "api"))
         for p in (root / "api").rglob("*.py")
         if not p.name.startswith(("test_", "probe_"))
-        and "data-block" in p.read_text()
+        and "scripts/oneshot/" not in str(p.relative_to(root / "api"))
+        and "/venv" not in str(p) and "/.venv" not in str(p)
+        and _speaks_blocks(p.read_text(errors="ignore"))
         and not str(p.relative_to(root / "api")).startswith(APP_LAYER)
     )
     _check(
@@ -116,11 +138,13 @@ def run() -> bool:
     )
     _check(
         "D1 mode is a projection INPUT (re-projects when the registry lands)",
-        "[content, artifactPath, mode]" in canvas,
+        # (Re-pinned 2026-09-13: the dep array grew (ADR-485 D3 measureBounds…);
+        #  anchored on the `}, [` prefix so only the real effect can match.)
+        re.search(r"\}, \[content, artifactPath, mode[,\]]", canvas) is not None,
     )
     _check(
         "D1 the canvas passes mode into the projection",
-        "pointer: true, edit: true, mode }" in canvas,
+        "{ pointer: true, edit: true, mode," in canvas,
     )
     # The safety property that makes the default honest: a deck must never be
     # served the flow runtime while the vocabulary is still loading.
