@@ -1,13 +1,19 @@
 'use client';
 
 /**
- * useComposition — React hook that fetches /api/programs/surfaces and
- * caches the response per session.
+ * useComposition — React hook over /api/programs/surfaces.
+ *
+ * ⚠️ THE CACHE IS NOT HERE. It lives in `./client.ts`, at the fetcher, because
+ * this hook runs once per mount by construction — a cache inside it could only
+ * dedupe within a single component, which is not where the duplication was.
+ * This docstring claimed "caches the response per session" from ADR-225 until
+ * 2026-09-15, when driving a real /desktop load showed SEVEN identical requests
+ * in one page load. The claim was true of the design and false of the code.
  *
  * Per ADR-225: the composition tree changes only at deploy time (bundle
  * file changes) + when a workspace's platform_connections change
  * (capability-implicit activation per ADR-224 §3). Per-session cache is
- * appropriate; refetch on mount of the top-level cockpit shell suffices.
+ * appropriate; `reload()` forces a refetch past it.
  *
  * Intentionally minimal: no SWR / React Query dependency. Empty-state
  * fallback when the fetch fails — the cockpit never breaks because the
@@ -114,11 +120,15 @@ export function useComposition(
   const [loading, setLoading] = useState<boolean>(initial === undefined);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  // `force` distinguishes the two callers: the mount effect may read the
+  // session cache (that is the point), while `reload()` is an explicit request
+  // for fresh data and must bypass it — a reload that returns the cache is the
+  // same class of lie as a cache that never caches.
+  const load = async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchWorkspaceSurfaces();
+      const response = await fetchWorkspaceSurfaces({ force });
       setData(response);
     } catch (err) {
       // Empty fallback — cockpit renders kernel defaults if compositor
@@ -141,7 +151,7 @@ export function useComposition(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
 
-  return { data, loading, error, reload: load };
+  return { data, loading, error, reload: () => load(true) };
 }
 
 // ---------------------------------------------------------------------------

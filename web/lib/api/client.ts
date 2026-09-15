@@ -184,6 +184,23 @@ export function setActiveWorkspace(workspaceId: string | null): void {
   } catch {
     // storage unavailable — non-fatal
   }
+  // THE BINDING JUST CHANGED, so any workspace-scoped module cache is stale
+  // (2026-09-15). Today all six call sites hard-navigate immediately, which
+  // tears the module down anyway — but that makes the invariant something six
+  // places have to REMEMBER, and the seventh caller is the bug. Dropping the
+  // cache here makes it structural: a future in-place switch (no reload) is
+  // correct by construction rather than by everyone's good behaviour.
+  //
+  // Imported lazily: `lib/compositor/client` imports THIS module for `api`, so
+  // a static import would close a cycle. Under Next's bundler a cyclic binding
+  // can still be undefined at call time, which would make this line throw on
+  // the very path it protects. The dynamic import breaks the cycle, and the
+  // `.catch` keeps a bundling failure from taking down a workspace switch.
+  void import("@/lib/compositor/client")
+    .then((m) => m.invalidateWorkspaceSurfaces())
+    .catch(() => {
+      /* cache drop is best-effort; every caller hard-navigates today */
+    });
 }
 
 /** ADR-407 Phase 5 — "switch to my own workspace" CLEARS the binding rather
