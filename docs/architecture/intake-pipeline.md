@@ -51,15 +51,21 @@ Verified against production (2026-08-18) — all four live lanes already conform
 ```
 inbound/web/simonwillison/2026-08-17T210044Z.xml
 inbound/slack/c0a6p2ws4hl/2026-07-03T06:40:31Z.md
-inbound/uploads/operator/image-5.png
+inbound/uploads/image-5.png
 inbound/mcp/claude/yarnnn-canon-lock.md
 ```
 
 ⚠️ **Drift note**: `workspace_paths.py:141` documents this as
-`inbound/{transport}/{principal}/{slug}.md`. That was accurate when uploads and
-mcp were the only lanes (their selector IS a principal). For `web` and `slack`
-the middle segment is a **source selector**, not a principal. `{selector}` is
-the general form; `{principal}` is the special case. Correct the constant's
+`inbound/{transport}/{principal}/{slug}.md`. For `web` and `slack` the middle
+segment is a **source selector**, not a principal; `{selector}` is the general
+form. And for `uploads` there is now **no middle segment at all**: the
+ADR-555 amendment (2026-09-16) dropped the `{principal}/` sublane, which had
+exactly one value (`operator`) across all 67 production rows and so
+disambiguated nothing — an arrival is badged on the ledger
+(`revision_kind='observation'`), not by its address. Pre-amendment rows keep
+their `inbound/uploads/operator/...` paths; every rule keys on the
+`inbound/uploads/` prefix, which did not move. Files attached in chat take
+their own shelf, `inbound/uploads/chat/` (ADR-555 A2). Correct the constant's
 comment before relying on it.
 
 ### `inbound/` is a quarantine lane

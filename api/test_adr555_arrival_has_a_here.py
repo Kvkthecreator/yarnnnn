@@ -6,6 +6,17 @@ Two defects, one root:
      fixed three levels down in `resolve_upload_raw_path` with
      `principal = "operator"` as a literal — while `New Folder`, in the same
      file, already honoured the open folder (Finder's rule).
+
+     AMENDMENT (2026-09-16): that literal is now GONE from the path. The
+     `{principal}/` sublane existed to keep principals from colliding in one
+     intake lane and never had a second value — every production upload row
+     sat under the single segment `operator`. A sublane with one possible
+     value disambiguates nothing, so the default lands at
+     `inbound/uploads/{slug}.{ext}` and the arrival keeps being badged on the
+     LEDGER (`revision_kind='observation'`, D1), not by its address.
+     Attribution is untouched: `authored_by` still records the operator seat.
+     Old rows keep their `operator/` paths — this gate proves both shapes stay
+     lane-legal.
   2. THREE verbs answered the placement question differently:
      `create_folder` used `operator_can_organize`, `create_artifact` fenced to
      `operation/`, and `upload_documents` fenced to `inbound/uploads/` AND
@@ -21,6 +32,7 @@ set — the shape that caught F1.
 Run: python3 test_adr555_arrival_has_a_here.py   (check()-style, NOT pytest)
 """
 
+import inspect
 import pathlib
 import re
 import sys
@@ -55,27 +67,59 @@ def main() -> int:
     print("── 1. D3 — an arrival lands WHERE THE MEMBER PUT IT ───────────")
     _check(
         "D3 [FALSIFIER]: a destination wins — the file lands in that folder",
-        resolve("operator", "q3", "pdf", destination="operation/fundraising")
+        resolve("q3", "pdf", destination="operation/fundraising")
         == "/workspace/operation/fundraising/q3.pdf",
     )
     _check(
         "D3 [FALSIFIER]: a PEER folder works too (ADR-424 D2 is honoured)",
-        resolve("operator", "q3", "pdf", destination="the-acme-deal")
+        resolve("q3", "pdf", destination="the-acme-deal")
         == "/workspace/the-acme-deal/q3.pdf",
     )
     _check(
-        "D3: no destination = the intake lane, byte-identical to before",
-        resolve("operator", "q3", "pdf") == "/workspace/inbound/uploads/operator/q3.pdf",
+        "D3 (am.): no destination = the intake lane ITSELF, no sublane",
+        resolve("q3", "pdf") == "/workspace/inbound/uploads/q3.pdf",
     )
     _check(
-        "D3: the `{principal}/` sublane belongs to the DEFAULT home only",
-        "/operator/" not in resolve("operator", "q3", "pdf", destination="ops"),
+        "D3 (am.) [FALSIFIER]: the `{principal}/` sublane is gone EVERYWHERE — "
+        "it had one value, so it disambiguated nothing",
+        "/operator/" not in resolve("q3", "pdf")
+        and "/operator/" not in resolve("q3", "pdf", destination="ops"),
+    )
+    _check(
+        "D3 (am.): the resolver takes NO principal — attribution is `authored_by` "
+        "on the revision, never a path segment (singular implementation)",
+        "principal" not in inspect.signature(resolve).parameters,
     )
     for messy in ("/workspace/operation/", "workspace/operation", "operation/"):
         _check(
             f"D3: a messy destination normalizes ({messy!r})",
-            resolve("operator", "q3", "pdf", destination=messy)
+            resolve("q3", "pdf", destination=messy)
             == "/workspace/operation/q3.pdf",
+        )
+
+    # The amendment must not move the lane ROOT: the ADR-422 D2 organizability
+    # carve, `is_upload_projection` and embed-eligibility ALL key on the
+    # `inbound/uploads/` prefix. Old rows (67 in production under `operator/`)
+    # and new rows must both stay lane-legal, or the amendment breaks history.
+    from services.documents import is_upload_projection, upload_projection_path
+    from services.primitives.embed import _EMBED_ELIGIBLE_ROOTS
+    from services.workspace_paths import INBOUND_UPLOADS_ROOT
+
+    for label, raw in (
+        ("new shape", resolve("q3", "pdf")),
+        ("old shape (live production rows)", "/workspace/inbound/uploads/operator/q3.pdf"),
+        ("chat shelf", resolve("shot", "png", destination="inbound/uploads/chat")),
+    ):
+        rel = raw.lstrip("/")
+        rel = rel[len("workspace/"):] if rel.startswith("workspace/") else rel
+        _check(f"D3 (am.): {label} is still under the lane root", rel.startswith(INBOUND_UPLOADS_ROOT))
+        _check(f"D3 (am.): {label} is still organizable (ADR-422 D2 carve)", operator_can_organize(raw))
+        _check(
+            f"D3 (am.): {label}'s projection is still hidden + embed-eligible",
+            is_upload_projection(upload_projection_path(raw))
+            and any(
+                upload_projection_path(rel).startswith(r) for r in _EMBED_ELIGIBLE_ROOTS
+            ),
         )
 
     print("\n── 2. D2/D4 — the upload door AUTHORIZES (it never did) ───────")

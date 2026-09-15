@@ -117,7 +117,7 @@ def _unique_raw_path(raw_path: str, db_client, user_id: str) -> str:
     """Return `raw_path`, appending -N before the extension if it already exists.
 
     Works on a full raw-lane path with its REAL extension (e.g.
-    /workspace/inbound/uploads/operator/acme-brief.pdf), so re-uploading the
+    /workspace/inbound/uploads/acme-brief.pdf), so re-uploading the
     same filename yields acme-brief-2.pdf rather than clobbering. The projection
     sibling is derived from whichever raw path this returns, so the two stay
     co-located and collision-free together.
@@ -178,7 +178,7 @@ async def process_document(
     observation, and the searchable text is a SEPARATE derived act that cites
     the raw. Concretely:
       1. Land the RAW as a VERSIONED BINARY revision (ADR-427 Phase 3) at
-         inbound/uploads/{principal}/{slug}.{ext} — bytes in the CAS behind
+         inbound/uploads/{slug}.{ext} — bytes in the CAS behind
          the storage seam, type derived (D5), serving minted at read (D4).
          (`storage_path` is a legacy parameter; the un-versioned bucket copy
          is retired — pass None.)
@@ -221,15 +221,19 @@ async def process_document(
     #    the bytes enter the content-addressed store behind the storage seam —
     #    attributed, parent-pointered, revertible; type derived at the door
     #    (D5); serving minted at read (D4). No un-versioned bucket copy, no
-    #    stored content_url. principal defaults to "operator" (ADR-373).
-    principal = "operator"
+    #    stored content_url.
+    #
+    # ATTRIBUTION, not address: the upload is authored by the operator seat
+    # (ADR-373). This names WHO, and rides `authored_by` on the revision below;
+    # it is deliberately NOT a path segment (ADR-555 amendment 2026-09-16 — a
+    # sublane with one possible value disambiguates nothing, and the arrival is
+    # badged on the ledger by `revision_kind='observation'`, per D1).
+    authored_by = "operator"
     # ADR-555 D3 — where the arrival lands. A caller-supplied destination is the
-    # folder the member dropped on; absent one, the intake lane's
-    # `{principal}/` sublane is the default. The lane is a DEFAULT, not a law
-    # (D1): the arrival is recorded by its `revision_kind='observation'` badge
-    # on the ledger, not by its address.
+    # folder the member dropped on; absent one, the intake lane is the default.
+    # The lane is a DEFAULT, not a law (D1).
     raw_path = _unique_raw_path(
-        resolve_upload_raw_path(principal, slug, file_type, destination=destination),
+        resolve_upload_raw_path(slug, file_type, destination=destination),
         db_client,
         user_id,
     )
@@ -240,7 +244,7 @@ async def process_document(
             user_id=user_id,
             path=raw_path,
             content_bytes=file_content,
-            authored_by=principal,
+            authored_by=authored_by,
             message=f"upload {filename}",
             lifecycle="active",
             # ADR-448 (closing the ADR-423 D3 gap): an inbound/ write is an
@@ -367,8 +371,8 @@ def create_signed_url_for_storage_path(
 # RAW-LANE UPLOAD PATH (ADR-395 Piece A / DP32)
 # =============================================================================
 # uploads/ is the N=human case of the inbound/ raw lane (DP32 / ADR-376 §4).
-# A human upload lands its RAW blob at inbound/uploads/{principal}/{slug}.{ext},
-# immutable + attributed, sibling to the machine inbound/{transport}/ sublanes.
+# A human upload lands its RAW blob at inbound/uploads/{slug}.{ext}, immutable +
+# attributed, sibling to the machine inbound/{transport}/ sublanes.
 # The DERIVED text projection (ADR-395 Piece B) lands co-located as a sibling
 # `.extracted.md`, citing the raw via `derived_from`.
 
@@ -376,21 +380,36 @@ INBOUND_UPLOADS_PREFIX = "/workspace/inbound/uploads"
 
 
 def resolve_upload_raw_path(
-    principal: str, slug: str, ext: str, destination: Optional[str] = None
+    slug: str, ext: str, destination: Optional[str] = None
 ) -> str:
     """Where a human upload's RAW blob lands (ADR-395 Piece A / DP32).
 
-    With no `destination`: inbound/uploads/{principal}/{slug}.{ext} — the
-    intake lane's human sublane, attributed to the uploading principal. `ext` is
-    the real file extension (pdf/docx/…), so the raw lane preserves the original
-    format. The derived text projection is a sibling
+    With no `destination`: inbound/uploads/{slug}.{ext} — the intake lane
+    itself. `ext` is the real file extension (pdf/docx/…), so the raw lane
+    preserves the original format. The derived text projection is a sibling
     (see `upload_projection_path`).
+
+    ── No `{principal}/` sublane (ADR-555 amendment, 2026-09-16) ─────────────
+    The lane used to carry a `{principal}/` segment to keep many principals
+    from colliding in one intake lane. It never had a second value: the segment
+    was the literal `"operator"` fixed at the single call site, and every
+    upload row in production sat under it. A sublane with one possible value
+    disambiguates nothing — it is address-shaped ceremony that leaks ADR-373
+    vocabulary into a path members read in Files. ADR-555 §1 already named that
+    literal as the defect; D1 already ruled that an arrival is badged on the
+    ledger (`revision_kind='observation'`), not by its address. So the segment
+    goes and the badge stays. Attribution is UNAFFECTED — `authored_by` on the
+    revision still records who uploaded; only the PATH loses the segment.
+
+    Old rows keep their `inbound/uploads/operator/...` paths and keep
+    resolving: they are ordinary `workspace_files` rows under the same lane
+    root, and every rule that touches the lane (the ADR-422 D2 organizability
+    carve, `is_upload_projection`, embed eligibility) keys on the
+    `inbound/uploads/` PREFIX, which is unchanged. No migration moves them.
 
     ── With a destination (ADR-555 D3) ───────────────────────────────────────
     The folder the member dropped on wins, and the file keeps its real name
-    there: `{destination}/{slug}.{ext}`. No `{principal}/` sublane — that
-    sublane is a property of the DEFAULT home (many principals share one intake
-    lane and must not collide), not of a folder the member chose.
+    there: `{destination}/{slug}.{ext}`.
 
     The lane is a default, not a law: an arrival is recorded by its
     `revision_kind='observation'` badge on the ledger, not by its address
@@ -403,8 +422,7 @@ def resolve_upload_raw_path(
         dest = dest[len("workspace/"):]
     if dest:
         return f"/workspace/{dest}/{slug}.{ext}"
-    p = _filename_to_slug(principal) or "operator"
-    return f"{INBOUND_UPLOADS_PREFIX}/{p}/{slug}.{ext}"
+    return f"{INBOUND_UPLOADS_PREFIX}/{slug}.{ext}"
 
 
 def upload_projection_path(raw_path: str) -> str:

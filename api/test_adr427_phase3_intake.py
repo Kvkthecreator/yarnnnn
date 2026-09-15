@@ -7,7 +7,7 @@ content_url), streams back byte-identically, and serves via a minted URL.
 The intake gate is the conformance DAG (D5), not a stored-MIME allowlist.
 
 Tests:
-  1. PNG upload → success; raw path under inbound/uploads/operator/
+  1. PNG upload → success; raw path under inbound/uploads/
   2. The raw is a BINARY revision (observation): marker blob, byte-identical
      round-trip through the seam
   3. Denorm discipline: content='', DERIVED image/png, content_url NOT stored
@@ -79,7 +79,7 @@ def run() -> None:
         content=PNG_PAYLOAD, content_type="application/octet-stream",
         filename="gate-427.png", user_id=TEST_USER_ID, service=client,
     ))
-    ok = item.success and (item.workspace_path or "").startswith("/workspace/inbound/uploads/operator/")
+    ok = item.success and (item.workspace_path or "").startswith("/workspace/inbound/uploads/")
     record("1. PNG upload accepted → inbound raw path", ok,
            f"path={item.workspace_path}, err={item.error}")
     raw_path = item.workspace_path

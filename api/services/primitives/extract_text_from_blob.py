@@ -88,8 +88,8 @@ already model-consumable (pass-through); {xlsx,pptx,zip,audio} are deferred
 Typical usage — invoked INLINE by the upload path on arrival (a one-shot),
 passing the already-extracted text so the blob is not re-parsed:
   ExtractTextFromBlob(
-    raw_path="/workspace/inbound/uploads/operator/acme-brief.pdf",
-    write_to="/workspace/inbound/uploads/operator/acme-brief.extracted.md",
+    raw_path="/workspace/inbound/uploads/acme-brief.pdf",
+    write_to="/workspace/inbound/uploads/acme-brief.extracted.md",
     text="<extracted text>",
     source_filename="acme-brief.pdf",
     file_type="pdf"

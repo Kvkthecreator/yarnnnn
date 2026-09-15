@@ -212,7 +212,7 @@ def agent_home_owner(path: str) -> Optional[str]:
 INBOUND_ROOT = "inbound/"
 
 # The HUMAN upload sublane of the raw arrival lane (ADR-395: uploads land at
-# inbound/uploads/{principal}/{slug}.{ext}). It is the N=human case of the raw
+# inbound/uploads/{slug}.{ext}). It is the N=human case of the raw
 # lane — but unlike machine/external observations, the operator OWNS what they
 # uploaded and may reorganize it (rename/move/trash). So this sublane is carved
 # BACK OUT of the inbound/ immutability rule (ADR-422 D2's stated invariant:

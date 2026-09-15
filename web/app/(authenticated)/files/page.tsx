@@ -1632,7 +1632,7 @@ export default function ContextPage() {
        trashSet, virtualRoot, syntheticNodeForPath]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane
-  // (inbound/uploads/{principal}/{slug}.{ext}, ADR-395), refresh the tree AND
+  // (inbound/uploads/{slug}.{ext}, ADR-395/555), refresh the tree AND
   // take the operator to the new file — select the uploaded workspace path. The
   // tree auto-expands the Intake root (WorkspaceTree's nodeContainsPath effect)
   // and highlights the new node; the viewer opens it. The operator SEES the

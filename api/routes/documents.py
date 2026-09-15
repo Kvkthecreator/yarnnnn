@@ -10,7 +10,7 @@ connector) mints a single-use capability; the holder of the bytes redeems it
 here, through this same pipeline.
 
 Endpoints:
-- POST /documents/upload  - Persistent upload → inbound/uploads/{principal}/{slug}.{ext} raw + .extracted.md projection (ADR-395)
+- POST /documents/upload  - Persistent upload → inbound/uploads/{slug}.{ext} raw + .extracted.md projection (ADR-395)
 - POST /uploads/{token}   - Redeem an ADR-622 upload ticket (no session; the ticket IS the auth)
 - GET /documents/blob     - Resolve a raw blob's content_url to a fresh signed URL (ADR-395)
 - POST /share             - Share a file to global user_shared/ (ADR-127)
@@ -209,7 +209,7 @@ async def _process_single_upload(
 ) -> tuple[UploadResultItem, Optional[str]]:
     """The single-file pipeline, callable N times (ADR-331 D5 + ADR-395).
 
-    Storage upload → land the RAW blob at inbound/uploads/{principal}/{slug}.{ext}
+    Storage upload → land the RAW blob at inbound/uploads/{slug}.{ext}
     (content_url, immutable) → derive the text projection (ADR-395 Piece A+B), with
     the embed DEFERRED off the request. Never raises — returns a per-file
     UploadResultItem plus the projection path to embed in the background (or None
@@ -507,7 +507,7 @@ async def list_documents(
 ):
     """List persistent workspace uploads.
 
-    ADR-395: uploads now land as RAW blobs in inbound/uploads/{principal}/ (not a
+    ADR-395: uploads now land as RAW blobs in inbound/uploads/ (not a
     derived .md under uploads/). We list the raw lane AND the legacy uploads/
     root (pre-ADR-395 files stay listed), skipping the co-located `.extracted.md`
     text projections (they're the derivation, not the upload). The filename comes
@@ -650,7 +650,7 @@ async def download_document(auth: UserClient, document_path: str):
     """Get a signed download URL for a persistent upload.
 
     document_path is the workspace file path, e.g.
-    '/workspace/inbound/uploads/operator/acme-brief.pdf' (leading slash optional).
+    '/workspace/inbound/uploads/acme-brief.pdf' (leading slash optional).
 
     ADR-395: new uploads store the raw blob's key in `content_url` (no
     frontmatter). Resolve `storage_path` from content_url first; fall back to the

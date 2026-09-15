@@ -32,6 +32,13 @@ import pytest
     # INTO inbound/uploads/; the blanket inbound/ carve must NOT swallow them
     # (the invariant every ADR-422 D2 comment states). Regression guard: an
     # uploaded PDF was falsely labeled an immutable "record" and un-renamable.
+    # BOTH lane shapes: the ADR-555 amendment dropped the inert `{principal}/`
+    # sublane from NEW uploads; rows already written under `operator/` keep
+    # resolving. The carve keys on the `inbound/uploads/` PREFIX, so an upload
+    # at ANY depth under the lane stays organizable.
+    ("/workspace/inbound/uploads/report.pdf", True),
+    ("/workspace/inbound/uploads/배출증-출력namechange.pdf", True),
+    ("/workspace/inbound/uploads/chat/pasted-screenshot.png", True),
     ("/workspace/inbound/uploads/operator/report.pdf", True),
     ("/workspace/inbound/uploads/operator/배출증-출력namechange.pdf", True),
     ("/workspace/inbound/uploads/some-member/deep/nested/x.md", True),

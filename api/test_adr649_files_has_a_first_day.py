@@ -45,7 +45,9 @@ import routes.workspace as rw  # noqa: E402
     ("/workspace/skills/my-own/SKILL.md", True),                   # a MEMBER's skill stays
     ("/workspace/operation/brief.md", True),
     ("/workspace/operation/signals/2026-09-12.md", False),         # the log the tree hides
-    ("/workspace/inbound/uploads/operator/deck.pdf", True),
+    ("/workspace/inbound/uploads/deck.pdf", True),                  # ADR-555 am. shape
+    ("/workspace/inbound/uploads/chat/pasted.png", True),           # the chat shelf
+    ("/workspace/inbound/uploads/operator/deck.pdf", True),         # pre-amendment row
 ])
 def test_s1_recents_is_what_members_and_agents_wrote(path, authored):
     assert rw._is_authored_substrate_path(path) is authored, path

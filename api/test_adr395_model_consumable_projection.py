@@ -8,7 +8,7 @@ coverage lacked: test_adr331 mocks process_document entirely, so it exercised th
 batch envelope but NOTHING of ADR-395's raw+derive core. The two assertions that
 would have caught the shipped defects:
 
-  • the raw lands at inbound/uploads/{principal}/{slug}.{ext} with content_url
+  • the raw lands at inbound/uploads/{slug}.{ext} with content_url
     (not a derived .md masquerading as the upload);
   • the derived .extracted.md projection is EMBED-ELIGIBLE + RECALL-REACHABLE
     (Defect 2 — the projection was landing in a lane recall could not see).
@@ -128,7 +128,7 @@ def _run_upload(store, embeds, *, filename, file_type, text_body):
 
 
 def test_upload_lands_raw_in_inbound_uploads_as_versioned_bytes():
-    """Piece A: the RAW blob lands at inbound/uploads/{principal}/{slug}.{ext}
+    """Piece A: the RAW blob lands at inbound/uploads/{slug}.{ext}
     as a VERSIONED BINARY revision — NOT a derived .md, NOT under the legacy
     uploads/ root.
 
@@ -151,7 +151,7 @@ def test_upload_lands_raw_in_inbound_uploads_as_versioned_bytes():
 
     assert result["success"] is True, result
     raw_path = result["raw_path"]
-    assert raw_path == "/workspace/inbound/uploads/operator/acme-brief.pdf", raw_path
+    assert raw_path == "/workspace/inbound/uploads/acme-brief.pdf", raw_path
     raw = store[raw_path]
     # The raw is BYTES in the CAS (ADR-427 Phase 3) — not a caption + pointer.
     assert raw["content_bytes"], f"raw must carry bytes, got {raw!r}"
@@ -170,10 +170,10 @@ def test_upload_derives_projection_citing_the_raw():
     result = _run_upload(store, embeds, filename="acme-brief.pdf", file_type="pdf", text_body=body)
 
     proj_path = result["projection_path"]
-    assert proj_path == "/workspace/inbound/uploads/operator/acme-brief.extracted.md", proj_path
+    assert proj_path == "/workspace/inbound/uploads/acme-brief.extracted.md", proj_path
     proj = store[proj_path]
     # DP32 citation is the first line so trace/_extract_derived_from_list walks it.
-    assert proj["content"].splitlines()[0] == "derived_from: /workspace/inbound/uploads/operator/acme-brief.pdf", proj["content"][:120]
+    assert proj["content"].splitlines()[0] == "derived_from: /workspace/inbound/uploads/acme-brief.pdf", proj["content"][:120]
     assert proj["authored_by"] == "system:extract", proj  # mechanical, not the operator
 
 
@@ -214,7 +214,7 @@ def test_deferred_embed_helper_embeds_the_projection():
     from unittest.mock import patch
     from routes import documents as route_docs
 
-    proj_path = "/workspace/inbound/uploads/operator/acme-brief.extracted.md"
+    proj_path = "/workspace/inbound/uploads/acme-brief.extracted.md"
     proj_content = "derived_from: /x\n\n# acme\n" + ("Revenue grew. " * 40)
     embedded = []
 
@@ -251,9 +251,9 @@ def test_second_upload_same_name_does_not_clobber():
     r1 = _run_upload(store, embeds, filename="dup.pdf", file_type="pdf", text_body=body)
     r2 = _run_upload(store, embeds, filename="dup.pdf", file_type="pdf", text_body=body)
 
-    assert r1["raw_path"] == "/workspace/inbound/uploads/operator/dup.pdf"
-    assert r2["raw_path"] == "/workspace/inbound/uploads/operator/dup-2.pdf", r2["raw_path"]
-    assert r2["projection_path"] == "/workspace/inbound/uploads/operator/dup-2.extracted.md"
+    assert r1["raw_path"] == "/workspace/inbound/uploads/dup.pdf"
+    assert r2["raw_path"] == "/workspace/inbound/uploads/dup-2.pdf", r2["raw_path"]
+    assert r2["projection_path"] == "/workspace/inbound/uploads/dup-2.extracted.md"
 
 
 # ── The derive-registry verdicts (ADR-395 D2 / DP34) ───────────────────────
@@ -281,8 +281,8 @@ def test_passthrough_writes_no_projection():
         caller_identity = "system:extract"
 
     out = asyncio.run(handle_extract_text_from_blob(_Auth(), {
-        "raw_path": "/workspace/inbound/uploads/operator/logo.png",
-        "write_to": "/workspace/inbound/uploads/operator/logo.extracted.md",
+        "raw_path": "/workspace/inbound/uploads/logo.png",
+        "write_to": "/workspace/inbound/uploads/logo.extracted.md",
         "file_type": "png",
         "text": "irrelevant",
     }))
@@ -316,10 +316,18 @@ import pytest as _pytest
 
 @_pytest.mark.parametrize("path,hidden", [
     # The co-located upload projection → hidden (plumbing).
-    ("/workspace/inbound/uploads/operator/acme.extracted.md", True),
-    ("workspace/inbound/uploads/operator/acme.extracted.md", True),  # no leading slash
+    # BOTH lane shapes are asserted: the ADR-555 amendment dropped the inert
+    # `{principal}/` sublane from NEW uploads, and the ~67 rows already written
+    # under `operator/` keep resolving. The rule keys on the derive EDGE and the
+    # `inbound/uploads/` prefix, so neither shape may drift.
+    ("/workspace/inbound/uploads/acme.extracted.md", True),
+    ("workspace/inbound/uploads/acme.extracted.md", True),  # no leading slash
+    ("/workspace/inbound/uploads/operator/acme.extracted.md", True),  # pre-amendment row
+    ("workspace/inbound/uploads/operator/acme.extracted.md", True),
+    ("/workspace/inbound/uploads/chat/acme.extracted.md", True),  # the chat shelf
     # The raw upload → shown (the user's file).
-    ("/workspace/inbound/uploads/operator/acme.pdf", False),
+    ("/workspace/inbound/uploads/acme.pdf", False),
+    ("/workspace/inbound/uploads/operator/acme.pdf", False),  # pre-amendment row
     # A user's own prose .md → shown (never hidden).
     ("/workspace/uploads/legacy.md", False),
     ("/workspace/operation/report.md", False),

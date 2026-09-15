@@ -19,7 +19,7 @@
  *
  * Drops the file(s) through api.documents.upload → POST /api/documents/upload,
  * which — per ADR-395 (DP34) — retains the RAW blob at
- * inbound/uploads/{principal}/{slug}.{ext} (content_url) and derives a searchable
+ * inbound/uploads/{slug}.{ext} (content_url) and derives a searchable
  * text projection (.extracted.md) citing it. On success, calls onUploaded so the
  * explorer re-fetches the tree + selects the new file.
  *

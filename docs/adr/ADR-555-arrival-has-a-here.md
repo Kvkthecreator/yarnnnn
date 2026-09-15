@@ -4,6 +4,7 @@
 > **Amends**: [ADR-440](ADR-440-the-studio-the-first-authoring-app.md) D6 (the `STUDIO_ARTIFACT_REGION` fence — relaxed to the organize predicate) · [ADR-395](ADR-395-model-consumable-projection-and-upload-intake-conformance.md) (uploads may land outside `inbound/uploads/`; the lane becomes the DEFAULT, not the law)
 > **Preserves**: ADR-424 D1/D2 (one home directory, peer folders) · ADR-422 D2 (raw intake stays immutable; the uploads sublane stays organizable) · ADR-448 / DP32 (an arrival is badged `revision_kind='observation'` — on the ledger) · ADR-549 D3 (the default is where the act is standing) · ADR-554 (the projection follows its raw)
 > **Derivation**: the 2026-08-12 arrival/move audit
+> **Amended**: 2026-09-16 — the `{principal}/` sublane §1 named as the defect is DROPPED from the path; chat attachments take their own destination; retention stays NONE (see the amendment below).
 
 ---
 
@@ -90,12 +91,14 @@ Reusing ADR-549 D3's ladder rather than inventing a second one:
    canvas is showing.
 2. **The Documents home** when there is no "here" (Recents, a virtual group, an
    open file).
-3. **`inbound/uploads/{principal}/`** only when the caller supplies nothing at
-   all — every non-Files caller, unchanged.
+3. **`inbound/uploads/`** only when the caller supplies nothing at
+   all — every non-Files caller, unchanged. (As shipped this was
+   `inbound/uploads/{principal}/`; the sublane is dropped by the 2026-09-16
+   amendment below — it had one possible value.)
 
-The uploaded file keeps its real filename in a meaning folder; the
-`{principal}/` sublane is a property of the *default* home, not of every
-destination.
+The uploaded file keeps its real filename in a meaning folder. (The
+`{principal}/` sublane was a property of the *default* home only, and is gone
+entirely as of the 2026-09-16 amendment.)
 
 ### D4 — The refusal is visible before the drop, not after
 
@@ -137,3 +140,90 @@ This is ADR-549's F1 lesson applied at the arrival door — *permission answers
 **An arrival lands where the member put it and is recorded as an arrival by its
 ledger badge, not by its address — so placement becomes one law, asked of one
 predicate, by every verb that creates or receives a file.**
+
+---
+
+## Amendment — 2026-09-16: the `{principal}/` sublane goes; chat gets a shelf
+
+§1 named the literal and D3 fixed only half of it. The destination became
+member-chosen, but with **no** destination the resolver still composed
+`inbound/uploads/{principal}/{slug}.{ext}` — and `principal` was the literal
+`"operator"`, fixed at the one call site in `process_document`. The sublane
+existed so that many principals sharing one intake lane could not collide. It
+never had a second value.
+
+**The receipt**: all **67** upload rows in production, across **2** accounts,
+sit under the single segment `operator`. A sublane with one possible value
+disambiguates nothing. Worse, it is address-shaped: it leaks ADR-373's
+principal vocabulary into a path a member reads in Files, promising a
+distinction the system does not make. D1 already ruled where an arrival is
+recorded — the ledger badge `revision_kind='observation'` — so the address was
+never carrying that fact anyway.
+
+### A1 — the default lands in the lane itself
+
+`resolve_upload_raw_path(slug, ext, destination=None)` returns
+`/workspace/inbound/uploads/{slug}.{ext}`. The `principal` parameter is
+**removed entirely**, not defaulted — an unused parameter is a shim, and there
+is one intake shape (singular implementation).
+
+**Attribution is untouched.** Who uploaded is `authored_by` on the revision
+(still the operator seat), where it has always belonged. This amendment moves
+nothing from the ledger to the path or back; it deletes a path segment that
+was duplicating a ledger fact badly.
+
+**No migration, no backfill.** The ~67 rows keep their
+`inbound/uploads/operator/...` paths and keep resolving: they are ordinary
+`workspace_files` rows under the same lane root, and chat history that
+references an attachment BY PATH (`_mint_cas_url_for_path` in
+`api/routes/lanes.py`) still finds them. Every rule that touches the lane —
+the ADR-422 D2 organizability carve (`INBOUND_UPLOADS_ROOT`),
+`is_upload_projection`, `_EMBED_ELIGIBLE_ROOTS` — keys on the
+`inbound/uploads/` **prefix**, which does not move. No code parses the path by
+segment depth (swept). The gate asserts both shapes stay lane-legal.
+
+### A2 — a chat attachment is deixis, and gets its own shelf
+
+A pasted screenshot or a dropped PDF in a conversation — *"why does this look
+wrong"* — is conversational pointing, not authored workspace knowledge. Chat
+attachments ride the **same door** as Files uploads
+(`LanePanel.addFiles` → `api.documents.upload` → `POST /documents/upload`), so
+they were landing beside the files a member deliberately brought in and
+filling the curated arrivals folder with scraps.
+
+They now pass `destination = 'inbound/uploads/chat'` (D3's mechanism, no new
+one). It stays **under** `inbound/uploads/` deliberately: that prefix is what
+the organizability carve, the projection-hiding rule and embed eligibility all
+key on, so a chat attachment remains an ordinary, movable, searchable arrival
+with its own shelf. D2 authorizes it like any other destination —
+`resolve_access(auth, '/workspace/inbound/uploads/chat/x', 'create')` is
+**allowed** (driven, not assumed). The attach-from-workspace bind path
+(`attachWorkspaceFile`) is a reference to an existing file, not an upload, and
+is untouched.
+
+### A3 — retention stays NONE. Do not re-open this.
+
+Recorded here so a future session does not re-litigate it: **there is no TTL,
+GC, cron or deletion path for uploads, and none is to be added.**
+
+- ADR-591 already deleted the retention GC. This amendment does not revive it.
+- **ADR-623 depends on the bytes being durable.** A vanished image made the
+  model answer as if it had seen a picture it never saw; the fix re-mints
+  images from the durable path on replay (`api/routes/lanes.py`). Deleting an
+  upload re-opens that defect directly.
+- The measured cost does not justify the risk: **47 MB over 57 days** from two
+  heavy development accounts — roughly **7 GB/year at 50 workspaces**, against
+  a **100 GB** included Supabase Pro allowance.
+
+Retention is an operator ruling (2026-09-16), not an oversight.
+
+### Falsifiers (added to §5)
+
+8. An upload with no destination lands at `/workspace/inbound/uploads/{slug}.{ext}` — no `operator/` segment anywhere in the path.
+9. `resolve_upload_raw_path` accepts no `principal` parameter at all.
+10. A pre-amendment row at `inbound/uploads/operator/q3.pdf` is still organizable, its projection still hidden, its path still resolvable in chat history.
+11. A file attached in chat lands under `inbound/uploads/chat/`, and that destination is allowed by `resolve_access` for `create`.
+12. The revision for every arrival, at any of these addresses, still carries `revision_kind='observation'` and an `authored_by` naming who uploaded.
+
+**Gate**: `api/test_adr555_arrival_has_a_here.py` (39/39). The amendment's two
+shape checks are proven RED against the pre-amendment sublane before green.

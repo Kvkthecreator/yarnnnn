@@ -87,6 +87,21 @@ import { toolLabelLine } from './toolLabels';
 import { StreamSteps, type StreamStep } from './StreamSteps';
 import { Working } from '@/components/shared/Working';
 
+/** Where a file attached IN CHAT lands (ADR-555 D3 destination).
+ *
+ * A pasted screenshot or a dropped PDF in a conversation is deixis — "why does
+ * this look wrong" — not authored workspace knowledge. Landing it in the plain
+ * intake lane put it beside the files a member deliberately brought in, so the
+ * curated arrivals folder filled with conversational scraps.
+ *
+ * It stays UNDER `inbound/uploads/` on purpose: that prefix is what the
+ * organizability carve (ADR-422 D2), the projection-hiding rule and embed
+ * eligibility all key on, so a chat attachment remains an ordinary, movable,
+ * searchable arrival — it just has its own shelf. The path is authorized by the
+ * server like any other destination (ADR-555 D2).
+ */
+const CHAT_ATTACHMENT_DESTINATION = 'inbound/uploads/chat';
+
 /** Render a member's text with recognized `@handles` marked (ADR-492 D3).
  *
  * A mention is ADDRESSING METADATA that happens to live in authored content —
@@ -573,7 +588,8 @@ export function LanePanel({
     onCiteConsumed?.();
   }, [citePaths, attachWorkspaceFile, onCiteConsumed]);
 
-  /** Upload files into the raw lane (ADR-395) and track them as chips. */
+  /** Upload files into the chat shelf of the raw lane (ADR-395/555) and track
+   *  them as chips. */
   const addFiles = useCallback(
     (files: File[]) => {
       for (const file of files) {
@@ -588,7 +604,7 @@ export function LanePanel({
           { key, name: file.name, kind, uploading: true },
         ]);
         api.documents
-          .upload(file)
+          .upload(file, CHAT_ATTACHMENT_DESTINATION)
           .then((res) => {
             const item = res.results?.[0];
             setAttachments((prev) =>
