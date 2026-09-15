@@ -94,7 +94,20 @@ load_dotenv(_API_ROOT.parent / ".env")
 ALLOWED_EMAILS: dict[str, str] = {
     # --- the click-pass pair (rig-only, fully disposable) ---------------
     "kvkthecreator@yarnnn.com": "rig",   # OWNER principal — kvk-yarnnn rig, ws bf5b25a9
-    "testacct@yarnnn.com": "rig",        # GUEST principal — owns NO workspace, never signed in
+    # ⚠️ NO LONGER COLD (corrected 2026-09-15). This said "owns NO workspace,
+    # never signed in" long after it had signed in and been minted a workspace —
+    # a comment describing a state the first use of the account consumed. A cold
+    # principal is a SINGLE-USE instrument; the roster cannot promise coldness,
+    # only record which address has not been spent yet. Verify before every run
+    # (0 grant rows anywhere), never trust this line.
+    "testacct@yarnnn.com": "rig",        # GUEST principal — warm since 2026-09-12
+    # --- cold-arrival instruments (beta-readiness pass, 2026-09-15) -----
+    # Minted UNUSED so the first-run experience can be driven for real, and a
+    # second exists for the re-verify after a first-run defect is fixed. Each is
+    # spent on first sign-in: once used, annotate it here rather than leaving the
+    # next session to discover it warm (the testacct lesson directly above).
+    "beta-cold-01@yarnnn.com": "rig",    # COLD — unused as of 2026-09-15
+    "beta-cold-02@yarnnn.com": "rig",    # COLD — reserved for the re-verify
     # --- other rig principals (persona workspaces) ---------------------
     "alpha-trader-2@yarnnn.com": "rig",
     "yarnnn-author@yarnnn.com": "rig",

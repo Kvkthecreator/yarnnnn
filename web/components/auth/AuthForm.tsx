@@ -77,7 +77,21 @@ export function AuthForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(initialError);
+  /**
+   * ONE notice slot, but its TONE is declared, never sniffed from the words.
+   *
+   * Until 2026-09-15 the sign-up success ("Check your email for a confirmation
+   * link.") was written into the `error` state and rendered green by
+   * `error.includes("Check your email")`. Two meanings in one channel,
+   * discriminated by prose: re-word the copy — which the VOICE-AND-TONE pass is
+   * actively doing — and the only success message on the sign-up screen turns
+   * red, telling every new member their account failed when it did not. This is
+   * the first screen a beta user touches, so the tone is declared beside the
+   * text and the render reads the declaration.
+   */
+  const [notice, setNotice] = useState<{ tone: "error" | "success"; text: string } | null>(
+    initialError ? { tone: "error", text: initialError } : null,
+  );
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
 
   const supabase = createClient();
@@ -85,7 +99,7 @@ export function AuthForm({
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setNotice(null);
     try {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -98,10 +112,16 @@ export function AuthForm({
           options: { emailRedirectTo: callbackRedirect },
         });
         if (error) throw error;
-        setError("Check your email for a confirmation link.");
+        setNotice({
+          tone: "success",
+          text: "Check your email for a confirmation link.",
+        });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setNotice({
+        tone: "error",
+        text: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      });
     } finally {
       setLoading(false);
     }
@@ -109,7 +129,7 @@ export function AuthForm({
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    setError(null);
+    setNotice(null);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -120,7 +140,10 @@ export function AuthForm({
       });
       if (error) throw error;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setNotice({
+        tone: "error",
+        text: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      });
       setLoading(false);
     }
   };
@@ -190,13 +213,14 @@ export function AuthForm({
             />
           </div>
 
-          {error && (
+          {notice && (
             <p
+              role={notice.tone === "error" ? "alert" : "status"}
               className={`text-sm ${
-                error.includes("Check your email") ? "text-emerald-600" : "text-red-600"
+                notice.tone === "success" ? "text-emerald-600" : "text-red-600"
               }`}
             >
-              {error}
+              {notice.text}
             </p>
           )}
 
