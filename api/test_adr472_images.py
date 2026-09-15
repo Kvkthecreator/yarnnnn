@@ -173,22 +173,28 @@ def run() -> bool:
         ),
     )
 
-    # ── §6 ADR-488 — the app is INTERNAL: hidden, not unplugged ─────────
-    # Images left the user-facing tier pre-beta (unveil bar = polish parity,
-    # the ADR-486 D7 registration-is-not-unveil pattern). The gate pins the
-    # HIDDEN state so a stray edit can't half-unveil it: hiding is these
-    # four facts together, and re-unveiling is a deliberate ADR-488 §5
-    # decision that updates this block in the same commit.
+    # ── §6 ADR-629 D3 — full placement, wearing the beta badge ──────────
+    # ADR-488 held the unveil for "polish parity" and this block pinned the
+    # HIDDEN state (search-only, unpinned, off the Dock). ADR-629 D3 closed
+    # that hold by operator ruling (2026-09-01): Images is PRIMARY and wears
+    # `badge: "beta"` as the honesty mechanism. Re-pinned 2026-09-13 to the
+    # beta state — the block still guards the half-state a stray edit could
+    # produce (placement without the badge, or the badge without placement).
     from services.kernel_surfaces import KERNEL_SURFACES
 
     images_row = next(s for s in KERNEL_SURFACES if s["slug"] == "images")
     _check(
-        "registry: images is search-only (ADR-488 — hidden at rest)",
-        images_row.get("launcher_tier") == "search-only",
+        "registry: images is PRIMARY (ADR-629 D3 — the unveil hold is closed)",
+        images_row.get("stage") == "primary"
+        and images_row.get("launcher_tier") == "primary",
     )
     _check(
-        "registry: images is NOT default-pinned (ADR-488 — left the Dock)",
-        images_row.get("default_pinned") is False,
+        "registry: images IS default-pinned (ADR-629 D3 — back in the Dock)",
+        images_row.get("default_pinned") is True,
+    )
+    _check(
+        "registry: images wears the beta badge (ADR-629 D1 — presentation only, gates nothing)",
+        images_row.get("badge") == "beta",
     )
     _check(
         "registry: images stays ROUTABLE (unpromoted, not unplugged)",
@@ -203,8 +209,8 @@ def run() -> bool:
         "];", 1
     )[0]
     _check(
-        "FE: 'images' is not in the default Dock (DEFAULT_KEPT_SURFACES)",
-        "'images'" not in kept_block.replace("// 'images'", ""),
+        "FE: 'images' IS in the default Dock (DEFAULT_KEPT_SURFACES, ADR-629 D3)",
+        "'images'" in kept_block.replace("// 'images'", ""),
     )
     _check(
         "FE: the de-seed path exists — a reseed generation names the old "
