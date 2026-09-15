@@ -52,7 +52,7 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 
 ## Files (ADR-649, 2026-09-12)
 - Rig `anr-scout@yarnnn.com` (ws `4023cb7b`) holds `operation/first-folder/` from the click-pass; trash it for a cold
-  rig. `testacct` owns a workspace — its "owns nothing" note in `browser_login_link.py` is stale. Top-level peer
+  rig. (`testacct`'s stale "owns nothing" note was corrected 2026-09-16.) Top-level peer
   folders have no member door (D5 sends a folder from nowhere to Documents); if one is needed, `NewFolderModal` grows a destination picker — never a second fallback.
 
 ## Billing (found 2026-08-20 / 09-02, unverified)
@@ -60,8 +60,8 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   `TOPUP_DELIVERY_GRACE_MINUTES`, load Billing. Sweep LS order history for orders the stale `api.ep-0.com` hook swallowed before 2026-09-02.
 
 ## Email (ADR-650, 2026-09-12)
-- **Paste the six auth templates** from `supabase/templates/auth/` into Authentication → Emails → Templates (subjects
-  in that folder's README); SMTP is on Resend (ACCESS.md) — Supabase only reads templates from the dashboard.
+- **Paste the six auth templates** — see the Beta readiness section below for the one-command helper. SMTP is on
+  Resend (ACCESS.md); Supabase only reads templates from the dashboard.
 - **Security-change mail** (next tenants of the `account` kind, one hook each): a new AI connection on the OAuth code
   path (`_ensure_foreign_llm_grant`), a credential connected/removed on Reach, BYOK set or cleared.
 - `routes/webhooks.py` reconciles Resend delivery events only against `export_log` (0 rows); a bounce on a notification
@@ -89,33 +89,32 @@ Studio-era cluster (26 gates) was ruled 2026-09-13/14; the still-open shapes (AD
   the dropped socket. THE CURE — `get_user_client` is a sync dependency sharing one `lru_cache`d HTTP/2 pool
   across every threadpool worker — is a client-lifecycle change and still owes its own ADR.
 
-## Beta readiness (pass run 2026-09-15) — what is OWED before strangers arrive
+## Beta readiness (pass 2026-09-15, remainder closed 2026-09-16)
 The core loop is PROVEN on prod: a chat send wrote `operation/beta-readiness-probe.md` in ws `bf5b25a9`,
 revision `41708c79`, attributed `member:67c5c637 via anthropic/claude-sonnet-5`, ~13s send→durable write,
-with the ADR-651 bounded wait visible live. Fixed this session: the reach 503, the sign-up success riding the
-error channel, the 7× composition fetch, password reset (it did not exist), the undeliverable-address 500.
-Still owed, none of them code in this repo:
-- **Paste the six auth templates** into the Supabase dashboard (already listed under Email below). Highest
-  priority of the remainder: every beta user's first contact is a Supabase-sent email.
-- **Docs contradict `/pricing` on the free tier** — the marketing page says $0 for TWO people and paid from the
-  3rd; `yarnnn.gitbook.io/docs/plans-and-billing/plans` says $0 for ONE, paid at the second, calls the plan
-  "Starter" not "Team", and promises a $15/mo included pool the pricing page does not. Both are footer-linked.
-  A buyer who checks the docs finds a different, costlier model. GitBook edit, not a repo change.
-- **Every conversion CTA lands on Sign IN** ("Connect your AI", "Start free", "Bring the team", "Open yarnnn"
-  → `/auth/login`, which defaults to sign-in mode). A new visitor must find the small "Sign up" toggle.
-  `/auth/login` accepts no mode param today — adding one is a small repo change, not yet made.
-- **Docs still document Freddie** ("the workspace steward", 1 of 4 entries under HOW IT WORKS, with Autonomy
-  and Budget dials) — retired by ADR-632. Also app-name drift: docs say Docs/Studio, the product says
-  Text/Slides, and `/how-it-works` uses both spellings on one page.
-- `/terms` is 1,625 chars, dated 2026-01-28 (vs `/privacy` 2026-07-08), mentions no refund/billing/subscription
-  while the site sells $20/seat, and carries no nav or footer. `/invest` repeats the old pricing model;
-  `/engines` lists xAI while `/privacy` §4 — billed as the complete third-party list — omits it.
-- Two prod probe accounts to tear down: `beta-cold-01@yarnnn.com` (3cd3cf45) and
-  `probe-nodomain@thisdomaindoesnotexist-zzz.com` (9af29121), created 2026-09-15 while isolating the signup
-  500. Use the product's purge path, not a hand-written DELETE.
-- NOT covered by this pass, and each is its own run: a real cold sign-up driven end-to-end through the
-  browser (the API half is probed by `probe_cold_user_genesis.py`; the UI half is not), N>2 members, a paid
-  tier, any connected platform, a real phone, and the Slides/Blogger/Images authoring surfaces beyond load.
+with the ADR-651 bounded wait visible live. Record: `docs/evaluations/2026-09-15-beta-readiness-click-pass.md`.
+
+CLOSED 09-15: the reach 503, the sign-up success on the error channel, the 7× composition fetch, password
+reset (it did not exist), the undeliverable-address 500.
+CLOSED 09-16: the GitBook docs rewrite (`04ff98c` — ~15 false files, Freddie deleted, Studio→Slides,
+Docs→Text, Blogger/Images/Reach written from scratch, gated by `api/test_gitbook_docs_current.py`); the
+sign-up CTA (`b98999b`); the xAI privacy omission + the last "Studio" on /how-it-works (`2e0f4cb`); the
+`api/scripts/` invocation bug (`b53f5ce`, gated); both prod probe accounts torn down and verified gone
+(17 accounts, 19 workspaces, 0 orphan grants).
+
+**THE ONE ITEM LEFT — paste the six auth templates.** `python3 api/scripts/print_auth_templates.py` prints
+all six in dashboard order with subjects; paste into Authentication → Emails → Templates. It needs a
+dashboard click or a Supabase PAT (the Management API is the only programmatic route and this repo holds
+only the service key, which governs data, not project config). Reset Password is newly load-bearing —
+before 2026-09-15 there was no reset door, so that mail could never fire.
+
+Also still open, lower stakes: `/terms` is 1,625 chars, dated 2026-01-28 (vs `/privacy` 2026-07-08),
+mentions no refund/billing/subscription while the site sells $20/seat, and carries no nav or footer;
+`/invest` repeats the pre-ADR-490 pricing model.
+
+NOT covered by the pass, each its own run: a real cold sign-up driven end-to-end through the browser (the
+API half is probed by `probe_cold_user_genesis.py`; the UI half is not), N>2 members, a paid tier, any
+connected platform, a real phone, and the Slides/Blogger/Images authoring surfaces beyond load.
 
 ## Waiting (ADR-651, 2026-09-13)
 - ~~Prod click-pass of a live turn~~ — DONE 2026-09-15 (see Beta readiness above): "is working…" rendered for
