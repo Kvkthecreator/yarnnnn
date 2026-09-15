@@ -51,7 +51,10 @@ def main() -> int:
     modal = (root / "web/components/authoring/NewArtifactModal.tsx").read_text()
 
     print("── 1. THE LIFT: the name round-trips EXACTLY ──────────────────")
-    doc = STUDIO_TEMPLATES["document"]["skeleton"]
+    # (Re-pinned 2026-09-13: `document` left with the Docs app — ADR-599 D5.
+    #  The lift rides <title>, which set_artifact_title writes on EVERY layout,
+    #  so the round-trip is asserted against the one live skeleton.)
+    doc = STUDIO_TEMPLATES["deck"]["skeleton"]
     for typed in [
         "IR deck v3",          # casing — the grade ADR-459 D2 accepted
         "한글 문서",             # total erasure — the collision case
@@ -115,9 +118,20 @@ def main() -> int:
     deck = STUDIO_TEMPLATES["deck"]["skeleton"]
     out = set_artifact_title(deck, "한글 덱", set_h1=False)
     _check("a paged layout still gets its <title> set", extract_title(out) == "한글 덱")
+    # (Re-pinned 2026-09-13: this check had been hidden behind the KeyError
+    #  since ADR-599. The 2026-08-12 kicker rule writes the NAME into the title
+    #  slide's kicker (k1) on every mode — that is the artifact's name, not
+    #  authored content — while the h1 thesis (t1) stays the member's words.
+    #  "name absent from the whole body" was the pre-kicker spelling.)
+    _body = out.split("</head>")[1]
     _check(
         "a paged layout's h1 (its thesis) is NOT overwritten",
-        "한글 덱" not in out.split("</head>")[1],
+        'data-block-id="t1">The one-line thesis goes here.</h1>' in _body
+        and "한글 덱" not in _body.split('data-block-id="t1"')[1].split("</h1>")[0],
+    )
+    _check(
+        "…while the kicker (k1) carries the name — the paged name-bearer",
+        'data-block-id="k1">한글 덱</p>' in _body,
     )
     _check(
         "the early-return on paged layouts is gone from the retitle body",
