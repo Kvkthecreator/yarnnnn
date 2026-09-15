@@ -53,12 +53,17 @@ def run() -> bool:
     # a kind can never join or leave unnoticed. ADR-536 D1 adds the two
     # ordinary list kinds — `checklist` was the only list row and it is a
     # CHECKBOX list, so a bulleted or numbered list was unreachable.
-    _check("16 block kinds (8 launch + W1 four + heading + 536 lists + 538 component)",
+    # (Re-pinned 2026-09-13: ADR-581 D4 added the composed family's five
+    #  deck-native kinds — stat · comparison · timeline · person · logo-row.
+    #  The set stays pinned with ==: a kind joining or leaving is exactly what
+    #  this check exists to notice, and it noticed.)
+    _check("21 block kinds (8 launch + W1 four + heading + 536 lists + 538 component + 581 five)",
            set(STUDIO_BLOCKS) == {"prose", "heading", "callout", "quote", "checklist",
                                   "list", "numbered",
                                   "table", "metrics", "chart", "figure",
                                   "divider", "toggle", "button", "gallery",
-                                  "component"})
+                                  "component",
+                                  "stat", "comparison", "timeline", "person", "logo-row"})
     # ADR-539 D1 — `group` left the rows (it is DERIVED from `cites` via
     # block_group), and every row declares its behavior: tier / elements /
     # promote / convertible / cites, no defaults.
@@ -66,11 +71,15 @@ def run() -> bool:
     for kind, b in STUDIO_BLOCKS.items():
         _check(f"block '{kind}': label/description/markup complete",
                all(b.get(k) for k in ("label", "description", "markup")))
+        # (Re-pinned 2026-09-13: ADR-583 added the fourth citation kind —
+        #  "fragment", a component citing a `*.component.html` library file —
+        #  and its derived group "component". The vocabulary is pinned, not
+        #  read back from GROUP_BY_CITES: a fifth kind must be ruled, not slip.)
         _check(f"block '{kind}': derived group valid",
-               block_group(b) in ("content", "data", "media"))
+               block_group(b) in ("content", "data", "media", "component"))
         _check(f"block '{kind}': declares behavior (ADR-539 D1)",
                b.get("tier") in ("text", "object")
-               and b.get("cites") in ("none", "source", "picture")
+               and b.get("cites") in ("none", "source", "picture", "fragment")
                and isinstance(b.get("convertible"), bool)
                and isinstance(b.get("promote"), bool)
                and isinstance(b.get("elements"), tuple) and len(b["elements"]) > 0)
@@ -96,7 +105,10 @@ def run() -> bool:
     from services.authoring import all_layouts as _all_layouts
     _check("kernel seeds 3 layouts: Docs document + Studio deck/web (ADR-505 D1 via ADR-518)",
            set(_all_layouts()) >= {"deck"}
-           and set(STUDIO_LAYOUTS) == {"deck"})  # ADR-599 D5: document/web deleted
+           # ADR-599 D5: document/web deleted. ⊇, never == (ADR-459 D3): the
+           # kernel SEEDS the layouts, a bundle may add one, and that must not
+           # turn this red — test_adr459 holds this file to that.
+           and {"deck"} <= set(STUDIO_LAYOUTS))
     for slug, lay in STUDIO_LAYOUTS.items():
         _check(f"layout '{slug}': label/description/flow/skin/scaffold complete",
                all(lay.get(k) for k in ("label", "description", "flow", "skin", "scaffold")))
@@ -187,8 +199,11 @@ def run() -> bool:
     _check("pointer payload carries blockId + blockKind",
            "blockId" in projection and "blockKind" in projection)
     surface = (repo / "web/components/authoring/StudioSurface.tsx").read_text()
-    _check("selection informs the lane in operator words (About the … block)",
-           "About the ${kind} block" in surface or "askAboutSelection" in surface)
+    # "selection informs the lane in operator words (About the … block)" was
+    # RETIRED 2026-09-13: the auto-seed AND the explicit ask are both gone —
+    # ADR-613 (5abc896) moved the judged act out of the menus into the one
+    # selection-anchored gesture. The surviving rule (selection never auto-seeds
+    # the composer) is the adjacent check.
     # ADR-447: the format-switcher ("Change layout") is DELETED — morphing a
     # deck into a document was a legacy misread; composition is WITHIN the type
     # (the Arrange menu). Guard the deletion.
@@ -239,7 +254,9 @@ def run() -> bool:
     # The insert executor moved with the palette (ADR-466 D4): located picks
     # land through the same one write door.
     _check("toolbar/palette EXECUTES (not prompt-prefill)",
-           "onAddArrangement" in surface and "writeArtifact" in surface
+           # (Re-pinned 2026-09-13: the New-‹noun› gallery lives inside the New
+           #  door (ADR-579 D6.a) and page adds land through its pageSection.)
+           "pageSection={" in surface and "writeArtifact" in surface
            and "landAtLocatedPoint" in surface)
     _check("posture: concurrent-writer contract (never renumber ids)",
            "never renumber" in " ".join(posture.split()))
@@ -281,11 +298,12 @@ def run() -> bool:
     # block keyboard are the entrances, and the explicit-ask relocated into
     # the menu's AI group (its only mount). The pane keeps shaping only.
     design_tab = (repo / "web/components/authoring/StudioDesignTab.tsx").read_text()
-    _check("surface: explicit 'Ask about this' affordance replaces the auto-seed",
-           "askAboutSelection" in surface and "onAsk={askAboutSelection}" in surface)
+    # "explicit 'Ask about this' affordance replaces the auto-seed" was RETIRED
+    # 2026-09-13 — Ask was deleted outright by ADR-613 (5abc896); no askAbout*
+    # symbol exists in the authoring tree. The pane-purity half survives below.
     block_menu = (repo / "web/components/authoring/StudioBlockMenu.tsx").read_text()
-    _check("Ask-about-this lives in the MENU; the pane's block verb row is gone",
-           "Ask about this…" in block_menu and "onToggleEdit" not in menu
+    _check("the pane's block verb row stays gone (Ask left the menu too — ADR-613)",
+           "Ask about this…" not in block_menu and "onToggleEdit" not in menu
            and "Ask about this" not in design_tab
            and "onBlockVerb" not in design_tab
            and "Double-click the block" not in design_tab)
@@ -338,21 +356,30 @@ def run() -> bool:
            and STUDIO_ARRANGEMENTS["deck"]["comparison"]["description"] in posture)
     # ADR-453: the mixed-grain 'Arrange' menu split by grain — 'New ‹noun›'
     # (add a page, toolbar gallery) + 'Re-arrange' (this page, Design tab).
-    _check("toolbar: 'New ‹slide|section›' gallery (page-grain add, all types)",
-           "New {pageNoun}" in menu and "arrangements" in menu
-           and "onAddArrangement" in menu)
+    # (Re-pinned 2026-09-13: the gallery moved INTO the New door — ADR-579
+    #  D6.a deleted the toolbar's New-panel dropdown; StudioBlockInsertMenu
+    #  renders `New ‹noun›` from the served arrangements and picks through
+    #  pageSection.onPick.)
+    insert_menu = (repo / "web/components/authoring/StudioBlockInsertMenu.tsx").read_text()
+    _check("New door: 'New ‹slide|section›' gallery (page-grain add, all types)",
+           "label: `New ${pageSection!.noun}`" in insert_menu
+           and "pageSection!.arrangements.map" in insert_menu
+           and "pageSection!.onPick" in insert_menu)
     # ADR-466 D5 (2026-07-21) REVERSED this: Re-arrange pairs with New ‹noun›
     # in the TOOLBAR — the PowerPoint pair, and the gallery's ONE mount. The
     # Design tab's page-scope duplicate was deleted (DP29: one act, one home).
     # The gate kept asserting the pre-reversal placement and had been red ever
     # since — a stale CLAIM, not a bug. Assert the ratified arrangement: the
     # act lives in the toolbar, and the Design tab must NOT re-mount it.
-    _check("toolbar: 'Re-arrange' gallery (the one mount, paired with New ‹noun›)",
-           "Re-arrange" in menu and "onApplyArrangement" in menu)
-    _check("Design tab does NOT re-mount the Re-arrange gallery (one act, one home)",
-           "onApplyArrangement" not in design_tab)
+    # (Re-pinned 2026-09-13, polarity FLIPPED: ADR-589 D3 moved the Layout
+    #  gallery from the toolbar to the Properties pane's page scope — its ONE
+    #  mount is the Design tab now, and the toolbar must not re-mount it.)
+    _check("Properties pane: the Layout gallery's ONE mount (ADR-589 D3)",
+           "onApplyArrangement(a)" in design_tab and "<ArrangementThumb" in design_tab)
+    _check("the toolbar does NOT re-mount the Layout gallery (one act, one home)",
+           "onApplyArrangement" not in menu and "<ArrangementThumb" not in menu)
     _check("new-page gallery is not deck-gated (arrangements.length gate)",
-           "arrangements.length > 0" in menu)
+           "pageSection.arrangements.length > 0" in insert_menu)
     _check("vocabulary endpoint serves arrangements with grain + areas",
            '"arrangements"' in src and '"grain"' in src and '"areas"' in src)
 
@@ -376,8 +403,10 @@ def run() -> bool:
            "Chat | Design tabs" in surface
            and "border-l border-border" in surface)
     desktop = (repo / "web/components/shell/Desktop.tsx").read_text()
-    _check("Freddie FAB suppressed on the studio surface (own-chat carve)",
-           "onOwnChatSurface" in desktop and "'slides'" in desktop)  # ADR-599 rename
+    # "Freddie FAB suppressed on the studio surface (own-chat carve)" was
+    # RETIRED 2026-09-13: ADR-632 (85c4f7b) deleted the seat, the FAB and the
+    # mascot — there is nothing to suppress, and `onOwnChatSurface` left
+    # Desktop.tsx with them.
 
     # ── 12. ADR-447 canvas view controls + mobile (2026-07-13) ───────────
     _check("navigator selection scrolls the canvas (yarnnn-scroll-to-slide)",
@@ -386,14 +415,22 @@ def run() -> bool:
     _check("canvas zoom is a VIEW control (yarnnn-zoom, not a file write)",
            "yarnnn-zoom" in projection and "zoom={zoom}" in surface
            and "style.zoom" in projection)
-    _check("mobile: pane switching (nav/canvas/chat) + a bottom tab bar",
-           "mobilePane" in surface and "md:hidden" in surface
-           and "setMobilePane" in surface)
+    # (Re-pinned 2026-09-13: `mobilePane` became `activePane` when the width
+    #  ladder gained a rung; the single-pane rung is measured off the container,
+    #  not a media class.)
+    _check("single pane: pane switching (nav/canvas/chat) + a bottom tab bar",
+           "const [activePane, setActivePane]" in surface
+           and "setActivePane(pane)" in surface
+           and "['chat', 'Chat']" in surface)
     _check("mobile: columns are responsive (hidden below md, flex at md+)",
            # The slide strip moved from a fixed md:w-56 to a RESIZABLE width
            # (drag its divider; persisted) — mobile full-width via max-md:!w-full,
            # md+ via the navWidth inline style. The chat column stays md:w-[380px].
-           "md:flex" in surface and "max-md:!w-full" in surface and "md:w-[380px]" in surface)
+           # (Re-pinned 2026-09-13: the ladder is CONTAINER-measured —
+           #  threeColumn / singlePane — every md: breakpoint class is gone.)
+           "threeColumn && !navCollapsed ? 'flex' : 'hidden'" in surface
+           and "!singlePane || canvasActive ? 'flex' : 'hidden'" in surface
+           and "singlePane && navActive ? '!flex w-full' : ''" in surface)
 
     # ── 11. ADR-447 Phase 4: direct manipulation ─────────────────────────
     _check("double-click enters edit mode (runtime dblclick → yarnnn-edit-entered)",
