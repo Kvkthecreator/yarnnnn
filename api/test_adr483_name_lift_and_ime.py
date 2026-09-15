@@ -149,13 +149,26 @@ def run() -> bool:
         _check(f"D3: naming importable ({e})", False)
 
     # ── D2: the IME guard, on BOTH inputs that name an artifact ─────────────
+    # (Re-pinned 2026-09-13: D3 moved the guard into the ONE shared rule,
+    #  web/lib/shell/submit-key.ts (80b9874 / 8628d52 / e31904b). Two parts,
+    #  neither sufficient alone: each input USES the rule, and the rule still
+    #  refuses a composing key on all three signals.)
+    _rule = (web / "lib/shell/submit-key.ts").read_text()
     _check(
-        "D2: the crumb's rename field guards on isComposing",
-        "if (e.nativeEvent.isComposing) return;" in surface,
+        "D2: the shared submit rule refuses a composing key (isComposing, nativeEvent, keyCode 229)",
+        "if (isComposingKey(e)) return false;" in _rule
+        and "e.nativeEvent?.isComposing === true" in _rule
+        and "e.nativeEvent?.keyCode === IME_KEYCODE" in _rule,
+    )
+    _check(
+        "D2: the crumb's rename field guards on isComposing (through the shared rule)",
+        "import { isSubmitKey } from '@/lib/shell/submit-key';" in surface
+        and "if (isSubmitKey(e, { allowShift: true })) {" in surface,
     )
     _check(
         "D2: the named door's modal guards too (same bug, same fix)",
-        "if (e.nativeEvent.isComposing) return;" in modal,
+        "import { isSubmitKey } from '@/lib/shell/submit-key';" in modal
+        and "if (isSubmitKey(e, { allowShift: true })) void submit();" in modal,
     )
 
     # ── The EXECUTING gate is the load-bearing one ──────────────────────────
