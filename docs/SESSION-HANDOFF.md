@@ -31,8 +31,6 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   standing work · blogger's first real standing declaration (compose-only) · the `/images` export click-pass.
 - IMAGES tagline promises live rendering "on the canvas" — true via Designer in the lane, not a
   button; whether it wants an explicit affordance is a product call.
-- `test_adr472_images.py` is 24/27 at baseline: it pins ADR-488's hidden state, reversed by
-  ADR-629 D3. Re-pin to the beta state or retire — a decision, not a cleanup.
 
 ## Workspace binding (ADR-548 D9/D10, found 2026-09-13)
 - **Three files sit in the wrong workspace and have no copy in the right one** — written while the session
@@ -95,9 +93,20 @@ lives in its ADR, its evaluation record, and memory. Only the debt below survive
   but it is the same silent-crash class as the two gates repaired in 43babc0, and it is not in the census.
 
 ## Gates red at baseline — each needs its own ruling
-The authoritative list is `docs/evaluations/2026-09-13-gate-census.md` (43 pytest-shaped + 58 script-shaped
-red at a clean HEAD, each with a first-glance class). A ruling lowers that list in the same commit; the recurring
-shapes (Studio-era chrome pins, the ADR-209 live phases, retired-model subjects, the settings pane move) are named there.
+The authoritative list is `docs/evaluations/2026-09-13-gate-census.md` — 42 pytest + 28 script rows remain after the
+Studio-era cluster (26 gates) was ruled 2026-09-13/14. A ruling lowers that list in the same commit; the recurring
+shapes still open (the ADR-209 live phases, retired-model subjects, the settings pane move) are named there.
+
+## A send that left no trace (found 2026-09-15, ws d5b9029b lane 506b7bbf)
+- The operator's Text-bound send with two image attachments (2026-09-13 15:53Z) reached NO handler: no access
+  line, no `chat_sessions` read, no error, 0 messages — while both uploads succeeded and the identical send ran
+  green on the rig (lane 5dd54228, `tools=5 artifacts=1`). Three defects sit behind the generic message:
+  (a) `get_user_client` is a sync dependency on the `lru_cache`d shared service client, whose HTTP/2 socket
+  throws `httpx.ReadError: [Errno 11]` under concurrent requests (7 bursts, 5 instances, 09-12→13; a 500 on
+  `GET /api/lanes` 04:51Z, three 403s 16:23:49Z) — a thread stuck there is invisible; (b) `streamLaneTurn` has no
+  deadline before the first byte (ADR-651 D3 bounds `request()` and the idle window only), so the edge's cutoff
+  becomes "The lane turn failed" with no cause and the attachment chips are dropped; (c) `principal_reaches_workspace`
+  returns False on ANY exception, so a socket error reads as "No active grant". Each needs its own ruling.
 
 ## Waiting (ADR-651, 2026-09-13)
 - Prod click-pass once both deploys are live: a lane turn shows "Lisa is working… 12s"; the network tab
@@ -113,7 +122,11 @@ shapes (Studio-era chrome pins, the ADR-209 live phases, retired-model subjects,
   Reproduced 2026-09-13; affects `backfill_embeddings.py`, `purge_user_data.py`,
   `refresh_connector_directory.py` (whose docstrings say to run them by path). `python3 -m scripts.x`
   works. Rename the package or fix the three docstrings — one decision.
-- Strip the steward env vars from Render; drop the `wake_queue` and `tasks` tables; ADR-596 D3(d).
+- Strip the steward env vars from Render (`AGENT_ENABLED`, `YARNNN_MODEL_{SHAPE}`, `YARNNN_ROUNDS_{SHAPE}`,
+  `STEWARD_SURFACE_SLUGS`) — needs `render login` or an API key; the MCP tool can set but not list or delete.
+  Drop `wake_queue` (migration 254, drafted + dry-run 2026-09-14). **`tasks` is NOT droppable**: ADR-639 re-founded
+  it as the ONE drain loop's index (`kind='standing'`, the capture lane beside it) — it read 0 rows on 2026-09-13
+  because no standing declaration is indexed, not because nothing reads it. ADR-596 D3(d) still owed.
 - **Retired vocabulary, frozen by `api/test_retired_vocabulary_ratchet.py`** (per-file ceilings, only ever
   lowered): canon 230 lines across 27 files (ADR-LEDGER 48 — historical by nature; FOUNDATIONS 37, GLOSSARY 37,
   primitives-matrix 13) and code 273 lines across 75 modules (`judgment_log.py` 17, `review_policy.py` 15,

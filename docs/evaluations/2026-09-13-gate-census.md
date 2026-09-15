@@ -1,7 +1,8 @@
 # Gate census — every API gate red at a clean HEAD (2026-09-13)
 
 **Hat**: B. **Method**: every `api/test_*.py` run in isolation with a per-file timeout — pytest-shaped files
-through pytest (43 red of 156), script-shaped files as scripts (58 red of 108). The class is a
+through pytest (43 red of 156), script-shaped files as scripts (58 red of 108); after the 2026-09-13/14 rulings
+42 pytest + 28 script rows remain in the table below. The class is a
 FIRST GLANCE from the verdict line, not a ruling; each red needs its own ruling (re-anchor when the rule
 survives, delete when the subject is gone), and a ruling lowers this list in the same commit.
 
@@ -88,9 +89,14 @@ Environment, not defects:
 
 ## The shapes that recur
 
-- **Studio-era gates (ADR-443…484, `test_studio_*`, `test_trash_visibility`)** — a dozen gates each a few checks
-  behind: the Studio was re-cut by ADR-633/636/646 and these pin the pre-cut chrome. One re-anchor session, or one
-  retirement ruling, per ADR.
+- **Studio-era gates (ADR-443…484, `test_studio_*`, `test_trash_visibility`)** — RULED 2026-09-13/14, all 26
+  (one commit per ADR, 9c30c58…9e6ba8b): no gate deleted; 13 checks retired with their subject named (ADR-613
+  Ask/Check, ADR-632 the FAB, ADR-560 D8 the flow root and its Tab, ADR-589/616/619 the toolbar pair and the Update
+  tier, ADR-521 the paste refusal); the rest re-anchored and falsified in-process. Six root causes did most of it:
+  `${app.label}` write messages (ADR-636/599), the shared submit rule (ADR-483 D3), the Layout gallery's move to the
+  Properties pane (ADR-589 D3), the selection chokepoint (ADR-525 D2), `staged`→`artboard` (ADR-633) and
+  `[data-slot]`→`REGION_SEL` (ADR-544 D2). Two gates had been CRASHING (469 on the deleted Docs type; 482's
+  promotion harness on grown dependencies) and each hid a stale check behind the crash.
 - **ADR-209 phases 1–5** — the CLOSED ADR's phase gates hit the database (errors + timeouts); they are live
   probes wearing test names. Move under `scripts/operator/` or delete.
 - **Retired-model gates** (`test_adr237_chat_role_grammar`, `test_adr241`, `test_adr245`, `test_commit_f_autonomy`,
