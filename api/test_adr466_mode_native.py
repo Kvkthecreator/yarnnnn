@@ -52,9 +52,11 @@ def run() -> bool:
     # ── D5: arrangement intelligence ─────────────────────────────────────
     _check(
         "applyArrangement is role-aware (media seeks media, flow never fills it)",
+        # (Re-pinned 2026-09-13: ADR-544 D2 re-cut the role reader onto the
+        #  region grain — media seeks the media role, flow never fills it.)
         "slotRoles?: Record<string, string>" in ops
-        and "mediaSlot" in ops
-        and "roleOf(from) !== 'media'" in ops,
+        and "const wanted = isMedia ? 'media' : sourceRole(b);" in ops
+        and "return r !== 'media' && r !== 'heading';" in ops,
     )
     _check(
         "the slotless refusal RESOLVES by moving content (one compound revision)",
@@ -66,22 +68,21 @@ def run() -> bool:
     #  toolbar button relabeled Layout → "Re-arrange"; the carry note now has
     #  exactly one consumer, and the design tab must NOT regrow a gallery.)
     _check(
-        "the gallery forewarns (one shared carry note, ONE mount — the toolbar)",
-        "export function arrangementCarryNote" in toolbar
-        and "arrangementCarryNote(a, carriedCount, pageNoun)" in toolbar
-        and "arrangementCarryNote" not in design
-        and "ArrangementThumb" not in design,
+        # (Re-pinned 2026-09-13, polarity FLIPPED: ADR-589 D3 moved the gallery
+        #  and its carry note to the Properties pane — the ONE mount — and the
+        #  toolbar must carry neither. The call form is the negative, since the
+        #  toolbar's own comments narrate the move.)
+        "the gallery forewarns (one shared carry note, ONE mount — the Properties pane, ADR-589 D3)",
+        "function arrangementCarryNote(" in design
+        and "arrangementCarryNote(a, carriedCount ?? null, pageNoun, groupCount)" in design
+        and "arrangementCarryNote(" not in toolbar
+        and "<ArrangementThumb" not in toolbar,
     )
-    _check(
-        "the toolbar pairs New ‹noun› with Re-arrange (the PowerPoint pair)",
-        "New {pageNoun}" in toolbar
-        and "'layout'" in toolbar
-        # ADR-479 D1 made the label conditional ("Re-arranging…" while the
-        # placement judgment resolves), so assert the LABEL exists rather than
-        # a literal `> Re-arrange` render position.
-        and "'Re-arrange'" in toolbar
-        and "hasPageAnchor" in toolbar,
-    )
+    # "the toolbar pairs New ‹noun› with Re-arrange (the PowerPoint pair)" was
+    # RETIRED 2026-09-13: the pair dissolved — New lives in the New door
+    # (ADR-579 D6.a), Layout in the Properties pane (ADR-589 D3), and the Update
+    # door with `hasPageAnchor` was deleted (ADR-616 D1). Each half is pinned
+    # where it lives (here and in test_adr443 / test_adr453).
     _check(
         "countCarriedBlocks serves the pre-filter from ONE carried definition",
         "export function countCarriedBlocks" in ops and "carriedBlocksOf" in ops,
@@ -117,16 +118,18 @@ def run() -> bool:
     # string is unchanged (FE compat); the falsifier now guards that position
     # stays confined to the ONE staged grain — never media, never flow.
     _check(
-        "x/y measures exist and are STAGED-FRAME-only (the ADR-461 boundary, ADR-471 grain)",
-        STUDIO_MEASURES.get("x", {}).get("grains") == ("staged",)
-        and STUDIO_MEASURES.get("y", {}).get("grains") == ("staged",)
+        # (Re-pinned 2026-09-13: ADR-633 renamed the grain `staged` → `artboard`
+        #  — the artboard is a stack of layers; the boundary is the same.)
+        "x/y measures exist and are ARTBOARD-only (the ADR-461 boundary, ADR-471 grain, ADR-633 name)",
+        STUDIO_MEASURES.get("x", {}).get("grains") == ("artboard",)
+        and STUDIO_MEASURES.get("y", {}).get("grains") == ("artboard",)
         and STUDIO_MEASURES["x"]["css_var"] == "--yx"
         and STUDIO_MEASURES["y"]["css_var"] == "--yy",
     )
     _check(
-        "no continuous position admitted outside the staged frame",
+        "no continuous position admitted outside the artboard frame",
         all(
-            g == "staged"
+            g == "artboard"
             for key in ("x", "y")
             for g in STUDIO_MEASURES[key]["grains"]
         ),
@@ -136,7 +139,8 @@ def run() -> bool:
         '.slide [data-block][data-x][data-y]' in STUDIO_KERNEL_CSS
         and "var(--yx, auto)" in STUDIO_KERNEL_CSS
         and "var(--yy, auto)" in STUDIO_KERNEL_CSS
-        and "section.slide, .slide .col, .slide [data-slot] { position: relative; }"
+        # (Re-pinned 2026-09-13: the region grain is `[data-area]` — ADR-544 D2.)
+        and "section.slide, .slide .col, .slide [data-area] { position: relative; }"
         in STUDIO_KERNEL_CSS,
     )
     _check("kernel CSS bumped for the retrofit (v10+)", STUDIO_KERNEL_CSS_VERSION >= 10)
@@ -299,8 +303,12 @@ def run() -> bool:
     )
     _check(
         "deck keeps its identity 16:9 (no aspect/dimension token there)",
+        # (Re-pinned 2026-09-13: the slide's BOX is kernel-owned — a skin is
+        #  baked once at creation and could never reach existing decks — so
+        #  16:9 lives in STUDIO_KERNEL_CSS; the skin only narrates it.)
         "data-aspect" not in STUDIO_LAYOUTS["deck"]["skin"]
-        and "16 / 9" in STUDIO_LAYOUTS["deck"]["skin"],
+        and "--stage-wn: 16; --stage-hn: 9;" in STUDIO_KERNEL_CSS
+        and "aspect-ratio: var(--stage-wn) / var(--stage-hn);" in STUDIO_KERNEL_CSS,
     )
     _check(
         "the derived scaffold-title set no longer carries the stage's title",
@@ -310,8 +318,8 @@ def run() -> bool:
     # pre-written justification — "z-order arrives with a token").
     _z = STUDIO_MEASURES.get("z", {})
     _check(
-        "the z measure exists — staged-frame, integer band, --yz",
-        _z.get("grains") == ("staged",) and _z.get("css_var") == "--yz"
+        "the z measure exists — artboard-only, integer band, --yz",
+        _z.get("grains") == ("artboard",) and _z.get("css_var") == "--yz"
         and _z.get("unit") == "" and _z.get("min") == 0 and isinstance(_z.get("max"), int),
     )
     _check(
@@ -533,7 +541,10 @@ def run() -> bool:
     )
     _check(
         "a modifier-click is intercepted BEFORE the ladder (never places a caret)",
-        "if (e.shiftKey || e.metaKey || e.ctrlKey) {" in proj,
+        # (Re-pinned 2026-09-13: the combined branch was deliberately SPLIT —
+        #  ⇧ adds to the selection, ⌘/⌃ deep-selects the innermost container;
+        #  both are intercepted before the ladder.)
+        "if (e.shiftKey) {" in proj and "if (e.metaKey || e.ctrlKey) {" in proj,
     )
     _check(
         "grouping is STAGED-only (a set needs a frame to move in — ADR-461 D4)",
