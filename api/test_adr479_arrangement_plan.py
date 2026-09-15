@@ -106,7 +106,9 @@ def run() -> bool:
     _check("the plan route exists",
            '"/studio/arrangement/plan"' in routes)
     _check("it meters ONCE, as judgment, on the one ledger (ADR-396)",
-           'slug="studio-arrangement-plan"' in routes
+           # (Re-pinned 2026-09-13: the slug rides the one metering helper —
+           #  `_meter_plan` ledgers a planned judgment exactly once.)
+           '_meter_plan(auth, completion, "studio-arrangement-plan")' in routes
            and 'mode="judgment"' in routes
            and "record_execution_event" in routes)
     _check("the planner reports usage but never ledgers itself (no double-charge)",
@@ -117,8 +119,10 @@ def run() -> bool:
     menu = (web / "components/authoring/StudioBlockMenu.tsx").read_text()
     _check("D4: the page-scoped Re-arrange row is GONE from the block menu",
            "Re-arrange…" not in menu and "onRearrange" not in menu)
-    _check("…while the block-scoped AI rows stay (the grammar the menu carries)",
-           "Rewrite…" in menu and "Check this…" in menu)
+    # (Re-pinned 2026-09-13: ADR-613 moved Check to the selection gesture;
+    #  Rewrite is the one block-scoped metered row left — ADR-619 D2.)
+    _check("…while the ONE block-scoped AI row stays (Rewrite — ADR-619 D2; Check moved to the gesture, ADR-613)",
+           "Rewrite…" in menu and "Check this…" not in menu)
 
     # ── 7. The FE applies a plan, and still falls back (ADR-468 D4) ─────────
     ops = (web / "components/authoring/artifactOps.ts").read_text()
@@ -132,7 +136,12 @@ def run() -> bool:
     # to the ladder, indistinguishable from "the router is off". Both must read
     # both — asserted by COUNT so neither can regress alone.
     _check("both apply paths read the same region grain (the ADR-544 D6 seam)",
-           ops.count("querySelectorAll('[data-area], [data-slot]')") == 2)
+           # (Re-pinned 2026-09-13: both paths read the NAMED selector; the
+           #  count still proves one seam, and the constant bottoms out in the
+           #  real selector.)
+           ops.count("Array.from(el.querySelectorAll(REGION_SEL))") == 2
+           and "export const REGION_SEL = '[data-area], [data-slot]';"
+           in (web / "components/authoring/structureLabels.ts").read_text())
     _check("blocksForPlan sends id/kind/text — never markup",
            "export function blocksForPlan" in ops and "textContent" in ops)
     _check("a refusal falls through to the MECHANICAL ladder (never dead-ends)",
