@@ -81,12 +81,34 @@ findings are receipted before being believed, and exactly why it is still worth 
 
 | Strength | Applies to |
 |---|---|
-| **Probed** | the core loop (§1); reach 200/403/403 on the live API after deploy; every surface in §2; the signup 200-vs-500 discrimination |
-| **Verified by code + live data** | the compositor cache (semantics driven in isolation; the 7→1 collapse is not yet re-observed in a browser against the deployed build) |
+| **Probed** | the core loop (§1); reach 200/403/403 on the live API after deploy; every surface in §2; the signup 200-vs-500 discrimination; auth fixes #2/#4/#5 re-driven on the deployed Vercel build (below) |
+| **Verified by code + live data** | the compositor cache (#3) — semantics driven in isolation (7 simultaneous mounts → 1 call; force refetches; a failure does not poison), but the 7→1 collapse is NOT re-observed in a browser against the deployed build |
 | **Inferred** | nothing is claimed at this tier |
 
-**Not yet re-observed on prod**: the Vercel-side fixes (#2, #4, #5) were still deploying at the end of this
-session. The API-side fix (#1) WAS re-probed after its deploy went live and is confirmed.
+### Post-deploy re-probe (both deploys live)
+
+Deploys land independently, so each was re-checked after its own went live — "deploy is live" is not
+"every instance serves the new code".
+
+**API** (`dep-dakj5d9srm7s73c3r650`, live 11:59:12Z) — the reach change, driven with a real JWT:
+
+| Case | Status | Body |
+|---|---|---|
+| own workspace `bf5b25a9` | **200** | — |
+| no-grant workspace `d5b9029b` | **403** | `No active grant into workspace d5b9029b…` |
+| nonexistent workspace `00000000…` | **403** | `No active grant into workspace 00000000…` |
+
+The third case is the one that matters: the fix did **not** convert genuine denials into 503s.
+
+**Vercel** — the auth fixes, driven in a real browser on `www.yarnnn.com/auth/login`:
+
+| Claim | Observation |
+|---|---|
+| `me@gmail` no longer 500s | notice reads *"That email address looks incomplete — check the part after the @."*; no account created |
+| the error tone is DECLARED | `role="alert"`, `color: rgb(220, 38, 38)` |
+| the success tone is DECLARED | reset notice `role="status"`, `color: rgb(5, 150, 105)` — green, so the tone fix does not mis-colour the success path |
+| password reset exists and answers | *"If that address has an account, a reset link is on its way."* |
+| the rule is stated before submit | "At least 6 characters" rendered in sign-up mode |
 
 ## §5 What a beta launch still owes — none of it code in this repo
 
