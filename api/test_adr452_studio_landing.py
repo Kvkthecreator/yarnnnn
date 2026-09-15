@@ -69,14 +69,26 @@ def run() -> int:
     open_modal = _read("components/chat-surface/FileOpenModal.tsx")
 
     # ── 1. the resolver ───────────────────────────────────────────────────
+    # (Re-pinned 2026-09-13: ADR-636 D3 derives the surface map from the app
+    #  descriptors — `surface: a.slug` for every app that owns artifact types —
+    #  and ADR-599 made the owner `slides`. No `surface: '<slug>'` literal exists.)
+    app_registry = _read("lib/apps/registry.ts")
     passed &= _check(
-        "resolveSurfaceApplication exists; Studio claims html",
+        "resolveSurfaceApplication exists; the owning app is DERIVED from the descriptors (Slides owns html)",
         "export function resolveSurfaceApplication" in file_types
-        and "surface: 'studio'" in file_types,
+        and ".filter((a) => a.ownsArtifactTypes)" in file_types
+        and "surface: a.slug, param: a.artifactParam" in file_types
+        and re.search(r"slug: 'slides',[\s\S]{0,400}?ownsArtifactTypes: true,", app_registry) is not None,
     )
+    # (Re-pinned 2026-09-13: `isArrival` became `isShapeCarved` (arrivals AND the
+    #  system tree; human uploads exempted); the load-bearing line is the
+    #  resolver returning no app for a carved html — that is what keeps preview.)
     passed &= _check(
         "arrivals carve: inbound/ html stays preview",
-        "isArrival" in file_types and "/inbound/" in file_types,
+        "export function isShapeCarved" in file_types
+        and "rel.startsWith('inbound/')" in file_types
+        and "const carved = isShapeCarved(p);" in file_types
+        and "if (!isHtml || carved) return null;" in file_types,
     )
 
     # ── 2. the Files open branch ──────────────────────────────────────────
@@ -159,7 +171,13 @@ def run() -> int:
 
     # The gesture must be COMPUTED from the event's click counter — a literal
     # (`= true`) or a missing read is the pre-split "a click always opens" shape.
-    dbl = re.search(r"const isDoubleClick = \(e\?\.detail \?\? 0\) >= 2;", body_code)
+    # (Re-pinned 2026-09-13, STRICTER: 7d38ad5 anchors the click sequence to a
+    #  path — `detail` counts the gesture, and the row under a dismissed confirm
+    #  must not inherit it. The counter read AND the anchor are the rule.)
+    dbl = re.search(
+        r"const isDoubleClick\s*=\s*\(e\?\.detail \?\? 0\) >= 2\s*&&\s*clickSeqPathRef\.current === node\.path",
+        body_code,
+    )
     passed &= _check(
         "select/open split: open is computed from the click counter (detail >= 2)",
         dbl is not None,
