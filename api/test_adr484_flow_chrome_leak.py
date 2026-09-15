@@ -53,8 +53,11 @@ def run() -> bool:
 
     # ── D1 — the cue is object-scoped on flow ─────────────────────────────
     _check(
+        # (Re-pinned 2026-09-13: ADR-525 D2 moved the guard to the one
+        #  chokepoint; the tier is what keeps it object-only.)
         "D1 the flow cue is guarded on the block kind, never unconditional",
-        "if (cur && TEXT_KINDS.indexOf(cur.getAttribute('data-block')) === -1) {" in proj,
+        "if (tierOf(el) !== 'text') el.classList.add('yarnnn-pointed');" in proj
+        and "return flow && TEXT_KINDS.indexOf(kind) !== -1 ? 'text' : 'object';" in proj,
     )
     _check(
         "D1 ADR-482 D2's unconditional apply is GONE from the flow branch",
