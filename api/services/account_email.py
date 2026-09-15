@@ -215,12 +215,12 @@ async def send_welcome_joined(user_id: str, workspace_id: str, workspace_name: O
     home = overview_url()
     subject = f"You joined {ws}"
     html = render_email(
-        preheader=f"You now hold a member grant in {ws}.",
+        preheader=f"You're now a member of {ws}.",
         heading=f"You're in {ws}",
         body_html=(
             paragraph(
-                f"You accepted an invite and now hold a member grant in <strong>{ws}</strong> "
-                f"— a shared workspace where every change is recorded under the name of "
+                f"You accepted an invite and are now a member of <strong>{ws}</strong>, "
+                f"a shared workspace where every change is recorded under the name of "
                 f"whoever made it, yours included."
             )
             + paragraph("Open it to see what's there and where your work goes.")
@@ -245,11 +245,11 @@ async def send_removed(user_id: str, workspace_id: str):
     home = overview_url()
     subject = f"You were removed from {ws}"
     html = render_email(
-        preheader=f"Your access to {ws} was revoked.",
+        preheader=f"Your access to {ws} has ended.",
         heading=f"Your access to {ws} ended",
         body_html=(
             paragraph(
-                f"The owner of <strong>{ws}</strong> revoked your grant. You can no "
+                f"The owner of <strong>{ws}</strong> removed you. You can no "
                 f"longer open its files or conversations. Your own workspace and any "
                 f"other memberships are unaffected."
             )

@@ -33,21 +33,21 @@ import { cn } from '@/lib/utils';
 
 /** Operator words for a declaration that parses but cannot run. */
 const PROBLEM_COPY: Record<string, string> = {
-  missing_target: 'No target named — the declaration does not say which file to keep.',
-  invalid_target: 'The target must be one file in the declaration’s own folder.',
+  missing_target: 'No file named. The instructions don’t say which file to keep current.',
+  invalid_target: 'The file to keep current must be in the same folder as the instructions.',
   unsupported_format: 'Only md, csv, json and txt files can be kept current.',
-  sources_invalid: 'The sources are not valid — a structured file takes exactly one.',
-  app_invalid: 'The declaration names an app that does not exist.',
+  sources_invalid: 'The sources aren’t valid. A data file (csv or json) takes exactly one source.',
+  app_invalid: 'The instructions name an app that doesn’t exist.',
 };
 
 function runStatusLine(e: StandingLastRun): string {
-  if (e.status === 'skipped' && e.error_reason === 'no_change') return 'Ran — nothing changed';
-  if (e.status === 'skipped' && e.error_reason === 'router_disabled') return 'Skipped — the engine is unavailable';
+  if (e.status === 'skipped' && e.error_reason === 'no_change') return 'Ran. Nothing changed';
+  if (e.status === 'skipped' && e.error_reason === 'router_disabled') return 'Skipped. The engine is unavailable';
   if (e.status === 'skipped') return `Skipped${e.error_reason ? ` — ${e.error_reason}` : ''}`;
-  if (e.status === 'success') return 'Ran — the file was updated';
-  if (e.error_reason === 'shape_violation') return 'Update refused — the fetched data broke the declared shape';
-  if (e.error_reason === 'no_sources_fetched') return 'Fetch failed — no source could be read';
-  if (e.error_reason === 'balance_exhausted') return 'Did not run — the workspace balance is exhausted';
+  if (e.status === 'success') return 'Ran. The file was updated';
+  if (e.error_reason === 'shape_violation') return 'Not updated. The new data didn’t fit the file’s shape';
+  if (e.error_reason === 'no_sources_fetched') return 'No source could be read';
+  if (e.error_reason === 'balance_exhausted') return 'Did not run. The workspace balance is used up';
   return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
 }
 
@@ -121,7 +121,7 @@ export function StandingWork() {
 
   if (rows === null) {
     return (
-      <Working label="Reading what stands…" className="p-6 text-sm" />
+      <Working label="Loading…" className="p-6 text-sm" />
     );
   }
 
@@ -129,8 +129,8 @@ export function StandingWork() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-6 py-3">
         <p className="text-xs text-muted-foreground">
-          Files kept current on a contract and a cadence. To keep another file current, ask any
-          colleague — they write the declaration beside the file.
+          Files kept current on a schedule. To keep another file current, ask an agent in
+          chat. It writes the instructions next to the file.
         </p>
         <button
           type="button"
@@ -145,16 +145,16 @@ export function StandingWork() {
       <div className="flex-1 overflow-y-auto p-6">
         {error && (
           <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            Could not read the roster: {error}
+            Could not load this: {error}
           </p>
         )}
 
         {rows.length === 0 && !error && (
           <div className="rounded-md border border-dashed border-border px-4 py-6 text-center">
-            <p className="text-sm text-foreground">Nothing is being kept current yet.</p>
+            <p className="text-sm text-foreground">Nothing is kept current yet.</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Open a file in Text and tell Editor what it must stay true to and where its
-              updates come from. The declaration lands beside the file and runs on its schedule.
+              Open a file in Text and tell Editor what it should stay true to and where its
+              updates come from. The instructions go next to the file and run on a schedule.
             </p>
           </div>
         )}
@@ -218,8 +218,8 @@ export function StandingWork() {
                       onClick={() => void runNow(row)}
                       disabled={isBusy || row.problem != null}
                       title={row.problem != null
-                        ? 'It cannot run until its declaration is repaired'
-                        : 'Fetch the sources and update the file now'}
+                        ? 'It can’t run until its instructions are fixed'
+                        : 'Update the file now'}
                       className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
                     >
                       {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}

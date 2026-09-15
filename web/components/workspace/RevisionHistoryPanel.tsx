@@ -359,7 +359,7 @@ export function RevisionHistoryPanel({
                           }}
                           disabled={revertBusy}
                           className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border text-[11px] hover:bg-muted disabled:opacity-50"
-                          title="Revert to this revision — creates a new revision attributed to you"
+                          title="Go back to this version. It’s saved as a new version under your name"
                         >
                           <Undo2 className="w-3 h-3" />
                           revert

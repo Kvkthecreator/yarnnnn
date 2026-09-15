@@ -1,171 +1,173 @@
-# YARNNN Voice & Tone — audit + target spec
+# Voice & tone — how the product speaks to a member
 
-**Date**: 2026-06-24
-**Status**: Draft spec — derived from a CC-style rewrite of real YARNNN copy.
-**Why this exists**: the agent's prose AND the product's UI copy both read denser and more jargon-laden than Claude Code — a more technical tool that nonetheless talks more plainly. This doc establishes the *target* by rewriting real YARNNN samples in CC's style, then extracting the rules those rewrites obey.
+**Status**: living spec. First cut 2026-06-24 (the ADR-365 harvest); recut 2026-09-15 after the copy
+regrew a second vocabulary. **Guard**: `api/test_voice_no_kernel_nouns_in_copy.py` — three phases,
+one allowlist per phase, each only ever shrinks.
+**Sibling**: how an *agent* speaks is `PARTICIPANT_REGISTER` (ADR-638), structure rules, A/B-validated.
+This document is the other half: the deterministic strings the product itself renders.
 
-> **Scope correction (read first).** An earlier attempt (ADR-365) treated this as an *agent-prose* problem and tried a persona-frame directive; an A/B eval falsified that (a soft prompt directive doesn't move the model's free-prose register). The harvest below shows why: **the voice problem is overwhelmingly in deterministic product copy — UI labels, empty states, settings, narration, emails — not the model's free prose.** That copy is hand-authored strings we control completely. This is where the lever is.
-
----
-
-## 1. The reference standard (Claude Code's communication canon)
-
-CC's `# Communicating with the user` section (`docs/analysis/src_claudeCC/constants/prompts.ts:405`) is the bar. The load-bearing rules, paraphrased:
-
-1. **Write for a person who lost the thread.** They don't know your codenames, abbreviations, or internal shorthand. No unexplained jargon — expand technical terms.
-2. **Lead with meaning, then mechanism** (inverted pyramid). The action/answer first; the "how" after, only if needed.
-3. **Flowing prose, read linearly.** No fragments, no notation dumps, no semantic backtracking (a sentence you have to re-parse).
-4. **Understanding over terseness.** If the reader has to re-read or ask, you've lost more than you saved by being short.
-5. **Match the reader's expertise.** Tilt concise for experts, explanatory for newcomers.
-
-The YARNNN-specific corollary, which CC doesn't need but we do:
-
-6. **Never surface internal nouns or doc references to the operator.** `recurrence`, `wake`, `substrate`, `aperture`, `primitive`, `ADR-NNN`, `_recurrences.yaml` are kernel vocabulary. The operator is not reading our architecture. Name the *thing*, not the *mechanism*.
+> The lever is deterministic copy. ADR-365's A/B showed a prompt directive does not move free prose;
+> the June harvest showed the jargon lived overwhelmingly in hand-authored UI strings, and the
+> September recut found it had grown back there — in files the guard never scanned. Every string
+> below is ours to write; none of it needs a model.
 
 ---
 
-## 2. Side-by-side rewrites (the target spec, by example)
+## 1. The standard
 
-Each is a verbatim YARNNN string (with location) → a CC-style rewrite → the rule it demonstrates.
+Write the way macOS writes to a person who has never opened Terminal. Concretely:
 
-### 2.1 — Autonomy "Bounded" consequence
-`web/components/workspace-concepts/AutonomyCard.tsx:78`
+1. **Say what they can do here, not how it is built.** *"Every file in your workspace, with its history"*,
+   never *"Raw substrate browser — every file in the workspace, with revision history."*
+2. **Their words.** The nouns on their screen: chat, agent, document, deck, post, image, file, folder,
+   connection, workspace. Never ours: lane, artifact, substrate, principal, grant, declaration, proposal, queue,
+   witness, verdict, kernel, commons, aperture, capture, receipt-as-jargon. The map is §3.
+3. **One idea per sentence. Full stops, not dashes.** A pane subtitle is one or two short sentences.
+   No semicolons, no em-dash chains, no parentheticals stacking a second mechanism.
+4. **Second person, present tense.** *"Nothing goes out until you approve it."*
+5. **Say the consequence, then the reason, only if the reason changes what they do.**
+6. **Empty states name the next step.** *"Nothing yet. To-dos, activity, and balance warnings show up here."*
+7. **Buttons and links name the destination.** *"Show all activity"*, never *"The whole timeline"*.
+8. **Errors say what happened and what to do.** *"Couldn't disconnect Slack. Nothing changed."*
+9. **No internal references.** No ADR numbers, no `_name.yaml`, no table names, no tool names, no
+   "deployment", "router", "lane", "turn".
+10. **One word per concept, product-wide.** The word chosen in §3 is the word everywhere; a synonym
+    is a defect (the June audit found *recurrence*, *task* and *scheduled action* for one thing).
 
-> **BEFORE:** "The Reviewer will auto-execute capital actions within your declared ceiling. Substrate writes (file edits) STILL wait for your approval — only Autonomous auto-applies those. Higher-impact capital actions also wait."
+Sentence-case labels, no trailing period on a one-line fragment (a launcher summary, a fact row),
+periods on sentences. Brand is `yarnnn`, lowercase, as the wordmark spells it.
 
-> **AFTER:** "Your agent can spend on its own — up to your limit — without asking first. It still checks with you before changing any of your files, and before any spend above the limit."
+## 2. Slot budgets — copy fits the slot it renders in
 
-*Rules:* lead with what the operator gets (it can act on its own); "capital actions" → "spend"; "substrate writes (file edits)" → "changing any of your files"; "ceiling" → "limit"; drop the ALL-CAPS shouting; one idea per sentence, read linearly.
+A string that truncates with "…" has failed regardless of its words. Every slot below has a render
+site and a budget; the budget is measured, not guessed.
 
-### 2.2 — Mandate tagline
-`web/components/agents/MandateTab.tsx:24`
+| Slot | Render site | Budget | Receipt |
+|---|---|---|---|
+| Launcher summary | `web/components/shell/Launcher.tsx` — `truncate text-xs`, one line | **≤ 312 px at 12 px system font** (a 390 px phone: 390 − 2 border − 32 padding − 12 gap − 32 icon). Desktop is 434 px. In practice ≤ ~48 characters. | 2026-09-15: all 14 served summaries measured with `canvas.measureText` at the app's font stack; longest 298 px (*"This workspace's name, members, billing, and usage"*). The old Files line measured 420 px. |
+| Pane subtitle | `PaneHeader` in `web/components/settings/SettingsPaneShell.tsx` — wraps | Two short sentences, ≤ ~130 characters | The Connected subtitle went from 4 clauses and two semicolons to three sentences. |
+| Fact row (Reads · Writes · Chat · Agents) | Reach card + connection page, `<dd>` wraps | One or two sentences; a fragment if one clause | Served by `describe()` in `api/services/reach_status.py`. |
+| Empty state | dashed box | Title ≤ 4 words + one sentence naming what puts something here | |
+| Tooltip (`title=`) | native | One sentence, no dash | |
+| Toast / error | `useFeedback` | One sentence: what happened, then what to do | |
+| Dock tooltip | served `title` | The surface's name only | |
 
-> **BEFORE:** "Your Primary Action declaration — the external write you're moving value with, plus success criteria and guardrails. YARNNN gates task creation on this (ADR-207)."
+A new surface's summary is written to the launcher budget first; if it cannot say what the surface is
+for in 48 characters, the surface's name is wrong, not the budget.
 
-> **AFTER:** "What you're here to get done — the real-world action that moves the needle (place an order, ship a campaign, publish a piece), plus what success looks like and the limits you won't cross. Nothing runs until you've set this."
+## 3. The word map — kernel noun → member word
 
-*Rules:* "Primary Action declaration / external write you're moving value with" → "what you're here to get done / the real-world action that moves the needle" + concrete examples; "guardrails" → "the limits you won't cross"; "gates task creation" → "nothing runs until you've set this"; **delete the ADR reference entirely** — the operator never needs it.
+The left column is banned from rendered copy (the guard's three phases); the right column is the one
+word used everywhere. Where the product had already chosen a word, that choice stands — consistency
+outranks preference.
 
-### 2.3 — Reviewer activity empty state
-`web/components/agents/ReviewerActivityPanel.tsx:195`
+| Ours | Theirs | Notes |
+|---|---|---|
+| lane, thread, model-pinned helper conversation | **chat** (the item), **conversation** (what happens in it) | "New chat", "Archive chat" |
+| engine | **engine** | Kept: chosen in June, shown in four places, gate-pinned (ADR-585 D5). Not "model". |
+| agent, colleague, resident, helper, system agent | **agent** | "Your agents, and the ones you can hire" |
+| substrate, commons, operation, the record | **workspace**, **your files** | |
+| artifact | **file**, or the medium: **deck**, **post**, **image**, **document** | |
+| revision, revision chain, revertible | **version**, **history**, **can be undone** | Files UI still says "revision" in places — see §6 owed |
+| attributed, signed | **under your name** | "signed" is acceptable in a receipt line |
+| platform, connector, integration, credential | **connection** (the link), the app's name (Slack, Notion) | "New connection" everywhere; an MCP server is "a server" only where a URL is pasted |
+| capture, observation file, intake lane, yield | **reads**, **what it brought in**, **saved in Downloads** | |
+| proposal, queue, witness, verdict, autonomy setting | **decision**, **To do** (the pane), **your approval**, **decided by** | "X needs your approval before this runs" |
+| standing declaration, contract, cadence | **standing work** (the pane, kept), **instructions** (the file), **on a schedule** | |
+| principal, grant, evict, revoke | **member**, **access**, **remove** | "Anything not allowed is hidden" |
+| capital, external write, substrate write (queue families) | **Spending**, **Outbound messages**, **Workspace changes** | |
+| aperture, scope (verb) | **which tools**, **what it can reach**, **choose** | |
+| turn, deployment, model router, lanes enabled | *(never shown)* — "Chat isn't available here yet" | |
+| rasterize, stage, artboard, derivation | **download as a PNG**, **save a PNG copy next to this file** | |
+| surface (noun), launcher (as jargon) | the surface's **name**; **Launcher** (a proper noun, the grid icon) | "Search, or paste a file path" |
+| recurrence, wake, occupant, primitive, capital action, ceiling | scheduled work · ran · your agent · *(name the act)* · spend · limit | Phase 2 (June), unchanged |
+| ADR-NNN, `_name.yaml`, table names | *(never shown — delete)* | Phase 1 (June), unchanged |
 
-> **BEFORE:** "No active judgment recurrences configured. The Reviewer wakes on three triggers (per ADR-260): operator chat, proposed actions, and scheduled cron. The first two are always live; scheduled cadence is opt-in via `_recurrences.yaml`."
+## 4. Where the copy lives
 
-> **AFTER:** "Your agent isn't on a schedule yet. It already responds when you message it or when an action needs a decision — that's always on. To have it check in on its own at set times, ask it in chat to set a schedule."
+Most of it is in `web/components/` and `web/app/(authenticated)/`. Four backend files **serve** prose
+the UI renders verbatim, and those are the ones a web-only grep misses:
 
-*Rules:* "judgment recurrences configured" → "on a schedule"; "wakes on three triggers" → "responds when…"; **delete ADR-260 and `_recurrences.yaml`** — internal; the operator acts through chat, so point them there, not at a YAML file.
+| Served from | What | Rendered at |
+|---|---|---|
+| `api/services/kernel_surfaces.py` | every launcher title + `summary` | Launcher rows, Dock tooltips |
+| `api/services/reach_status.py` → `describe()` | the Reads · Writes · Chat · Agents rows per connection | Reach → Connected cards; the connection page. **The only place a reach sentence may be written** (ADR-644). `frame_paragraph` in the same file is the agent's prompt, not copy. |
+| `api/services/connectors.py` → `CONNECTOR_CAPTURE_BINDINGS[…]["reads"]` | the "Reads" fact per platform | same |
+| `api/services/notifications.py` → `NOTIFICATION_KINDS` | each notification kind's label, description, email note | User Settings → Notifications |
+| `api/services/account_email.py` | subject, preheader, body of the account emails | the member's inbox |
 
-### 2.4 — Feed pulse label
-`web/components/feed/InvocationCard.tsx:50`
+Frontend string tables worth knowing: `web/lib/proposal-labels.ts` (the act labels and the dial line
+the bell shows), `web/components/chat-surface/toolLabels.ts` (what a running tool says it is doing),
+`web/components/queue/QueueBody.tsx` (`FAMILY_META`), `web/components/notifications/StandingWork.tsx`
+(`PROBLEM_COPY`, `runStatusLine`), `web/components/workspace-concepts/WorkspaceMembersCard.tsx`
+(`ROLE_META`, the access modes).
 
-> **BEFORE:** "reactive wake"
+## 5. Enforcement — the guard
 
-> **AFTER:** "responded to a change" (or simply "auto" / the triggering reason in plain words)
+`api/test_voice_no_kernel_nouns_in_copy.py` scans rendered string contexts (JSX text, copy-bearing
+props, thrown errors, toasts) under `web/` plus the served-prose files in §4, and fails on any banned
+pattern that is not allowlisted. Three phases:
 
-*Rule:* "wake" is the single most-leaked engine term. The operator sees a card; tell them *why it ran* ("you messaged it," "a proposal came in," "scheduled check," "something changed"), never the internal trigger taxonomy.
+- **Phase 1** (2026-06-24): `ADR-NNN` and `_name.yaml` in copy. Zero-false-positive classes.
+- **Phase 2** (2026-06-24): recurrence · wake · substrate · capital action · occupant · primitive.
+- **Phase 3** (2026-09-15): model-pinned · lane · commons · principal · artifact · attributed · declaration ·
+  witness · verdict · rasterize · scaffold · no-op · aperture.
 
-### 2.5 — Navigation header
-`web/components/workspace/WorkspaceNav.tsx:101`
+**The allowlist is the progress meter.** A phase ships green with its baseline allowlisted; each pass
+deletes entries as it cleans a surface; a deleted entry that is still violated turns red. Phase 3's
+baseline after the introducing sweep: four marketing lines (owed) and two developer-facing strings.
 
-> **BEFORE:** "Recurrences"
+Scope rulings made 2026-09-15: the served roster and the reach sentences are IN (the June guard sat
+green over `web/` while "Raw substrate browser" shipped from a Python file for months);
+`web/app/admin/` is OUT (the platform operator's own console, reading the record's column names —
+the retired-vocabulary ratchet holds it); `kernel` is not a pattern (it fires only on data:
+surface keys, tier values, owner fields). The in-string test measures from the regex match, not the
+first substring hit — `"substrate_paths": …  # substrate` is a comment.
 
-> **AFTER:** "Schedule" (or "Scheduled work")
+A new pattern earns its place with a receipt: a string that shipped, on a surface a member saw.
 
-*Rule:* pick ONE operator-facing word for the concept and use it everywhere. "Recurrence" is the code noun; the product word is "schedule" / "scheduled work." (Today the product says *recurrence*, *task*, AND *scheduled action* for the same thing — pick one.)
+## 6. The passes
 
-### 2.6 — Activity filter chip
-`web/components/activity/ActivityLog.tsx:362`
+### 2026-06-24 — phases 1 and 2, whole product to zero
+Six commits over feed/governance → nav + empty states → settings → inline cards → marketing.
+The operator ruled *same standard everywhere*, marketing included. Baseline 47 → 0.
 
-> **BEFORE:** "Mech"
+### 2026-09-15 — the second generation, and the launcher fits
+Trigger: the operator's two screenshots — the launcher truncating every row's summary with "…", and
+the Reach cards reading *"only when you send a file to Slack from the Text pane (Send to Slack) — your
+click, receipted beside the file, never scheduled"*. The guard was red at baseline (8 admin-console
+hits) and had never scanned the file the launcher summaries come from.
 
-> **AFTER:** "Automatic" (paired with "Judgment" → "Decisions")
+Swept, highest exposure first: the 16 roster summaries (all measured under the phone budget); the
+Launcher chrome; the Desktop first-run and returning states; the bell (balance warning, empty state,
+the dial line); the user menu; Chat (rail, empty states, errors, "lane" → "chat"); Reach (three
+subtitles, both empty states, the footer, the AI-connections note, every served sentence in
+`describe()`, the three capture "reads" lines); Notifications (three subtitles); Standing work (both
+dictionaries, header, empty state); the decision queue (families, empty state, "Decided by");
+Workspace Settings and User Settings subtitles and the notification explainer; the members pane
+("principal grants" → "access"); the connection pages (Capture → *What it reads*, Yield → *What it
+brought in*); the finder; the attached-server page; Text (landing, editor notes, the Editor empty
+state); Slides/Blogger/Images (taglines, template descriptions, share/export tooltips, "artifact" →
+the medium); Files (version history tooltips); Agents (Craft → Skills, the door to Reach); the served
+notification kinds; the joined/removed account emails.
 
-*Rule:* never abbreviate to dev shorthand in a label. Spell it; use the word a non-engineer would.
+Gates re-anchored to the fact instead of the phrase: ADR-628 and ADR-644 ("never captures" →
+"never reads"), ADR-338 ("Nothing awaiting your decision" → "Nothing to decide"). The phrases the
+gates still pin are facts, not wording: the door's name (*Send to Slack*), *your click*, *cannot send*,
+the ADR-585 D5 disclosure (*engine · you picked · pasting*).
 
-### 2.7 — Daily-update CTA
-`api/services/daily_update_email.py:239`
-
-> **BEFORE:** "Open your book →"
-
-> **AFTER:** "See where things stand →" (or the program-specific noun — "Open your portfolio →" for the trader)
-
-*Rule:* poetic-but-ambiguous loses. The CTA must say what's on the other side of the click.
-
-### 2.8 — Narration string (already shipped, the right shape)
-`api/services/reviewer_chat_surfacing.py` (ADR-365 D3)
-
-> **BEFORE:** "Wrote to Reviewer substrate on its direction."
-
-> **AFTER (shipped):** "Saved a working note."
-
-*Rule:* this is the model of the whole fix — a deterministic string, plain by construction. The harvest found dozens more like the BEFORE; this is the pattern to apply to all of them.
-
----
-
-## 3. The rules, extracted (the spec)
-
-A YARNNN string shown to an operator must obey all of these:
-
-1. **No kernel nouns.** Banned from operator-facing copy: `substrate`, `recurrence`, `wake`, `aperture`, `floor` (as jargon), `primitive`, `proposal` (prefer "a decision waiting"), `occupant`, `envelope`, `mechanical`/`Mech`, any `_*.yaml` filename, any `ADR-NNN`. Each has a plain replacement (see the glossary in §4).
-2. **Lead with meaning.** First clause = what it means for the operator. Mechanism, if needed, comes after.
-3. **One word per concept, product-wide.** No synonym sprawl (recurrence/task/scheduled-action). Pick the operator word, use it everywhere.
-4. **Point to the action, not the file.** The operator acts through chat and the cockpit, never by editing a YAML. "Ask it in chat to…" not "set it in `_recurrences.yaml`."
-5. **Spell it out.** No dev abbreviations in labels ("Mech," "auto," "cfg").
-6. **Empty states teach the next step.** "Empty folder" → "Nothing here yet. [what puts something here]."
-7. **CTAs name the destination.** "Open your book" → "See where things stand."
-8. **Prose flows.** Read once, linearly. No ALL-CAPS shouting, no run-ons stacking three mechanisms in one sentence.
-
----
-
-## 4. Operator glossary (kernel noun → product word)
-
-| Kernel / code noun | Operator-facing word |
-|---|---|
-| recurrence | scheduled work / a schedule |
-| wake / fire | ran / checked in / responded |
-| substrate / substrate write | your files / saved a note / changed a file |
-| capital action | spend / an order |
-| ceiling | limit |
-| proposal | a decision waiting for you |
-| mandate (Primary Action declaration) | what you're here to get done |
-| principles | the rules your agent judges by |
-| aperture | what it's looking at / its focus |
-| reviewer / occupant | your agent |
-| mechanical / Mech | automatic |
-| domain | (the topic name itself, e.g. "Customers") |
-| ADR-NNN, `_*.yaml` | *(never shown — delete)* |
-
----
-
-## 5. Where this lands (the implementation surface)
-
-This is **deterministic product copy** — hand-authored strings in `web/components/`, `web/app/`, and a handful of backend narration/email sites (`reviewer_chat_surfacing.py`, `daily_update_email.py`, `notifications.py`, `narrative.py`). It is NOT a prompt-engineering problem (ADR-365 proved the prompt directive is inert). The fix is a **copy pass** against the §3 rules + §4 glossary, surface by surface.
-
-Recommended order (highest operator exposure first):
-1. The feed / narration labels (every operator sees these constantly) — `InvocationCard.tsx`, `reviewer_chat_surfacing.py`.
-2. The autonomy + mandate + principles cards (the governance the operator configures) — `AutonomyCard.tsx`, `MandateTab.tsx`, `MandateCard.tsx`, `PrinciplesCard.tsx`. **Delete all ADR references here first** — fastest, highest-embarrassment win.
-3. Navigation + empty states + filter labels — `WorkspaceNav.tsx`, `ActivityLog.tsx`, empty-state strings.
-4. Settings + emails — `daily_update_email.py`, connector copy.
-
-Each surface's pass is small, mechanical, and independently shippable. Unlike the prompt directive, every one of these is a guaranteed improvement the operator sees on the next deploy.
-
----
-
-## 6. Enforcement — the guard makes this progressive, not a one-time snapshot
-
-A copy pass without enforcement rots: the next feature adds the next `ADR-NNN` tagline. Because the problem is systemic and the cleanup is progressive, the spec is enforced by a **CI guard** — `api/test_voice_no_kernel_nouns_in_copy.py`, same shape as `test_adr209_no_filename_versioning.py`.
-
-**How it works (the ratchet):**
-- The guard reads operator-facing copy — JSX text + copy-bearing props (`tagline`/`title`/`description`/`label`/`placeholder`/`consequence`/…) + thrown-error/toast strings in `web/`, plus the backend narration/email sites — and fails on banned patterns. It deliberately ignores code comments, path constants (`const X_YAML_PATH = …`), imports, and ADR docs (none are shown to operators).
-- **Phase 1 (live, 2026-06-24)** bans the two zero-false-positive classes: **`ADR-NNN` references** and **raw `_*.yaml` filenames** in copy. Baseline at introduction: **0 violations** (the four found — MandateTab tagline, ReviewerActivityPanel empty state, RecurrenceList tooltip, the Reviewer card description — were fixed in the same pass, so the allowlist ships empty). Any new leak turns CI red.
-- **The allowlist is the progress meter.** When a future phase bans a fuzzier class (kernel nouns: `recurrence`/`wake`/`substrate`/`capital action`) that has a large existing baseline, the offenders go in the allowlist so the guard ships green, and each copy-pass PR deletes allowlist entries as it cleans surfaces. A deleted entry that is still violated turns red — the surface can only ratchet toward clean.
-
-**Phase 2 (live, 2026-06-24):** the kernel-noun bans from §4's glossary (`recurrence`/`wake`/`substrate`/`capital action`/`occupant`/`primitive`) are wired with a baseline allowlist. The introducing pass cleaned the **highest-exposure surfaces** (the feed pulse labels — `'reactive wake'`/`'recurrence'`/`'wake'` → `'responded to a change'`/`'scheduled'`/`'ran'`; the autonomy governance card's run-on `'Capital actions auto-execute… Substrate writes STILL wait'` → `'Your agent can spend on its own up to your limit. It still checks with you before changing any of your files'`; system-status `'Pending wakes'` → `'Waiting to run'`), dropping the baseline 47→32. The remaining **32 are allowlisted** (`ALLOWLIST_PHASE2`) across lower-exposure surfaces (settings page, nav header, marketing pages, inline-action cards) and sweep down in subsequent passes per §5. The matcher also excludes Python metadata dict-keys (`meta["occupant"]`), which are data fields, not copy.
-
-**Phase 2 COMPLETE (2026-06-24) — whole product, zero baseline.** Every surface — in-app operator copy AND the marketing pages — has been plain-language'd to one voice. The sweep ran in six commits over the §5 order: feed/governance/system-status → nav + empty states → settings danger-zone → inline cards + tooltips → last in-app surface → marketing (`/about` + `/invest`). Baseline 47 → **0**. Both `ALLOWLIST` and `ALLOWLIST_PHASE2` ship **empty** — the guard enforces a zero-baseline, so any new kernel-noun leak anywhere in operator-or-marketing copy turns CI red.
-
-The operator decision on marketing (2026-06-24): **same standard everywhere.** "Substrate is the asset" → "Your accumulated workspace is the asset"; the four-pillar tagline "substrate, agents, the seat, the dial" → "the workspace, the agents, the judgment, the controls"; "Substrate can't be mutated anonymously — parent-pointered, content-addressed" → "Nothing changes anonymously — every revision names who made it, what it changed, and what came before." The thesis survives; the jargon doesn't.
-
-Along the way the matcher gained two false-positive exclusions: property-access (`{occupant.x}`/`watch.recurrence` render a field *value*, not the word) and route-slug (`navigateToSurface("recurrence")`/`href="/recurrence"` is a route *name*). Both are correctly *not* copy.
-
-This is the answer to "systemic-wide, validate-and-expand progressively": the guard *is* the validator, the shrinking allowlist *is* the expansion meter, and green CI *is* the no-regression guarantee.
+**Owed** (the next pass, in this order):
+1. Marketing: the four Phase-3 allowlist lines in `web/app/{how-it-works,invest,developers}` and
+   `web/components/landing/AppShowcase.tsx`.
+2. Files: "revision" → "version" across `RevisionHistoryPanel`, `PaneActivityRail`, `NodeDetailsPanel`,
+   `TextEditor` Properties; "Get Info" stays.
+3. The Launcher's two dormant rows (`setup`, `program`) render in flat search with nowhere to go
+   (`navigableSurfaces` filters on `route !== ''`, and theirs is undefined). A row a member cannot open
+   is a dead door: drop them from search or give them one.
+4. `web/lib/utils.ts::TOOL_DISPLAY_NAMES` disagrees with `toolLabels.ts` — one table.
+5. StudioPublish and SendToSlack tooltips ("your click, your account"), `StudioDesignTab` ("type ramp"),
+   the WordPress not-launched lines, `WorkspaceDangerZone` descriptions ("re-scaffolded"),
+   `WorkspaceDeleteCard` ("purge"), `SourcesCard` ("no-op", "attests") — a dormant pane.
+6. `AgentsSurface` "Runs on" renders a raw model id; use the engine label.
+7. The Reach sidebar group label *The boundary*; the Notifications group *Operate*. Small, but a
+   member reads them.

@@ -64,7 +64,7 @@ NOTIFICATION_KINDS: list[dict] = [
         "key": "decisions",
         "owner": "kernel",
         "label": "Decisions & activity",
-        "description": "Proposals awaiting you, and teammates' or agents' acts in this workspace.",
+        "description": "Decisions waiting for you, and what teammates and agents do in this workspace.",
         "email_default": "high",  # all | high | none — the ADR-489 D4 witness dial, renamed
         "email_note": None,
     },
@@ -72,7 +72,7 @@ NOTIFICATION_KINDS: list[dict] = [
         "key": "reports",
         "owner": "kernel",
         "label": "Reports",
-        "description": "Recurring reports the workspace produces for you (today: the daily reconciliation).",
+        "description": "Reports this workspace makes for you on a schedule.",
         "email_default": "none",  # opt-in preserved from the _preferences.yaml era (ADR-593 D4)
         "email_note": None,
     },
@@ -80,7 +80,7 @@ NOTIFICATION_KINDS: list[dict] = [
         "key": "mentions",
         "owner": "chat",
         "label": "Mentions",
-        "description": "When someone — a teammate or an agent — @mentions you in a conversation.",
+        "description": "When a teammate or an agent @mentions you in a conversation.",
         # WIRED (ADR-605): the mention stamp lands at the turn write
         # (routes/lanes.py → services/mentions.py) and the email rides this
         # chokepoint. Default 'none' — OPT-IN, operator-ruled 2026-08-25:
@@ -100,13 +100,13 @@ NOTIFICATION_KINDS: list[dict] = [
         "label": "Agent runs",
         "description": "Run failures and completions.",
         "email_default": None,  # failures already reach the bell as material (ADR-489 D1)
-        "email_note": "In-app only — failures already surface in the bell. Email lands when a real send path exists.",
+        "email_note": "In-app only for now.",
     },
     {
         "key": "account",
         "owner": "kernel",
         "label": "Account",
-        "description": "Your account itself: a welcome when it is created, a note when a workspace removes you, a farewell when it is deleted.",
+        "description": "A welcome when your account is created, a note if a workspace removes you, and a goodbye if it is deleted.",
         # ADR-650 D1 — FIXED: no dial. A welcome cannot be opt-in (no
         # preference exists before the account) and a farewell cannot be
         # (no principal exists after it). The pane states "always sent"

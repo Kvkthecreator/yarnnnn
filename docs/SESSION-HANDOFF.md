@@ -98,6 +98,12 @@ Studio-era cluster (26 gates) was ruled 2026-09-13/14; the still-open shapes (AD
 - `framer-motion` is a dead dependency (imported nowhere) — removing it needs a lockfile write; `pnpm` is not on
   this machine's PATH and Vercel installs frozen.
 
+## Copy (VOICE-AND-TONE, 2026-09-15)
+- The plain-language pass swept the chrome, Chat, Reach, Notifications, the apps and the served prose;
+  the owed remainder is the numbered list in `docs/design/VOICE-AND-TONE.md` §6 (marketing lines, the
+  Files "revision" → "version" rename, two dead launcher rows, one duplicate tool-label table). The
+  guard's Phase-3 allowlist is the meter.
+
 ## Cleanup owed since ADR-632
 - `api/scripts/operator/` shadows the stdlib `operator` module for any script run BY PATH from `api/scripts/`
   (`python3 scripts/x.py`; the next `import re` dies). Reproduced 2026-09-13; affects `backfill_embeddings.py`,

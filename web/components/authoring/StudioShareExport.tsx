@@ -167,7 +167,7 @@ export function StudioShareExport({
         type="button"
         className={btn}
         onClick={() => { setOpen(null); share(); }}
-        title="Share this artifact — choose who can reach it, and get a link"
+        title="Share. Choose who can open it, and get a link"
         aria-label={compact ? 'Share…' : undefined}
       >
         <Share2 className="h-3 w-3" />
@@ -177,7 +177,7 @@ export function StudioShareExport({
         type="button"
         className={btn}
         onClick={() => setOpen(open === 'export' ? null : 'export')}
-        title="Export this artifact — print, PDF, AI reference"
+        title="Export as print, PDF, or a link for an AI"
         aria-label={compact ? 'Export' : undefined}
       >
         <FileOutput className="h-3 w-3" />
@@ -200,7 +200,7 @@ export function StudioShareExport({
                   className={act}
                   onClick={runExportPng}
                   disabled={pngState === 'working'}
-                  title="Rasterize this stage and download it as a PNG"
+                  title="Download as a PNG"
                 >
                   {pngState === 'working'
                     ? 'Rendering…'
@@ -215,7 +215,7 @@ export function StudioShareExport({
                   className={act}
                   onClick={runSavePng}
                   disabled={saveState === 'working'}
-                  title="Rasterize this stage and save the PNG beside the artboard, as a derivation of it — a document can then refer to it by path"
+                  title="Save a PNG copy next to this file, so a document can use it"
                 >
                   {saveState === 'working'
                     ? 'Saving…'
@@ -233,7 +233,7 @@ export function StudioShareExport({
                   setOpen(null); // the print dialog takes the screen — close first
                   print();
                 }}
-                title="Open the print dialog over the rendered artifact — save as PDF from there"
+                title="Print, or save as PDF from the print dialog"
               >
                 Print / PDF…
               </button>
@@ -241,7 +241,7 @@ export function StudioShareExport({
                 type="button"
                 className={act}
                 onClick={runCopyAiRef}
-                title="Copy a reference any connected AI can use to recall this artifact via the yarnnn connector"
+                title="Copy a link any AI you’ve connected can use to open this"
               >
                 {aiRefState === 'copied' ? 'Reference copied ✓' : 'Copy AI reference'}
               </button>

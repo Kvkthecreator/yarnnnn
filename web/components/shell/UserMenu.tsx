@@ -325,7 +325,7 @@ export function UserMenu({ email }: UserMenuProps) {
                         ? 'bg-background shadow-sm'
                         : 'hover:bg-background/50'
                     )}
-                    title="Canvas — chat beside one surface"
+                    title="Canvas: chat beside one window"
                   >
                     <Columns2 className="w-3 h-3" />
                     <span>Canvas</span>
@@ -338,7 +338,7 @@ export function UserMenu({ email }: UserMenuProps) {
                         ? 'bg-background shadow-sm'
                         : 'hover:bg-background/50'
                     )}
-                    title="Desktop — floating windows"
+                    title="Desktop: floating windows"
                   >
                     <LayoutGrid className="w-3 h-3" />
                     <span>Desktop</span>
@@ -494,7 +494,7 @@ export function UserMenu({ email }: UserMenuProps) {
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
               >
                 <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="flex-1">Connectors</span>
+                <span className="flex-1">Connections</span>
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>
             </div>

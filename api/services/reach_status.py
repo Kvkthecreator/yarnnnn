@@ -173,62 +173,49 @@ def describe(facts: Optional[dict]) -> Optional[dict]:
     reads_any = bool(facts.get("reads"))
     reach_on = bool(facts.get("reach_on"))
 
-    reads = facts.get("captures") or f"nothing — yarnnn never captures from {name}"
+    reads = facts.get("captures") or f"Nothing. yarnnn never reads from {name}"
 
     if door:
         writes = (
-            f"only when you {door['verb']} to {name} from the {door['pane']} pane "
-            f"({door['door']}) — your click, receipted beside the file, never scheduled"
-            + (
-                f"; an agent's {name} post goes out only through a proposal you approve"
-                if agent_writes
-                else ""
-            )
+            f"Only when you {door['verb']} from {door['pane']} ({door['door']}). "
+            "Never on a schedule."
+            + (f" An agent's {name} post goes out only after you approve it." if agent_writes else "")
         )
     elif agent_writes:
-        writes = (
-            f"only through a proposal you approve — an agent's {name} post waits in "
-            "your queue for the decision"
-        )
+        writes = f"Only after you approve it. An agent's {name} post waits in To do first."
     else:
-        writes = f"nothing — yarnnn never writes to {name}"
+        writes = f"Nothing. yarnnn never writes to {name}"
 
     if not reads_any:
-        chat = f"chat does not read {name} — " + (
-            f"this connection carries only your own {door['door']} clicks"
+        chat = f"Chat can't read {name}. " + (
+            f"This connection only carries what you {_first_verb(door)} yourself."
             if door
-            else "nothing reads it"
+            else "Nothing reads it."
         )
     elif reach_on:
         chat = (
-            f"your chat can read {name} through your own connection — read-only, in "
-            "the turn, nothing saved unless you ask. What it reads goes to the engine "
-            "you picked for that chat, the same as pasting it in"
+            f"Chat can read {name} through your connection. Nothing is saved unless "
+            "you ask. What it reads goes to the engine you picked for that chat, the "
+            "same as pasting it in."
         )
     else:
-        chat = "chat cannot reach platforms on this deployment"
+        chat = f"Chat cannot reach {name} here yet."
 
     if not reads_any and door:
-        agents = (
-            f"agents never {_first_verb(door)} to {name} — that is your click, with "
-            "your credential"
-        )
+        agents = f"Agents never {_first_verb(door)} to {name}. That is your click."
     elif reach_on:
         agents = (
-            f"an agent you scope to {name} reads it while you're working with it — "
-            "never on its own schedule, where it reads landed files only"
+            f"An agent you give {name} to can read it while you work together. On its "
+            "own schedule it reads only files already in the workspace."
         )
     else:
-        agents = "no direct platform access — agents read the landed capture files only"
+        agents = "Agents read only what has already landed in your files."
     if agent_writes:
-        agents += (
-            f". An agent's {name} post never goes out on its own — it lands in your "
-            "queue as a proposal for your decision"
-        )
+        agents += f" An agent's {name} post never goes out on its own. It waits in To do for your approval."
     elif door and reads_any:
         agents += (
-            f". It cannot {door['verb']} there — that is your click, from the "
-            f"{door['pane']} pane ({door['door']})"
+            f" It cannot {door['verb']} there. That is your click, from "
+            f"{door['pane']} ({door['door']})."
         )
 
     return {"reads": reads, "writes": writes, "chat": chat, "agents": agents}

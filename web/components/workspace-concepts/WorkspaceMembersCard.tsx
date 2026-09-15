@@ -472,7 +472,7 @@ export function WorkspaceMembersCard({
       <Users className="mx-auto h-5 w-5 text-muted-foreground/50" />
       <p className="mt-2 text-sm font-medium text-foreground/80">{title ?? 'No members yet'}</p>
       <p className="mt-1 text-xs text-muted-foreground/70 max-w-sm mx-auto">
-        {hint ?? 'This workspace has no principal grants. Once you author substrate, you become its owner.'}
+        {hint ?? 'No one has access to this workspace yet. Once you add a file, you become its owner.'}
       </p>
     </div>
   );
@@ -828,15 +828,15 @@ export function WorkspaceMembersCard({
           </h3>
           {scope === 'workspace' && ais.length > 0 && (
             <p className="text-xs text-muted-foreground">
-              Each reaches only this workspace, under the grant of the member
-              who connected it — and goes away when they do.
+              Each one reaches only this workspace, under the access of the member
+              who connected it, and goes away when they do.
             </p>
           )}
           {ais.length > 0
             ? renderMemberList(ais)
             : renderEmptyState(
                 'No AI connections yet',
-                'Connect this workspace from ChatGPT or Claude to give it durable, attributed memory.',
+                'Connect this workspace from ChatGPT or Claude so it can remember your work.',
               )}
         </section>
       )}
@@ -857,7 +857,7 @@ export function WorkspaceMembersCard({
                   Revoke {revokeTarget.label ?? revokeTarget.principal_id}?
                 </h3>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                  This is a full eviction. <span className="font-medium text-foreground/90">{revokeTarget.label ?? 'This principal'}</span> loses
+                  This removes all access. <span className="font-medium text-foreground/90">{revokeTarget.label ?? 'This member'}</span> loses
                   all access immediately, its connection tokens are deleted, and it must
                   re-authorize from scratch to return. This cannot be undone from here.
                 </p>
@@ -1139,8 +1139,7 @@ function NarrowDialog({
         </h3>
         <p className="mt-1.5 text-sm text-muted-foreground">
           {roleNounCap(member.role)} access to this workspace. Anything not
-          granted is hidden and denied — {member.label ?? 'they'} stays connected
-          either way.
+          allowed is hidden, and {member.label ?? 'they'} stays connected either way.
         </p>
 
         {/* ADR-532 (recut) — ONE radio group. The kernel's `narrow` verb only

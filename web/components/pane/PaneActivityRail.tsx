@@ -308,7 +308,7 @@ export function PaneActivityRail({
                   <span className="text-[11px] text-muted-foreground">
                     {rev.parent_version_id
                       ? 'What this change did'
-                      : 'First revision — nothing to diff against'}
+                      : 'First version'}
                   </span>
                   <span className="flex items-center gap-2">
                     {revertable && (
@@ -320,7 +320,7 @@ export function PaneActivityRail({
                           void revert(rev);
                         }}
                         className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50"
-                        title="Restore this version — lands as a new revision attributed to you"
+                        title="Restore this version. It’s saved as a new version under your name"
                       >
                         <Undo2 className="h-3 w-3" /> restore this version
                       </button>

@@ -24,6 +24,7 @@ The current product story:
 | [architecture/YARNNN-DESIGN-PRINCIPLES.md](architecture/YARNNN-DESIGN-PRINCIPLES.md) | Design principles including Spectrum A/B (substrate strict, runtime flexible) |
 | [ESSENCE.md](ESSENCE.md) | Product narrative and value proposition |
 | [NARRATIVE.md](NARRATIVE.md) | External storytelling beats and vocabulary rules |
+| [design/VOICE-AND-TONE.md](design/VOICE-AND-TONE.md) | How the product speaks to a member — plain words, per-slot length budgets, the copy guard |
 | [architecture/orchestration.md](architecture/orchestration.md) | Agent taxonomy and type registry |
 | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) | Execution model and trigger taxonomy |
 | [architecture/WORKSPACE.md](architecture/WORKSPACE.md) | Workspace (layers · filesystem · bootstrap · autonomy threshold) — paired with [design/WORKSPACE.md](design/WORKSPACE.md) |

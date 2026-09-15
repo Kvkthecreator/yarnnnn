@@ -74,7 +74,7 @@ export default function ReachPage() {
             <PaneHeader
               icon={Cable}
               title="Connected"
-              subtitle="Your connections — held under your account, reachable wherever you work; other members hold and see their own. The credential is yours; what this workspace reads through it is set here."
+              subtitle="Your connections, held under your account. Other members hold and see their own. What this workspace reads through them is set here."
             />
             <div className="flex-1 overflow-y-auto p-6">
               <ReachConnected />
@@ -87,10 +87,10 @@ export default function ReachPage() {
             <PaneHeader
               icon={Send}
               title="Leaving"
-              subtitle="What is about to leave the workspace — approve or refuse below. Nothing here goes out on its own."
+              subtitle="What's about to leave this workspace. Nothing goes out until you approve it."
               action={
                 <DoorLink
-                  label="Everything awaiting you"
+                  label="Show all to-dos"
                   onClick={() => navigateToSurface('notifications', { pane: 'resolve' })}
                 />
               }
@@ -109,10 +109,10 @@ export default function ReachPage() {
             <PaneHeader
               icon={ArrowLeftRight}
               title="Crossed"
-              subtitle="What arrived and what left — every act signed, every receipt kept."
+              subtitle="What came in and what went out, each with its receipt."
               action={
                 <DoorLink
-                  label="The whole timeline"
+                  label="Show all activity"
                   onClick={() => navigateToSurface('notifications', { pane: 'understand' })}
                 />
               }

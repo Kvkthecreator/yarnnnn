@@ -56,7 +56,7 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         "display_name": "Slack Channel Capture",
         # The operator-facing statement of what the read tool above actually
         # does — lives ON the binding so the display cannot drift from it.
-        "reads": "channel history (latest 50 messages) from each selected channel",
+        "reads": "The latest 50 messages in each channel you chose",
     },
     "notion": {
         # Landscape selection ids are page UUIDs (landscape.py) — exactly
@@ -64,7 +64,7 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         "read_tool": "platform_notion_get_page",
         "selector_arg": "page_id",
         "display_name": "Notion Page Capture",
-        "reads": "page content from each selected page",
+        "reads": "The content of each page you chose",
     },
     "github": {
         # Landscape selection ids are owner/repo full names (landscape.py) —
@@ -74,7 +74,7 @@ CONNECTOR_CAPTURE_BINDINGS: dict[str, dict] = {
         "selector_arg": "repo",
         "tool_args": {"state": "all", "limit": 50},
         "display_name": "GitHub Repo Capture",
-        "reads": "issue and pull-request activity (latest 50, all states) from each selected repo",
+        "reads": "The latest 50 issues and pull requests in each repo you chose",
     },
 }
 

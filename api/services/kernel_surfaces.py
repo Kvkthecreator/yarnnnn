@@ -265,7 +265,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "message-circle",
         "default_pinned": True,  # ADR-435 — dock anchor (was `home`)
         "route": "/chat",
-        "summary": "Your model-pinned helper conversations — isolated lanes over the shared workspace. The transcript stays private to each lane; the work lands in files, attributed to you via the lane's model.",
+        "summary": "Talk with your agents about your work",
     },
     # The Docs surface row was DELETED by ADR-599 D5 with the app (it had been
     # `stage: internal` since ADR-592; the operator named its future — a
@@ -293,7 +293,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "presentation",
         "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
         "route": "/slides",
-        "summary": "Build slide decks as living artifacts: Designer drafts and patches the file while the canvas re-renders it — every citation a live workspace reference, every edit an attributed revision.",
+        "summary": "Build slide decks from what's in your workspace",
     },
     {
         # ADR-627 (2026-09-01) — BLOGGER, the publish medium's pane. The
@@ -323,7 +323,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "substrate_paths": [],  # artifacts are meaning-placed; no app namespace
         "icon_key": "newspaper",
         "route": "/blogger",
-        "summary": "Write posts, essays, and pages for readers outside the workspace: Blogger drafts band-first published prose as living artifacts — every claim recalled from what the workspace settled, every edit an attributed revision.",
+        "summary": "Write posts and pages to publish on your blog",
     },
     {
         # ADR-472 (2026-07-20) — IMAGES, the SECOND authoring app. Carved out
@@ -364,7 +364,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "image",
         "default_pinned": True,  # derived from stage at serve (marker key)
         "route": "/images",
-        "summary": "Compose visuals on a sized stage — layered objects, positioned and stacked. The composition is the source and the rendered image is a derivation of it, so every export stays traceable to the stage, the citations, and the revision that produced it.",
+        "summary": "Design images, layer by layer",
     },
     # ADR-592 (2026-08-21) — the RADAR row is DELETED, with the app.
     #
@@ -423,7 +423,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "file-text",
         "default_pinned": True,  # ships in the Dock beside Docs
         "route": "/text",
-        "summary": "Plain-text prose — transcripts, notes, briefs, every .md in the workspace. Open with a cursor, refine with Editor beside you, and every save lands as a signed revision your connectors read back.",
+        "summary": "Write notes, briefs, and documents",
     },
     # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
     # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
@@ -493,7 +493,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "bell",
         "default_pinned": False,
         "route": "/notifications",
-        "summary": "Operate the recurring work in one place — what wants your decision, what just happened, what's coming up.",
+        "summary": "To do, activity, and standing work in one place",
     },
     # The `recurrence` surface row is DELETED (ADR-603 D5 executed 2026-08-24
     # — production counted 0 recurrence declarations; retire-clean). Runs
@@ -528,7 +528,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "credit-card",
         "default_pinned": False,
         "route": "/billing",
-        "summary": "This workspace's plan, seats, and balance — two seats free, a paid seat per extra teammate, usage pay-as-you-go from one shared balance (ADR-490).",
+        "summary": "This workspace's plan, seats, and balance",
     },
     {
         # ADR-491 D1/D3 — the Usage pane row (member-visible legibility; the
@@ -544,7 +544,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "bar-chart-3",
         "default_pinned": False,
         "route": "/usage",
-        "summary": "What this workspace's usage went to — the balance meter with runway, who used it, and the activity trend. Activity, never dollars.",
+        "summary": "What this workspace used, and who used it",
     },
     # ADR-551 (2026-08-12) — the `autonomy` SURFACE row is DELETED. The pane it
     # named is gone from Workspace Settings: the dial gates only the steward's
@@ -588,7 +588,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_pinned": True,  # 2026-07-22 — the primary apps ship in the Dock
         # (five at first; four since ADR-488 took Images internal).
         "route": "/files",  # _route_status: EXISTING — slug/route/label all coherent (legacy /context is a redirect stub)
-        "summary": "Raw substrate browser — every file in the workspace, with revision history.",
+        "summary": "Every file in your workspace, with its history",
     },
     {
         "slug": "agents",
@@ -644,7 +644,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # the A3-deferred world the comment above just inverted ("hired Altitude-3
         # persona agents (the deferred horizon; A2 chat lanes are the launch AI
         # surface)") — ADR-460 D1 dissolved that ladder. One kind of agent.
-        "summary": "Your colleagues — the agents you've hired and named, and the ones you can hire.",
+        "summary": "Your agents, and the ones you can hire",
     },
     {
         # ADR-437 (2026-07-10): DORMANT — the guided first-boot SEQUENCE surface
@@ -663,7 +663,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "substrate_paths": [],
         "icon_key": "rocket",
         "default_pinned": False,
-        "summary": "Guided first-boot sequence (DORMANT — ADR-437 deleted the wizard).",
+        "summary": "Retired. Start in Chat",
     },
     {
         "slug": "program",
@@ -686,7 +686,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         ],
         "icon_key": "package",
         "default_pinned": False,
-        "summary": "Active program bundle, phase, and capability gaps.",
+        "summary": "The program this workspace runs",
     },
     {
         # ADR-346 (2026-06-19) — Queue demoted primary → utilities. The
@@ -724,7 +724,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # (account-scoped, ADR-425/577 — reachable wherever they work; other
         # members hold their own); what leaves and what crossed are THIS
         # WORKSPACE's (substrate-scoped ledgers).
-        "summary": "Your connections, and what leaves or arrives in this workspace — every act signed.",
+        "summary": "Your connections, and what comes in or goes out",
     },
     # The `activity` surface row (the Runs lens, pane_of recurrence) is
     # DELETED with its parent (ADR-603 D5 executed 2026-08-24). Run receipts
@@ -772,7 +772,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "user-circle",
         "default_pinned": False,
         "route": "/settings",
-        "summary": "User Settings — your account: billing, usage, and data/privacy. Program-agnostic, cross-workspace (user_id-scoped). Also reachable from the avatar menu.",
+        "summary": "Your account, notifications, and privacy",
     },
     {
         # ADR-341 (2026-06-18) created the second door; ADR-347 (2026-06-19)
@@ -812,7 +812,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "building",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Workspace Settings — what this operation is and how it runs. Program, Access (members), Billing/Usage. (ADR-426 moved the System Agent dials to their own door; ADR-645 moved Connectors to Reach.)",
+        "summary": "This workspace's name, members, billing, and usage",
     },
     {
         # ADR-645 D3 (2026-09-08) — RETIRED as a pane. Connection management is
@@ -837,7 +837,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "link-2",
         "default_pinned": False,
         "route": "/connectors",  # redirect stub → /reach?reach.pane=connected (ADR-645 D3)
-        "summary": "RETIRED (ADR-645 D3) — connection management is Reach → Connected. The slug survives for its redirect stub; the substrate (platform_connections, account-scoped per ADR-425) is untouched.",
+        "summary": "Retired. Connections are in Reach",
     },
     {
         # ADR-593 D5 (2026-08-21) — the Notifications settings pane, on the
@@ -861,7 +861,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "bell",
         "default_pinned": False,
         "route": "/notification-settings",
-        "summary": "How this workspace reaches you — email dials per notification kind. In-app attention is always on (derived); each workspace remembers its own settings.",
+        "summary": "Which emails this workspace sends you",
     },
     {
         # ADR-425 D2 (2026-07-09): Sources is HIDDEN from the operator surface.
@@ -889,7 +889,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "rss",
         "default_pinned": False,
         "route": "/sources",  # redirect stub → /home (ADR-425 D2); substrate retained
-        "summary": "Standing-watch sources — the web/RSS feeds the operation reads on cadence. Hidden from the operator surface (ADR-425 D2); substrate retained for a future first-class home.",
+        "summary": "Web and RSS feeds this workspace watches. Not offered yet",
     },
     # =========================================================================
     # ADR-297 D11 — Chrome surfaces (Universal Surface Application)

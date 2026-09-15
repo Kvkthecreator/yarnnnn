@@ -243,9 +243,9 @@ export function FindConnectorModal({
             <>
               <div className="space-y-3 border-b border-border px-4 py-3">
                 <p className="text-xs text-muted-foreground">
-                  Any MCP server — the ones Claude&apos;s own plugins use, or anything in
-                  the public registry. You sign in to the server yourself; nothing is
-                  offered to a conversation until you choose which of its tools may run.
+                  Any MCP server, from the public directory or one you know. You sign in
+                  to it yourself, and nothing is used in a chat until you choose which of
+                  its tools may run.
                 </p>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -362,9 +362,9 @@ export function FindConnectorModal({
               </div>
 
               <p className="mt-3 text-xs text-muted-foreground">
-                You&apos;ll sign in at {picked?.title} if it asks. yarnnn stores the
-                credential in your account and nothing else — no tool is offered to a
-                conversation until you choose, tool by tool, on the next screen.
+                You&apos;ll sign in at {picked?.title} if it asks. yarnnn keeps the
+                sign-in under your account and nothing else. No tool is used in a chat
+                until you choose, tool by tool, on the next screen.
               </p>
 
               {pickError && (

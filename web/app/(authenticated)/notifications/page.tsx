@@ -91,7 +91,7 @@ export default function OperationPage() {
             <PaneHeader
               icon={ClipboardCheck}
               title="To do"
-              subtitle="What wants your decision — approve or reject below."
+              subtitle="Decisions to make and mentions to answer."
               action={
                 <div className="flex items-center gap-4">
                   {/* ADR-642 D4 — the Queue surface is absorbed by Reach; what
@@ -123,7 +123,7 @@ export default function OperationPage() {
             <PaneHeader
               icon={ScrollText}
               title="Activity"
-              subtitle="What happened across the workspace — every actor, attributed."
+              subtitle="Everything that happened in this workspace, and who did it."
             />
             <div className="flex-1 min-h-0">
               <ActivityLedger />
@@ -138,7 +138,7 @@ export default function OperationPage() {
             <PaneHeader
               icon={ClipboardList}
               title="Standing work"
-              subtitle="Files kept current while you are away — what stands, what ran, what changed."
+              subtitle="Files kept current on a schedule. What's set up, what ran, what changed."
             />
             <div className="flex-1 min-h-0">
               <StandingWork />

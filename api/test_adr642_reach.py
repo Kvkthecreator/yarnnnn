@@ -366,7 +366,7 @@ check("the lane frame renders the same structure (no hand prose)",
       "frame_paragraph(" in (API / "services" / "lane_runner.py").read_text()
       and "list_integrations tells you which platforms" not in (API / "services" / "lane_runner.py").read_text())
 check("Reach says whose each pane is: connections are the viewer's, the rest this workspace's",
-      "other members hold and see their own" in _read("app/(authenticated)/reach/page.tsx")
+      "other members hold and see their own" in _read("app/(authenticated)/reach/page.tsx").lower()
       and "this workspace" in _read("app/(authenticated)/reach/page.tsx"))
 
 print()

@@ -185,7 +185,7 @@ export function ReachConnected() {
       await runAction(() => api.integrations.disconnect(provider), {
         pending: `Disconnecting ${label}…`,
         success: `${label} disconnected`,
-        error: `Couldn't disconnect ${label} — the connection is unchanged.`,
+        error: `Couldn't disconnect ${label}. Nothing changed.`,
       });
       openConnector(null);
       reload();
@@ -245,7 +245,7 @@ export function ReachConnected() {
         <Plug className="mx-auto mb-3 h-6 w-6 text-muted-foreground/40" />
         <p className="text-sm font-medium text-foreground/80">Nothing is connected yet</p>
         <p className="mt-1 text-xs text-muted-foreground/70">
-          Connect a platform once, and this page shows what it reads, what it writes, and who reads through it.
+          Connect Slack, Notion, GitHub, or WordPress, and this page shows what each one reads and writes.
         </p>
         {error && <p className="mt-2 text-[11px] text-destructive">{error}</p>}
         <button
@@ -254,7 +254,7 @@ export function ReachConnected() {
           className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
         >
           <Plus className="h-3.5 w-3.5" />
-          Connect a platform
+          New connection
         </button>
         {finderOpen && (
           <FindConnectorModal
@@ -368,17 +368,17 @@ export function ReachConnected() {
                         label="Agents"
                         text={
                           i.reach.agent_writes.length > 0
-                            ? `can post here — by proposal, from your queue`
+                            ? 'Can post here once you approve it in To do'
                             : i.reach.reads.length > 0
-                              ? `read only — ${i.reach.reads.length} read tool${i.reach.reads.length === 1 ? '' : 's'}; cannot send`
-                              : 'no reach — this connection carries only your own clicks'
+                              ? 'Read only. Cannot send'
+                              : 'None. Only what you send yourself goes through'
                         }
                       />
                     )}
                     {attached && (
                       <Fact
                         label="Exposes"
-                        text={`${i.tools_exposed ?? 0} tool${i.tools_exposed === 1 ? '' : 's'} to your turns${i.category ? ` · ${i.category}` : ''}`}
+                        text={`${i.tools_exposed ?? 0} tool${i.tools_exposed === 1 ? '' : 's'} available in chat${i.category ? ` · ${i.category}` : ''}`}
                       />
                     )}
                     {/* A connector that never captures (WordPress) has no
@@ -399,7 +399,7 @@ export function ReachConnected() {
                       <div className="flex gap-2">
                         {/* The declarations are THIS WORKSPACE's (substrate);
                             the connection is the viewer's (account). Say so. */}
-                        <dt className="w-16 shrink-0 text-muted-foreground/60" title="Standing declarations in this workspace that read through your connection">Read by</dt>
+                        <dt className="w-16 shrink-0 text-muted-foreground/60" title="Standing work in this workspace that reads through this connection">Read by</dt>
                         <dd className="flex flex-wrap gap-1">
                           {readers.map((d) => (
                             <button
@@ -409,7 +409,7 @@ export function ReachConnected() {
                                 navigateToSurface('files', { path: d.target_path ?? d.declaration_path })
                               }
                               className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
-                              title="A standing declaration reads this connection — open the file it keeps"
+                              title="Open the file this standing work keeps"
                             >
                               <FolderOpen className="h-3 w-3" />
                               {d.topic}
@@ -470,8 +470,7 @@ export function ReachConnected() {
           itself sits at the TOP of the pane (the create affordance a reader
           looks for before scanning the list), not below the roster. */}
       <p className="pt-1 text-[11px] leading-snug text-muted-foreground/70">
-        Each connection is held under your account and travels with you. What this workspace
-        reads through it, and what its tools may do, is set on the connection&rsquo;s own page.
+        Your connections go where you go. Open one to choose what this workspace reads through it.
       </p>
 
       {/* ADR-645 D3 / ADR-496 D1 — the INBOUND half of the boundary: external
@@ -482,9 +481,8 @@ export function ReachConnected() {
       <div className="border-t border-border/60 pt-6">
         <h3 className="mb-1 text-sm font-medium">Your AI connections</h3>
         <p className="mb-3 text-xs text-muted-foreground">
-          External AI assistants you&apos;ve connected over MCP. Each reaches in as itself and
-          writes under your authorization, so a connection goes away when you do — and each one
-          reaches ONE workspace, so connecting here grants nothing in another.
+          AI assistants you&apos;ve connected from outside. Each one works under your account,
+          in this workspace only.
         </p>
         <WorkspaceMembersCard
           variant="compact"

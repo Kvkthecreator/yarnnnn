@@ -200,7 +200,7 @@ export default function WorkspaceSettingsPage() {
             <PaneHeader
               icon={Building2}
               title="General"
-              subtitle="This workspace's name and icon — what members and invitees see."
+              subtitle="This workspace's name and icon, as members see them."
               bordered={false}
             />
             <WorkspaceGeneralPane />
@@ -240,7 +240,7 @@ export default function WorkspaceSettingsPage() {
             <PaneHeader
               icon={BarChart3}
               title="Usage"
-              subtitle="This workspace's usage — what ran, what it drew from the shared balance, and who used it."
+              subtitle="What ran in this workspace, what it drew from the balance, and who ran it."
               bordered={false}
             />
             <UsagePaneBody />

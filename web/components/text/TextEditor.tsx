@@ -1601,11 +1601,11 @@ export function TextEditor({
                       : ''}
                   </p>
                 ) : (
-                  <p className="text-muted-foreground">No revisions yet.</p>
+                  <p className="text-muted-foreground">No saves yet.</p>
                 )}
                 <p className="text-muted-foreground/80">
-                  Every save is signed and revertible — the full history lives in
-                  Files → Get Info.
+                  Every save is kept under your name and can be undone. The full
+                  history is in Files → Get Info.
                 </p>
               </section>
 
@@ -1616,8 +1616,7 @@ export function TextEditor({
           <div className={cn('min-h-0 flex-1 flex-col', railTab === 'chat' ? 'flex' : 'hidden')}>
             {lanesEnabled === false ? (
               <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                Lanes are not enabled on this deployment — Editor needs the model
-                router. The document still opens and saves.
+                Editor isn&apos;t available here yet. The document still opens and saves.
               </div>
             ) : boundLane ? (
               <LanePanel
@@ -1656,8 +1655,8 @@ export function TextEditor({
                   <div className="space-y-2 text-center text-xs text-muted-foreground">
                     <p className="text-sm font-medium text-foreground/80">Editor is reading this document.</p>
                     <p>
-                      Ask for a tighter draft, a restructure, or a second opinion —
-                      every change lands as a signed revision on{' '}
+                      Ask for a tighter draft, a new structure, or a second opinion.
+                      Every change is saved to{' '}
                       <span className="font-medium text-foreground/70">{leafOf(path)}</span>,
                       and the page updates as it works.
                     </p>

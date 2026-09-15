@@ -33,6 +33,7 @@ at the compositor, not the kernel. Workspaces have no types.
 | How outside content reaches the commons | [intake-pipeline.md](docs/architecture/intake-pipeline.md) · [connectors.md](docs/architecture/connectors.md) |
 | The MCP connector | [docs/features/mcp/](docs/features/mcp/) |
 | The end-to-end service model | [SERVICE-MODEL.md](docs/architecture/SERVICE-MODEL.md) |
+| How the product speaks to a member — the words, the slot budgets, the copy guard | [VOICE-AND-TONE.md](docs/design/VOICE-AND-TONE.md) |
 
 **Before proposing an architectural change**: `ls docs/adr/ | grep -i <topic>`, then search the ledger. If an
 external system does something differently, check whether an ADR already explains why we chose otherwise.

@@ -477,12 +477,12 @@ check("7n does.writes follows the publish seam (wordpress + slack are member doo
       "wordpress" in PUBLISH_TARGETS
       and "slack" in PUBLISH_TARGETS
       and "publish" in _wp_does.get("writes", "")
-      and "your click" in _slack_does.get("writes", "")
-      and "proposal" not in _slack_does.get("writes", "")
+      and "Send to Slack" in _slack_does.get("writes", "")  # the member's door, named (2026-09-15: the fact, not the phrase)
+      and "approv" not in _slack_does.get("writes", "").lower()
       and "never writes" in _gh_does.get("writes", ""),
       f"wp={_wp_does.get('writes')!r} slack={_slack_does.get('writes')!r}")
 check("7n2 an outbound-only connector states its non-capture (never omits it)",
-      "never captures" in _wp_does.get("reads", "")
+      "never reads" in _wp_does.get("reads", "")
       and "your click" in _wp_does.get("agents", ""),
       f"reads={_wp_does.get('reads')!r}")
 check("7o the structure is None for an unbound platform (no fabricated facts)",

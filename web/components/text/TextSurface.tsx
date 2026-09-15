@@ -196,9 +196,8 @@ function TextLanding({
               <h1 className="text-lg font-semibold">Text</h1>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
-              Plain-text prose — transcripts, notes, briefs. Open one with a
-              cursor, refine it with Editor beside you, and every save lands as
-              a signed revision your connectors read back.
+              Notes, briefs, transcripts. Open one and write, with Editor beside
+              you when you want help. Every save is kept in the history.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">

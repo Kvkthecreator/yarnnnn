@@ -653,7 +653,7 @@ export function LanePanel({
         if (cancelled) return;
         setMessages(mapMessages(res.messages));
       })
-      .catch(() => !cancelled && setError('Could not load this lane.'))
+      .catch(() => !cancelled && setError('Could not load this chat.'))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
@@ -1019,7 +1019,7 @@ export function LanePanel({
           }
         },
         onError: (message: string) => {
-          setError(message || 'The lane turn failed — try again.');
+          setError(message || 'Something went wrong. Try again.');
           // Papercut fix: preserve the user's text so it isn't lost.
           if (kind === 'send' && opts.content) setInput((cur) => cur || opts.content!);
           dropEmptyPlaceholder();
@@ -1049,7 +1049,7 @@ export function LanePanel({
           });
         }
       } catch {
-        setError('The lane turn failed — try again.');
+        setError('Something went wrong. Try again.');
         if (kind === 'send' && opts.content) setInput((cur) => cur || opts.content!);
         dropEmptyPlaceholder();
       } finally {
@@ -1154,9 +1154,8 @@ export function LanePanel({
                     meant. */}
                 <p className="font-medium text-foreground/80">{laneName} · {speaker}</p>
                 <p>
-                  This conversation is private to this lane. The work it produces
-                  lands in the shared workspace files, attributed to you via{' '}
-                  {modelLabel}.
+                  This conversation is private. Whatever {modelLabel} makes here
+                  lands in your workspace files, under your name.
                 </p>
               </div>
             )}

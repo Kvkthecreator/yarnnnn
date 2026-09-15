@@ -294,18 +294,17 @@ export function AttachedConnectorSubsurface({
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
               <dt className="text-muted-foreground">Reads / writes</dt>
               <dd>
-                Whatever tools you allow above, in your own conversations, as you. Any
-                tool you set to Ask first lands in your queue before it runs.
+                Whatever tools you allow above, in your own chats, as you. A tool set
+                to Ask first waits in To do before it runs.
               </dd>
               <dt className="text-muted-foreground">Agents</dt>
               <dd>
-                Never on their own. Unattended runs hold no credential; only a turn
-                you are driving can reach this server.
+                Never on their own. Only a chat you are in can reach this server.
               </dd>
               <dt className="text-muted-foreground">Where it goes</dt>
               <dd>
-                What a conversation fetches stays in that conversation unless it is
-                saved to a file. It is sent to whichever engine you chose for that chat.
+                What a chat fetches stays in that chat unless it is saved to a file.
+                It goes to the engine you chose for that chat.
               </dd>
             </dl>
             {row.server_url && (

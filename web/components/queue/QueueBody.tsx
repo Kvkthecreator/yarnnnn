@@ -41,8 +41,8 @@ type QueueFamily = 'capital' | 'external-write' | 'substrate';
 // not a money move and not a file diff.
 const FAMILY_META: Record<QueueFamily, { label: string; help: string; dot: string }> = {
   capital: {
-    label: 'Money-moving',
-    help: 'Actions that move capital or bind an external transaction.',
+    label: 'Spending',
+    help: 'Actions that spend money or commit you to a transaction.',
     dot: 'bg-amber-500',
   },
   'external-write': {
@@ -52,7 +52,7 @@ const FAMILY_META: Record<QueueFamily, { label: string; help: string; dot: strin
   },
   substrate: {
     label: 'Workspace changes',
-    help: 'Edits to your workspace files — reversible via the revision chain.',
+    help: 'Edits to your workspace files. You can undo them from the file’s history.',
     dot: 'bg-sky-500',
   },
 };
@@ -61,7 +61,7 @@ function rowLabel(p: QueueProposal): string {
   if (p.family === 'substrate') {
     const dc = (p.decision_context ?? {}) as Record<string, unknown>;
     const path = (dc.path as string) ?? ((dc.diff as { path?: string })?.path) ?? '';
-    return path ? `Write · ${path}` : 'Substrate write';
+    return path ? `Edit · ${path}` : 'File edit';
   }
   const prim = p.primitive.replace(/^platform_/, '').replace(/_/g, ' ');
   return prim.charAt(0).toUpperCase() + prim.slice(1);
@@ -106,13 +106,13 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
   return (
     <>
       {proposals === null ? (
-        <Working label="Loading the queue…" fill />
+        <Working label="Loading…" fill />
       ) : proposals.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border/60 px-6 py-10 text-center">
           <Inbox className="mx-auto mb-3 h-6 w-6 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-foreground/80">Nothing awaiting your decision</p>
+          <p className="text-sm font-medium text-foreground/80">Nothing to decide</p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            When an agent proposes an action that needs your OK, it appears here.
+            When an agent wants to do something that needs your OK, it shows up here.
           </p>
         </div>
       ) : (
@@ -121,7 +121,7 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
               <ShieldCheck className="h-3 w-3" />
               <span>
-                Verdicts rendered by <span className="font-medium">{occupant.display_label}</span>
+                Decided by <span className="font-medium">{occupant.display_label}</span>
               </span>
             </div>
           )}

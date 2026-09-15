@@ -99,10 +99,11 @@ finally:
     _tr.turn_reach_tool_names = _orig_names
 check("a write tool composed into the live surface → agent_writes names it, gated by PROPOSAL",
       _flip["agent_writes"] == [{"tool": "platform_slack_send_to_channel", "mode": "propose"}], str(_flip["agent_writes"]))
-check("…and the member face says the proposal path", "proposal" in _flip_desc["writes"] and "proposal" in _flip_desc["agents"])
+check("…and the member face says the approval path (the member word for a proposal — VOICE-AND-TONE §3)",
+      "approv" in _flip_desc["writes"].lower() and "approv" in _flip_desc["agents"].lower())
 check("…and the agent face says it can post, by PROPOSAL", "you can post with platform_slack_send_to_channel" in _flip_frame and "PROPOSAL" in _flip_frame)
 check("…and with none composed, neither face claims it",
-      "proposal" not in describe(_slack)["writes"] and "you can post" not in frame_paragraph(
+      "approv" not in describe(_slack)["writes"].lower() and "you can post" not in frame_paragraph(
           reach_status([{"platform": "slack", "status": "active", "metadata": {}}], reach_on=True), "Kev", reach_on=True))
 
 # ---------------------------------------------------------------------------
@@ -144,7 +145,7 @@ check("describe keeps the 585 disclosure (engine + pasting) when reach is on",
 check("…and says 'cannot reach' when it is off",
       "cannot reach" in describe(platform_reach("slack", reach_on=False))["chat"])
 check("describe keeps the 628 anchors for WordPress",
-      "publish" in describe(_wp)["writes"] and "never captures" in describe(_wp)["reads"] and "your click" in describe(_wp)["agents"])
+      "publish" in describe(_wp)["writes"] and "never reads" in describe(_wp)["reads"] and "your click" in describe(_wp)["agents"])
 check("describe names the member's door on the agents row for a readable platform with a door",
       "cannot send a file there" in _d["agents"] and "Send to Slack" in _d["agents"])
 

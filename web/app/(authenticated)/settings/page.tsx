@@ -505,11 +505,11 @@ export default function SettingsPage() {
             bordered={false}
           />
           <p className="mb-4 text-xs text-muted-foreground">
-            In-app is always on — the bell and the{" "}
+            In-app notifications (the bell and the{" "}
             <SurfaceLink to="notifications" className="text-primary hover:underline">
               Notifications window
-            </SurfaceLink>{" "}
-            derive from the workspace record itself. These dials govern{" "}
+            </SurfaceLink>
+            ) are always on. These settings control{" "}
             <span className="font-medium">email</span>.
           </p>
           {isLoadingNotifications ? (
@@ -564,7 +564,7 @@ export default function SettingsPage() {
                     </select>
                   ) : (
                     <span className="shrink-0 max-w-[14rem] text-right text-[11px] leading-snug text-muted-foreground">
-                      {k.email_note ?? "Not wired yet."}
+                      {k.email_note ?? "Email coming soon"}
                     </span>
                   )}
                 </div>

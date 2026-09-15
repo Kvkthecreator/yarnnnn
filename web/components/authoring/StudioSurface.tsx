@@ -408,19 +408,19 @@ function authoringApp(slug: string, tagline: string, iconKey: string): Authoring
 // that pair cannot drift again.
 export const STUDIO_APP: AuthoringApp = authoringApp(
   'slides',
-  'Name a deck, then describe what you want in plain words — it takes shape live, slide by slide, pulling in your files, images, and data as it goes.',
+  'Name a deck, then say what you want in plain words. It takes shape slide by slide, using your files, images, and data.',
   'presentation',
 );
 export const IMAGES_APP: AuthoringApp = authoringApp(
   'images',
-  'Pick a size, name it, then describe the image in plain words — it renders live on the canvas.',
+  'Pick a size, name it, then describe the image in plain words. It appears as you go.',
   'image',
 );
 // ADR-627 — the publish medium's pane: the outward type (ADR-505 D2's merged
 // article/page, deleted by ADR-599 D5) returns as `post` under its own app.
 export const BLOGGER_APP: AuthoringApp = authoringApp(
   'blogger',
-  'Name a post, then describe the piece in plain words — it takes shape live as bands of published prose, pulling in your files, images, and data as it goes.',
+  'Name a post, then say what you want in plain words. It takes shape section by section, using your files, images, and data.',
   'newspaper',
 );
 
@@ -535,7 +535,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         artifact_path: artifactPath,
       })
       .then(() => refreshLanes())
-      .catch(() => setLaneError('Could not create the authoring lane.'))
+      .catch(() => setLaneError('Could not start the chat.'))
       .finally(() => setCreatingLane(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artifactPath, lanesEnabled, boundLane]);
@@ -3582,7 +3582,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // composition (`trace`), the PNG is the convenience artifact for the outside
   // world. Throws on failure so the Export tab's button surfaces the error.
   const exportPng = useCallback(async () => {
-    if (!file?.content || !artifactPath) throw new Error('No artifact open');
+    if (!file?.content || !artifactPath) throw new Error('Nothing is open');
     const { exportArtifactPng } = await import(
       '@/components/workspace/viewers/rasterExport'
     );
@@ -3593,7 +3593,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // workspace beside the artboard as a derivation of it. Resolves to the path
   // so the Export panel can say where it went — and how a document cites it.
   const savePng = useCallback(async () => {
-    if (!file?.content || !artifactPath) throw new Error('No artifact open');
+    if (!file?.content || !artifactPath) throw new Error('Nothing is open');
     const { saveArtifactPng } = await import(
       '@/components/workspace/viewers/rasterExport'
     );
@@ -3606,7 +3606,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // (ADR-465). The handle is the kernel grammar; the sentence around it is
   // host guidance.
   const copyAiReference = useCallback(async () => {
-    if (!artifactPath) throw new Error('No artifact open');
+    if (!artifactPath) throw new Error('Nothing is open');
     await navigator.clipboard.writeText(
       formatAiReference(artifactPath, artifactDisplayName),
     );
@@ -3891,7 +3891,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                     }
                   }}
                   className="w-[24ch] rounded border border-indigo-400/60 bg-background px-1 py-0.5 text-xs font-medium outline-none disabled:opacity-50"
-                  aria-label="Rename this artifact"
+                  aria-label="Rename"
                 />
               ) : (
                 <button
@@ -4415,8 +4415,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           <div className={`min-h-0 flex-1 flex-col ${rightTab === 'chat' ? 'flex' : 'hidden'}`}>
             {lanesEnabled === false ? (
               <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                Lanes are not enabled on this deployment — the authoring chat
-                needs the model router. The canvas still renders the artifact.
+                Chat isn&apos;t available here yet. The page still shows your work.
               </div>
             ) : boundLane ? (
               <LanePanel
@@ -4476,7 +4475,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   {laneError}
                 </div>
               ) : (
-                <Working label="Preparing the authoring lane…" fill className="flex-1" />
+                <Working label="Getting ready…" fill className="flex-1" />
               )
             )}
           </div>
@@ -4621,25 +4620,25 @@ const LEARN_TARGETS: LearnTarget[] = [
     skill: 'writing-a-spec',
     template: 'post',
     label: 'Post',
-    description: 'A grounded piece (PRD-style) derived from the source.',
+    description: 'A post written from the source.',
   },
   {
     skill: 'presenting-from-sources',
     template: 'deck',
     label: 'Deck',
-    description: 'Slides that argue the source’s claims, evidence cited.',
+    description: 'Slides that make the source’s case, with its evidence.',
   },
   {
     skill: 'composing-an-image',
     template: 'image',
     label: 'Image',
-    description: 'A composed visual — layers placed on a sized stage.',
+    description: 'An image built from layers.',
   },
   {
     skill: 'deriving-a-design-system',
     template: null,
     label: 'Design system',
-    description: 'Tokens-first CSS + manifest your artifacts can wear.',
+    description: 'One look your decks, posts, and images can share.',
   },
 ];
 
@@ -5119,8 +5118,8 @@ function StudioStart({
           {systems.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6">
               <p className="text-sm text-muted-foreground">
-                No design system yet. Give your artifacts one look — import your
-                brand’s export, or derive one from a style guide.
+                No design system yet. Give everything you make one look. Import
+                your brand’s export, or build one from a style guide.
               </p>
               <button
                 type="button"
@@ -5146,7 +5145,7 @@ function StudioStart({
                     {defaultSystem === s.manifest_path && (
                       <span
                         className="ml-auto shrink-0 rounded-full border border-border px-1.5 py-px text-[9px] uppercase tracking-wide text-muted-foreground"
-                        title="New artifacts are born wearing this design system"
+                        title="New decks, posts, and images use this design system"
                       >
                         Default
                       </span>

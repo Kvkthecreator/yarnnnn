@@ -782,8 +782,8 @@ export function ChatSurface() {
             <button
               onClick={() => setCreating((v) => !v)}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="New lane"
-              title="New lane"
+              aria-label="New chat"
+              title="New chat"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -859,9 +859,8 @@ export function ChatSurface() {
                   is preserved — only the frame moves from engine to
                   colleague. */}
               <p>
-                Each chat is a conversation with one colleague, kept separate
-                from the others. Your workspace files are the shared memory —
-                whatever a colleague makes lands there, attributed to you.
+                Each chat is with one agent, kept separate from the others.
+                Whatever it makes lands in your workspace files, under your name.
               </p>
             </div>
           )}
@@ -949,7 +948,7 @@ export function ChatSurface() {
                       setRenameText(lane.name);
                     }}
                     className="p-1 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-foreground transition-colors"
-                    aria-label="Rename lane"
+                    aria-label="Rename chat"
                     title="Rename"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -962,8 +961,8 @@ export function ChatSurface() {
                       void archiveLane(lane.id);
                     }}
                     className="p-1 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-foreground transition-colors"
-                    aria-label="Archive lane"
-                    title="Archive lane"
+                    aria-label="Archive chat"
+                    title="Archive chat"
                   >
                     <Archive className="w-3.5 h-3.5" />
                   </span>
@@ -1251,12 +1250,11 @@ export function ChatSurface() {
                   no visible way back — an empty state that names an absent
                   affordance reads as a broken product, not a hidden one. */}
               <p>
-                Each chat is with one colleague, kept separate from the
-                others; your workspace files are the shared memory.
+                Each chat is with one agent, kept separate from the others.
                 {railIsColumn
                   ? ' Pick a chat on the left or start a new one'
                   : ' Show your chats or start a new one'}
-                {' '}— the work lands in your files, attributed to you.
+                {'. '}Whatever it makes lands in your files, under your name.
               </p>
               {!isNarrow && !rail.shown && (
                 <button

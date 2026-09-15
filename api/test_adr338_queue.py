@@ -92,7 +92,7 @@ def test_queue_de_stubbed() -> None:
         "refresh on resolve (resolved row drops)",
         "onResolved" in src and "void load()" in src,
     )
-    check("honest empty state", "Nothing awaiting your decision" in src)
+    check("honest empty state", "Nothing to decide" in src)
     # Regression guard: the old stub copy is gone.
     check(
         "old stub copy removed (no longer points operators to Feed as the only path)",

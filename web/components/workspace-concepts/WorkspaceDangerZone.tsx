@@ -245,11 +245,11 @@ export function WorkspaceDangerZone() {
           pane as its sidebar labels it, or the reader hunts for a menu item
           that isn't there. */}
       <p className="text-xs text-muted-foreground pt-2 border-t border-border">
-        Looking for account-level actions? Your own platform connections live in{" "}
-        <SurfaceLink to="settings" params={{ pane: "connectors" }} className="underline">
-          User Settings → Connectors
+        Looking for your own account? Your connections are in{" "}
+        <SurfaceLink to="reach" params={{ pane: "connected" }} className="underline">
+          Reach
         </SurfaceLink>
-        ; resetting or deactivating your account lives in{" "}
+        . Resetting or deactivating your account is in{" "}
         <SurfaceLink to="settings" params={{ pane: "account" }} className="underline">
           User Settings → Account
         </SurfaceLink>

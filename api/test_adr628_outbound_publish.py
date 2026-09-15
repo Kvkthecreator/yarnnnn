@@ -318,9 +318,9 @@ check("the OAuth config exists (global scope, own callback)",
 check("the write-marker ledger has a deliberate entry (not an omission)",
       "wordpress" in WRITE_SCOPE_MARKERS and WRITE_SCOPE_MARKERS["wordpress"] is None)
 _does = describe(platform_reach("wordpress", reach_on=True)) or {}
-check("the facts: publishes on your click · never captures · agents never",
+check("the facts: publishes on your click · never reads · agents never",
       "publish" in _does.get("writes", "")
-      and "never captures" in _does.get("reads", "")
+      and "never reads" in _does.get("reads", "")
       and "your click" in _does.get("agents", ""))
 check("the seam's target roster is the one home (two tenants since amendment 3)",
       PUBLISH_TARGETS == frozenset({"wordpress", "slack"}))

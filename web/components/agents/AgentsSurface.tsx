@@ -167,7 +167,7 @@ function ConnectorScope({
   if (available.length === 0) {
     return (
       <span className="text-muted-foreground">
-        No connections yet — connect one in Settings, then scope it here.
+        No connections yet. Add one in Reach, then choose it here.
       </span>
     );
   }
@@ -331,7 +331,7 @@ function AgentDetail({
             entry is a DOOR into Files, never a viewer here (ADR-595 D1). */}
         {agent.craft && agent.craft.length > 0 && (
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-muted-foreground">Craft</dt>
+            <dt className="w-24 shrink-0 text-muted-foreground">Skills</dt>
             <dd className="min-w-0 flex-1">
               <ul className="flex flex-wrap gap-x-3 gap-y-1">
                 {agent.craft.map((c) => (
@@ -347,8 +347,8 @@ function AgentDetail({
                 ))}
               </ul>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                The skills whose apps meet {agent.name}&apos;s — offered in every chat
-                with them, readable as ordinary files.
+                What {agent.name} knows how to do, offered in every chat with them and
+                kept as ordinary files.
               </p>
             </dd>
           </div>
@@ -371,7 +371,7 @@ function AgentDetail({
                 ))}
               </ul>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                Standing declarations whose runs {agent.name} performs, on their schedule.
+                Files {agent.name} keeps current, on a schedule.
               </p>
             </dd>
           </div>
@@ -392,8 +392,8 @@ function AgentDetail({
                 What {agent.name} has learned
               </button>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                Kept as ordinary files in the workspace — attributed, versioned,
-                and yours to read or correct.
+                Kept as ordinary files in the workspace, with their history, yours
+                to read or correct.
               </p>
             </dd>
           </div>
@@ -506,7 +506,7 @@ export function AgentsSurface() {
               (nobody is `offered`, ADR-599 D1) — the same unfulfillable
               promise as the empty section below it. Says what IS true. */}
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Who works with you here. Each one lives in an app — you meet them
+            Who works with you here. Each one lives in an app, so you meet them
             where the work is.
           </p>
         </header>

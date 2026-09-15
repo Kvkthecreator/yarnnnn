@@ -295,7 +295,7 @@ export function Launcher({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Surface launcher"
+      aria-label="Launcher"
     >
       <div
         className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-background shadow-2xl"
@@ -309,7 +309,7 @@ export function Launcher({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search surfaces, or paste a file path…"
+            placeholder="Search, or paste a file path"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <button
@@ -351,8 +351,8 @@ export function Launcher({
             filtered.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                 {quickOpen
-                  ? `No surfaces match “${query}” — but it names a file, above.`
-                  : `No surfaces match “${query}”`}
+                  ? `No results for “${query}”. It names a file, above.`
+                  : `No results for “${query}”`}
               </div>
             ) : (
               <div className="py-2">
@@ -405,7 +405,7 @@ export function Launcher({
             )
           ) : grouped.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No surfaces available
+              Nothing to open yet
             </div>
           ) : (
             grouped.map((group) => (

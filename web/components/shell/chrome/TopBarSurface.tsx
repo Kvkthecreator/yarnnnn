@@ -404,8 +404,8 @@ export function TopBarSurface() {
         <button
           type="button"
           onClick={openLauncher}
-          aria-label="Open surface launcher"
-          title="Open surface launcher"
+          aria-label="Open Launcher"
+          title="Launcher"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <LayoutGrid className="h-4 w-4" />
@@ -483,7 +483,7 @@ export function TopBarSurface() {
         <div
           ref={menuRef}
           role="menu"
-          aria-label={`Surface actions for ${contextMenu.slug}`}
+          aria-label={`Dock actions for ${contextMenu.slug}`}
           style={{ top: contextMenu.y, left: contextMenu.x, zIndex: Z_POPOVER }}
           className="fixed min-w-[160px] rounded-md border border-border bg-background shadow-lg py-1"
         >

@@ -2328,7 +2328,7 @@ export function StudioDesignTab({
                     }
                   }}
                   className="min-w-0 flex-1 rounded border border-indigo-400/60 bg-background px-1.5 py-0.5 text-xs font-medium outline-none disabled:opacity-50"
-                  aria-label="Rename this artifact"
+                  aria-label="Rename"
                 />
               ) : (
                 <button
@@ -2378,7 +2378,7 @@ export function StudioDesignTab({
                       setFileMenu(false);
                       fileVerbs.trash();
                     }}
-                    title="Move this artifact to Trash (revertible from Files)"
+                    title="Move to Trash (you can restore it from Files)"
                     className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Move to Trash
@@ -2394,7 +2394,7 @@ export function StudioDesignTab({
       {scope === 'document' && (
         <>
           <div className={SECTION}>
-            <p className={HEADING}>Artifact</p>
+            <p className={HEADING}>File</p>
             {/* ADR-526: on flow the invitation named a grain the medium does not
                 have — `pageNoun` resolves to "section", and Docs has no section
                 unit (ADR-522 D4). Say what is actually selectable. */}

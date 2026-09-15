@@ -434,8 +434,8 @@ export function AttentionCenter() {
                 className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-300 hover:bg-muted transition-colors border-b border-border/60"
               >
                 {lowBalanceAuthority
-                  ? `Balance is low ($${lowBalance?.toFixed(2)}) — workspace hard-stops at $0`
-                  : 'Workspace balance is low — work pauses at zero. The owner manages billing.'}
+                  ? `Balance is low ($${lowBalance?.toFixed(2)}). Work pauses at $0.`
+                  : 'Balance is low. Work pauses at zero. The owner manages billing.'}
               </button>
             )}
 
@@ -541,8 +541,8 @@ export function AttentionCenter() {
               mentions.length === 0 &&
               peerActivity.length === 0 && (
                 <p className="px-3 py-4 text-xs text-muted-foreground">
-                  Nothing here yet. To-dos, activity, and runway warnings
-                  surface here.
+                  Nothing yet. To-dos, activity, and balance warnings show
+                  up here.
                 </p>
               )}
           </div>

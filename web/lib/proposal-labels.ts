@@ -96,7 +96,7 @@ export function proposalQueuedByDialLine(
     source.startsWith('reviewer:') ||
     source.startsWith('agent:')
   ) {
-    return `Queued by ${formatAuthorLabelOrSystem(source)}'s autonomy setting — awaiting a witness`;
+    return `${formatAuthorLabelOrSystem(source)} needs your approval before this runs`;
   }
   return null;
 }

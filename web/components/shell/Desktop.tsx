@@ -125,12 +125,12 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
                   <FileText className="h-5 w-5" />
                 </div>
                 <h2 className="text-lg font-medium text-foreground mb-1">
-                  This workspace is a commons — and it&rsquo;s yours
+                  Your workspace is ready
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Drop in a file or tell the system agent what you&rsquo;re
-                  working on. Everything that lands here is placed, attributed,
-                  and recallable — by you, your team, and any AI you connect.
+                  Add a file, or start a chat and say what you&rsquo;re working on.
+                  Everything kept here carries a name, and you, your team, and
+                  any AI you connect can find it again.
                 </p>
                 <div className="mt-5 flex items-center justify-center gap-2">
                   <button
@@ -152,8 +152,7 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
                   </button>
                 </div>
                 <p className="mt-4 text-[11px] text-muted-foreground/70">
-                  Working with others? Invite them from Workspace Settings —
-                  they join the same attributed commons.
+                  Working with others? Invite them from Workspace Settings.
                 </p>
               </>
             ) : (
@@ -165,9 +164,8 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
                   Nothing open
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Click an icon in the top dock to open a surface, or use
-                  the launcher (the grid icon) to browse every surface in
-                  the workspace.
+                  Click an icon in the dock, or open the Launcher (the grid
+                  icon) to see everything in this workspace.
                 </p>
               </>
             )}

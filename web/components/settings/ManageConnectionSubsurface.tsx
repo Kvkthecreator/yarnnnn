@@ -468,8 +468,8 @@ export function ManageConnectionSubsurface({
                 </div>
               ) : (
                 <p className="mb-2 text-xs text-muted-foreground">
-                  {meta.displayName} grants access at the app level — the{" "}
-                  {resourceNoun} you shared during authorization.
+                  Access is set in {meta.displayName}, for the {resourceNoun} you shared when you
+                  connected.
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-3">
@@ -535,13 +535,13 @@ export function ManageConnectionSubsurface({
             {/* ═══ CAPTURE stratum — the background writer's configuration,
                 one consumer block: selection + destination.
                 Collapsed to one honest line while the lane is dormant. ═══ */}
-            <SectionShell title="Capture">
+            <SectionShell title="What it reads">
               {!captureEnabled && (
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground">
-                    Nothing runs on a schedule — snapshots land when something
-                    you set up reads this connection (a maintained file&apos;s
-                    sources, a chat turn).
+                    Nothing runs on a schedule. Copies are saved when something
+                    you set up reads this connection, like a kept-current file or
+                    a chat.
                     {selected.size > 0 &&
                       ` ${selected.size} ${resourceNoun} in scope.`}
                   </p>
@@ -566,11 +566,11 @@ export function ManageConnectionSubsurface({
               {captureExpanded && (
                 <div className={captureEnabled ? "" : "mt-3"}>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    The background writer reads only the {resourceNoun} you
-                    select here — snapshots land in your workspace as attributed
-                    observation files. Nothing is ever selected for you.
+                    Only the {resourceNoun} you choose here are read. Copies are
+                    saved in your workspace under this connection&apos;s name. Nothing
+                    is ever chosen for you.
                     {provider === "github" &&
-                      " For GitHub this selection also bounds which repos platform tools may answer about (empty = unrestricted)."}
+                      " For GitHub, this also limits which repos a chat can answer about. Choose none to allow all."}
                   </p>
 
                   {scopeLoading ? (
@@ -676,15 +676,14 @@ export function ManageConnectionSubsurface({
             {/* YIELD — the writer's read-back (connector grain).
                 ADR-404 D2: hidden while the capture lane is dormant. */}
             {captureEnabled && (
-              <SectionShell title="Yield">
+              <SectionShell title="What it brought in">
                 <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <span>{freshnessLabel()}</span>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Captured {resourceNoun} land as attributed observation files
-                  at the fixed intake lane — readable immediately, cited by anything
-                  built from them.
+                  What it reads is saved in Downloads under this connection&apos;s
+                  name, ready to open and to build from.
                 </p>
                 {connectorFreshness?.observed_at && (
                   <SurfaceLink

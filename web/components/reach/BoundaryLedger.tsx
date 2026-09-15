@@ -93,7 +93,7 @@ function ReceiptLine({ receipt }: { receipt: NonNullable<TimelineEntry['receipt'
       </div>
       {/* ADR-628 D7 — the platform accepted it, but can a reader reach it? */}
       {r.publicly_readable === false && (
-        <p className="text-amber-600">Live on the site, but no reader can reach it yet — the site is private or unlaunched.</p>
+        <p className="text-amber-600">Live on the site, but not public yet. The site is private or hasn't launched.</p>
       )}
       {/* ADR-628 D8 — the read-back verdict, where the tenant mechanizes it. */}
       {r.read_back === 'matched' && <p className="text-muted-foreground/80">Read back from {platformWord(r.platform)}: matches what was sent.</p>}
@@ -105,7 +105,7 @@ function ReceiptLine({ receipt }: { receipt: NonNullable<TimelineEntry['receipt'
       {r.read_back === 'unreadable' && (
         <p className="text-amber-600">Could not read it back from {platformWord(r.platform)}{r.read_back_detail ? ` — ${r.read_back_detail}` : ''}.</p>
       )}
-      {r.folded && <p className="text-muted-foreground/70">Long — readers see “Show more”.</p>}
+      {r.folded && <p className="text-muted-foreground/70">Long post. Readers see “Show more”.</p>}
     </div>
   );
 }
@@ -173,7 +173,7 @@ export function BoundaryLedger() {
 
   if (loading) {
     return (
-      <Working label="Reading the ledger…" fill className="p-6" />
+      <Working label="Loading activity…" fill className="p-6" />
     );
   }
 
@@ -181,9 +181,9 @@ export function BoundaryLedger() {
     return (
       <div className="p-6">
         <div className="rounded-lg border border-dashed border-border/60 px-6 py-10 text-center">
-          <p className="text-sm font-medium text-foreground/80">Nothing has crossed yet</p>
+          <p className="text-sm font-medium text-foreground/80">Nothing yet</p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            When a connection captures something, or you send a file out, it appears here with its receipt.
+            When something comes in through a connection, or you send a file out, it shows up here.
           </p>
         </div>
       </div>

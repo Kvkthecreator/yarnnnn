@@ -15,11 +15,16 @@ regresses. Same shape as test_adr209_no_filename_versioning.py.
 
 SCOPE — only RENDERED operator-facing strings:
   - web/: JSX text + string-literal props (NOT // or /* */ comments, NOT imports).
-  - backend narration/email sites: the handful of files that compose operator-
-    facing text (freddie_chat_surfacing, daily_update_email, notifications,
-    narrative) — string literals only.
+  - backend copy sites: the files that SERVE prose the UI renders verbatim —
+    the surface roster (kernel_surfaces: launcher titles + summaries), the
+    reach sentences (reach_status.describe), the notification kinds
+    (notifications), the account emails (account_email), narrative — string
+    literals only. The agent-facing half of reach_status (frame_paragraph)
+    is allowlisted by fragment: it is a prompt, not copy.
 Code comments, ADR docs, prompt text, and test files are OUT of scope by design
-(they are not shown to operators).
+(they are not shown to operators). `web/app/admin/` is out of scope too: the
+admin console is the platform operator's own instrument and reads the record
+in its own column names; the retired-vocabulary ratchet holds that surface.
 
 Usage:
     cd api && python test_voice_no_kernel_nouns_in_copy.py
@@ -64,6 +69,33 @@ BANNED_PHASE2 = [
     (re.compile(r"\bcapital action(s)?\b", re.I), "kernel noun 'capital action' → 'spend' / 'an order' (glossary)"),
     (re.compile(r"\boccupant\b", re.I), "kernel noun 'occupant' → 'your agent' (glossary)"),
     (re.compile(r"\bprimitive(s)?\b", re.I), "kernel noun 'primitive' → name the action plainly (glossary)"),
+]
+
+# =============================================================================
+# Phase 3 banned patterns — THE SECOND GENERATION (2026-09-15)
+# =============================================================================
+# Phase 2 went to zero in June; by September the copy had regrown a NEW
+# vocabulary the list never named: the launcher said "model-pinned helper
+# conversations — isolated lanes", Files said "Raw substrate browser" (a Phase 2
+# word, in a served file the guard never scanned), the members pane said
+# "principal grants … author substrate", the bell said "awaiting a witness".
+# Same ratchet: word-boundary, case-insensitive, an allowlist that only shrinks.
+# The replacement is in the reason string (VOICE-AND-TONE.md §3).
+
+BANNED_PHASE3 = [
+    (re.compile(r"\bmodel-pinned\b", re.I), "'model-pinned' → say what the chat is for, not how it is bound"),
+    (re.compile(r"\blanes?\b", re.I), "kernel noun 'lane' → 'chat' / 'conversation'"),
+    (re.compile(r"\bcommons\b", re.I), "kernel noun 'commons' → 'workspace'"),
+    (re.compile(r"\bprincipals?\b", re.I), "kernel noun 'principal' → 'member' / 'you' / the name"),
+    (re.compile(r"\bartifacts?\b", re.I), "kernel noun 'artifact' → 'file' / 'deck' / 'post' / 'image'"),
+    (re.compile(r"\battributed\b", re.I), "'attributed' → 'under your name' / 'signed'"),
+    (re.compile(r"\bdeclarations?\b", re.I), "kernel noun 'declaration' → 'instructions' / 'standing work'"),
+    (re.compile(r"\bwitness(es|ed)?\b", re.I), "kernel noun 'witness' → 'approval' / 'your OK'"),
+    (re.compile(r"\bverdicts?\b", re.I), "kernel noun 'verdict' → 'decision'"),
+    (re.compile(r"\brasteriz(e|ed|ing)\b", re.I), "'rasterize' → 'download as a PNG' / 'save a PNG copy'"),
+    (re.compile(r"\bre-?scaffold(ed|ing)?\b", re.I), "'scaffold' → 'set up again' / say what is left"),
+    (re.compile(r"\bno-op\b", re.I), "'no-op' → 'does nothing'"),
+    (re.compile(r"\baperture\b", re.I), "kernel noun 'aperture' → 'what it can reach' / 'which tools'"),
 ]
 
 # =============================================================================
@@ -152,10 +184,13 @@ def _is_rendered_string_context(line: str, token: str) -> bool:
 
 WEB_GLOBS = ["**/*.tsx", "**/*.ts"]
 WEB_EXCLUDE_DIRS = {"node_modules", ".next", "dist", "build"}
+# The admin console (`web/app/admin/`) is the platform operator's instrument,
+# not a member surface: its column headers name the record's own tables.
+WEB_EXCLUDE_PREFIXES = (("app", "admin"),)
 
-# Backend files that compose operator-facing narration/email text.
+# Backend files that SERVE operator-facing prose the UI renders verbatim.
 BACKEND_COPY_FILES = [
-    REPO_ROOT / "api" / "services" / "freddie_chat_surfacing.py",
+    # freddie_chat_surfacing.py left this list with the steward (ADR-632).
     # daily_update_email.py left this list when ADR-593 D6 deleted the module.
     # daily_pnl_email.py deliberately NOT added in its place: its flagged
     # strings are docstrings + the machine-written sent-marker body, not
@@ -164,6 +199,16 @@ BACKEND_COPY_FILES = [
     # future precision pass can scope in.
     REPO_ROOT / "api" / "services" / "notifications.py",
     REPO_ROOT / "api" / "services" / "narrative.py",
+    # 2026-09-15 — the served roster: every launcher title + summary is a
+    # string in this file, and "Raw substrate browser" shipped from it for
+    # months while the guard sat green over web/ alone.
+    REPO_ROOT / "api" / "services" / "kernel_surfaces.py",
+    # The member face of reach (`describe`) — the Reads/Writes/Chat/Agents
+    # rows on Reach and the connection page. The agent face in the same file
+    # (`frame_paragraph`, `_row_line`) is a prompt and is allowlisted below.
+    REPO_ROOT / "api" / "services" / "reach_status.py",
+    # The account emails (ADR-650): subject, preheader, body.
+    REPO_ROOT / "api" / "services" / "account_email.py",
 ]
 
 
@@ -172,6 +217,9 @@ def _web_files():
     for g in WEB_GLOBS:
         for p in web.glob(g):
             if any(part in WEB_EXCLUDE_DIRS for part in p.parts):
+                continue
+            rel = p.relative_to(web).parts
+            if any(rel[: len(pre)] == pre for pre in WEB_EXCLUDE_PREFIXES):
                 continue
             yield p
 
@@ -185,8 +233,13 @@ def _web_files():
 # Phase 1 baseline (2026-06-24) — populated empirically below by the first run.
 # =============================================================================
 
-# Phase 1 ships with an EMPTY allowlist (all four leaks were fixed at intro).
-ALLOWLIST: list[str] = []
+# Phase 1 shipped with an EMPTY allowlist (all four leaks were fixed at intro).
+# 2026-09-15: the served roster joined the scan; its one Phase-1 hit is a
+# substrate path in a `substrate_paths` list — data the roster carries, never
+# a rendered string.
+ALLOWLIST: list[str] = [
+    "api/services/kernel_surfaces.py::\"/workspace/_program.yaml\",",
+]
 
 # Phase 2 baseline — the kernel-noun leaks present when Phase 2 was introduced.
 # Each entry "relative/path::line-substring". SHRINK as copy passes land.
@@ -196,6 +249,32 @@ ALLOWLIST_PHASE2: list[str] = [
     # to one voice (operator decision: same standard everywhere). The guard now
     # enforces a zero-baseline: ANY kernel-noun leak in operator-or-marketing copy
     # turns CI red. Both phases ship with an empty allowlist.
+]
+
+
+# Phase 3 baseline (2026-09-15). The introducing pass swept the launcher, the
+# Desktop, the bell, Chat, Reach, Notifications, Standing work, the queue, the
+# members pane, the connection pages, the account emails and the served kinds.
+# What remains is listed here so the guard ships green; each later pass deletes
+# entries as it cleans a surface. A deleted entry that is still violated turns
+# red — the surface only ratchets toward clean.
+ALLOWLIST_PHASE3: list[str] = [
+    # reach_status.py — the AGENT face (the lane frame's reach section), a
+    # prompt composed by lane_runner, never rendered to a member (ADR-644).
+    "api/services/reach_status.py::by PROPOSAL",
+    "api/services/reach_status.py::the files into the commons",
+    "api/services/reach_status.py::where you read them normally",
+    "api/services/reach_status.py::save it to the commons with WriteFile",
+    # The developer-facing OpenAPI description (a spec, read by integrators).
+    "web/lib/openapi.ts::description: \"The attributed revision",
+    # The account_email module docstring quotes ADR-593 — prose about the code.
+    "api/services/account_email.py::no principal exists yet to hold a pref",
+    # OWED — the marketing pages. The June ruling was "same standard
+    # everywhere"; these four regrew. A marketing pass deletes these lines.
+    "web/app/how-it-works/page.tsx::Studio is where artifacts take s",
+    "web/app/invest/page.tsx::The loop closes against groun",
+    "web/app/developers/page.tsx::Build on <span className=",
+    "web/components/landing/AppShowcase.tsx::Every app comes with its own col",
 ]
 
 
@@ -215,6 +294,7 @@ def find_violations(include_phase2: bool = True) -> list[tuple[str, int, str, st
     pattern_sets = [(BANNED, ALLOWLIST)]
     if include_phase2:
         pattern_sets.append((BANNED_PHASE2, ALLOWLIST_PHASE2))
+        pattern_sets.append((BANNED_PHASE3, ALLOWLIST_PHASE3))
     targets = list(_web_files()) + [f for f in BACKEND_COPY_FILES if f.exists()]
     for path in targets:
         try:
@@ -235,8 +315,10 @@ def find_violations(include_phase2: bool = True) -> list[tuple[str, int, str, st
                     token = m.group(0)
                     if is_py:
                         # for .py narration files, require the token inside a quote
+                        # (measured from the MATCH, not the first substring hit —
+                        # `"substrate_paths": …  # substrate` is a comment, not copy)
                         in_str = any(
-                            q in line[:line.find(token)] and q in line[line.find(token):]
+                            q in line[:m.start()] and q in line[m.end():]
                             for q in ('"', "'")
                         )
                         if not in_str:
