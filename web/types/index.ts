@@ -181,6 +181,25 @@ export interface PortalResponse {
   portal_url: string;
 }
 
+/** One credit in the workspace's balance history (ADR-652).
+ *
+ *  The ledger records where the balance CAME FROM — purchases and grants — and
+ *  holds no debits: spend stays activity-shaped (ADR-396 §1). `label` is the
+ *  member-facing name, resolved server-side so every surface says one word for
+ *  a kind; `kind` is the raw ledger kind, for branching only. */
+export interface BalanceEntry {
+  at: string;
+  kind: string;
+  label: string;
+  amount_usd: number;
+  order_id: string | null;
+}
+
+export interface BalanceHistoryResponse {
+  entries: BalanceEntry[];
+  has_more: boolean;
+}
+
 /** Result of an in-app plan cancellation (2026-07-22). LS cancellation is
  *  cancel-at-period-END: access runs to `ends_at` and the tier flips on the
  *  `subscription_expired` webhook, so the surface must say WHEN it stops rather

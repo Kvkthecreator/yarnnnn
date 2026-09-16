@@ -21,6 +21,7 @@ import type {
   ByokStatus,
   CheckoutResponse,
   PortalResponse,
+  BalanceHistoryResponse,
   CancelResponse,
   // ADR-034: Context Domains
   ContextDomainSummary,
@@ -1518,6 +1519,12 @@ export const api = {
     // owns — the payment INSTRUMENT (card on file, invoices, receipts). Plan
     // lifecycle is in-app (`cancel` below + `createSubscription` above).
     getPortal: () => request<PortalResponse>("/api/subscription/portal"),
+
+    // The workspace's balance history (ADR-652) — where its money came from,
+    // served from our own ledger rather than the processor's portal (which 404s
+    // for any workspace that never had an LS customer id).
+    getTransactions: () =>
+      request<BalanceHistoryResponse>("/api/subscription/transactions"),
 
     // Cancel the plan at period end (in-app; no portal bounce). Access runs to
     // `ends_at`; the tier flips on the `subscription_expired` webhook, never here.

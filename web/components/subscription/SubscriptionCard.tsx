@@ -67,6 +67,19 @@ function money(n: number): string {
   return n % 1 === 0 ? `$${n}` : `$${n.toFixed(2)}`;
 }
 
+// A ledger date (ADR-652). Day precision, in the reader's own locale and zone —
+// the row answers "when did this land", not "at what second". An unparseable
+// timestamp degrades to nothing rather than printing "Invalid Date".
+function formatLedgerDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 const TIER_LABEL: Record<SubscriptionTier, string> = {
   free: "Free",
   starter: "Starter",
@@ -85,8 +98,19 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   // Transient-surfacing streamline 2026-08-22: a money-visible act gets the
   // styled danger gate, not the browser's unstyled window.confirm.
   const { confirm: confirmDialog } = useFeedback();
-  const { status, tier, isLoading, error, isForbidden, topup, subscribe, openPaymentMethods, cancel } =
-    useSubscription();
+  const {
+    status,
+    tier,
+    isLoading,
+    error,
+    isForbidden,
+    topup,
+    subscribe,
+    openPaymentMethods,
+    cancel,
+    history,
+    historyHasMore,
+  } = useSubscription();
   const { navigateToSurface } = useSurfacePreferences();
   // 2026-07-22 — the two misleading buttons become in-app panels. `seats` is the
   // per-person cost breakdown (was: a jump to the permissions roster); `plan` is
@@ -589,6 +613,49 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             <Working label="Loading balance…" className="text-xs" />
           )}
         </section>
+
+        {/* ── HISTORY (ADR-652) — where this balance came from. ───────────────
+            The pane's only history door used to be "Payment method & invoices",
+            which bounces to the Lemon Squeezy portal — and that 404s for any
+            workspace with no LS customer id: 18 of 19 live workspaces, 8 of them
+            holding ledger rows they could not see. `balance_transactions` has
+            recorded every credit since 2026-05 and nothing read it.
+
+            CREDITS ONLY, and that is the whole point: this is the purchase
+            record ADR-396 §10 permits dollars for, not a spend ticker §1 bans.
+            The portal door stays — it owns the card on file and the tax
+            receipts, which we do not hold. */}
+        {history && history.length > 0 && (
+          <section className="border border-border rounded-xl p-5 space-y-3">
+            <h3 className="text-base font-medium">History</h3>
+            <p className="text-sm text-muted-foreground">
+              Every credit added to this workspace&rsquo;s balance.
+            </p>
+            <ul className="divide-y divide-border">
+              {history.map((entry, i) => (
+                <li
+                  key={`${entry.at}-${i}`}
+                  className="flex items-baseline justify-between gap-3 py-2.5"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm">{entry.label}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {formatLedgerDate(entry.at)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-medium tabular-nums">
+                    +{formatUsd(entry.amount_usd)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {historyHasMore && (
+              <p className="text-xs text-muted-foreground">
+                Showing the most recent {history.length} credits.
+              </p>
+            )}
+          </section>
+        )}
 
         {/* Upgrade — ADR-490/491: the paid plan is SEATS ONLY, so the upgrade is
             offered only AT the seat boundary (the workspace's humans have used

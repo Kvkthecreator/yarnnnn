@@ -11,12 +11,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api, APIError } from "@/lib/api/client";
-import type { SubscriptionStatus, SubscriptionTier } from "@/types";
+import type { BalanceEntry, SubscriptionStatus, SubscriptionTier } from "@/types";
 
 export function useSubscription() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // ADR-652 — the balance history. Fetched alongside status, kept SEPARATE from
+  // `isLoading`: the history is supplementary, and a slow or failed ledger read
+  // must never hold up or break the plan/balance the pane exists to show.
+  // `null` = not yet loaded (or unavailable); `[]` = loaded and genuinely empty.
+  const [history, setHistory] = useState<BalanceEntry[] | null>(null);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -31,9 +37,24 @@ export function useSubscription() {
     }
   }, []);
 
+  // The ledger read is best-effort and independent of the status fetch (see the
+  // `history` state note). A 403 here is the same member gate as /status, and
+  // the pane already renders that state from `isForbidden`.
+  const fetchHistory = useCallback(async () => {
+    try {
+      const data = await api.subscription.getTransactions();
+      setHistory(data.entries);
+      setHistoryHasMore(data.has_more);
+    } catch {
+      setHistory(null);
+      setHistoryHasMore(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
-  }, [fetchStatus]);
+    fetchHistory();
+  }, [fetchStatus, fetchHistory]);
 
   const tier: SubscriptionTier = status?.tier ?? "free";
   const isPaid = tier === "starter" || tier === "pro";
@@ -125,6 +146,8 @@ export function useSubscription() {
     subscribe,
     openPaymentMethods,
     cancel,
+    history,
+    historyHasMore,
     refresh: fetchStatus,
   };
 }

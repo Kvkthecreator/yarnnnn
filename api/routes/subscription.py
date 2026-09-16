@@ -731,6 +731,28 @@ class SubscriptionStatus(BaseModel):
     undelivered_topup: Optional[dict] = None
 
 
+class BalanceEntry(BaseModel):
+    """One row of the workspace's balance history (ADR-652).
+
+    The ledger is a record of where the balance CAME FROM — purchases and grants
+    — never what it was spent on. `kind` is the raw ledger kind; `label` is the
+    member-facing name for it, resolved server-side so every surface says the
+    same word (the raw kinds are internal vocabulary: `signup_grant`,
+    `allowance_grant` mean nothing to a member).
+    """
+    at: str                              # ISO timestamp of the credit
+    kind: str                            # ledger kind (raw, for the client to branch on)
+    label: str                           # member-facing name for that kind
+    amount_usd: float                    # dollars credited (always a credit; never a debit)
+    order_id: Optional[str] = None       # LS order id when the credit was a purchase
+
+
+class BalanceHistoryResponse(BaseModel):
+    """Newest-first balance history + whether more rows exist beyond the page."""
+    entries: list[BalanceEntry]
+    has_more: bool = False
+
+
 class PortalResponse(BaseModel):
     portal_url: str
 
@@ -811,6 +833,154 @@ async def get_subscription_status(auth: UserClient):
         seat_sync_issue=_latest_unresolved_seat_sync_issue(workspace_id),
         undelivered_topup=_undelivered_topup(workspace_id),
     )
+
+
+# ── Balance history (ADR-652) ─────────────────────────────────────────────────
+
+def _parse_ledger_ts(raw: str):
+    """Parse a Postgres timestamptz for comparison. None when unparseable.
+
+    Returns None rather than raising: a timestamp we cannot read must not break
+    the history, it must only forgo the dedupe comparison for that row.
+
+    Python 3.9's `fromisoformat` (the runtime this API runs on) accepts ONLY 3 or
+    6 fractional digits, and Postgres trims trailing zeros — so a real live value
+    like `2026-07-02T01:42:18.19472+00:00` (5 digits) raises. Left unhandled that
+    returns None for exactly the rows the dedupe exists to compare, which is how
+    the first cut of this shipped green while collapsing nothing. Normalise the
+    fraction to 6 digits before parsing.
+    """
+    import re as _re
+    from datetime import datetime
+    if not raw:
+        return None
+    text = raw.replace("Z", "+00:00")
+    text = _re.sub(
+        r"\.(\d{1,6})\d*",
+        lambda m: "." + m.group(1).ljust(6, "0"),
+        text,
+        count=1,
+    )
+    try:
+        return datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+
+
+# The member-facing name for each ledger kind. The raw kinds are internal
+# vocabulary — `signup_grant` and `allowance_grant` are our words for our
+# accounting, and a member reading "allowance_grant" learns nothing. An unknown
+# kind falls back to a neutral "Credit" rather than leaking the slug: a new kind
+# added to the CHECK constraint must not turn the pane into a schema dump.
+_LEDGER_LABELS = {
+    "topup": "Top-up",
+    "signup_grant": "Welcome credit",
+    "allowance_grant": "Plan credit",
+    "admin_grant": "Credit from yarnnn",
+}
+
+# One page of history. Generous enough that no live workspace is truncated
+# (the busiest holds 12 rows), bounded so the payload cannot grow without limit.
+BALANCE_HISTORY_LIMIT = 50
+
+# Window inside which two rows of the same kind and amount are ONE credit
+# written more than once, not two credits that happened to match.
+#
+# THE ROW THIS EXISTS FOR (workspace d5b9029b, 2026-07-02): Lemon Squeezy fires
+# `subscription_created`, `subscription_updated` and `subscription_payment_success`
+# for a single purchase. `grant_allowance` banked all three — 33 seconds apart,
+# same subscription, same $15 — because its idempotency guard keys on
+# `allowance_period`, which was NULL on the first write and so matched nothing.
+#
+# The MONEY was never wrong: `grant_allowance` SETS `allowance_usd` rather than
+# adding to it, so the allowance stood at $15 throughout. Only the ledger has
+# three rows. Rendering them verbatim would tell the member they received $45.
+#
+# Collapsing is a READ-side correction, deliberately: the rows are a true record
+# of what the webhook did, and rewriting history to make a display tidy loses the
+# evidence. The allowance layer is retired (ADR-490 §1③), so no new cluster can
+# form — but a processor that retries a webhook is a permanent condition, and a
+# top-up delivered twice must never read as two purchases.
+LEDGER_DEDUPE_WINDOW_SECONDS = 300
+
+
+@router.get("/transactions", response_model=BalanceHistoryResponse)
+async def get_balance_history(auth: UserClient):
+    """The workspace's balance history — where its money came from.
+
+    ADR-652. `balance_transactions` has recorded every credit since ADR-172
+    (2026-05) and NOTHING read it: the only history door the billing pane had was
+    a bounce to the Lemon Squeezy customer portal, which 404s for any workspace
+    with no LS customer id — 18 of 19 live workspaces, 8 of which hold ledger
+    rows. This endpoint is that history, served from our own records.
+
+    Scope (ADR-396 §10): CREDITS only. The ledger holds no debits — spend lives
+    in `execution_events` and stays activity-shaped per §1's standing ban on a
+    running cost ticker. Dollars appear here because every row IS a purchase or a
+    grant, the same class of figure as the balance itself.
+
+    Authority: the acting workspace, billing-authority gated exactly like
+    `/status` (ADR-416 D1) — `_resolve_billing_workspace` 403s a caller without
+    it. The read goes through the CALLER's client, so RLS is a second gate
+    behind the first, not a bypass of it.
+    """
+    workspace_id = _resolve_billing_workspace(auth)
+
+    # Fetch one row beyond the page to learn whether more exist, without a
+    # second count query.
+    result = (
+        auth.client.table("balance_transactions")
+        .select("created_at, kind, amount_usd, lemon_order_id")
+        .eq("workspace_id", workspace_id)
+        .order("created_at", desc=True)
+        .limit(BALANCE_HISTORY_LIMIT + 1)
+        .execute()
+    )
+    rows = result.data or []
+    has_more = len(rows) > BALANCE_HISTORY_LIMIT
+    rows = rows[:BALANCE_HISTORY_LIMIT]
+
+    entries: list[BalanceEntry] = []
+    prev: Optional[tuple[str, float, Any]] = None  # (kind, amount, parsed timestamp)
+    for row in rows:
+        kind = str(row.get("kind") or "")
+        # A zero-dollar row is a bookkeeping artifact, not an event in the
+        # member's financial life: the ADR-490 allowance retirement wrote a
+        # $0.0000 `allowance_grant` to mark the layer's end. Showing it invites
+        # "what was that, and why did nothing happen?".
+        try:
+            amount = float(row.get("amount_usd") or 0)
+        except (TypeError, ValueError):
+            continue
+        if amount <= 0:
+            continue
+
+        # Collapse a duplicate-delivery cluster (see LEDGER_DEDUPE_WINDOW_SECONDS).
+        # Rows arrive newest-first, so "previous" is the nearer-in-time neighbour.
+        at_raw = str(row.get("created_at"))
+        at_parsed = _parse_ledger_ts(at_raw)
+        if prev is not None and at_parsed is not None:
+            p_kind, p_amount, p_at = prev
+            if (
+                p_kind == kind
+                and abs(p_amount - amount) < 0.0001
+                and p_at is not None
+                and abs((p_at - at_parsed).total_seconds()) <= LEDGER_DEDUPE_WINDOW_SECONDS
+            ):
+                continue
+        prev = (kind, amount, at_parsed)
+
+        entries.append(
+            BalanceEntry(
+                at=str(row.get("created_at")),
+                kind=kind,
+                label=_LEDGER_LABELS.get(kind, "Credit"),
+                amount_usd=amount,
+                order_id=row.get("lemon_order_id"),
+            )
+        )
+
+    return BalanceHistoryResponse(entries=entries, has_more=has_more)
 
 
 # ── Checkout endpoint ─────────────────────────────────────────────────────────
