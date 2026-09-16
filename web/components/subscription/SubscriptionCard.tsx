@@ -30,7 +30,9 @@ import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+// `CardTitle` dropped 2026-09-16 (ADR-652 am.1) — this card renders no title of
+// its own; the pane's PaneHeader is the single header.
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 // `Users` dropped 2026-07-22 — the reference's seat row leads with the COUNT at
 // emphasis weight, no leading glyph; the icon competed with the numeral.
 import {
@@ -239,8 +241,10 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
   if (isForbidden) {
     return (
       <Card>
+        {/* No CardTitle — the pane's own PaneHeader already says "Billing"
+            (ADR-652 am.1). The description stays: "managed by the owner" is the
+            fact this state exists to deliver, not a restatement of the header. */}
         <CardHeader>
-          <CardTitle>Billing</CardTitle>
           <CardDescription>
             {workspaceName ? (
               <>Billing for <span className="font-medium text-foreground">{workspaceName}</span> is managed by the workspace owner.</>
@@ -262,21 +266,28 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Billing</CardTitle>
-        {/* ADR-429 §13.3 — the WORKSPACE is the subject of this pane. Every section
-            below is this workspace's; the account door is just the entry point. */}
-        <CardDescription>
-          {workspaceName ? (
-            <>
-              For <span className="font-medium text-foreground">{workspaceName}</span> — its plan,
-              seats, and balance. Switch workspaces from the avatar menu to manage another.
-            </>
-          ) : (
-            <>This workspace&rsquo;s plan, seats, and balance.</>
-          )}
-        </CardDescription>
-      </CardHeader>
+      {/* ADR-652 am.1 — NO CardTitle and no restated subtitle. The pane's
+          PaneHeader already renders "Billing" + "This workspace's plan, seats,
+          and balance."; repeating both here printed the same two lines twice,
+          one above the other. Billing was the only settings pane doing this —
+          General, Usage, Clear Workspace, Connected and To do all let the
+          PaneHeader be the single header.
+
+          What survives is the one fact the header CANNOT carry: WHICH workspace
+          this is, and that the avatar menu switches it (ADR-429 §13.3 — the
+          workspace is the subject; the incoherence the operator caught was a
+          Billing pane that showed no workspace identity and swapped silently on
+          switch). `subtitle` is a plain string, so the bolded name cannot move
+          up into PaneHeader. With no name resolved there is nothing left to
+          say, so the header renders nothing rather than an echo. */}
+      {workspaceName && (
+        <CardHeader>
+          <CardDescription>
+            For <span className="font-medium text-foreground">{workspaceName}</span> — switch
+            workspaces from the avatar menu to manage another.
+          </CardDescription>
+        </CardHeader>
+      )}
       <CardContent className="space-y-4">
         {error && (
           <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 text-sm text-destructive">

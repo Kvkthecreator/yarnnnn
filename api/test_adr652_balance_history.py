@@ -18,7 +18,10 @@ What it holds, driving the REAL route body against fake ledger rows:
   ⑪ the route 403s a caller without billing authority, exactly as /status does
      (the ledger is not a new door into the workspace's money);
   ⑫ the served payload's keys match the `BalanceEntry` TS interface, driven over
-     real HTTP through the real router.
+     real HTTP through the real router;
+  ⑬ (am.1) the Billing card renders no header the pane's PaneHeader already
+     renders — title and subtitle were printed twice, one above the other — while
+     keeping the one fact PaneHeader cannot carry (WHICH workspace).
 
 ⭐ PROVEN RED: with the pre-fix `_parse_ledger_ts` (bare py3.9 `fromisoformat`,
 which rejects the 5-fractional-digit timestamps Postgres actually emits) check ①
@@ -157,11 +160,45 @@ check(
     ["amount_usd", "at", "kind", "label", "order_id"],
 )
 
+
 print()
-total = 15
+print("⑬ am.1 — the Billing card renders NO header the pane already renders")
+_CARD = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "web", "components", "subscription", "SubscriptionCard.tsx",
+)
+_PANE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "..", "web", "app", "(authenticated)", "workspace-settings", "page.tsx",
+)
+_card_src = open(_CARD).read()
+_pane_src = open(_PANE).read()
+# The pane's PaneHeader owns the title and the subtitle; the card must restate
+# neither. Billing was the ONLY settings pane that did (audited 2026-09-16).
+check("card has no CardTitle", "<CardTitle>" in _card_src, False)
+check(
+    "card does not import CardTitle",
+    any("CardTitle" in l for l in _card_src.splitlines() if l.startswith("import ")),
+    False,
+)
+check(
+    "card does not restate the pane subtitle",
+    "plan, seats, and balance" in _card_src,
+    False,
+)
+check(
+    "the pane still carries the subtitle",
+    "This workspace's plan, seats, and balance." in _pane_src,
+    True,
+)
+# The one fact the string-only PaneHeader cannot carry must survive.
+check("card still names the workspace", "{workspaceName}" in _card_src, True)
+
+print()
+print()
+total = 20
 passed = total - len(fails)
 print(f"ADR-652: {passed}/{total} checks passed")
-print()
 print(
     "NOTE — one condition this gate CANNOT assert: `balance_transactions` had RLS\n"
     "ENABLED WITH ZERO POLICIES on live, which denies every row to a non-service\n"

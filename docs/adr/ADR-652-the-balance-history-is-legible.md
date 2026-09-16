@@ -151,6 +151,32 @@ The ledger read is best-effort and independent of `/status`: a slow or failed hi
 up or break the plan and balance the pane exists to show. The section renders only when there is
 history to show, so a new workspace sees no empty furniture.
 
+## 4a. Amendment am.1 (2026-09-16) — one header per pane
+
+**Status**: Accepted (operator-ratified in discourse — *"i think we have a double title, description.
+can you streamline"*, with a screenshot of the stacked pair).
+
+The Billing pane rendered its title and subtitle **twice**, one directly above the other: the settings
+shell's `PaneHeader` ("Billing" / "This workspace's plan, seats, and balance.") and then the
+`SubscriptionCard`'s own `CardTitle` + `CardDescription` saying the same two things.
+
+**Audited every pane that uses `PaneHeader`** (workspace-settings, settings, notifications, reach) by
+walking each pane's component tree two levels deep for a heading matching its own: **Billing was the
+only one.** General, Usage, Clear Workspace, Connected, Data & Privacy and To do all already let the
+`PaneHeader` be the single header. (One apparent hit — "Clear Workspace" inside `WorkspaceDangerZone`
+— is a false positive: it is one of three sibling `ActionCard`s, each naming its own destructive act
+beside "Clear Work History". Naming the action is not restating the header.)
+
+**The fix**: the card renders no `CardTitle` in either state (owner and the ADR-491 D2 member state),
+and `CardTitle` is dropped from its imports. What survives is the one fact `PaneHeader` **cannot**
+carry — WHICH workspace this is, and that the avatar menu switches it (ADR-429 §13.3; `subtitle` is
+typed `string`, so the bolded name cannot move up into the shell). With no workspace name resolved
+there is nothing left to say, so the card's header renders nothing rather than an echo. The member
+state keeps its description: "managed by the workspace owner" is the fact that state exists to
+deliver, not a restatement.
+
+Gate: check ⑬, falsified in place (reintroducing the `CardTitle` takes the gate 20/20 → 19/20).
+
 ## 5. Not done, named
 
 - **`has_more` has no second page.** The limit is 50; the busiest live workspace holds 12 rows, so
