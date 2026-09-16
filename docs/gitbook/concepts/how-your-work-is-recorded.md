@@ -47,6 +47,6 @@ You can see the whole roster and adjust it at **Workspace Settings → Access**.
 
 ## Where to see it in the app
 
-- **Files → any file → Get Info** — the revision history and contributors
+- **Files → any file → Properties** — the revision history and contributors
 - **Files → Recents** — the most recent revisions across the workspace
 - **Notifications → Activity** — the log of runs and system events, reached from the bell in the top bar (this is machinery, not file history)

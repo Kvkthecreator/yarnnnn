@@ -17,6 +17,27 @@ than restated:
      so the NEXT app to ship is red until it is documented, which is exactly the
      gap Blogger/Images/Reach fell through.
   3. PRICING FACTS match `billing_tiers.py`, not a number someone typed once.
+  4. EVERY OFFERED ENGINE'S PROVIDER IS NAMED, derived from `offered_lane_models()`
+     — so adding a provider to the roster reddens the docs until they say so.
+  5. A UI LABEL THE DOCS SAY TO CLICK STILL EXISTS, derived from the shipped
+     context menu — so renaming a menu item reddens the docs that name it.
+
+§4 and §5 were added 2026-09-16 after an audit found the docs naming FOUR providers while
+FIVE shipped: xAI/Grok had been in the roster since ADR-559 and appeared nowhere
+in the public docs — including on the page that tells a member which companies
+their content is sent to. That is the same omission `2e0f4cb` had just fixed in
+the product's own /engines page, recurring here because §1–§3 are blind to it:
+a provider added is not retired vocabulary, not an app, and not a price.
+
+§5 came from the fix for that audit: "Get Info" was corrected on the three pages
+the audit had READ, and a sweep found four more still carrying it — the menu item
+was renamed to "Properties" by ADR-400 and seven pages went on telling readers to
+click a thing that isn't there.
+
+The general shape both share — a claim that was TRUE and quietly stopped being
+true — is what the first three checks cannot see. Each is derived from the live
+artifact (the roster, the menu), so the CODE change reddens the docs, not a
+reviewer's memory.
 
 Run: python3 -B test_gitbook_docs_current.py   (script-shaped — read the count)
 """
@@ -64,6 +85,12 @@ RETIRED: dict[str, str] = {
     "thinker": "the agent roster is Editor/Designer/Blogger (ADR-596+)",
     "researcher": "the agent roster is Editor/Designer/Blogger (ADR-596+)",
     "recurrence": "recurrences retired (ADR-603 D5)",
+    # ADR-596+: you pick an ENGINE in Chat, and the roster is Editor/Designer/
+    # Blogger — "colleague" was the pre-ADR-559 picker's word for both, and the
+    # FAQ was still teaching the retired mechanism ("you pick a colleague and
+    # the engine rides behind the name") while the changelog said it was gone.
+    # HISTORICAL pages keep it: the changelog records the picker's retirement.
+    "colleague": "you pick an engine, not a character (ADR-559 D2 / ADR-596)",
     "monthly allowance": "the allowance layer is retired (ADR-490 §1③)",
 }
 #: A line that DENIES a retired thing is correct prose, not a relapse — "there is
@@ -169,6 +196,112 @@ check(
     "plans.md no longer names the retired 'Starter' plan",
     not re.search(r"\bStarter\b", plans),
 )
+
+# ── 4. Every offered engine's provider is named in the docs ────────────────
+# Imported, not regex-scraped: `offered_lane_models()` already encodes the
+# retired rule (ADR-559 D2 — a retired engine keeps its pinned lanes running
+# but is gone from the chooser), so a member never sees one. Scraping
+# LANE_MODELS would re-implement that rule and demand the docs advertise
+# engines nobody can pick. One home for the rule, and this reads it.
+sys.path.insert(0, str(REPO / "api"))
+try:
+    from services.lane_runner import offered_lane_models  # noqa: E402
+
+    _providers = sorted({k.split("/", 1)[0] for k in offered_lane_models()})
+except Exception as exc:  # pragma: no cover - import failure is the finding
+    _providers = []
+    check(f"imported offered_lane_models() [{type(exc).__name__}: {exc}]", False)
+
+# Fail CLOSED on a broken read: an empty or implausible roster must not pass
+# every downstream check vacuously. (test_adr646 was dead four months this way.)
+check(f"read the offered engine roster ({len(_providers)} providers)", 3 <= len(_providers) <= 12)
+
+#: provider key -> the names the docs may use for it. A member reads brands,
+#: not routing keys: "Claude" names Anthropic's engine on a page about picking
+#: one, "Anthropic" names the company on a page about where content goes. Both
+#: satisfy the check; what must never happen is the provider going UNNAMED.
+_PROVIDER_WORDS = {
+    "anthropic": ("Anthropic", "Claude"),
+    "openai": ("OpenAI", "GPT"),
+    "gemini": ("Google", "Gemini"),
+    "deepseek": ("DeepSeek",),
+    "xai": ("xAI", "Grok"),
+}
+
+#: Pages that enumerate the engine roster to a member. Each one must name every
+#: offered provider — a partial list on any of them is the defect this catches.
+#: how-your-data-is-used.md is the load-bearing one: it tells a member which
+#: companies receive their content, where an omission is a privacy claim, not a
+#: stale feature list.
+_ROSTER_PAGES = [
+    "README.md",
+    "getting-started/quickstart.md",
+    "resources/faq.md",
+    "concepts/how-your-data-is-used.md",
+]
+
+# The mapping must cover the roster BEFORE any page is judged: an unmapped
+# provider is skipped by the per-page loop, which would pass every page
+# vacuously while the docs stay silent about it. Checked once, not per page.
+_unknown = [p for p in _providers if p not in _PROVIDER_WORDS]
+check(
+    "_PROVIDER_WORDS covers every offered provider"
+    + (f" — unmapped: {_unknown}" if _unknown else ""),
+    not _unknown,
+)
+
+for _rel in _ROSTER_PAGES:
+    _path = GITBOOK / _rel
+    if not _path.exists():
+        check(f"roster page {_rel} exists", False)
+        continue
+    _text = _path.read_text()
+    _absent = [
+        p
+        for p in _providers
+        if p in _PROVIDER_WORDS
+        and not any(re.search(rf"\b{re.escape(w)}\b", _text, re.IGNORECASE) for w in _PROVIDER_WORDS[p])
+    ]
+    check(
+        f"{_rel} names every offered provider" + (f" — missing: {_absent}" if _absent else ""),
+        not _absent,
+    )
+
+
+# ── 5. A UI label the docs tell a reader to click still exists ─────────────
+# Same silent class as §4: "Get Info" was TRUE until ADR-400 renamed the menu
+# item to "Properties", and seven pages went on instructing readers to
+# right-click a menu entry that isn't there. Derived from the shipped menu, so
+# the rename — not a doc edit — is what reddens this.
+_menu = (REPO / "web" / "components" / "workspace" / "FileContextMenu.tsx").read_text()
+_m = re.search(r"onClick=\{\(\)\s*=>\s*run\(onProperties\)\}>\s*\n\s*(\w[\w ]*)", _menu)
+_label = _m.group(1).strip() if _m else ""
+check(f"read the Properties menu label from the shipped menu ({_label!r})", bool(_label))
+
+if _label:
+    # The docs must name the label the menu actually carries...
+    _pages_naming = [
+        p.relative_to(GITBOOK).as_posix()
+        for p in LIVE_PAGES
+        if re.search(rf"\b{re.escape(_label)}\b", p.read_text(), re.IGNORECASE)
+    ]
+    check(
+        f"the docs name the shipped label {_label!r} ({len(_pages_naming)} pages)",
+        bool(_pages_naming),
+    )
+    # ...and must not instruct a click on the name it was renamed FROM.
+    _stale = [
+        f"{p.relative_to(GITBOOK).as_posix()}:{i}"
+        for p in LIVE_PAGES
+        for i, line in enumerate(p.read_text().splitlines(), 1)
+        if re.search(r"\bGet Info\b", line, re.IGNORECASE)
+    ]
+    check(
+        "no page says 'Get Info' — the menu item is 'Properties' (ADR-400)"
+        + (f" [{', '.join(_stale[:3])}]" if _stale else ""),
+        not _stale,
+    )
+
 
 print("=" * 70)
 print(f"gitbook currency gate: {_passed}/{_passed + _failed} passed, {_failed} failed")

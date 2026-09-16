@@ -59,7 +59,7 @@ Their chat lanes stay private. What they settle into Files is shared. Every revi
 | Settle conversations into files | Thinking that doesn't land is thinking you'll redo |
 | Fix files rather than re-prompting | A correction to a file is permanent; a correction in a chat is not |
 | Upload rather than paste | Uploaded material is searchable by every lane, forever |
-| Check `Get Info` when something surprises you | The history usually explains it |
+| Check `Properties` when something surprises you | The history usually explains it |
 | Set a budget early | So spend is a decision rather than a discovery — see [Usage](../plans/usage.md) |
 
 ## What not to expect yet

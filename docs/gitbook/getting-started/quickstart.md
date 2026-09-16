@@ -10,7 +10,7 @@ You'll land on a desk with eight apps in the Dock: **Chat · Text · Slides · B
 
 ## 2. Think something through
 
-Open **Chat** and start a lane. You pick the engine you want — Claude, GPT, Gemini or DeepSeek — and the conversation is grounded in your workspace. Your last pick is remembered, so this isn't a decision you re-make every time.
+Open **Chat** and start a lane. You pick the engine you want — Claude, GPT, Gemini, Grok or DeepSeek — and the conversation is grounded in your workspace. Your last pick is remembered, so this isn't a decision you re-make every time.
 
 Ask a real question. Something you actually need an answer to today.
 
@@ -34,7 +34,7 @@ Then take over. Drag blocks, change the layout, set the design. Words for explor
 
 Open **Files**. Everything you just made is there.
 
-Right-click any file → **Get Info**. You'll see its full history: which revisions, who authored each one, and what changed. Click one to diff it against the current version.
+Right-click any file → **Properties**. You'll see its full history: which revisions, who authored each one, and what changed. Click one to diff it against the current version.
 
 That's `history`. It's the thing that makes the workspace an asset rather than an output folder.
 
@@ -50,6 +50,6 @@ Once it's connected, tell ChatGPT something worth keeping and ask Claude about i
 ## What to do next
 
 - Upload the documents you already have — Files → right-click → Add Files
-- Hire a colleague and give it your own name — [Agents](../apps/agents.md)
+- Meet the agents — who works with you, and in which app — [Agents](../apps/agents.md)
 - Invite a teammate — [Working with a team](../concepts/working-with-a-team.md)
 - Read [Your first week](your-first-week.md)

@@ -17,7 +17,7 @@ Nothing is scraped from your activity. There's no background inference building 
 
 **Feeds the work.** Decks, documents, posts, images, derived summaries, and anything an agent produces draw on the files you point them at.
 
-**Gets sent to model providers to do that work.** This is worth being plain about: when a lane reasons over a file, that file's relevant content is sent to whichever model is running the lane — Anthropic, OpenAI, Google, or DeepSeek. Which engine a colleague runs on is shown on its card.
+**Gets sent to model providers to do that work.** This is worth being plain about: when a lane reasons over a file, that file's relevant content is sent to whichever model is running the lane — Anthropic, OpenAI, Google, xAI, or DeepSeek. Which engine an agent runs on is shown on its card.
 
 ## What YARNNN doesn't do
 
@@ -39,7 +39,7 @@ Nothing is scraped from your activity. There's no background inference building 
 | What | Where |
 |---|---|
 | Read, correct, or delete any file | Files |
-| See who changed what | Files → Get Info → history |
+| See who changed what | Files → Properties → history |
 | Restore something deleted | Files → Trash |
 | Permanently delete | Files → Trash → Delete Permanently / Empty Trash |
 | Revoke an AI's access | Workspace Settings → Access |

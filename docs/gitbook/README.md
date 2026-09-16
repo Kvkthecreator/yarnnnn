@@ -22,7 +22,7 @@ Think in Chat. Make in Text, Slides, Blogger or Images. Everything lands in File
 
 ## What you can do with YARNNN
 
-- **Think** — hold conversations with the engine of your choice (Claude, GPT, Gemini, DeepSeek), grounded in your own workspace rather than a vendor's memory scrapings
+- **Think** — hold conversations with the engine of your choice (Claude, GPT, Gemini, Grok, DeepSeek), grounded in your own workspace rather than a vendor's memory scrapings
 - **Make** — author documents, decks, posts and images, each in the app that fits its shape, with an AI lane bound to the artifact you're editing
 - **Keep everything** — Files holds every file in the workspace, with full revision history and reversible delete
 - **Trace anything** — see who changed a file, when, and what the change was

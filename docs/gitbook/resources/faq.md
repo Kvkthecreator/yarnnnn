@@ -18,7 +18,7 @@ Three ways.
 
 ### What is `history`?
 
-Every change to a file is a revision carrying its author, timestamp, and a message. `history` walks that chain. You can see it in the app (any file → Get Info) or ask a connected AI for it.
+Every change to a file is a revision carrying its author, timestamp, and a message. `history` walks that chain. You can see it in the app (any file → Properties) or ask a connected AI for it.
 
 It's the capability a storage connector structurally can't offer, because storage keeps the current state and YARNNN keeps the history.
 
@@ -38,7 +38,7 @@ Three routes: **upload** them in Files (PDF, DOCX, TXT, MD, ZIP), **save** them 
 
 ### Which AI models does it work with?
 
-Inside YARNNN, the colleagues run on Claude, GPT, Gemini, and DeepSeek models — you pick a colleague and the engine rides behind the name. From outside, any MCP-capable client can connect.
+Inside YARNNN, you pick the engine directly — Claude, GPT, Gemini, Grok or DeepSeek. Starting a conversation is choosing a model, not a character. From outside, any MCP-capable client can connect.
 
 Engines are deliberately swappable. The memory is the thing that stays.
 

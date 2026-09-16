@@ -40,7 +40,7 @@ Use share links for people you'd invite anyway. For anything narrower, send the 
 ## What everyone sees
 
 - **Files → Recents** — the latest revisions across the workspace, whoever made them
-- **Any file → Get Info** — its contributors and full history
+- **Any file → Properties** — its contributors and full history
 - **Notifications** — what needs attention
 
 Because every revision is attributed, "who changed this?" is always answerable — which is what makes a shared workspace something other than a shared folder.
