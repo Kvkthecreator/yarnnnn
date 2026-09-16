@@ -161,6 +161,18 @@ print()
 total = 15
 passed = total - len(fails)
 print(f"ADR-652: {passed}/{total} checks passed")
+print()
+print(
+    "NOTE — one condition this gate CANNOT assert: `balance_transactions` had RLS\n"
+    "ENABLED WITH ZERO POLICIES on live, which denies every row to a non-service\n"
+    "role. The endpoint returned HTTP 200 / entries:0 to the workspace's own owner\n"
+    "against 6 real rows, and every check above stayed green (they fake the client;\n"
+    "RLS lives in the database). Migration 255 restores migration 144's owner-only\n"
+    "SELECT policy. To verify the LIVE object, not this file:\n"
+    "    SELECT count(*) FROM pg_policy WHERE polrelid='balance_transactions'::regclass;\n"
+    "  -- must be >= 1; it was 0 on 2026-09-16\n"
+    "Only an authenticated read against a real deploy proves this path."
+)
 if fails:
     print("FAILED:", ", ".join(fails))
     sys.exit(1)

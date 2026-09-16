@@ -95,6 +95,32 @@ comparison) rather than silently permissive.
 **Receipt**: workspace `d5b9029b`, 10 ledger rows → **7** rendered entries (one $0 marker dropped,
 the Jul-2 triple collapsed). Gate proven RED at check ① with the pre-fix parser: 3 rows instead of 1.
 
+## 3a. ⭐ The second thing only the deploy could find — a locked table
+
+The endpoint shipped, returned **HTTP 200 with `entries: 0`** to the workspace's own owner, and had
+**6 real rows** behind it (persona `yarnnn-author`, ws `e58ecdec`, probed on prod 2026-09-16).
+
+`balance_transactions` has **RLS ENABLED WITH ZERO POLICIES** on live. Migration 144 declared both
+the `ENABLE ROW LEVEL SECURITY` and an owner-only SELECT policy; only the ALTER survives on the live
+table, and **no tracked migration drops the policy** — it went out-of-band. Its sibling
+`subscription_events` still carries `subscription_events_select_own`.
+
+RLS-on + no-policy is **deny-all** to any non-service role. The table had been written for four
+months and read by nothing, so nothing ever noticed.
+
+This is **fail-closed, not an exposure**: the missing policy denied reads rather than permitting
+them. Migration `255_adr652_restore_balance_transactions_rls.sql` restores exactly what 144
+specified and nothing wider — owner-only SELECT, no write policy (writes stay service-key-only).
+Scoped through `workspaces.owner_id` rather than `principal_grants` deliberately: the balance is the
+owner's fact (ADR-416 D1 — a member draws the pool but does not fund it, and `/status` 403s them), so
+widening to grant-holders would be a new authorization decision, not a repair.
+
+**Why no gate caught it**: every check in the ADR-652 gate fakes the client, and RLS lives in the
+database. A structural gate cannot see it; the service client bypasses it; only an authenticated read
+against a real deploy exposes it. The gate now prints the live query that verifies the object
+(`SELECT count(*) FROM pg_policy WHERE polrelid='balance_transactions'::regclass` — it was 0) rather
+than pretending to assert it.
+
 ## 4. Implementation
 
 | Concern | Path |
@@ -104,6 +130,7 @@ the Jul-2 triple collapsed). Gate proven RED at check ① with the pre-fix parse
 | Client method | `web/lib/api/client.ts` (`subscription.getTransactions`) |
 | Fetch, kept off the status path | `web/hooks/useSubscription.ts` (`history`, `historyHasMore`) |
 | The History section | `web/components/subscription/SubscriptionCard.tsx` |
+| The restored SELECT policy | `supabase/migrations/255_adr652_restore_balance_transactions_rls.sql` |
 | Gate | `api/test_adr652_balance_history.py` — 15/15, script-shaped |
 
 The ledger read is best-effort and independent of `/status`: a slow or failed history must never hold
