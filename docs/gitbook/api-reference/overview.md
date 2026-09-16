@@ -18,7 +18,7 @@ The authoritative, always-current surface is the OpenAPI 3.1 document:
 https://yarnnn.com/openapi.json
 ```
 
-Generate a client from that rather than transcribing endpoints from documentation. The developer hub at [yarnnn.com/developers](https://yarnnn.com/developers) covers the same ground with worked examples.
+That document describes the MCP verbs — the supported interop surface — not the internal REST routes below. Generate an MCP client from it rather than transcribing endpoints from documentation. The developer hub at [yarnnn.com/developers](https://yarnnn.com/developers) covers the same ground.
 
 ## Endpoint groups
 
@@ -28,7 +28,6 @@ Generate a client from that rather than transcribing endpoints from documentatio
 | Lanes | `/api/lanes` | Chat lanes and turns |
 | Studio | `/api/studio` | Artifacts, layouts, blocks (the route kept its original name after the app became Slides) |
 | Documents | `/api/documents` | Uploads |
-| Agents | `/api/agents` | The roster |
 | Integrations | `/api/integrations` | Platform connections |
 | Subscription | `/api/subscription` | Plan, balance, top-ups |
 | Budget | `/api/budget` | Spend envelope |

@@ -5,9 +5,8 @@ import { BRAND } from "@/lib/metadata";
  *
  * This is NOT the full internal API (the FastAPI backend auto-generates ~85
  * auth-scoped internal paths at the API host). This document describes the
- * *stable, public, agent-relevant* surface: the MCP interop verbs
- * (remember / recall / trace) that let any MCP-capable assistant read and write
- * a user's durable yarnnn memory, plus discovery + health endpoints.
+ * *stable, public, agent-relevant* surface: the file-native MCP verbs that let
+ * any MCP-capable assistant read and write a user's workspace, plus discovery.
  *
  * Why a hand-authored spec rather than proxying the backend:
  *   - Agents should see the surface we *support* and *document*, not the
@@ -15,30 +14,215 @@ import { BRAND } from "@/lib/metadata";
  *   - The MCP verbs are the moat's interop face and the thing an external
  *     agent actually calls. That's what belongs in a published contract.
  *
+ * ADR-543 retired the memory ontology (remember / recall / trace) with NO
+ * aliases and NO shims — a host calling them gets tool-not-found. This spec
+ * advertised them for months afterwards, so an agent that generated a client
+ * from it failed on every call. That is the same drift ADR-635 D9 removed from
+ * the discovery card; this file was the surviving copy.
+ *
+ * The roster below is DATA, and `test_gitbook_docs_current.py` asserts it is
+ * the same set as `_INTEROP_VERBS` in api/mcp_server/server.py — the one source
+ * of truth. A new verb is a row there plus its @mcp.tool, then a row here;
+ * never a sentence that counts things.
+ *
  * Served at yarnnn.com/openapi.json — the predictable URL agents probe.
  */
 
 const MCP_URL = "https://mcp.yarnnn.com";
 
+/**
+ * The published interop roster: verb → what an agent gets by calling it.
+ * Mirrors `_INTEROP_VERBS` (api/mcp_server/server.py), gate-enforced as a set.
+ */
+const INTEROP_VERBS: ReadonlyArray<{
+  name: string;
+  kind: "read" | "write";
+  summary: string;
+  description: string;
+}> = [
+  {
+    name: "whoami",
+    kind: "read",
+    summary: "Name where you are standing",
+    description:
+      "Returns which workspace this connection is bound to, whether that is " +
+      "the one the operator chose, who your writes will be signed as, and " +
+      "which of these verbs your token authorizes. Call it once at the start " +
+      "of real work, and always before writing somewhere the user assumed — " +
+      "a person can belong to more than one workspace.",
+  },
+  {
+    name: "open",
+    kind: "read",
+    summary: "Read one exact file",
+    description:
+      "Returns the exact current content, who last changed it, when, and its " +
+      "recent attributed revisions. A binary file answers with its type, size " +
+      "and a short-lived content URL instead of text. An unknown path returns " +
+      "found: false — open never guesses. Read-only and idempotent.",
+  },
+  {
+    name: "list",
+    kind: "read",
+    summary: "Enumerate the files under a folder",
+    description:
+      "Returns every file under the folder — path, an open-able reference, " +
+      "size, who last changed it, and when. Accepts a `since` timestamp for " +
+      "the change feed (\"what moved since I was last here\") and offset/limit " +
+      "paging. Read-only and idempotent.",
+  },
+  {
+    name: "search",
+    kind: "read",
+    summary: "Find files by meaning",
+    description:
+      "Returns ranked matches — path, an open-able reference, an excerpt, when " +
+      "it was last updated, a similarity score — plus a confidence signal " +
+      "(high, ambiguous, weak, none). yarnnn returns the material; the calling " +
+      "model explains it. Read-only and idempotent.",
+  },
+  {
+    name: "history",
+    kind: "read",
+    summary: "Show how one exact file changed over time",
+    description:
+      "Returns the revision chain newest-first: who authored each revision, " +
+      "when, what changed, the revision id, and a diff against its " +
+      "predecessor. If the file cites sources, each cited file's chain is " +
+      "appended. Read-only and idempotent.",
+  },
+  {
+    name: "save",
+    kind: "write",
+    summary: "Write a file back as an attributed revision",
+    description:
+      "An overwrite, not a patch. Pass the head revision id from open as " +
+      "base_revision — the read-before-write guarantee. If someone changed the " +
+      "file since, the save returns stale_write with who holds the head. Omit " +
+      "base_revision only to create a new file. Every prior version stays on " +
+      "the chain, so this is not destructive; it is not idempotent.",
+  },
+  {
+    name: "edit",
+    kind: "write",
+    summary: "Change part of a file — an anchored edit",
+    description:
+      "Replaces exact current text with a replacement. Only the change " +
+      "travels, so content you never read is never at risk — the right verb " +
+      "for large files and concurrent work. Fails loudly if the anchor is " +
+      "missing or ambiguous; never guesses.",
+  },
+  {
+    name: "delete",
+    kind: "write",
+    summary: "Remove a file from the live workspace",
+    description:
+      "Nothing is lost: the revision chain keeps the content, history still " +
+      "walks it, and the file can be restored. The reason is recorded on the " +
+      "attributed tombstone.",
+  },
+  {
+    name: "move",
+    kind: "write",
+    summary: "Move or rename a file",
+    description:
+      "Refuses to overwrite an existing destination — delete it first, by " +
+      "intent. The reason is recorded on both revisions.",
+  },
+  {
+    name: "request_upload",
+    kind: "write",
+    summary: "Get a short-lived URL to upload a file",
+    description:
+      "For content that arrives as bytes rather than text — an image, a PDF, " +
+      "an export. The upload lands as an attributed file like any other.",
+  },
+  {
+    name: "share",
+    kind: "write",
+    summary: "Mint a share link",
+    description:
+      "Shares one file, or the whole workspace when no file is named, as " +
+      "member (full access) or viewer (read-only). Returns the link for the " +
+      "calling model to relay. Whoever opens it sees the work and who made " +
+      "it; joining the workspace requires sign-in.",
+  },
+];
+
+function verbPath(verb: (typeof INTEROP_VERBS)[number]) {
+  const errorRef = { $ref: "#/components/schemas/Error" };
+  return {
+    post: {
+      operationId: verb.name,
+      tags: [verb.kind === "read" ? "read" : "write"],
+      summary: verb.summary,
+      description:
+        verb.description +
+        "\n\nInvoked as an MCP tool over streamable-http. The operation below " +
+        "models that tool call for agents and tooling that treat MCP tools as " +
+        "callable operations; the authoritative argument schema is the one the " +
+        "server returns from tools/list.",
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ToolCallArguments" },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description: "The tool result.",
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ToolResult" },
+            },
+          },
+        },
+        "400": {
+          description: "Invalid arguments for this verb.",
+          content: { "application/json": { schema: errorRef } },
+        },
+        "401": {
+          description: "Missing or invalid OAuth credentials.",
+          content: { "application/json": { schema: errorRef } },
+        },
+        "403": {
+          description:
+            "Authenticated, but this connection's grant does not authorize " +
+            "this verb in this workspace.",
+          content: { "application/json": { schema: errorRef } },
+        },
+      },
+      security: [{ oauth2: [] }],
+    },
+  };
+}
+
 export function getOpenApiSpec() {
+  const verbPaths = Object.fromEntries(
+    INTEROP_VERBS.map((verb) => [`/${verb.name}`, verbPath(verb)]),
+  );
+
   return {
     openapi: "3.1.0",
     info: {
       title: "yarnnn API",
-      version: "1.0.0",
+      version: "2.0.0",
       summary: BRAND.tagline,
       description:
-        "yarnnn is a durable, attributed memory layer for AI + human work. " +
-        "This specification documents yarnnn's public, agent-facing surface: the " +
-        "Model Context Protocol (MCP) interop verbs that let any MCP-capable " +
-        "assistant read and write a user's shared memory, with full provenance.\n\n" +
-        "The three verbs — remember, recall, trace — are exposed over an MCP " +
-        "server at " +
+        "yarnnn is a shared, attributed workspace for AI + human work. This " +
+        "specification documents yarnnn's public, agent-facing surface: the " +
+        "Model Context Protocol (MCP) verbs that let any MCP-capable assistant " +
+        "read and write a user's workspace files, with full provenance.\n\n" +
+        "The verbs are file-native — they open, list, search, save, edit and " +
+        "move files, and every write lands as an attributed revision on a " +
+        "walkable chain. They are exposed over an MCP server at " +
         MCP_URL +
         " (transport: streamable-http, auth: OAuth 2.1). The HTTP operations " +
-        "below describe those verbs' request/response shapes for agents and " +
-        "tooling that model MCP tools as callable operations. For the machine " +
-        "discovery card see " +
+        "below describe those verbs for agents and tooling that model MCP " +
+        "tools as callable operations; the server's own tools/list is the " +
+        "authoritative argument schema. For the machine discovery card see " +
         BRAND.url +
         "/.well-known/mcp.json; for human docs see " +
         BRAND.url +
@@ -68,140 +252,20 @@ export function getOpenApiSpec() {
     },
     tags: [
       {
-        name: "memory",
+        name: "read",
         description:
-          "Durable, attributed memory verbs. Every write carries its author; " +
-          "every fact carries provenance you can trace.",
+          "Read the workspace. Read-only and idempotent — safe to call freely.",
+      },
+      {
+        name: "write",
+        description:
+          "Change the workspace. Every write carries its author and lands as a " +
+          "revision on a chain you can walk.",
       },
       { name: "discovery", description: "Machine-discoverable metadata." },
     ],
     paths: {
-      "/remember": {
-        post: {
-          operationId: "remember",
-          tags: ["memory"],
-          summary: "Save something worth keeping into durable memory",
-          description:
-            "Save a decision, insight, fact, or preference into the user's " +
-            "durable yarnnn memory. The write is synchronous and durable — the " +
-            "moment it returns the memory is stored, attributed, and immediately " +
-            "retrievable by a subsequent recall or trace on the same subject.",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/RememberRequest" },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Memory stored and immediately retrievable.",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/RememberResult" },
-                },
-              },
-            },
-            "400": {
-              description: "Invalid request (e.g. empty content).",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/Error" },
-                },
-              },
-            },
-            "401": {
-              description: "Missing or invalid OAuth credentials.",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/Error" },
-                },
-              },
-            },
-          },
-          security: [{ oauth2: [] }],
-        },
-      },
-      "/recall": {
-        post: {
-          operationId: "recall",
-          tags: ["memory"],
-          summary: "Pull what the user already knows about a subject",
-          description:
-            "Retrieve the user's accumulated memory about a subject (a person, " +
-            "company, market, project, or topic). Returns the stored material " +
-            "plus a confidence signal; the host assistant explains it in its own " +
-            "voice. On ambiguous confidence (several matches, none dominant), ask " +
-            "which subject is meant rather than guessing.",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/RecallRequest" },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "Recalled material with a confidence signal.",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/RecallResult" },
-                },
-              },
-            },
-            "401": {
-              description: "Missing or invalid OAuth credentials.",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/Error" },
-                },
-              },
-            },
-          },
-          security: [{ oauth2: [] }],
-        },
-      },
-      "/trace": {
-        post: {
-          operationId: "trace",
-          tags: ["memory"],
-          summary: "Show how a recorded fact changed over time",
-          description:
-            "Return the authored revision chain for a subject — who changed it, " +
-            "when, and what the change was. This is yarnnn's distinguishing " +
-            "capability: a plain storage connector cannot show provenance over " +
-            "time.",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/TraceRequest" },
-              },
-            },
-          },
-          responses: {
-            "200": {
-              description: "The attributed revision chain for the subject.",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/TraceResult" },
-                },
-              },
-            },
-            "401": {
-              description: "Missing or invalid OAuth credentials.",
-              content: {
-                "application/json": {
-                  schema: { $ref: "#/components/schemas/Error" },
-                },
-              },
-            },
-          },
-          security: [{ oauth2: [] }],
-        },
-      },
+      ...verbPaths,
       "/.well-known/mcp.json": {
         get: {
           operationId: "getMcpDiscoveryCard",
@@ -209,8 +273,9 @@ export function getOpenApiSpec() {
           summary: "MCP connector discovery card",
           description:
             "Machine-readable card advertising the yarnnn MCP server, its " +
-            "transport, OAuth metadata location, and tool list. Served from the " +
-            "marketing domain at " +
+            "transport and where to find its OAuth metadata. It does not " +
+            "enumerate tools — the server's own tools/list is the source of " +
+            "truth. Served from the marketing domain at " +
             BRAND.url +
             "/.well-known/mcp.json.",
           security: [],
@@ -231,7 +296,8 @@ export function getOpenApiSpec() {
             "OAuth 2.1. The MCP server publishes full authorization-server " +
             "metadata at " +
             MCP_URL +
-            "/.well-known/oauth-authorization-server.",
+            "/.well-known/oauth-authorization-server. Local clients that serve " +
+            "one user may present a bearer token from account settings instead.",
           flows: {
             authorizationCode: {
               authorizationUrl: `${MCP_URL}/authorize`,
@@ -242,139 +308,45 @@ export function getOpenApiSpec() {
         },
       },
       schemas: {
-        RememberRequest: {
+        ToolCallArguments: {
           type: "object",
-          required: ["content"],
+          description:
+            "The verb's arguments. Most verbs take a `reference` — a file " +
+            "named as yarnnn://workspace/{path}, /workspace/{path}, or a " +
+            "workspace-relative path. The authoritative per-verb schema is the " +
+            "one the MCP server returns from tools/list; it is not duplicated " +
+            "here, because a second copy drifts the moment the server's changes.",
           properties: {
-            content: {
+            reference: {
               type: "string",
               description:
-                "The thing to remember — the user's words or a faithful summary. Required.",
-            },
-            about: {
-              type: "string",
-              description:
-                "Optional subject hint (a company, person, project, or topic).",
+                "The file this call acts on, where the verb takes one.",
+              examples: ["yarnnn://workspace/Documents/notes.md"],
             },
           },
+          additionalProperties: true,
         },
-        RememberResult: {
+        ToolResult: {
           type: "object",
-          properties: {
-            success: { type: "boolean" },
-            status: {
-              type: "string",
-              description: 'e.g. "remembered" once stored and retrievable.',
-              examples: ["remembered"],
-            },
-            subject: {
-              type: "string",
-              description: "The subject the memory was filed under.",
-            },
-          },
-        },
-        RecallRequest: {
-          type: "object",
-          required: ["subject"],
-          properties: {
-            subject: {
-              type: "string",
-              description:
-                "What to recall about — a person, company, market, project, or topic. Required.",
-            },
-            question: {
-              type: "string",
-              description: "Optional specific question to focus the recall.",
-            },
-            domain: {
-              type: "string",
-              description: "Optional domain to scope the recall.",
-            },
-            limit: {
-              type: "integer",
-              default: 10,
-              description: "Maximum number of items to return.",
-            },
-          },
-        },
-        RecallResult: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            confidence: {
-              type: "string",
-              description:
-                "Retrieval confidence. On 'ambiguous', ask the user which subject is meant.",
-              enum: ["high", "medium", "low", "ambiguous", "none"],
-            },
-            items: {
-              type: "array",
-              description: "The recalled memory material.",
-              items: { type: "object" },
-            },
-          },
-        },
-        TraceRequest: {
-          type: "object",
-          required: ["subject"],
-          properties: {
-            subject: {
-              type: "string",
-              description: "The subject whose history to trace. Required.",
-            },
-            limit: {
-              type: "integer",
-              default: 10,
-              description: "Maximum number of revisions to return.",
-            },
-          },
-        },
-        TraceResult: {
-          type: "object",
-          properties: {
-            success: { type: "boolean" },
-            subject: { type: "string" },
-            revisions: {
-              type: "array",
-              description:
-                "The authored revision chain — each entry names who changed the fact, when, and what changed.",
-              items: {
-                type: "object",
-                properties: {
-                  author: { type: "string" },
-                  changed_at: { type: "string", format: "date-time" },
-                  change: { type: "string" },
-                },
-              },
-            },
-          },
+          description:
+            "An MCP tool result. Reads answer with the material and its " +
+            "attribution; writes answer with the revision they created.",
+          additionalProperties: true,
         },
         Error: {
           type: "object",
-          description:
-            "Structured JSON error. Agents parse `error.code` and may surface `error.hint`.",
-          required: ["error"],
           properties: {
             error: {
               type: "object",
-              required: ["code", "message"],
               properties: {
-                code: {
-                  type: "string",
-                  description: "Machine-readable error code.",
-                  examples: ["empty_content", "unauthorized", "not_found"],
-                },
-                message: {
-                  type: "string",
-                  description: "Human-readable explanation.",
-                },
-                hint: {
-                  type: "string",
-                  description: "Optional resolution hint for the agent.",
-                },
+                code: { type: "string" },
+                message: { type: "string" },
+                hint: { type: ["string", "null"] },
               },
+              required: ["code", "message"],
             },
           },
+          required: ["error"],
         },
       },
     },

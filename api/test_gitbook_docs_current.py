@@ -303,6 +303,122 @@ if _label:
     )
 
 
+# ── 6. The published verb roster matches the server's ───────────────────────
+# ADR-543 retired remember/recall/trace with NO aliases and NO shims: a host
+# calling them gets tool-not-found. ADR-635 D9 removed that dead list from the
+# discovery card and said why — "a second copy of the verb list drifted the
+# moment the server's changed". Two copies survived that sweep and kept
+# publishing the retired verbs to agents for months: web/lib/openapi.ts (which
+# the docs call "authoritative, always-current", and from which an agent
+# GENERATES A CLIENT) and the /developers hub. Both were live and linked from
+# llms.txt, the sitemap and the footer.
+#
+# So the roster is DATA and every published copy is checked against it. A verb
+# is `_INTEROP_VERBS` + its @mcp.tool, then a row in each copy — never a
+# sentence that counts things.
+_SERVER_PY = REPO / "api" / "mcp_server" / "server.py"
+_server_src = _SERVER_PY.read_text()
+
+_roster: set[str] = set()
+try:
+    import ast
+
+    for _node in ast.walk(ast.parse(_server_src)):
+        # `_INTEROP_VERBS: tuple[...] = (...)` is an AnnAssign, not an Assign —
+        # reading only Assign silently found nothing, and an empty roster made
+        # the coverage checks below pass VACUOUSLY. Both shapes, and the
+        # non-empty check above is what makes that unfixable-silently.
+        if isinstance(_node, ast.AnnAssign):
+            _targets = [_node.target]
+        elif isinstance(_node, ast.Assign):
+            _targets = list(_node.targets)
+        else:
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == "_INTEROP_VERBS" for t in _targets):
+            continue
+        for _elt in getattr(_node.value, "elts", []):
+            _parts = getattr(_elt, "elts", [])
+            if _parts and isinstance(_parts[0], ast.Constant):
+                _roster.add(_parts[0].value)
+except SyntaxError:  # pragma: no cover — a broken server.py is its own gate's job
+    _roster = set()
+
+check(f"read the interop verb roster from server.py ({len(_roster)} verbs)", len(_roster) >= 6)
+
+# The retired verbs must appear in NO published copy. Checked by name, because
+# this is the exact drift that shipped: the words, not the count.
+_RETIRED_VERBS = ("remember", "recall", "trace")
+
+if _roster:
+    # The OpenAPI spec an agent generates a client from.
+    _spec = (REPO / "web" / "lib" / "openapi.ts").read_text()
+    # Scope to the INTEROP_VERBS literal — the file also has `name:` on its tags
+    # ("read"/"write") and contact ("yarnnn"), which a file-wide scrape reads as
+    # verbs and reports as a confident, wrong failure.
+    _spec_block = _spec[_spec.index("INTEROP_VERBS") : _spec.index("function verbPath")]
+    _spec_verbs = set(re.findall(r'^\s*name: "([a-z_]+)",$', _spec_block, re.MULTILINE))
+    check(
+        "openapi.ts publishes the server's verb roster"
+        + (f" — spec-only={sorted(_spec_verbs - _roster)} missing={sorted(_roster - _spec_verbs)}"
+           if _spec_verbs != _roster else ""),
+        _spec_verbs == _roster,
+    )
+
+    # The developer hub.
+    _hub = (REPO / "web" / "app" / "developers" / "page.tsx").read_text()
+    _hub_verbs = set(re.findall(r'^\s*name: "([a-z_]+)",$', _hub, re.MULTILINE))
+    check(
+        "the /developers hub publishes the server's verb roster"
+        + (f" — hub-only={sorted(_hub_verbs - _roster)} missing={sorted(_roster - _hub_verbs)}"
+           if _hub_verbs != _roster else ""),
+        _hub_verbs == _roster,
+    )
+
+    # No published surface may ADVERTISE a retired verb as callable. The GitBook
+    # MCP page may NAME them in its "reconnect" notice, so only the two
+    # machine-facing copies are held to silence.
+    for _label, _src in (
+        ("openapi.ts", _spec_block),
+        ("/developers", _hub),
+    ):
+        _relapse = [
+            v for v in _RETIRED_VERBS
+            if re.search(rf'^\s*name: "{v}",$', _src, re.MULTILINE)
+        ]
+        check(
+            f"{_label} advertises no retired memory verb"
+            + (f" — found {_relapse}" if _relapse else ""),
+            not _relapse,
+        )
+
+# The GitBook MCP tool reference must cover every verb the server serves.
+_mcp_page = (GITBOOK / "api-reference" / "mcp-tools.md").read_text()
+_undocumented = [
+    v for v in sorted(_roster)
+    if not re.search(rf"^## `{re.escape(v)}`$", _mcp_page, re.MULTILINE)
+]
+check(
+    "mcp-tools.md documents every served verb"
+    + (f" — missing: {_undocumented}" if _undocumented else ""),
+    not _undocumented,
+)
+
+# Every REST group the API overview advertises must have a registered router.
+_overview = (GITBOOK / "api-reference" / "overview.md").read_text()
+_main_py = (REPO / "api" / "main.py").read_text()
+_claimed = set(re.findall(r"\| `/api/([a-z_]+)`", _overview))
+_unserved = sorted(
+    g for g in _claimed
+    if not re.search(rf'include_router\([a-z_]*{g}[a-z_]*\.\w*router', _main_py)
+    and f'"/api/{g}' not in _main_py
+)
+check(
+    f"every endpoint group in overview.md has a router ({len(_claimed)} claimed)"
+    + (f" — unserved: {_unserved}" if _unserved else ""),
+    not _unserved,
+)
+
+
 print("=" * 70)
 print(f"gitbook currency gate: {_passed}/{_passed + _failed} passed, {_failed} failed")
 print("=" * 70)

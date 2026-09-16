@@ -13,7 +13,7 @@ const MCP_URL = "https://mcp.yarnnn.com";
 export const metadata: Metadata = getMarketingMetadata({
   title: "yarnnn developer resources — API, MCP server, OpenAPI, auth",
   description:
-    "Build with yarnnn. The MCP connector, OpenAPI specification, OAuth 2.1 authentication, and discovery endpoints — everything an AI agent or developer needs to read and write durable, attributed memory.",
+    "Build with yarnnn. The MCP connector, OpenAPI specification, OAuth 2.1 authentication, and discovery endpoints — everything an AI agent or developer needs to read and write an attributed workspace.",
   path: "/developers",
   keywords: [
     "yarnnn api",
@@ -42,14 +42,14 @@ const RESOURCES = [
     name: "OpenAPI specification",
     href: "/openapi.json",
     external: false,
-    what: "The machine-readable API contract (OpenAPI 3.1). Describes yarnnn's agent-facing verbs — remember, recall, trace — with request and response schemas.",
+    what: "The machine-readable API contract (OpenAPI 3.1). Describes the file-native verbs an agent calls over MCP, with request and response shapes.",
     detail: "GET /openapi.json",
   },
   {
     name: "MCP discovery card",
     href: "/.well-known/mcp.json",
     external: false,
-    what: "The website→server breadcrumb. Advertises the MCP server, its transport, OAuth metadata location, and tool list so agents can auto-discover the connector.",
+    what: "The website→server breadcrumb. Advertises the MCP server, its transport and where to find its OAuth metadata, so agents can auto-discover the connector.",
     detail: "GET /.well-known/mcp.json",
   },
   {
@@ -75,21 +75,66 @@ const RESOURCES = [
   },
 ];
 
+// The published verb roster. Mirrors `_INTEROP_VERBS` (api/mcp_server/server.py),
+// which is the source of truth; `test_gitbook_docs_current.py` asserts the two
+// are the same set. ADR-543 retired remember/recall/trace with no aliases, and
+// this page kept advertising them — the same drift ADR-635 D9 removed from the
+// discovery card. A new verb is a row there plus its @mcp.tool, then a row here.
 const VERBS = [
   {
-    name: "remember",
-    signature: "remember(content, about?)",
-    what: "Save something worth keeping — a decision, fact, or preference. The write is synchronous and durable: the moment it returns, the memory is stored, attributed, and retrievable.",
+    name: "whoami",
+    kind: "read",
+    what: "Name where you are standing — which workspace this connection is bound to, who your writes will be signed as, and which verbs your token authorizes. Call it before writing somewhere the user assumed.",
   },
   {
-    name: "recall",
-    signature: "recall(subject, question?, domain?, limit?)",
-    what: "Pull what the user already knows about a subject. Returns the stored material plus a confidence signal; the host assistant explains it.",
+    name: "open",
+    kind: "read",
+    what: "Read one exact file: its current content, who last changed it, when, and its recent attributed revisions. An unknown path says so — open never guesses.",
   },
   {
-    name: "trace",
-    signature: "trace(subject, limit?)",
-    what: "Show how a recorded fact changed over time — who changed it, when, and what changed. The capability a plain storage connector cannot show.",
+    name: "list",
+    kind: "read",
+    what: "Enumerate the files under a folder. Takes a timestamp for the change feed — what moved since you were last here — and pages through large subtrees.",
+  },
+  {
+    name: "search",
+    kind: "read",
+    what: "Find files by meaning. Returns ranked matches with excerpts and a confidence signal, so an ambiguous result can be asked about rather than guessed at.",
+  },
+  {
+    name: "history",
+    kind: "read",
+    what: "Show how one exact file changed over time — who authored each revision, when, what changed, and a diff against its predecessor. The capability a plain storage connector cannot show.",
+  },
+  {
+    name: "save",
+    kind: "write",
+    what: "Write a file back as an attributed revision. Pass the revision you opened and a concurrent change is refused rather than clobbered; every prior version stays on the chain.",
+  },
+  {
+    name: "edit",
+    kind: "write",
+    what: "Change part of a file by anchoring on its exact current text. Only the change travels, so content you never read is never at risk — the right verb for large files.",
+  },
+  {
+    name: "delete",
+    kind: "write",
+    what: "Remove a file from the live workspace. Nothing is lost: the chain keeps the content and the file can be restored.",
+  },
+  {
+    name: "move",
+    kind: "write",
+    what: "Move or rename a file. Refuses to overwrite an existing destination — that has to be deleted by intent first.",
+  },
+  {
+    name: "request_upload",
+    kind: "write",
+    what: "Get a short-lived URL for content that arrives as bytes rather than text — an image, a PDF, an export. It lands as an attributed file like any other.",
+  },
+  {
+    name: "share",
+    kind: "write",
+    what: "Mint a link to one file or the whole workspace, as full access or read-only. Whoever opens it sees the work and who made it.",
   },
 ];
 
@@ -185,14 +230,15 @@ export default function DevelopersPage() {
             </ScrollReveal>
           </section>
 
-          {/* The three verbs */}
+          {/* The verb roster */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <ScrollReveal className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                The memory API — three verbs
+                The verbs an agent calls
               </h2>
               <p className="text-white/50 mb-16 max-w-xl">
-                The whole surface an agent calls. Documented in full in the{" "}
+                File-native: they read and write the same files a person sees,
+                and every write lands attributed. Documented in full in the{" "}
                 <Link href="/openapi.json" className="text-white underline underline-offset-4 hover:text-[#de5a2b]">
                   OpenAPI spec
                 </Link>
@@ -207,9 +253,9 @@ export default function DevelopersPage() {
                   >
                     <div>
                       <h3 className="text-lg font-medium text-white mb-1">{v.name}</h3>
-                      <code className="text-white/40 text-xs font-mono break-all">
-                        {v.signature}
-                      </code>
+                      <span className="text-white/40 text-xs font-mono">
+                        {v.kind === "read" ? "a read" : "a write"}
+                      </span>
                     </div>
                     <div className="text-white/50">
                       <p>{v.what}</p>
@@ -228,7 +274,8 @@ export default function DevelopersPage() {
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
                 Point your MCP-capable assistant at the connector and authorize
-                over OAuth 2.1. It can read and write memory immediately.
+                over OAuth 2.1. It can read and write the workspace's files
+                immediately, every change signed as that connection.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a
