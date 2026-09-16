@@ -63,7 +63,7 @@ const STEPS = [
   {
     number: "03",
     title: "Build documents, decks and pages — and keep them",
-    body: "Slides, Text, Blogger and Images are where artifacts take shape: write directly, or ask an agent to draft against your files. Either way, every edit lands as a signed revision with full history — you can walk any document back to who changed what, when, and why.",
+    body: "Slides, Text, Blogger and Images are where decks, documents, posts and images take shape: write directly, or ask an agent to draft against your files. Either way, every edit lands as a signed revision with full history — you can walk any document back to who changed what, when, and why.",
     extra: (
       <div className="mt-6 max-w-xl">
         <StudioReplica className="shadow-xl" />
