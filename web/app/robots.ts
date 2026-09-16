@@ -9,7 +9,26 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         disallow: [
           "/api/",
-          "/auth/",
+          // Google Search Console, 2026-09-17 — `/auth/` was disallowed while
+          // `/auth/login` is linked from the header and footer of every
+          // marketing page. That is the ADR-530 D4 distinction again, and it
+          // fails the same way it did for `/s/`:
+          //
+          //   Disallow  = do not FETCH        (Google never reads the page)
+          //   noindex   = do not LIST/RETAIN  (Google reads it, then drops it)
+          //
+          // A sitewide-linked URL WILL be discovered. Banning the fetch does
+          // not make it un-indexable; it makes the `noindex` unreadable, so the
+          // URL sits in "Blocked by robots.txt" indefinitely and can still be
+          // listed on anchor text alone. Un-indexability is already carried
+          // where it belongs and is unweakened: `robots: { index: false,
+          // follow: false, noarchive, nosnippet }` in app/auth/login/layout.tsx
+          // and the meta tag in app/auth/callback/head.tsx. Letting the crawler
+          // READ those is what retires the URL for good.
+          //
+          // `/api/` stays disallowed — it is not linked for crawlers, serves no
+          // HTML to read a directive from, and carries `X-Robots-Tag: noindex`
+          // at the exit (ADR-513 D4).
           // ADR-530 D4 amendment (2026-08-07) — `/s/` is deliberately NOT
           // disallowed, and the distinction is the whole point:
           //
