@@ -36,7 +36,9 @@ export async function GET() {
     // without aliases: a second copy of the verb list drifted the moment the
     // server's changed. The server's own `tools/list` is the source of truth;
     // a card that names the server and how to authorize is complete.
-    documentation: `${BRAND.url}/how-it-works`,
+    // The developer hub, not /how-it-works: an agent that reads this card is
+    // deciding how to CONNECT, and /how-it-works is the member-facing story.
+    documentation: `${BRAND.url}/developers`,
   };
 
   return new Response(JSON.stringify(card, null, 2), {

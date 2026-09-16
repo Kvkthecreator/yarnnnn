@@ -22,7 +22,10 @@ import sys
 
 # ADR-533 D2: see the note in test_adr512_open_verb.py — the verb bullets are
 # derived at import time, so this asserts the RENDERED instructions.
-from test_adr533_participant_contract import rendered_instructions as _rendered_instructions
+from test_adr533_participant_contract import (
+    rendered_instructions as _rendered_instructions,
+    _interop_namespace,
+)
 
 
 def _check(label, ok, detail=""):
@@ -74,10 +77,15 @@ def main():
         "3a save registered with the base_revision contract taught",
         "async def save(" in server_src and "base_revision" in server_src
         and "stale_write" in server_src))
+    # DERIVED from the roster, never a hand-typed list: this check named six
+    # verbs and stayed green for weeks after whoami and request_upload landed,
+    # because a verb it did not know about could not fail it.
+    _verbs = [name for name, _ in _interop_namespace()["_INTEROP_VERBS"]]
+    _untaught = [v for v in _verbs if f"• {v}" not in _rendered_instructions()]
     results.append(_check(
-        "3b all six verbs taught in instructions (rendered, ADR-533 D2)",
-        all(f"• {v}" in _rendered_instructions()
-            for v in ("open", "list", "search", "save", "history", "share"))))
+        f"3b all {len(_verbs)} verbs taught in instructions (rendered, ADR-533 D2)"
+        + (f" — untaught: {_untaught}" if _untaught else ""),
+        bool(_verbs) and not _untaught))
     results.append(_check(
         "3c save output schema present",
         '"save": {' in server_src and '"revision_id"' in server_src))

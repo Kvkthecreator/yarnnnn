@@ -29,7 +29,7 @@ from typing import Dict, FrozenSet, List, Optional
 
 # ── The tiers ───────────────────────────────────────────────────────────────
 #
-# The nine interop verbs are not equally consequential, and until ADR-563 the
+# The interop verbs are not equally consequential, and until ADR-563 the
 # surface said they were: `valid_scopes=["read"]` was the ONLY scope, so a token
 # LABELLED read could delete a file and mint a member-grant share link. The
 # label was decorative.

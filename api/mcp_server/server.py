@@ -564,7 +564,7 @@ mcp = HostGatedFastMCP(
         issuer_url=AnyHttpUrl(_server_url),
         resource_server_url=AnyHttpUrl(_server_url),
         # ADR-563: the scope field is no longer decorative. `valid_scopes` was
-        # the single string "read" while the surface bound nine verbs including
+        # the single string "read" while the surface bound every verb including
         # delete and share — a token LABELLED read could delete a file and mint
         # a member grant. The tiers are additive (files:read ⊂ files:write ⊂
         # files:share); enforcement is per-verb in `auth.assert_scope`, reached

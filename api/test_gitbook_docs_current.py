@@ -403,6 +403,88 @@ check(
     not _undocumented,
 )
 
+# ...and so must the page a MEMBER reads to set the connector up. This is the
+# one that went stale: it listed 8 of 11 verbs, omitting whoami (the verb that
+# answers "which workspace am I about to write into") and request_upload, while
+# the tool reference beside it was complete. The setup page is the one people
+# actually read, so it is held to the same roster.
+_connector_page = (GITBOOK / "integrations" / "mcp-connector.md").read_text()
+_unnamed = [v for v in sorted(_roster) if f"`{v}`" not in _connector_page]
+check(
+    "mcp-connector.md names every served verb"
+    + (f" — missing: {_unnamed}" if _unnamed else ""),
+    not _unnamed,
+)
+
+# The scope tiers are ENFORCED per-verb (ADR-563) and were documented nowhere.
+# A tier the docs omit is a trust story the product cannot tell; a tier they
+# invent is a promise the gate does not keep. Both directions, against the
+# enforcement table.
+_scopes_src = (REPO / "api" / "services" / "mcp_scopes.py").read_text()
+_tiers = set(re.findall(r'^SCOPE_(?:READ|WRITE|SHARE) = "([a-z:]+)"$', _scopes_src, re.MULTILINE))
+check(f"read the scope tiers from mcp_scopes.py ({len(_tiers)} tiers)", len(_tiers) == 3)
+
+if _tiers:
+    for _page_name, _page in (
+        ("mcp-tools.md", _mcp_page),
+        ("mcp-connector.md", _connector_page),
+    ):
+        _missing_tiers = sorted(t for t in _tiers if t not in _page)
+        check(
+            f"{_page_name} names every enforced scope tier"
+            + (f" — missing: {_missing_tiers}" if _missing_tiers else ""),
+            not _missing_tiers,
+        )
+
+    # Every verb's documented scope must be the one the server enforces. A
+    # doc that promises `files:read` where the code demands `files:write`
+    # sends a client to build against a grant that will refuse it.
+    _verb_scopes = dict(
+        re.findall(r'^\s+"([a-z_]+)": SCOPE_(READ|WRITE|SHARE),$', _scopes_src, re.MULTILINE)
+    )
+    _tier_of = {"READ": "files:read", "WRITE": "files:write", "SHARE": "files:share"}
+    _mismatched = []
+    for _verb, _tier_name in _verb_scopes.items():
+        _section = re.search(
+            rf"^## `{re.escape(_verb)}`$(.*?)(?=^## |\Z)", _mcp_page, re.MULTILINE | re.DOTALL
+        )
+        if not _section:
+            continue
+        _want = _tier_of[_tier_name]
+        if f"`{_want}`" not in _section.group(1):
+            _mismatched.append(f"{_verb}→{_want}")
+    check(
+        f"mcp-tools.md names the enforced scope on every verb ({len(_verb_scopes)} verbs)"
+        + (f" — wrong/absent: {_mismatched}" if _mismatched else ""),
+        bool(_verb_scopes) and not _mismatched,
+    )
+
+    # The /developers hub publishes the same tiers, and the SAME SENTENCES the
+    # consent screen shows. A developer planning an integration and the person
+    # approving it must read the same words; two copies of a permission
+    # sentence is how a grant comes to mean different things to each side.
+    _hub_missing = sorted(t for t in _tiers if t not in _hub)
+    check(
+        "the /developers hub names every enforced scope tier"
+        + (f" — missing: {_hub_missing}" if _hub_missing else ""),
+        not _hub_missing,
+    )
+
+    _grant_sentences = re.findall(
+        r'^\s+SCOPE_(?:READ|WRITE|SHARE): "([^"]+)",$', _scopes_src, re.MULTILINE
+    )
+    check(
+        f"read the consent sentences from mcp_scopes.py ({len(_grant_sentences)})",
+        len(_grant_sentences) == 3,
+    )
+    _drifted = [t for t in _grant_sentences if t not in _hub]
+    check(
+        "the hub's scope copy is the consent screen's, verbatim"
+        + (f" — drifted: {_drifted}" if _drifted else ""),
+        bool(_grant_sentences) and not _drifted,
+    )
+
+
 # Every REST group the API overview advertises must have a registered router.
 _overview = (GITBOOK / "api-reference" / "overview.md").read_text()
 _main_py = (REPO / "api" / "main.py").read_text()

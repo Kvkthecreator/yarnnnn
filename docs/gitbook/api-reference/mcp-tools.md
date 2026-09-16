@@ -1,12 +1,28 @@
 # MCP Tool Reference
 
-The MCP server exposes eleven file-native tools. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
+The verbs a connected client can call, with their parameters. For setup, see the [MCP connector guide](../integrations/mcp-connector.md).
 
 **Endpoint:** `https://mcp.yarnnn.com`
 **Transport:** streamable-http, served at the root path
 **Auth:** OAuth 2.1 (dynamic client registration), or a bearer token for local clients
 **Discovery:** `https://yarnnn.com/.well-known/mcp.json`
 **OAuth metadata:** `https://mcp.yarnnn.com/.well-known/oauth-authorization-server`
+
+## Scopes
+
+Every verb requires one of three scopes. They're additive and ordered — `files:write` satisfies a `files:read` requirement, and `files:share` satisfies both.
+
+| Scope | Verbs it authorizes |
+|---|---|
+| `files:read` | `whoami` · `open` · `list` · `search` · `history` |
+| `files:write` | `save` · `edit` · `delete` · `move` · `request_upload` |
+| `files:share` | `share` |
+
+Enforcement is per-call, not per-session: a token holding only `files:read` is refused when it calls `save`. A registration that requests no scope gets `files:read`.
+
+Tokens issued before scopes existed carry a legacy `read` scope that authorizes everything; they keep working until narrowed or revoked. New clients should request the narrow set they need.
+
+Each verb below names the scope it requires.
 
 > Connected before 2026-08-10? The surface changed twice that day (the
 > memory verbs retired; `edit`/`delete`/`move` + the change feed added) —
@@ -16,6 +32,8 @@ The MCP server exposes eleven file-native tools. For setup, see the [MCP connect
 ---
 
 ## `whoami`
+
+*Requires `files:read`.*
 
 Name where you are standing. A read.
 
@@ -30,6 +48,8 @@ like "my notes" means different files in each.
 ---
 
 ## `open`
+
+*Requires `files:read`.*
 
 Read one exact file. A read.
 
@@ -49,6 +69,8 @@ changed it, when, and its recent attributed revisions. An unknown path returns
 ---
 
 ## `list`
+
+*Requires `files:read`.*
 
 Enumerate the files under a folder. A read.
 
@@ -71,6 +93,8 @@ the cap. Read-only and idempotent.
 | `offset` | integer | no | 0 | Page start; use `next_offset` from a truncated call |
 
 ## `search`
+
+*Requires `files:read`.*
 
 Find files by meaning. A read.
 
@@ -96,6 +120,8 @@ YARNNN returns the material; the calling model explains it. Read-only and idempo
 
 ## `save`
 
+*Requires `files:write`.*
+
 Write a file back as an attributed revision. A write.
 
 | Parameter | Type | Required | Meaning |
@@ -117,6 +143,8 @@ version stays on the chain), not idempotent.
 
 ## `edit`
 
+*Requires `files:write`.*
+
 Change part of a file — an anchored edit. A write.
 
 | Parameter | Type | Required | Meaning |
@@ -135,6 +163,8 @@ if the anchor is missing or ambiguous; never guesses.
 
 ## `delete`
 
+*Requires `files:write`.*
+
 Remove a file from the live workspace. A write.
 
 | Parameter | Type | Required | Meaning |
@@ -149,6 +179,8 @@ it, and the file can be restored.
 
 ## `move`
 
+*Requires `files:write`.*
+
 Move or rename a file. A write.
 
 | Parameter | Type | Required | Meaning |
@@ -162,6 +194,8 @@ Refuses to overwrite an existing destination — `delete` it first, by intent.
 ---
 
 ## `history`
+
+*Requires `files:read`.*
 
 Show how one exact file changed over time. A read.
 
@@ -180,6 +214,8 @@ topic. Read-only and idempotent.
 
 ## `request_upload`
 
+*Requires `files:write`.*
+
 Get a short-lived URL to upload a file into the workspace. A write.
 
 For content that arrives as bytes rather than text — an image, a PDF, an export.
@@ -188,6 +224,8 @@ The upload lands as an attributed file like any other.
 ---
 
 ## `share`
+
+*Requires `files:share`.*
 
 Mint a share link. A write.
 

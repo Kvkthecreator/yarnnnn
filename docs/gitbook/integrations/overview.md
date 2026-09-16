@@ -1,12 +1,18 @@
 # Connect Your AI
 
-There are two ways material moves between YARNNN and the outside world.
+There are three ways material moves between YARNNN and the outside world.
 
 ## 1. The MCP connector — your other AI reaches in
 
 This is the main one. Connect ChatGPT, Claude, or any MCP-capable client to `https://mcp.yarnnn.com` and it can save to, search, and walk the history of your workspace directly.
 
 This is what makes YARNNN shared memory rather than another app with its own memory: you keep working wherever you already work, and everything lands in one place you own.
+
+Three things follow from that, and they're the reason this isn't just cloud storage with a plugin:
+
+- **It's the same files.** A connected AI reads and writes exactly what you see in Files — not a copy, not a synced index. Save something from ChatGPT and it's there when you open YARNNN.
+- **Every change is signed by whoever made it.** A connected AI writes as *itself*, not as you. Your history shows `you · Tuesday`, `claude.ai · Wednesday`, `chatgpt · Thursday` — so "who changed this, and when?" has a real answer even when the answer isn't a person.
+- **You decide how far it reaches.** Each connection is granted read, write, or share access, and you can narrow it to part of the workspace or revoke it outright.
 
 → [MCP connector setup](mcp-connector.md)
 

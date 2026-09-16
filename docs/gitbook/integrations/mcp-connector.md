@@ -16,18 +16,40 @@ Your context stops being trapped in whichever app you happened to use.
 
 ## The verbs
 
+A connected AI gets these. They're file-native — the same files you see in YARNNN, not a separate memory store.
+
 | Verb | What it does |
 |---|---|
+| `whoami` | Names where it's standing — which workspace it's bound to, who its writes will be signed as, and which of these verbs it's actually allowed. A good client calls this before writing somewhere you assumed. |
 | `open` | Reads one exact file — content, who last changed it, and its recent revisions. |
-| `list` | Shows what exists — every file under a folder (or the whole workspace), with who last touched each. |
+| `list` | Shows what exists — every file under a folder (or the whole workspace), with who last touched each. It also answers **what changed since a moment you name**, so a returning AI can pick up where it left off instead of re-reading everything. |
 | `search` | Finds files by meaning. Returns the material plus a confidence signal; the AI you're talking to explains it in its own voice. |
+| `history` | Shows how a file changed over time — who changed it, when, and what the change was. This is the one a plain storage connector can't do. |
 | `save` | Writes a whole file as an attributed revision — including anything worth keeping from the conversation itself. |
 | `edit` | Changes part of a file — only the change travels, so a partial read can't destroy the rest. |
 | `delete` / `move` | Tidy the workspace — remove or rename with an attributed, restorable tombstone. |
-| `history` | Shows how a file changed over time — who changed it, when, and what the change was. This is the one a plain storage connector can't do. |
+| `request_upload` | Takes in something that arrives as bytes rather than text — an image, a PDF, an export — and lands it as an attributed file like any other. |
 | `share` | Mints a member or read-only link for a file (or the workspace), right from the conversation. |
 
+Full parameter-level detail is in the [MCP tool reference](../api-reference/mcp-tools.md).
+
 Every write from a connected AI is attributed to it by name. You'll see `claude.ai` or `chatgpt` on the revision, and the connection appears as a revocable row in your members roster.
+
+## What a connection is allowed to do
+
+A connection doesn't get all-or-nothing access. Each verb sits in one of three tiers, and a client is granted only the tiers it asks for:
+
+| Tier | What it allows |
+|---|---|
+| `files:read` | Read your files — open, list, search, and view their history. |
+| `files:write` | Create, edit, move, and delete files. Every change is signed and revertible. |
+| `files:share` | Create share links, which can give whoever opens them full member access. |
+
+The tiers are additive — write includes read, share includes both. A client that asks for nothing gets read-only, which is the safe floor.
+
+This is enforced on every call, not just displayed at sign-up: a token holding `files:read` is refused when it tries to save. You see the specific tiers a connection asked for on the approval screen before you authorise it, and again on its row in **Workspace Settings → Access**.
+
+> Connections made before this was introduced carry an older full-access grant, so they keep working. You can narrow or revoke any of them at any time.
 
 ---
 

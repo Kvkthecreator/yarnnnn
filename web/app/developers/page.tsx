@@ -138,6 +138,25 @@ const VERBS = [
   },
 ];
 
+// The scope tiers, enforced per-verb at the server (ADR-563,
+// services/mcp_scopes.py). Additive and ordered: write satisfies read, share
+// satisfies both. The sentences are the operator-facing ones from the consent
+// screen — a developer and the person approving them should read the same words.
+const SCOPES = [
+  {
+    name: "files:read",
+    what: "Read your files — open, list, search, and view their history.",
+  },
+  {
+    name: "files:write",
+    what: "Create, edit, move, and delete files. Every change is signed and revertible.",
+  },
+  {
+    name: "files:share",
+    what: "Create share links, which can give whoever opens them full member access.",
+  },
+];
+
 export default function DevelopersPage() {
   // TechArticle + SoftwareApplication reference so this page is identifiable as
   // yarnnn's developer resource hub programmatically.
@@ -167,22 +186,30 @@ export default function DevelopersPage() {
               yarnnn for developers
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              Build on <span className="text-[#de5a2b]">durable, attributed memory</span>
+              One workspace, <span className="text-[#de5a2b]">every AI you use</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                yarnnn exposes a Model Context Protocol (MCP) server so any
-                MCP-capable assistant can read and write a user&apos;s shared
-                memory — with full provenance. Everything you need to connect an
-                agent is below, at predictable URLs.
+                yarnnn is a Model Context Protocol server. Point any MCP-capable
+                assistant at{" "}
+                <code className="text-white/70 font-mono text-sm">{MCP_URL.replace("https://", "")}</code>{" "}
+                and it reads and writes the same files a person sees — no
+                separate memory store, no sync step.
               </p>
               <p>
-                Authentication is OAuth 2.1. The machine-readable contract lives
-                at{" "}
-                <Link href="/openapi.json" className="text-white underline underline-offset-4 hover:text-[#de5a2b]">
-                  yarnnn.com/openapi.json
-                </Link>
-                .
+                Every write is signed by the client that made it and lands on a
+                revision chain you can walk. A connection is its own principal in
+                the ledger, not a key acting as the user — so{" "}
+                <span className="text-white/70">
+                  &ldquo;who changed this?&rdquo;
+                </span>{" "}
+                has a real answer even when the answer is another AI. That is the
+                thing a plain storage connector cannot do.
+              </p>
+              <p>
+                Authentication is OAuth 2.1 with dynamic client registration, and
+                access is scoped per verb. Everything below is at a predictable
+                URL.
               </p>
             </div>
           </section>
@@ -263,6 +290,39 @@ export default function DevelopersPage() {
                   </div>
                 ))}
               </div>
+            </ScrollReveal>
+          </section>
+
+          {/* Scopes */}
+          <section className="border-t border-white/10 px-6 py-24 md:py-32">
+            <ScrollReveal className="max-w-4xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-medium mb-6">
+                Ask for what you need
+              </h2>
+              <p className="text-white/50 mb-16 max-w-xl">
+                Access is scoped per verb and enforced on every call — a token
+                holding <code className="text-white/70 font-mono text-sm">files:read</code>{" "}
+                is refused when it tries to save. The tiers are additive, and a
+                registration that names none gets read-only.
+              </p>
+
+              <div className="space-y-8">
+                {SCOPES.map((sc) => (
+                  <div
+                    key={sc.name}
+                    className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6"
+                  >
+                    <code className="text-white font-mono text-sm">{sc.name}</code>
+                    <p className="text-white/50">{sc.what}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-white/40 text-sm mt-12 max-w-xl">
+                The person approving your connection sees these same sentences
+                before they authorise it, and can narrow or revoke the grant at
+                any time.
+              </p>
             </ScrollReveal>
           </section>
 
