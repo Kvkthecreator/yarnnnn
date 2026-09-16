@@ -25,8 +25,12 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Users } from "lucide-react";
 import { Working } from '@/components/shared/Working';
 import { api } from "@/lib/api/client";
-import { humanizeSlug } from "@/lib/schedule";
-import { deriveBalance, formatUsd } from "@/lib/subscription/usage";
+import {
+  deriveBalance,
+  formatUsd,
+  isScheduledWork,
+  workItemName,
+} from "@/lib/subscription/usage";
 import { useWorkspaceRoster, useWorkspaceMemberships } from "@/lib/workspace/viewer";
 
 /**
@@ -265,7 +269,7 @@ export function UsagePaneBody() {
             {usageDetail.by_work.map((item) => (
               <div key={item.slug} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="truncate pr-3">{humanizeSlug(item.slug)}</span>
+                  <span className="truncate pr-3">{workItemName(item.slug)}</span>
                   <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums">
                     {fmtUsd(item.cost_usd)} · {item.runs}{" "}
                     {item.runs === 1 ? "run" : "runs"}
@@ -285,6 +289,14 @@ export function UsagePaneBody() {
               Bars are share of spend. A row can be many runs and little money, or
               the reverse — the highest-spend row here is {usageDetail.by_work[0].pct}% of
               spend from {usageDetail.by_work[0].pct_runs}% of runs.
+              {/* The row names say what was done and to which folder ("Checked ·
+                  Fundraising") but not that it ran unattended — the name has
+                  ~244px at phone width and spelling it inline truncates the
+                  folder. So the panel says it ONCE, and only when such a row is
+                  actually present. */}
+              {usageDetail.by_work.some((w) => isScheduledWork(w.slug)) && (
+                <> Rows with a folder name ran on a schedule.</>
+              )}
             </p>
           )}
         </div>

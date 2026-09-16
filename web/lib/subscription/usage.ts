@@ -40,6 +40,7 @@
  */
 
 import type { SubscriptionTier } from "@/types";
+import { humanizeSlug } from "@/lib/schedule";
 
 /** The `/api/user/limits` fields this model consumes. */
 export interface UsageLimits {
@@ -238,4 +239,130 @@ export function tierDescriptor(tier: SubscriptionTier): string {
     default:
       return "Workspace + memory, free for two people · usage pay-as-you-go from your balance";
   }
+}
+
+/**
+ * A work item's member-facing name, for the Usage pane's "where it went" rows.
+ *
+ * The rows are RUNTIME DATA — `execution_events.slug`, a kernel identifier — so
+ * the copy guard (`test_voice_no_kernel_nouns_in_copy.py`) cannot see them: it
+ * scans string literals, and these arrive from the database. The pane therefore
+ * rendered kernel vocabulary straight to the member. Live examples, measured on
+ * the production ledger (2026-09-16): `lane` (1,294 events, $107 — the largest
+ * row in the system) read as "Lane"; `radar-brief:desk-e2e` read as "Radar
+ * Brief:desk E2e", because `humanizeSlug` splits on `-`/`_` but not `:`;
+ * `bare-steward-sweep-1782971404` showed a RETIRED seat's name (ADR-632) plus a
+ * raw epoch.
+ *
+ * Two parts, because a slug has two parts:
+ *   - the ACT (before `:`) → a spoken name from VOICE-AND-TONE.md §4's word map
+ *     ("lane" → "Chat", "capture" → "what it brought in" → "Brought in").
+ *   - the SCOPE (after `:`) → the topic or file path the act ran for, humanized
+ *     and kept, since that is the half a member recognizes.
+ *
+ * Unknown acts fall back to title-casing rather than a generic bucket: a new
+ * kernel slug should read awkwardly, not silently render as "Other work" and
+ * hide a real cost row. The fallback is the pressure to add it here.
+ */
+const WORK_ITEM_NAMES: Record<string, string> = {
+  // The attended execution path (CLAUDE.md): a member's message through
+  // `run_lane_turn`. `ledger_slug` defaults to "lane" and no caller overrides
+  // it, so this ONE key covers every attended turn — 1,294 events and $107 on
+  // the live ledger, the largest row in the system.
+  lane: "Chat",
+  "session-summary": "Chat — summary",
+
+  // The RETIRED seat's rows (ADR-632: the steward / Reviewer seat and its
+  // queue). Verified dead on the ledger, not merely absent from the register:
+  // `addressed` last ran 2026-08-27, `settle` 2026-07-24. They are real past
+  // spend, so they keep a row — but the seat may not be NAMED (it no longer
+  // exists for a member to act on), and they must not be dressed as a live
+  // feature. `bare-steward-sweep-*` joins them via the prefix rule below.
+  addressed: "Earlier background work",
+  settle: "Earlier background work",
+
+  // Standing work (the unattended path). "sweep" is the read half, "write" the
+  // authored half; a member cares that it CHECKED vs that it WROTE.
+  //
+  // `radar-*` and `string-*` are PRIOR NAMES for this same act, not different
+  // work — `routes/standing_work.py:_LEGACY_LEDGER_PREFIXES` reads the string-
+  // pair back for the roster's "last run" (ADR-639 renamed the lane). So they
+  // map to the same member-facing names rather than to a retired bucket: the
+  // act still exists and the member still recognises it. Ledger: radar-* ran
+  // through 2026-08-20, string-* through 2026-09-04, standing-* since.
+  //
+  // Kept SHORT on purpose. The row is `truncate` inside a flex line with the
+  // cost column, so at 390px the name has ~244px: "Scheduled work — checking ·
+  // Desk E2e" measured 266px and clipped the SCOPE, which is the half that
+  // tells two scheduled rows apart (driven in Chrome, 2026-09-16).
+  //
+  // The verb alone ("Checked · Fundraising") drops the fact that this ran on a
+  // schedule. That context is carried ONCE in the panel's caption rather than
+  // repeated in every row: spelling it inline ("Scheduled · checked · Deck New
+  // Test") measured 243px against a 244px slot — it fits today's longest folder
+  // name by one pixel and truncates on the next one.
+  "standing-sweep": "Checked",
+  "standing-write": "Wrote",
+  "radar-sweep": "Checked",
+  "radar-brief": "Briefed",
+  "string-sweep": "Checked",
+  "string-write": "Wrote",
+
+  // Intake. §4: capture/observation/yield → "reads" / "what it brought in".
+  "capture-slack": "Brought in from Slack",
+  "derive-capture-slack": "Read what Slack brought in",
+  "web-search": "Searching the web",
+  embed: "Indexing your files",
+
+  // Connections and approvals. §4: proposal/verdict → "decision"/"your approval".
+  "mcp-foreign-write-review": "Reviewed a connected app",
+
+  // Media.
+  "generate-image": "Making an image",
+  "images-generate": "Making an image",
+  "studio-arrangement-plan": "Laying out a deck",
+
+  // The tail bucket `get_usage_detail` synthesises past the top N.
+  other: "Everything else",
+
+  // A one-row developer probe that reached the production ledger
+  // (2026-07-06, $0.0015). It names a migration — the Phase 1 banned class in
+  // `test_voice_no_kernel_nouns_in_copy.py` — so it may not title-case through.
+  "migration-204-probe": "System check",
+};
+
+/**
+ * The acts that run UNATTENDED (standing work and its two prior names). Derived
+ * from the one table above rather than re-listed, so a slug can never be named
+ * as scheduled work in a row and left out of the caption that explains it.
+ */
+const SCHEDULED_ACTS = new Set(
+  Object.keys(WORK_ITEM_NAMES).filter((act) =>
+    /^(standing|radar|string)-/.test(act),
+  ),
+);
+
+/** Did this work item run on a schedule (rather than in a member's chat)? */
+export function isScheduledWork(slug: string): boolean {
+  return SCHEDULED_ACTS.has((slug || "").split(":")[0]);
+}
+
+export function workItemName(slug: string): string {
+  const raw = (slug || "").trim();
+  if (!raw) return "Unknown work";
+
+  // A retired seat's sweeps (ADR-632) carry a per-run epoch suffix, so they can
+  // never match a table. They are history — real spend on real rows — so they
+  // keep a row, under a name that says what it was rather than naming the seat.
+  if (/^bare-steward-sweep/.test(raw)) return "Earlier background work";
+
+  const [act, ...rest] = raw.split(":");
+  const scope = rest.join(":").trim();
+  const name = WORK_ITEM_NAMES[act] ?? humanizeSlug(act);
+
+  if (!scope) return name;
+  // The scope is a topic slug or a file path; the last segment is the part a
+  // member recognises ("operation/fundraising" → "fundraising").
+  const leaf = scope.split("/").filter(Boolean).pop() ?? scope;
+  return `${name} · ${humanizeSlug(leaf)}`;
 }
