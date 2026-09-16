@@ -28,9 +28,10 @@ Read-only probe of live prod, 2026-09-16:
 | `balance_transactions` rows | 24, spanning 2026-05-18 → 2026-09-07 |
 
 Meanwhile `balance_transactions` — created by ADR-172 in May, with `created_at`, `kind`,
-`amount_usd`, `lemon_order_id` and a `metadata` reason per row, and an RLS policy already scoping it
-to the owner — had accumulated every credit the platform ever granted and was read by **one** thing:
-the undelivered-top-up check (`_undelivered_topup`). Nothing surfaced it.
+`amount_usd`, `lemon_order_id` and a `metadata` reason per row — had accumulated every credit the
+platform ever granted and was read by **one** thing: the undelivered-top-up check
+(`_undelivered_topup`). Nothing surfaced it. (Migration 144 also declared an owner-scoped RLS policy.
+It was *not* on the live table — see §3a, which is the second defect this ADR fixes.)
 
 So the member could see what they hold (the balance figure, ADR-396 §10) and never where it came
 from. The data was already captured; only the door was missing.
@@ -109,8 +110,8 @@ RLS-on + no-policy is **deny-all** to any non-service role. The table had been w
 months and read by nothing, so nothing ever noticed.
 
 This is **fail-closed, not an exposure**: the missing policy denied reads rather than permitting
-them. Migration `255_adr652_restore_balance_transactions_rls.sql` restores exactly what 144
-specified and nothing wider — owner-only SELECT, no write policy (writes stay service-key-only).
+them. Migration `255_adr652_restore_balance_transactions_rls.sql` (**APPLIED 2026-09-16**) restores
+exactly what 144 specified and nothing wider — owner-only SELECT, no write policy (writes stay service-key-only).
 Scoped through `workspaces.owner_id` rather than `principal_grants` deliberately: the balance is the
 owner's fact (ADR-416 D1 — a member draws the pool but does not fund it, and `/status` 403s them), so
 widening to grant-holders would be a new authorization decision, not a repair.
@@ -120,6 +121,19 @@ database. A structural gate cannot see it; the service client bypasses it; only 
 against a real deploy exposes it. The gate now prints the live query that verifies the object
 (`SELECT count(*) FROM pg_policy WHERE polrelid='balance_transactions'::regclass` — it was 0) rather
 than pretending to assert it.
+
+**Receipts after applying 255** (all against live/prod, 2026-09-16):
+- `pg_policy` count on `balance_transactions`: **0 → 1**, `SELECT` only, `cmd <> 'SELECT'` count **0**
+  (writes stay service-key-only), shape identical to `subscription_events_select_own`.
+- Deployed `GET /api/subscription/transactions`, real authenticated owner session (`yarnnn-author`,
+  ws `e58ecdec`): **HTTP 200, 6 entries** — was HTTP 200 / 0 entries before.
+- All three authorization arms driven: the **owner reads 6**; a **different principal** aimed at that
+  workspace via `X-Workspace-Id` gets **403**; that principal still reads **its own** workspace (1 entry).
+  The policy restored one door and opened nothing else.
+- **Browser click-pass** (`/workspace-settings?workspace-settings.pane=billing`): the History section
+  renders 6 rows with member-facing labels and dates, and they reconcile with the figure above them —
+  $20 + $14 + $10 + $3 + $25 + $30 = **$102**, exactly the Balance readout. Dates render in the reader's
+  zone (a `23:54Z` row correctly reads Jun 25 in Asia/Seoul).
 
 ## 4. Implementation
 
