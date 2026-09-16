@@ -1,0 +1,16 @@
+# This directory IS the published docs site: https://yarnnn.gitbook.io/docs
+#
+# GitBook Git Sync maps this directory to the docs space and syncs BOTH ways.
+# A push to main publishes; an edit made in the GitBook editor is committed back
+# here (see 58cf2ea, "GITBOOK-11"). Treat every file under docs/gitbook/ as
+# public, member-facing prose — not internal canon. Internal canon lives in
+# docs/architecture/ and docs/adr/ and is never published.
+#
+# These values are the defaults the sync has always run on; they are written
+# down so the pipeline is legible from the repo, not only from the dashboard.
+# Paths are relative to `root`.
+root: ./
+
+structure:
+  readme: README.md
+  summary: SUMMARY.md

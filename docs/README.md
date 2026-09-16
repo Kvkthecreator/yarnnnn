@@ -76,11 +76,33 @@ docs/
 ├── design/              # Surface contracts and design specs
 ├── monetization/        # Pricing and packaging
 ├── integrations/        # Per-platform integration notes
-├── gitbook/             # Published external docs
+├── gitbook/             # PUBLISHED — auto-syncs to yarnnn.gitbook.io (see below)
 ├── infrastructure/      # Deploy and service topology
 ├── alpha/               # alpha-persona operating notes
 └── working_docs/        # Investor/GTM working material (binaries — not canon)
 ```
+
+## `docs/gitbook/` is public and publishes itself
+
+That directory **is** the live site at <https://yarnnn.gitbook.io/docs>. GitBook Git Sync maps it to
+the docs space and syncs **both ways**: a push to `main` publishes, and an edit made in the GitBook
+editor is committed back here (`58cf2ea`, "GITBOOK-11"). There is no build step and no review gate —
+editing a file there ships it to anyone who reads the docs.
+
+The mapping is declared in [gitbook/.gitbook.yaml](gitbook/.gitbook.yaml); the space binding itself
+lives in the GitBook dashboard, not the repo.
+
+Two consequences:
+
+- **Write it as member-facing prose**, never internal canon. System vocabulary that operators don't
+  say, unshipped ADR decisions, and Hat-B evaluation language do not belong there.
+- **Published URLs use GitBook's section names, not the repo's directory names** — `apps/reach.md`
+  is served at `/the-apps/reach.md`, `plans/plans.md` at `/plans-and-billing/plans.md`. Never
+  hand-write a public link from a repo path; copy it from
+  [llms.txt](https://yarnnn.gitbook.io/docs/llms.txt).
+
+The currency gate is `api/test_gitbook_docs_current.py` (script-shaped — read the count). It derives
+the required app pages from the frontend's own Dock, so the next app to ship is red until documented.
 
 ## Documentation Standards
 
