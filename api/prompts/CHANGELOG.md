@@ -15,6 +15,51 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.16.2] - A cut-off answer says so instead of showing an empty message
+### Changed
+- api/services/lane_runner.py: `_final_text_for()` — one helper, both turn loops. A round that
+  ends with no tool calls, no text, and `finish_reason='length'` now returns
+  `_TRUNCATED_ANSWER_NOTICE` instead of `""`. Every other finish is byte-identical, and a
+  truncated answer that HAS text is passed through untouched (the notice fills a void, never
+  overwrites work).
+- Expected behavior: a member whose turn runs out of output budget reads a sentence — that the
+  reply hit its length limit, that nothing came through, and that their workspace is unchanged —
+  where they previously saw a blank message after a wait and a real bill.
+### Why
+Measured, not theorised. A probe of a data-heavy ask (`api/scripts/operator/probe_data_heavy_lane.py`
+— a 5,000-row CSV, 287,762 chars, in the live workspace) reproduced it twice, identically:
+
+    1. ReadFile                 -> truncated, 100,000/287,762, next_offset=100000
+    2. ReadFile(offset=100000)  -> truncated, 100,000/287,762, next_offset=200000
+    3. ReadFile(offset=200000)  -> 87,762 chars, next_offset=None      (read to the END)
+    4. (no tool calls)   finish_reason='length'   text=''
+
+    success=True   rounds=4   tokens_out=4438   -> the member saw NOTHING.
+
+ADR-648's pagination worked perfectly; the lane read 100% of the file and then spent its whole
+4096-token budget computing. `RoutedCompletion.finish_reason` had been captured by the router
+since it was written and read by NOBODY (`grep -rn finish_reason lane_runner.py routes/lanes.py`
+returned no matches). The round-cap fallback beside it could not catch this: that branch fires
+when the `for` loop EXHAUSTS, and the turn broke out of round 4 of 8.
+
+Refusing to emit a truncated answer is correct. The silence is the defect — right mechanism,
+lying words, the same class as an infrastructure fault that spoke as an authorization denial.
+Note the shape: the failure gets WORSE the better the agent behaves. A lane that lazily reads one
+window has budget left to answer; the one that diligently reads everything dies silently.
+
+`_LANE_MAX_TOKENS` is deliberately NOT raised here. Its comment asks for felt truncation rather
+than speculation before a raise, and the fix for a turn that cannot fit its answer is to say so,
+not to buy one more doubling. The budget question is separable and belongs with the located
+kernel gap (a projection verb, so the arithmetic is not the model's job at all).
+### Gate
+`api/test_truncated_answer_speaks.py` 11/11 — proven RED in five arms, each biting its own
+assertion: revert the sync site only; revert the STREAM site only (the live path, the partial-fix
+trap); ignore `finish_reason`; widen to every empty answer (3 assertions catch it); overwrite a
+real partial answer. Re-driven on the real path after the fix — the member reads the sentence.
+Also green: `test_adr411_lanes` + 5 lane gates (242 passed), `test_adr648_bounded_context` 37/37.
+
+---
+
 ## [2026.09.16.1] - The ExtractTextFromBlob example shows the path uploads actually take
 ### Changed
 - api/services/primitives/extract_text_from_blob.py: the usage example's `raw_path`/`write_to`

@@ -160,6 +160,56 @@ _LANE_MAX_TOKENS = 4096
 _LANE_TIMEOUT_S = 420.0
 
 
+#: What the member reads when the answer hit the output budget and the model
+#: emitted nothing usable. `finish_reason='length'` with empty text is NOT a
+#: success, and it is not a hang — it is a turn that ran out of room to answer.
+#:
+#: ⭐ 2026-09-16 — the router has always CAPTURED `finish_reason`; nothing read
+#: it. A probe of a data-heavy ask (5,000-row CSV, 287,762 chars) measured the
+#: exact shape: the lane paginated correctly through THREE ReadFile windows to
+#: the end of the file, then spent its whole 4096-token budget computing and
+#: returned `finish_reason='length'` with `text=''`. The turn reported
+#: `success=True`, billed 4,438 output tokens, and showed the member an EMPTY
+#: MESSAGE — no error, no hedge, nothing to distinguish it from a hang. The
+#: round-cap fallback below could not catch it: that branch fires when the
+#: `for` loop EXHAUSTS, and this turn `break`s out of round 4 of 8.
+#:
+#: The refusal to emit a truncated answer is correct. The silence is the bug —
+#: the same class as an infrastructure fault that speaks as an authorization
+#: denial: right mechanism, lying words.
+_TRUNCATED_ANSWER_NOTICE = (
+    "I ran out of room to answer this one — I read everything I needed, but"
+    " the reply hit its length limit before I could finish it, so nothing"
+    " came through. Nothing in your workspace changed. Asking for one part"
+    " at a time usually gets there."
+)
+
+
+def _final_text_for(routed: Any, current: str) -> str:
+    """The member-visible text for a round that ended WITHOUT tool calls.
+
+    One helper, both loops (Singular Implementation): the sync turn and the
+    streamed turn share the identical `if not routed.tool_calls: break`, so a
+    fix applied to one and not the other would leave the path members actually
+    use still silent.
+
+    An empty answer is only a defect when the model was CUT OFF. A model that
+    legitimately finishes with nothing to say (`stop`) is left byte-identical
+    — this returns `routed.text` unchanged in every case except the measured
+    one, so no honest turn's wording moves.
+    """
+    text = getattr(routed, "text", None) or ""
+    if text.strip():
+        return text
+    if getattr(routed, "finish_reason", None) == "length":
+        logger.warning(
+            "[LANE] truncated-empty answer: finish_reason=length, no text — "
+            "surfacing the notice instead of an empty message"
+        )
+        return _TRUNCATED_ANSWER_NOTICE
+    return text or current
+
+
 def _studio_max_tokens() -> int:
     """ADR-440 D3 — the authoring token profile for BOUND (Studio) lanes."""
     from services.authoring import STUDIO_LANE_MAX_TOKENS
@@ -1730,7 +1780,9 @@ async def run_lane_turn(
             logger.warning("[LANE] cost ledger record failed: %s", exc)
 
         if not routed.tool_calls:
-            final_text = routed.text
+            # ADR-648 follow-on (2026-09-16): a `length` finish with no text is
+            # a CUT-OFF answer, not an empty one. See `_final_text_for`.
+            final_text = _final_text_for(routed, final_text)
             break
 
         # Continue the loop: provider-exact assistant message + tool results.
@@ -1995,7 +2047,9 @@ async def run_lane_turn_stream(
             logger.warning("[LANE stream] cost ledger record failed: %s", exc)
 
         if not routed.tool_calls:
-            final_text = routed.text
+            # ADR-648 follow-on (2026-09-16): a `length` finish with no text is
+            # a CUT-OFF answer, not an empty one. See `_final_text_for`.
+            final_text = _final_text_for(routed, final_text)
             break
 
         messages.append(
