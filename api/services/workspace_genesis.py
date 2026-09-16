@@ -142,6 +142,12 @@ def create_workspace(user_id: str, name: str) -> dict:
                 "owner_id": user_id,
                 "balance_usd": 0,
                 "free_balance_granted": True,
+                # Migration 256: which act minted this row. 'deliberate' is what
+                # exempts it from the one-per-owner unique index that caps the
+                # cold-user door — this path stays non-idempotent by design
+                # ("asking twice means wanting two"). Without this stamp the
+                # SECOND named workspace an owner creates would be refused.
+                "genesis_kind": "deliberate",
             }
         )
         .execute()

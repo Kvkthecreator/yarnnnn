@@ -66,6 +66,45 @@ def main():
         "2b idempotent-shaped (uncached re-check precedes the insert) + cache cleared on mint",
         src.find('.select("id").eq("owner_id"') < src.find(".insert(")
         and src.count("cache_clear()") >= 2))
+    # 2b-iv ⭐⭐⭐ "IDEMPOTENT-SHAPED" IS NOT IDEMPOTENT (2026-09-17).
+    #
+    # Check 2b above passed every day while the door was minting duplicates,
+    # because it reads the ORDER of two statements and a race is invisible in
+    # that order. Check-then-insert is only atomic if something serialises it,
+    # and until migration 256 nothing did: several concurrent first-load
+    # requests all read "no workspace", all inserted, and one account ended up
+    # with 9 workspaces in 148 ms.
+    #
+    # The enforcement is the partial unique index, so that is what is asserted
+    # — in the migration, where it cannot be satisfied by rearranging Python —
+    # together with the app's half of the contract: absorb the violation and
+    # return the winner's row, rather than 500 on the loser.
+    from services import workspace_genesis as wg
+    cw_src = inspect.getsource(wg.create_workspace)
+    with open("../supabase/migrations/256_adr465_one_auto_minted_workspace_per_owner.sql",
+              encoding="utf-8") as f:
+        mig256 = f.read()
+    idx = re.search(
+        r"CREATE UNIQUE INDEX[^;]*?ON\s+public\.workspaces\s*\(\s*owner_id\s*\)"
+        r"[^;]*?WHERE[^;]*?deleted_at IS NULL[^;]*?genesis_kind\s*=\s*'auto'",
+        mig256, re.S | re.I)
+    results.append(_check(
+        "2b-iv the one-auto-workspace-per-owner index exists and is scoped",
+        bool(idx)))
+    # Anchored to EXECUTABLE lines, not the function's prose: the comment above
+    # this code necessarily quotes "23505" and "duplicate key", so a substring
+    # search over the whole source passes even when the branch is deleted
+    # (proven by falsification, 2026-09-17).
+    src_code = "\n".join(
+        ln for ln in src.splitlines() if not ln.lstrip().startswith("#"))
+    results.append(_check(
+        "2b-iv the lazy mint ADOPTS the race winner instead of failing",
+        "23505" in src_code and "duplicate key" in src_code.lower()
+        and 'eq("genesis_kind", "auto")' in src_code))
+    results.append(_check(
+        "2b-iv deliberate genesis stamps its kind (exempt from the cap)",
+        '"genesis_kind": "deliberate"' in cw_src))
+
     # 2b-ii ⭐⭐⭐ A WORKSPACE IS NOT MINTED UNTIL ITS OWNER CAN REACH IT.
     #
     # `is_workspace_member()` (migration 221) tests `principal_grants` ONLY —
@@ -79,8 +118,6 @@ def main():
     # lacked it — 8 of 19 on production. BOTH mint sites are asserted here
     # because they drifted once already (workspace_genesis.py's own docstring
     # is about that drift).
-    from services import workspace_genesis as wg
-    cw_src = inspect.getsource(wg.create_workspace)
     results.append(_check(
         "2b-ii the LAZY mint writes the owner grant",
         "ensure_principal_grant(" in src and 'role="owner"' in src))

@@ -6,6 +6,21 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## Genesis / the shared service client
+- **`[Errno 11] Resource temporarily unavailable` on the shared HTTP/2 service client is UNFIXED** (first seen
+  2026-09-12; still firing 2026-09-16). It is a transient read failure on `get_service_client()` under concurrency,
+  and it lands wherever a sync auth dependency touches the client: `[MENTIONS] list failed`, `[ADR-373]
+  owned-workspace list failed`, `workspace reach check failed`, and — 2026-09-16 — the ADR-465 owner-grant write.
+  Every call site swallows it differently, so the SAME fault reports as a missing grant, an empty list, or a 403.
+  Migration 256 removed its worst consequence (a half-minted workspace can no longer be produced by the race it
+  raced with), but the transient itself remains. Owed: one decision about the shared client under concurrent
+  sync dependencies — not per-site `except` arms. See `project_lane_turn_that_left_no_trace` in memory.
+- **Sentry alerted on the SMALLER bug and stayed silent on the bigger one** (2026-09-16). The 2-workspace race
+  paged because an unrelated transient broke a grant; the 9-workspace race on the same day raised nothing because
+  every write succeeded. Genesis has no invariant probe — nothing asserts "one auto workspace per owner, and it is
+  reachable" against live data on a schedule. Migration 256 enforces the first half in the DB; the second half
+  (an owner-grant existence check across the fleet) is still only ever run by hand.
+
 ## Reach / outbound (ADR-642 · 645 · 628)
 - **§7 — workspace identity for unattended reach**: a standing declaration is correctly refused a member credential,
   so unattended work has no outbound reach. Successor: a workspace-owned bot token, additive, never adoption

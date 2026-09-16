@@ -220,11 +220,48 @@ def ensure_owner_workspace(user_id: str) -> str:
     if fresh.data:
         _resolve_owner_workspace_id_cached.cache_clear()
         return fresh.data[0]["id"]
-    inserted = (
-        client.table("workspaces")
-        .insert({"name": DEFAULT_WORKSPACE_NAME, "owner_id": user_id})
-        .execute()
-    )
+    # ⭐⭐⭐ THE RE-CHECK ABOVE IS NOT A GUARD — IT IS A RACE (2026-09-17).
+    #
+    # Check-then-insert is only atomic if something serialises it, and nothing
+    # here does. The frontend fires several concurrent authenticated requests on
+    # first load and EVERY one passes through this door (it lives in
+    # `get_user_client`), so on a cold sign-up they all read "no workspace"
+    # before any INSERT lands, and each one mints. Production, 2026-09-16:
+    # one account got 9 workspaces in 148 ms, another got 2 in 76 ms.
+    #
+    # It failed silently: the resolver is oldest-first, so the member browses
+    # the first row and never sees the strays. The only reason it EVER alerted
+    # was an unrelated transient breaking one duplicate's owner grant.
+    #
+    # Migration 256 adds the missing guard — unique on (owner_id) WHERE
+    # deleted_at IS NULL AND genesis_kind = 'auto'. The loser of the race now
+    # gets a unique violation here, and the correct response is not to fail but
+    # to read the winner's row: "at most one auto-minted workspace per owner" is
+    # this function's contract, and returning the row that won IS honouring it.
+    try:
+        inserted = (
+            client.table("workspaces")
+            .insert({"name": DEFAULT_WORKSPACE_NAME, "owner_id": user_id})
+            .execute()
+        )
+    except Exception as exc:
+        # postgrest surfaces a unique violation as 23505 / "duplicate key".
+        # Anything else is a real failure and must keep propagating.
+        if "23505" not in str(exc) and "duplicate key" not in str(exc).lower():
+            raise
+        _resolve_owner_workspace_id_cached.cache_clear()
+        won = (
+            client.table("workspaces").select("id")
+            .eq("owner_id", user_id).is_("deleted_at", "null")
+            .eq("genesis_kind", "auto").limit(1).execute()
+        )
+        if not won.data:
+            raise
+        logger.info(
+            "[ADR-465 D2] lost the mint race for %s — adopting %s",
+            user_id[:8], won.data[0]["id"],
+        )
+        return won.data[0]["id"]
     if not inserted.data:
         raise RuntimeError(f"owner-workspace mint failed for {user_id}")
     workspace_id = inserted.data[0]["id"]
