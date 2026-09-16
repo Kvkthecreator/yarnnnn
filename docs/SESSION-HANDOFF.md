@@ -6,6 +6,18 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## Billing history (ADR-652)
+- **Migration 255 is NOT APPLIED** — `supabase/migrations/255_adr652_restore_balance_transactions_rls.sql`,
+  written and dry-run verified, blocked in-session as a production deploy. `balance_transactions` has RLS
+  enabled with ZERO policies, so the shipped History section renders EMPTY for every member (deployed
+  endpoint returns HTTP 200 / `entries: 0` to the workspace's own owner against 6 real rows). Apply it,
+  then verify the LIVE object — `SELECT count(*) FROM pg_policy WHERE
+  polrelid='balance_transactions'::regclass` must be ≥ 1 (it was 0) — and re-drive an authenticated
+  `GET /api/subscription/transactions`, which should return 6 entries for ws `e58ecdec`.
+- **Browser click-pass still owed** once 255 lands: the pane's History section has never been seen rendering
+  rows. The API path is proven both sides (service client returns 6 labelled credits; the deployed route is
+  403-gated and shape-correct).
+
 ## Reach / outbound (ADR-642 · 645 · 628)
 - **§7 — workspace identity for unattended reach**: a standing declaration is correctly refused a member credential,
   so unattended work has no outbound reach. Successor: a workspace-owned bot token, additive, never adoption
