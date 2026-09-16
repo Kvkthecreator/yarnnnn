@@ -23,10 +23,13 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 - **Data-heavy work has a located kernel gap (2026-09-16, `b937e2e` §11).** A 5,000-row CSV probe measured it: ADR-648's
   pagination is FINE (the lane read 100% of 287,762 chars across 3 windows); the wall is `_LANE_MAX_TOKENS = 4096` — the
   turn cannot carry the answer it read. The gap is that the agent is doing the ARITHMETIC. Owed: a decision on a
-  projection verb (`QueryFile` over a shaped csv/json — filter/project/sort/limit, returning rows + matched-vs-returned).
-  Row-grain append is the deferred sibling (the only piece touching `write_revision`). Deliberately NOT fixed by raising
-  the token budget. `api/scripts/operator/probe_data_heavy_lane.py` scores 0/3 by design until the verb exists — that is
-  an honest failure now, not a silent one.
+  projection verb — **but NOT owed as work**: demand-pull (ADR-337 D6) refuses it on one synthetic probe against 5 CSVs
+  totalling <2KB, and 8 primitives are already dead-on-arrival in the matrix. The PROBE is the artifact to keep; build
+  the verb when a real member or app is blocked. Deliberately NOT fixed by raising the token budget.
+  `api/scripts/operator/probe_data_heavy_lane.py` scores 0/3 by design — an honest failure now, not a silent one.
+- **The sharper open question is edge types** (ADR-653 §10 item 12): `derived_from` already makes the substrate a graph
+  over files, with one WITNESSED edge kind. Whether asserted edges join it is unsettled. ⚠️Watch for MANY-TO-MANY —
+  one-to-many is a folder; many-to-many is where paths stop being enough, and that is the signal, not file size.
 - ⚠️A data-heavy app cannot be the FIRST app shipped — a CRM is what a non-technical member expects an app to be, and
   it is the one shape that fails until the above lands (§11.6).
 

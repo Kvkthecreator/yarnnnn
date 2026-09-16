@@ -399,3 +399,57 @@ is the one symptom that comment could never have been acted on from.
 
 > **Driving the path found what reading it could not — including a defect that had nothing to do
 > with the question being asked.**
+
+### 11.8 The verdict on a verb — and the question §11 did not ask
+
+> **Added at the end of the same session, after the operator asked two questions the sections
+> above had dodged.** §11.5 located a projection verb as the answer and stopped there. Both
+> corrections below go the other way from the enthusiasm that produced it.
+
+**A verb is not proposed.** `primitives-matrix.md` marks **eight** registered primitives *"none —
+registered, no live surface"* — `DiffRevisions`, `ListRevisions`, `ReadRevision`, `Embed`,
+`SyncPlatformState`, `TrackRegime`, `TrackUniverse`, `TrackWebSources`: about **28% of the
+primitive surface is dead weight**, each still carrying a handler and a line in every tool
+payload. The matrix also records the discipline that would have prevented it, on `cp`:
+*"excluded (demand-pull; no demonstrated need — ADR-337 D6)"*, citing the ADR-225 lesson.
+
+Measured against that bar, the demand behind a projection verb is **one synthetic probe, written
+in this session, in a workspace holding five CSVs totalling under 2KB, prompted by a
+hypothetical.** That is a located gap, not demand. There is also a specific reason to expect
+disuse: an agent that knows `ReadFile` works will reach for it, and a projection verb is only
+selected when the agent *anticipates* the file is too big — which is exactly the judgment the
+read cap's notice supplies only **after** the fact. A verb needing foresight the model does not
+have is how a ninth dead primitive is made.
+
+**The probe is the artifact worth keeping.** It costs nothing idle and proves the gap on demand,
+where a verb costs a payload line forever. Build it when a real member or a real app is blocked —
+not before.
+
+**And the question §11 never asked: what about *relationships*?** The sections above argued
+against a database three times, each time from *storage* (portability, attribution, export). All
+of that holds and none of it addresses the actual structure of data-heavy work, which is not rows
+but **edges** — *this deal belongs to this client; these notes are about that deal.*
+
+The under-weighted fact: **YARNNN already has a relationship primitive, and it is load-bearing.**
+`derived_from` (ADR-448) is a JSONB path list on every revision, read by `trace`,
+`list_revisions`, and `list_dependents` — which has two live callers in the delete path and
+powers the Files *"N files were made from this"* warning. SCHEMA-NOTES states the position
+outright: *"importance is a **GRAPH position** … never a folder class."* **The substrate is
+already a graph over files.** What it lacks is *arbitrary* edges: `derived_from` means one thing
+and cannot express "X is the client of Y."
+
+So the real fork — recorded as **ADR-653 §10 item 12**, and more load-bearing than the verb —
+is: **is provenance the only edge type, or the first of several?** Provenance is **witnessed**
+(automatic, unfalsifiable); any other relation is **asserted** (a claim that can be wrong and go
+stale). Merging them would break, at the one place it is currently clean, the separation the
+canon draws everywhere else — Axiom 1's ninth sub-clause, `revision_kind`'s
+`authored | observation | derivation`, ADR-335's *"reality enters only as attributed
+observation."*
+
+Working position, not a ruling: **one edge type stays.** Most relationships an app needs are
+already **path + content** — `clients/acme/deals/q3.md` encodes its parent in its path (ADR-384,
+*directory is meaning*) and the join is a `ListFiles` prefix, not a foreign key.
+
+⚠️ **The signal to watch for is MANY-TO-MANY**, not file size. One-to-many is a folder;
+many-to-many (one deal involving three people, each on other deals) is where a filesystem
+genuinely stops being enough, and no amount of path structure fixes it.
