@@ -18,8 +18,17 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 
 ## Context budget / engines (ADR-647 · 648)
 - Re-measure lane spend a week after 2026-09-08 (every number in 647/648 is pre-change) · no door to SET the engine
-  preference; DeepSeek funding; GLM via `openrouter/z-ai/glm-4.6` · browser click-pass of a truncated read (an agent
-  hitting the bound and continuing with `offset`) · Gemini's automatic cache is not explicit caching (named, unclosed).
+  preference; DeepSeek funding; GLM via `openrouter/z-ai/glm-4.6` · Gemini's automatic cache is not explicit caching
+  (named, unclosed).
+- **Data-heavy work has a located kernel gap (2026-09-16, `b937e2e` §11).** A 5,000-row CSV probe measured it: ADR-648's
+  pagination is FINE (the lane read 100% of 287,762 chars across 3 windows); the wall is `_LANE_MAX_TOKENS = 4096` — the
+  turn cannot carry the answer it read. The gap is that the agent is doing the ARITHMETIC. Owed: a decision on a
+  projection verb (`QueryFile` over a shaped csv/json — filter/project/sort/limit, returning rows + matched-vs-returned).
+  Row-grain append is the deferred sibling (the only piece touching `write_revision`). Deliberately NOT fixed by raising
+  the token budget. `api/scripts/operator/probe_data_heavy_lane.py` scores 0/3 by design until the verb exists — that is
+  an honest failure now, not a silent one.
+- ⚠️A data-heavy app cannot be the FIRST app shipped — a CRM is what a non-technical member expects an app to be, and
+  it is the one shape that fails until the above lands (§11.6).
 
 ## Standing work / apps
 - Carried since 2026-09-04: `projection.ts`'s second CSV parser · a Files door for declaring
