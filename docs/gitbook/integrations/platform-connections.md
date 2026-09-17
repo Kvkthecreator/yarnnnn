@@ -2,9 +2,11 @@
 
 You can authorise YARNNN to read from the platforms where your work already happens.
 
-> **Current status.** Connecting a platform and choosing what's in scope works today. **Scheduled background pulling is not running yet** — the capture lane is turned off. So connecting a platform does not currently populate your workspace on its own.
->
-> Until it's on, the reliable ways to get material in are [uploads](../apps/files.md) and the [MCP connector](mcp-connector.md). We'd rather say this plainly than have you wonder why nothing arrived.
+{% hint style="warning" %}
+**Current status.** Connecting a platform and choosing what's in scope works today. **Scheduled background pulling is not running yet** — the capture lane is turned off. So connecting a platform does not currently populate your workspace on its own.
+
+Until it's on, the reliable ways to get material in are [uploads](../apps/files.md) and the [MCP connector](mcp-connector.md). We'd rather say this plainly than have you wonder why nothing arrived.
+{% endhint %}
 
 ## Where
 
