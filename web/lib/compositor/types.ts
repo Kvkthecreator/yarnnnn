@@ -231,7 +231,7 @@ export type SurfaceTier =
  * Absent on chrome surfaces (the window manager's own framing — neither
  * register). FE↔BE coherence is guarded in test_adr297_phase1.py.
  */
-export type SurfaceRegister = 'intent' | 'os-config' | 'application';
+export type SurfaceRegister = 'intent' | 'os-config' | 'application' | 'composition';
 
 export interface Surface {
   slug: string;

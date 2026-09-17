@@ -51,16 +51,26 @@ def test_fe_surface_register_field() -> None:
     print("\n[1] FE Surface type mirrors the two-register model")
 
     types_ts = (WEB / "lib" / "compositor" / "types.ts").read_text()
-    # ADR-312 D5 cleaved `settings` → `intent` + `os-config`. The
-    # two-register insight holds; the union now has three members.
+    # ADR-312 D5 cleaved `settings` → `intent` + `os-config`; ADR-653 D3.a
+    # added `composition`.
+    #
+    # ⚠️ DERIVED, not restated. This was a hand-spelled regex over the exact
+    # three-member sequence until 2026-09-17, so adding a register to the
+    # backend reddened a check that named no new member and the fix looked
+    # like "update the regex" rather than "mirror the class". Both directions
+    # are asserted against the shipped `REGISTERS`, so a member added on
+    # either side without the other is RED.
+    from services.kernel_surfaces import REGISTERS
+
+    _assert("SurfaceRegister" in types_ts, "compositor/types.ts declares SurfaceRegister")
+    _union = re.search(r"export type SurfaceRegister\s*=\s*([^;]+);", types_ts)
+    _assert(_union is not None, "SurfaceRegister is a declared union")
+    _fe_members = set(re.findall(r"['\"]([a-z-]+)['\"]", _union.group(1)))
     _assert(
-        "SurfaceRegister" in types_ts
-        and re.search(
-            r"['\"]intent['\"]\s*\|\s*['\"]os-config['\"]\s*\|\s*['\"]application['\"]",
-            types_ts,
-        )
-        is not None,
-        "compositor/types.ts declares SurfaceRegister = 'intent' | 'os-config' | 'application' (ADR-312 D5)",
+        _fe_members == set(REGISTERS),
+        f"SurfaceRegister mirrors the shipped REGISTERS "
+        f"(backend-only: {sorted(set(REGISTERS) - _fe_members)}; "
+        f"FE-only: {sorted(_fe_members - set(REGISTERS))})",
     )
     _assert(
         re.search(r"register\?\s*:\s*SurfaceRegister", types_ts) is not None,
@@ -100,11 +110,28 @@ def test_association_layer_singular() -> None:
         f"Found: {hits or 'none'}",
     )
 
-    # ContentViewer dispatches through the shared layer.
+    # The mount dispatches through the shared layer.
+    #
+    # ⚠️ RE-ANCHORED 2026-09-17. This asserted `resolveViewerApplication` in
+    # ContentViewer.tsx and had been RED since ADR-436 split the monolithic
+    # viewer into renderer apps: the resolution moved INTO `FileBody`, which
+    # is that ADR's ruling ("one renderer, N frames — the mount owns the
+    # frame, never a branch in a mount"), so the mount stopped resolving and
+    # started mounting. The check was pinning a CALL SITE the architecture
+    # deliberately relocated.
+    #
+    # What ADR-309 actually protects is that there is ONE type→app layer and
+    # mounts reach it rather than re-deriving a kind. So: the mount reaches
+    # the shared layer, and the resolution lives in the one renderer.
     cv = (WEB / "components" / "workspace" / "ContentViewer.tsx").read_text()
+    fb = (WEB / "components" / "workspace" / "FileBody.tsx").read_text()
     _assert(
-        "resolveViewerApplication" in cv and "@/lib/file-types" in cv,
-        "ContentViewer dispatches through @/lib/file-types",
+        "@/lib/file-types" in cv and "FileBody" in cv,
+        "ContentViewer reaches the shared type layer and mounts the one renderer",
+    )
+    _assert(
+        "@/lib/file-types" in fb,
+        "FileBody — the one renderer — resolves through @/lib/file-types (ADR-436)",
     )
 
 

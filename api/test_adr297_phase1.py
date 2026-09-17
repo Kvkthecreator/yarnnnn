@@ -281,7 +281,12 @@ def test_kernel_surfaces_module() -> None:
     # CONTENT surface declares a valid `register` (intent | os-config |
     # application); every CHROME surface (default_region set, route empty)
     # declares NONE.
-    VALID_REGISTERS = {"intent", "os-config", "application"}
+    # ADR-653 D3.a — READ the shipped set, never restate it. This line was a
+    # hand-spelled {"intent", "os-config", "application"} until 2026-09-17,
+    # which meant the gate and the code could disagree silently and the field
+    # had no runtime reader at all. The set now lives beside the rows.
+    from services.kernel_surfaces import REGISTERS
+    VALID_REGISTERS = set(REGISTERS)
     for entry in KERNEL_SURFACES:
         is_chrome = entry.get("archetype") in {"input", "navigator", "chrome"}
         if is_chrome:

@@ -84,6 +84,63 @@ ARCHETYPES = (
 
 
 # =============================================================================
+# Registers — ADR-309 / ADR-312 D5, re-cut by ADR-653 D3.a
+# =============================================================================
+#
+# Which windowed register a content surface belongs to. Required on every
+# content surface, absent on chrome (chrome is the window manager's own
+# framing, neither register).
+#
+# ⚠️ THIS SET LIVED IN A TEST UNTIL 2026-09-17. `VALID_REGISTERS` was spelled
+# by hand inside `test_adr297_phase1.py` and the field had ZERO runtime
+# readers anywhere in `api/` or `web/` — no branch, no grouping, no filter. A
+# taxonomy nothing reads is prose with a colon in it, and ADR-435 §1 named
+# exactly what that cost: Home and Files both wore `application`, so *"the
+# taxonomy could not express its distinctness"*, and the resolution was to
+# delete the surface rather than name the class.
+#
+# ADR-653 D3.a takes the option ADR-435 declined. `composition` becomes a real
+# register, the set moves here where the rows are, and `is_composition()` is
+# the runtime reader that makes it load-bearing rather than decorative. The
+# gate now reads THIS constant instead of restating it (a hand-spelled
+# expectation set inside a parity gate is the defect the gate exists to catch,
+# one level up — ADR-636 D3).
+REGISTERS = (
+    # The member's own intent — a mandate, a principle. No row carries it
+    # today (ADR-421 moved those to the agent); kept because the class is real
+    # and its absence is a ruling, not an oversight.
+    "intent",
+    # The OS's own dials — settings, billing, usage.
+    "os-config",
+    # An app's pane. Every kernel app is one.
+    "application",
+    # ADR-653 D3.a — a surface COMPOSED from a declaration rather than
+    # mirroring one substrate concern. A member app's surface is the first,
+    # and the distinction is load-bearing: a mirror's shape is the kernel's,
+    # a composition's shape is declared, so only the second needs a component
+    # vocabulary and a dispatch. Home was the last one of these and it was
+    # deleted for being *"a glorified redirect"* — true of a composition that
+    # echoed existing mirrors, false of one showing a region and a rhythm
+    # nothing else displays.
+    "composition",
+)
+
+
+def is_composition(entry: dict) -> bool:
+    """Is this surface COMPOSED from a declaration rather than a mirror?
+
+    The runtime reader ADR-653 D3.a adds, and the reason the register stops
+    being decorative. A composed surface renders its declared sections through
+    the component vocabulary; a mirror renders the kernel's own shape.
+
+    Pure. Fail-closed on a missing or unknown register: an unrecognised value
+    is NOT a composition, so a typo degrades to the mirror path rather than
+    into a dispatch that has nothing to dispatch.
+    """
+    return entry.get("register") == "composition"
+
+
+# =============================================================================
 # Kernel surfaces declaration
 # =============================================================================
 #
@@ -1040,6 +1097,8 @@ def kernel_pane_slugs() -> set[str]:
 __all__ = [
     "ARCHETYPES",
     "KERNEL_SURFACES",
+    "REGISTERS",
+    "is_composition",
     "kernel_surface_entries",
     "kernel_surface_slugs",
     "kernel_pane_slugs",
