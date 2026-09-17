@@ -108,6 +108,18 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 - `web/scripts/gates/adr519_container_reorder.mjs` crashes (`SyntaxError: Unexpected identifier 'from'`) and reports
   nothing — pre-existing (worktree at 80b9874~1), the silent-crash class of 43babc0, not in the census.
 
+## GitBook (2026-09-17)
+
+- **The OpenAPI block needs a dashboard data source.** `{% openapi %}` parses and renders
+  NOTHING on the docs space — driven live at `51154b4`: 0 raw syntax leaked, 0 spec-only
+  strings, and the stub link inside the block swallowed too. Registering the spec with
+  `openapi:` in `docs/gitbook/.gitbook.yaml` is not sufficient; add
+  `https://yarnnn.com/openapi.json` as an OpenAPI data source in the GitBook dashboard,
+  then re-apply the spike (reverted in `51154b4`, restore with `git show 92accbc`). Until
+  then the hand-written parameter tables in `api-reference/mcp-tools.md` stand — gated
+  against the enforced scope table, so they cannot drift silently.
+  A dashboard fact, same class as the Git Sync mapping before `5c790be`.
+
 ## Gates red at baseline — each needs its own ruling
 The authoritative list is `docs/evaluations/2026-09-13-gate-census.md` — 42 pytest + 28 script rows remain after the
 Studio-era cluster (26 gates) was ruled 2026-09-13/14; the still-open shapes (ADR-209 live phases, retired-model subjects, the settings pane move) are named there. A ruling lowers the list in the same commit.
