@@ -165,6 +165,23 @@ envelope already carries (`lanes.list().models` — no new endpoint, no second
 roster to drift). An engine that cannot run is served greyed WITH its reason
 (ADR-559 D3 / ADR-647 D8), never filtered.
 
+**The choice is DELIBERATE, not a dropdown** (operator, 2026-09-17: *"dropdown
+makes switching almost too easy"*). The first cut shipped a native `<select>`,
+which **commits on `change`** — and `change` fires from a stray scroll, an arrow
+key, or a mistaken click. Re-pointing an agent changes how it works for every
+new conversation, and it had no confirm step and no undo. The chooser is now a
+modal holding a PENDING selection: pick, then confirm, and Cancel leaves
+everything as it was. The mechanics are untouched (same key, same narrowing,
+same new-conversations-only rule); only the ceremony changed. This is ADR-651's
+posture applied to a write rather than a wait — an act that is hard to reverse
+says so before it happens, not after.
+
+Engines are **grouped by provider**, derived from the routing id's own prefix
+rather than a hand-kept table (a new provider groups itself; a second home for
+"which provider is this" is the ADR-562 drift). A flat list of nine labels read
+as nine interchangeable things; grouped, a member sees they are choosing a
+vendor as much as a model — which is what provider-neutrality is FOR.
+
 **The label, not the routing key.** The pane rendered `agent.model` verbatim —
 `anthropic/claude-sonnet-5`. `LANE_MODELS` carries `label` for exactly this, and
 the registry is emphatic that the label is not chrome: it is written into every
