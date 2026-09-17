@@ -1437,7 +1437,16 @@ def build_lane_conventions(
             _app = app_for_layout(extract_template(artifact))
             _as_name = (resolve_app(_app) or {}).get("name") or ""
         posture_section += build_agent_posture(agent, as_name=_as_name)
-    if artifact_path:
+    if artifact_path or app:
+        # ADR-653 R3 — `or app`: an APP-BOUND lane (no artifact) gets its job
+        # overlay too. Before this the overlay hung off the artifact, because
+        # every app was a document surface and a bound lane always had one
+        # open. An app's own conversation has no artifact — it is about the
+        # WORK, not one file in it — so gating the overlay on `artifact_path`
+        # would have handed that lane a character and no job. The builder
+        # (ADR-653 R2), which has no document at all, is the case that makes
+        # this unavoidable rather than tidy.
+        #
         # ADR-606 D3 — the JOB overlay is the APP's declaration, resolved
         # through the same registry door as its resident (ADR-562). The old
         # per-app `if/elif` chain here (ADR-567 D4 → 569 D6 → 571 D4, one
@@ -1452,10 +1461,17 @@ def build_lane_conventions(
         import services.apps  # noqa: F401  (registration side-effect)
         from services.authoring import posture_for_app, studio_pane_posture
 
-        _builder = posture_for_app(app) or studio_pane_posture
-        posture_section += (
-            "\n" + _builder(client, user_id, artifact_path, artifact) + "\n"
-        )
+        # ⚠️ The studio fallback is for an ARTIFACT-bound lane only. It builds
+        # its posture FROM the artifact head (`build_studio_posture`), so an
+        # app-only lane reaching it would be handed a document grammar for a
+        # document that does not exist. An app with no declared posture and no
+        # artifact gets its character and nothing more — honestly thin, rather
+        # than plausibly wrong (ADR-548).
+        _builder = posture_for_app(app) or (studio_pane_posture if artifact_path else None)
+        if _builder is not None:
+            posture_section += (
+                "\n" + _builder(client, user_id, artifact_path or "", artifact) + "\n"
+            )
 
     # ADR-606 D1 — the member's PLACE renders at this ONE kernel site, for
     # every lane. It is a fact about the MEMBER, not about the character or

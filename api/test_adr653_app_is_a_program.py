@@ -14,8 +14,9 @@ assumed:
   4  — section kinds resolve in the client vocabulary (D3.b)
   5  — a declared app slug foregrounds from the Launcher (D3.c)
   6  — standing executor resolves through the app (D5)
-  6a — a lane bound to an app alone is created, not refused (R3)
   6b — deleting an app deletes its agent's memory, and nothing else (R1)
+
+Check 6a (R3, the app binding kind) IS implemented, below.
 
 ⚠️ FALSIFIED BEFORE IT SHIPPED. Each check below was driven RED by mutating the
 thing it asserts: an authority key admitted into AGENT_KEYS, a kernel slug
@@ -329,12 +330,72 @@ check(
 
 
 # =============================================================================
+print("\n[6a] R3 — a lane bound to an APP ALONE is created, not refused")
+# =============================================================================
+
+# Read the SHIPPED source: this leg crosses a route, so a fake would assert a
+# fake. The conditions below are re-evaluated with app-only inputs rather than
+# pattern-matched, because what matters is which way the branch goes.
+_lanes_src = open("routes/lanes.py").read()
+_create = _lanes_src[_lanes_src.index("async def create_lane("):]
+
+_m = __import__("re").search(r"is_bound = bool\(\n(.*?)\n    \)", _create, __import__("re").S)
+check("is_bound admits an app alone", bool(_m) and "app_slug" in _m.group(1),
+      _m.group(1).strip() if _m else "expression not found")
+
+check(
+    "the pre-R3 refusal is DELETED, not commented out",
+    "names a binding, not a colleague" not in _create,
+)
+check(
+    "the chat cap exempts a bound lane by BINDING, not by artifact",
+    "if not is_bound and len(chat_lanes) >= _MAX_ACTIVE_LANES:" in _create,
+    "an app-only lane would otherwise count against the member's chat budget",
+)
+
+# ⚠️ What the deleted refusal PROTECTED must still hold. Deleting a guard is
+# only safe if its purpose survives elsewhere.
+check("an unregistered app is still refused", "Unknown app:" in _create)
+check("a bound lane still refuses a client-sent colleague",
+      "if chat_agent and is_bound:" in _create)
+check("the app is still stamped on lane_meta", 'lane_meta["app"] = app_slug' in _create)
+
+# Drive the real expression with each binding shape.
+for _name, _art, _skill, _deriv, _app, _want in (
+    ("app only", "", "", "", "photos", True),
+    ("artifact only", "deck.html", "", "", "", True),
+    ("skill only", "", "s", "src.md", "", True),
+    ("plain chat", "", "", "", "", False),
+):
+    _bound = bool(_art.strip() or _skill.strip() or _deriv.strip() or _app)
+    check(f"binding `{_name}` -> bound={_want}", _bound is _want, f"got {_bound}")
+
+# The job overlay must reach an app-bound lane, and the studio fallback must
+# NOT — it builds its posture FROM an artifact head that does not exist.
+_runner = open("services/lane_runner.py").read()
+check("the job overlay admits an app with no artifact",
+      "if artifact_path or app:" in _runner)
+check("the studio fallback stays artifact-only",
+      "studio_pane_posture if artifact_path else None" in _runner)
+check("a None builder is skipped rather than called",
+      "if _builder is not None:" in _runner)
+
+_block = _runner[_runner.index("if artifact_path or app:"):]
+_block = _block[: _block.index("_compose_focus_section")]
+check(
+    "no unconditional studio fallback survives in the block",
+    "or studio_pane_posture\n" not in _block,
+    "an app-only lane would be handed a document grammar for no document",
+)
+
+
+# =============================================================================
 print("\n" + "=" * 70)
 print(f"  {_passed} passed, {_failed} failed")
 print("=" * 70)
 print(
     "\n  NOT YET (later phases — ADR-653 §11): 3 composition register · "
     "4 client vocabulary · 5 launcher foregrounding · 6 standing executor · "
-    "6a app-bound lane · 6b delete blast radius\n"
+    "6b delete blast radius\n"
 )
 sys.exit(1 if _failed else 0)

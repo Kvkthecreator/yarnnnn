@@ -968,26 +968,29 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     model = (req.model or "").strip()
     app_slug = (req.app or "").strip()
     # A BINDING is what makes a lane an app's, and only an app pins a colleague.
+    #
+    # ADR-653 R3 — THE APP IS ITSELF A BINDING. Before this, boundness required
+    # an ARTIFACT: a lane could be bound to a deck, a document or a skill, but
+    # not to an app as such, so `app` alone was refused below. That was right
+    # while every app was a document surface; it stopped being right when an
+    # app became a standing piece of work with a surface of its own, whose
+    # conversation is about the WORK rather than about one file in it.
+    #
+    # So there are now three binding kinds, and `app` is the third. It is the
+    # weakest: an artifact- or skill-bound lane also carries an app, and the
+    # app-only case is what an app's own pane opens.
     is_bound = bool(
         (req.artifact_path or "").strip()
         or (req.skill or "").strip()
         or (req.derive_source or "").strip()
+        or app_slug
     )
-    if app_slug and not is_bound:
-        # An APP is a BINDING, not a colleague. `app` still requires one:
-        # `register_app` answers "who works this app", which is meaningless
-        # without an app. A member naming a colleague sends `agent` (below).
-        # Refused loudly rather than ignored — a silently-dropped field reads
-        # as supported and becomes a bug report (the ADR-460 strict-key
-        # precedent).
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "`app` names a binding, not a colleague. Send `artifact_path` "
-                "(or a derive binding) with it, or send `agent` to start a "
-                "chat with a colleague."
-            ),
-        )
+    # The ADR-562 D3 refusal that stood here — "`app` names a binding, not a
+    # colleague" — is DELETED with the condition it enforced. It required an
+    # artifact beside the app; R3 makes the app sufficient. What it protected
+    # is unchanged and enforced below: an UNREGISTERED app is still refused
+    # (`Unknown app`), and a bound lane still may not take a client-sent
+    # colleague.
     # ADR-614 D1 — the member named a colleague at the door. Resolve it here,
     # server-side, for the same reason the app path does: the client names WHO,
     # never the engine behind them. An agent that does not resolve is a caller
@@ -1130,7 +1133,19 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     ]
     # A bound lane is exempt from the cap in BOTH directions: it does not count
     # against it, and creating one is never refused by it.
-    if not artifact_path_req and len(chat_lanes) >= _MAX_ACTIVE_LANES:
+    #
+    # ADR-653 R3 — `is_bound`, not `artifact_path_req`. An APP-bound lane has
+    # no artifact, so reading the artifact here would have counted an app's own
+    # conversation against the member's chat budget and refused the ninth app
+    # with "archive one first" — pointing at conversations they cannot see,
+    # which is the exact 2026-07-16 bug this exemption was written to fix,
+    # returning through the other door.
+    #
+    # ⚠️ The membership scan above still keys on `artifact_path`, and that is
+    # correct for a DIFFERENT reason: it partitions EXISTING rows, and no live
+    # row carries an app-only binding yet. It is left keyed on the artifact so
+    # this change cannot retroactively re-classify a historical lane.
+    if not is_bound and len(chat_lanes) >= _MAX_ACTIVE_LANES:
         raise HTTPException(
             status_code=409,
             detail=f"Lane limit reached ({_MAX_ACTIVE_LANES}) — archive one first",
