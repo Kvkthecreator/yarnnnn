@@ -91,6 +91,11 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
                 </Link>
               </li>
               <li>
+                <Link href="/support" className={`${hoverClass} transition-colors`}>
+                  Support
+                </Link>
+              </li>
+              <li>
                 <button
                   data-tally-open={FEEDBACK_FORM.id}
                   data-tally-width="400"
@@ -121,12 +126,9 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
                 </Link>
               </li>
               <li>
-                <a
-                  href="mailto:admin@yarnnn.com"
-                  className={`${hoverClass} transition-colors`}
-                >
+                <Link href="/support" className={`${hoverClass} transition-colors`}>
                   Contact
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
