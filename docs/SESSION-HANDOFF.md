@@ -34,9 +34,11 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 ## Context budget / engines (ADR-647 · 648)
 - Re-measure lane spend a week after 2026-09-08 (every number in 647/648 is pre-change) · DeepSeek funding;
   GLM via `openrouter/z-ai/glm-4.6` · Gemini's automatic cache is not explicit caching (named, unclosed).
-- **ADR-654 owes a prod click-pass**: re-point an agent's engine on the agents pane, start a NEW conversation,
-  confirm the lane runs the chosen engine and that an existing lane keeps the one it started with. Gate is
-  50/50 and falsified three ways, but no re-pointed agent has run against prod.
+- **ADR-654 click-pass DONE (2026-09-17)** — Designer re-pointed to `gemini/gemini-2.5-pro` on the rig
+  (ws bf5b25a9); a new bound Images lane bound to it (session 24aa8b2c, `context_metadata.lane.model`),
+  while all seven older lanes kept `anthropic/claude-sonnet-5`. Persistence survived a hard reload.
+  The pass FOUND a defect: clearing an override 422'd (`Body(...)` reads a bare JSON `null` as a missing
+  body) — fixed in `78f4dd9`, **whose own clear path is not yet driven on prod**. Rig row deleted.
 - ⚠️`api/test_agent_registry.py` is RED at baseline — it hardcodes `services/apps/images/decompose.py`, deleted
   in `0b9920f`; the gate crashes at import and reports nothing. Pre-existing, untouched by ADR-654.
 - **Data-heavy work has a located kernel gap (2026-09-16, `b937e2e` §11).** A 5,000-row CSV probe measured it: ADR-648's
