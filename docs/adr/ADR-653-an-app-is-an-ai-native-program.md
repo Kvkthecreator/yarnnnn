@@ -204,11 +204,72 @@ The frame doc §7.2 names three origins. Their build order is not their naming o
 
 ---
 
+## 8a. Operator rulings — 2026-09-17
+
+Three rulings taken in discourse, recorded here because each closes an item §9 carried as open.
+
+### R1 — Memory is deleted with the app
+
+**Ruled**: *"memory is deleted with an app."*
+
+This closes the promise D1 could not keep. The delete confirm (`APP-BUILDER-UX.md` §3.4) becomes true rather than a lie: **the app, its agent, and what that agent learned go away together; the member's own files stay exactly where they are.**
+
+**What it implies, and it is the coherent half of the ruling**: the agent's memory is **part of the app**, not a separate possession that outlives it. An app-bound agent that accumulates judgment about *this work* has nothing to carry anywhere else — the judgment was about the app. This is the same reasoning ADR-624 used to keep memory flat rather than per-desk (*an agent serving several apps accumulates one memory*), applied to an agent that serves exactly one.
+
+⚠️ **The mechanism must therefore know which memory is an app's.** ADR-624 D1 puts every agent's memory at `agents/{slug}/memory/`, a **principal home keyed by slug, not by app**. Deleting `apps/photos/` cannot delete `agents/mara/memory/` without knowing the pairing. Two shapes are available, and this ADR does **not** yet choose:
+
+| | **Keep the ADR-624 home; derive the pairing** | **Move an app agent's memory under the app** |
+|---|---|---|
+| Path | `agents/{slug}/memory/` | `apps/{slug}/memory/` |
+| Delete | reads the declaration, then deletes the home | deleting the folder IS deleting the memory |
+| Preserves ADR-624 | ✅ one home shape for every agent | ❌ two homes by provenance — the ADR-600 pattern (a property modelled as a container) |
+| Risk | a dangling home if the delete half-fails | the species split ADR-624 argued against, arriving through the filesystem |
+
+⭐ **The first is almost certainly right**, precisely because the second is the species split entering by the back door — which §2 of the blockers doc shows ADR-624 already refused on a scaling argument. **Named as the one mechanism question R1 opens; it is small and it is not a re-litigation of the ruling.**
+
+### R2 — The app-builder is itself an app, and it manages apps
+
+**Ruled**: *"the app-builder is an app, and thus it's managing an array of things… better yet, it manages apps, with the agent as part of it."*
+
+⭐⭐⭐ **This is the ruling that makes the concept self-hosting.** The builder is not a privileged surface outside the system that constructs things inside it. It is an app whose work is *the workspace's other apps* — the same three bands, the same resident, the same declaration format, reachable the same way.
+
+Three consequences, each load-bearing:
+
+1. **Nothing is special-cased.** There is no builder surface, no builder route, no builder component. If the app frame cannot express the builder, the frame is too weak — and **that is a live test of the design rather than a claim about it.** The builder is the first and hardest app.
+2. **The agent is part of the app, not beside it.** The operator's correction — *"it manages apps, with the agent as part of it"* — settles a framing this ADR had left loose. An app is not (a declaration) + (an agent that happens to be named in it). **The agent is a constituent.** D1's `agent:` block is not a reference to something living elsewhere; it is part of what the app IS, which is why R1 follows and why deleting one deletes the other.
+3. **It composes.** An app that manages apps needs to list them, show their state, and act on them — which is exactly `files` + `recent` + `needs-you` over `apps/`. **The first-cut vocabulary (`APP-BUILDER-UX.md` §5) is tested by the builder before any member app exists**, which is the cheapest possible validation of the riskiest decision.
+
+**What this does NOT grant.** The builder app holds no more authority than any other app. It writes declarations because the member asks it to, under the member's own grant, through the ordinary file verbs. **An app that can create apps is still an app that can only write files** — the D3.a cliff is untouched, and the builder is not an exception to it.
+
+### R3 — An app has a bound lane
+
+**Ruled**: *"I think app should have a bound lane."*
+
+This closes `APP-BUILDER-UX.md` §9.2 — the biggest remaining interaction question. Talking to an app means a **bound lane whose binding is the app**, consistent with every existing app (Slides, Text, Images, Blogger all run bound lanes), rather than the ordinary chat surface with a resident addressed.
+
+**It also settles the Dock question** (`APP-BUILDER-UX.md` §9.1) as a consequence: an app is one door, opening one pane with one conversation in it. **The Dock shows apps.** Agents are met where they work (ADR-600 D2's `offered: False` posture) and do not need a second row of icons.
+
+⚠️ **The mechanism does not fit today, and the gap is exact.** `create_lane` derives boundness from an ARTIFACT:
+
+```python
+is_bound = bool(artifact_path or skill or derive_source)   # api/routes/lanes.py:971-975
+if app_slug and not is_bound:
+    raise HTTPException(422, "`app` names a binding, not a colleague…")   # :976-988
+```
+
+An app-level lane has **no artifact** — it is bound to the app itself. Today that request is refused at `:976`. The job overlay has the same shape: `posture(client, user_id, artifact_path, artifact) -> str` (`authoring.py:2402-2405`) takes an artifact head an app-level lane cannot supply.
+
+**So R3 requires a third binding kind — the app itself** — alongside artifact-bound and skill-bound. That is a real widening of `create_lane` and of the posture signature, and it is the **largest single mechanism consequence of these three rulings.** It is coherent with the frame (the app IS the binding; ADR-562 D3's *"the resident is DERIVED from the app's own declaration"* already holds) but it is not free, and no gate covers it today.
+
+---
+
 ## 9. What is open — named, not hidden
 
-1. ⭐⭐⭐ **What makes two pieces of work one app rather than two?** If boundaries are emergent (D4), something must make an app cohere or "app" means nothing. Working intuition: **the who** — one app is one agent's remit. **Unsettled, and it is the load-bearing definition of the core object.** Operator's call.
-2. ⭐⭐ **Accumulation does not exist.** The frame promises an agent that *"accumulates judgment about this specific work."* `agents/{slug}/memory/` has **no writer and no reader** (§1.5). Either the promise is deferred or this ADR grows a memory mechanism. **The "derived" origin depends on it.**
-3. **The component vocabulary** (D3.b) — the riskiest single decision; see §5.
+**Closed by the §8a rulings**: memory orphaning (R1), what an app's chat is (R3), whether the Dock shows apps or agents (R3). **Opened by them**: the memory-home mechanism (R1) and the app binding kind (R3).
+
+1. ⭐⭐⭐ **What makes two pieces of work one app rather than two?** If boundaries are emergent (D4), something must make an app cohere or "app" means nothing. Working intuition: **the who** — one app is one agent's remit. ⚠️ **It is not injective in the kernel today**: Editor resides both Slides and Text (`register_app("slides", resident="editor")` · `register_app("text", resident="editor")`), and ADR-602 D1's reason was that *"a member asking 'who is responsible for my writing?' gets one answer across decks and documents."* The resolvable version: **one app has exactly one resident; one agent may reside several apps** — coherence without injectivity. ⭐ **R2 sharpens this**: if the agent is a CONSTITUENT of the app (not a reference to something beside it), then a member's app agent belongs to exactly one app by construction, and the kernel's many-to-one is the exception rather than the rule. **Still the operator's call, and now the LAST blocker.**
+2. ⭐⭐ **Accumulation does not exist.** The frame promises an agent that *"accumulates judgment about this specific work."* `agents/{slug}/memory/` has **no writer and no reader** (§1.5). Either the promise is deferred or this ADR grows a memory mechanism. **The "derived" origin depends on it**, and R1 now depends on knowing where it lives.
+3. **The component vocabulary** (D3.b) — the riskiest single decision; the first cut is argued in `APP-BUILDER-UX.md` §5 (`files` · `recent` · `needs-you` · `note`), and **R2 makes the builder itself its first test**.
 4. **The quiet discipline.** A standing watcher's failure mode is surfacing noise to prove it is alive. *"Most of the time it says nothing"* must be a design goal. Judgment, not mechanism — unscaffoldable, and the reason this is a bigger build than it looks.
 5. **Residents compound.** Six apps is six agents entitled to speak. Staffed or surveilled is not obvious; it may argue for few apps, or for pooled raising.
 6. **Property extraction is a bounded kernel cost.** Properties a model can judge by looking are unlimited; those needing an extractor (EXIF, PDF fields, media duration) are finite. Apps declare freely and are told what is unavailable — which makes the roadmap **demand-measured** rather than guessed. Same logic for a missing verb.
@@ -251,6 +312,8 @@ Found during the audit. Each is real, each predates this work, and **none is cau
 4. Every `surface.sections[].kind` resolves in the component vocabulary, and an unknown kind renders the honest miss rather than a blank (D3.b).
 5. A declared app slug foregrounds from the Launcher (D3.c), and the ADR-338 three-way lockstep over **kernel** surfaces is unchanged.
 6. An app's standing declaration resolves its executor through the app, never an agent slug (D5).
+6a. **(R3)** A lane bound to an app alone — no `artifact_path`, no `skill` — is CREATED rather than refused, and resolves the app's resident; and an `app` with no binding of any kind is still refused. Falsify by asserting the current `:976` refusal fires for the app-bound case.
+6b. **(R1)** Deleting an app deletes its agent's memory, and deletes nothing outside `apps/{slug}/` and that agent's home. Falsify by seeding a file outside both and asserting it survives.
 7. The `AGENT_ROW_KEYS` whitelist is unchanged and no authority key appears on any member row (§6, the D3.a ratchet).
 
 ⚠️ **Preconditions**: §10.1 must be green first. A gate that crashes reports nothing (the ADR-648 lesson), and a script-shaped gate reports a count, not an exit code.

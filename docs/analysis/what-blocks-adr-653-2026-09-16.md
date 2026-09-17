@@ -10,6 +10,16 @@
 
 ---
 
+> ## ⚠️ Superseded in part — operator rulings 2026-09-17
+>
+> Three rulings closed items this document carried as open. They are recorded in **[ADR-653 §8a](../adr/ADR-653-an-app-is-an-ai-native-program.md)**; read them before acting on the sections below.
+>
+> - **R1 — memory is deleted with the app.** Closes §2.4(1). Opens one small mechanism question: the memory home is keyed by slug (`agents/{slug}/memory/`), so the delete must derive the pairing.
+> - **R2 — the app-builder is itself an app, and the agent is a CONSTITUENT of the app, not a reference beside it.** This sharpens §3 (see the note there) and makes the builder the design's own falsification test.
+> - **R3 — an app has a bound lane.** Closes the two design questions in `APP-BUILDER-UX.md` §9. Opens the largest mechanism consequence: a third binding kind, since `create_lane` derives boundness from an artifact an app-level lane does not have.
+>
+> **§3 — what makes two pieces of work one app — remains open and is now the LAST blocker.**
+
 ## 0. The headline, before the detail
 
 The operator posed two questions: **how agent accumulation is managed**, and **whether app-bound agents are a different species** living in the app folder. Auditing both produced a sharper finding than either:
@@ -157,6 +167,16 @@ If boundaries are emergent and hardened by use (frame §6, the operator's accept
 
 **B is eliminated** by the frame's own soft-boundary ruling. **C** is too narrow — an app that only ever acts when asked is still an app. **D** is honest but provides nothing: if the member is the only thing distinguishing two apps, they will make one app called "work."
 
+### 3.2a What R2 changes here
+
+The 2026-09-17 ruling — *"it manages apps, **with the agent as part of it**"* — is not a side note to this question. It settles half of it.
+
+If the agent is a **constituent** of the app rather than a reference to something living beside it, then **a member's app agent belongs to exactly one app by construction.** There is no shared-agent case to rule on for member apps, because a shared agent would be a constituent of two things at once, which the word "constituent" forbids.
+
+That leaves the kernel's many-to-one (Editor at Slides and Text) as **the exception, not the rule** — kernel agents are declared in code and predate app declarations, so they were never constituents of anything. The asymmetry is real and now has a reason: **a kernel agent is registered; a member's app agent is part of an app.**
+
+⭐ **So §2.4's question (2) — "can two apps name the same member agent?" — is answered: no.** What remains open in §3 is narrower than it was: not *whether* an app is one agent's remit, but whether that is a **law** (apps are few, and the Dock shows one door per concern) or merely **how it happens to work out**. The design already assumes the former (`APP-BUILDER-UX.md` §9.1, ruled by R3: the Dock shows apps).
+
 ### 3.3 The case for A, and its honest cost
 
 **A is the only candidate that is both a real constraint and consistent with the frame.** It reads directly off the program metaphor: an app is a post, and a post is one agent's station.
@@ -207,8 +227,8 @@ Sorted honestly:
 - **The component vocabulary** (§4) — deferrable by ruling the growth discipline.
 
 **DOES block it:**
-- ⭐⭐⭐ **§3 — what makes two pieces of work one app.** This is the definition of the object the ADR proposes. An ADR that cannot say when two things are one app cannot gate an implementation, and §3.3's live counter-example (Editor serving two apps) means the obvious answer needs the refinement stated there.
-- ⭐ **§2.4 — the lifecycle questions.** At minimum (1): the ADR promises deleting an app leaves files untouched, while the agent's memory lives under `agents/`, not `apps/`. **The ADR currently makes a promise its own layout does not keep.**
+- ⭐⭐⭐ **§3 — what makes two pieces of work one app.** This is the definition of the object the ADR proposes. An ADR that cannot say when two things are one app cannot gate an implementation, and §3.3's live counter-example (Editor serving two apps) means the obvious answer needs the refinement stated there. ⚠️ **Narrowed but not closed by R2** (§3.2a): a member's app agent belongs to exactly one app by construction, so the shared-agent case is answered. What remains is whether that is a **law** or an accident. **The last blocker.**
+- ~~⭐ **§2.4 — the lifecycle questions.**~~ **CLOSED by R1** (memory is deleted with the app) and **R2** (the shared-agent case, §3.2a). Slug collision across apps — §2.4(3) — remains a naming question for the implementation, not a blocker.
 
 **Blocks the BUILD, not the ADR:**
 - §5 — the RED gate.
@@ -217,10 +237,12 @@ Sorted honestly:
 
 ## 7. Proposed sequence
 
-1. **Rule §3** (the coherence question) — one ruling, no code. This is the blocker.
-2. **Rule §2.4 (1)** (memory orphaning) — a paragraph in ADR-653 D1/D2.
-3. **Amend ADR-653** to cite ADR-624/ADR-600 on the species question, moving it from *open* to *decided*.
-4. **Rule the vocabulary growth discipline** (§4) — one sentence in D3.b.
-5. Then ADR-653 is interim-complete and ratifiable.
-6. **Independently**: fix the RED gate (§5), before any build touches it.
+1. ~~**Rule §2.4 (1)**~~ ✅ **DONE 2026-09-17 — R1.**
+2. ~~**Rule what an app's chat is / what the Dock shows**~~ ✅ **DONE — R3.**
+3. **Rule §3** (the coherence question, as narrowed by §3.2a) — one ruling, no code. **The last blocker.**
+4. **Amend ADR-653** to cite ADR-624/ADR-600 on the species question, moving it from *open* to *decided*.
+5. **Rule the vocabulary growth discipline** (§4) — one sentence in D3.b; R2 makes the builder its first test.
+6. Then ADR-653 is interim-complete and ratifiable.
+7. **Independently**: fix the RED gate (§5), before any build touches it.
+8. **Owed by R3**: the app binding kind is the largest mechanism consequence and has no gate. It belongs in the ADR's §11 gate list before implementation starts.
 7. **Deferred, evidence-first**: measure whether the existing `feedback.md` prompt instruction fires at all (§1.3) — the cheapest read on whether a prompt clause can drive accumulation.

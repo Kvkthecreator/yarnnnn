@@ -119,6 +119,30 @@ The gesture: she has been working; something notices a shape; it offers. The ren
 
 ⚠️ **"No thanks" must be durable.** A proposal that returns is the noise failure (§4.2) in its most annoying form. Declining a shape declines that shape, not proposals in general.
 
+### 3.2a The builder is itself an app (ADR-653 R2)
+
+**Ruled 2026-09-17.** There is no builder surface, no builder route, no builder component. The thing that makes apps **is an app**: the same three bands, the same resident, the same declaration, reachable from the same "Your apps" group.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Apps                                            ⌄       │
+│  What you've set up, and what's looking after it.        │
+├──────────────────────────────────────────────────────────┤
+│  Bo looks after this.                                    │
+├──────────────────────────────────────────────────────────┤
+│  Photos        Mara      3 shoots need culling           │
+│  Client work   Tess      quiet                           │
+│                                                          │
+│  + Set one up                                            │
+└──────────────────────────────────────────────────────────┘
+```
+
+⭐⭐⭐ **This is the design's own falsification test.** If the three-band frame cannot express the builder, the frame is too weak — and we find that out at build time rather than after members have five apps each. The builder is the first app and the hardest one.
+
+It also **tests the vocabulary before any member app exists**: that screen is `needs-you` (apps wanting attention) over `apps/`, plus a door. §5's riskiest decision gets exercised by us, on ourselves, first.
+
+**"+ Set one up"** does not open a form. It starts the conversation (§3.3) — the builder's own bound lane, with its resident. The door is a door into talking, which is the one authoring interface this product is good at.
+
 ### 3.3 Authored — in chat, and it is the cheapest to build
 
 *"Set me up something for tracking client work."* A lane writes the declaration file. No builder surface, no form — **the builder is a conversation**, which is the one authoring interface this product already has and is good at.
@@ -135,7 +159,9 @@ This should ship **first**, precisely because it is cheap: it needs no new surfa
 > The app and Mara go away. Your photos, folders and files stay exactly where they are.
 > [ Delete app ]   [ Cancel ]
 
-⚠️ **This confirm is currently a lie** — blockers §2.4(1): the agent's memory lives under `agents/`, not `apps/`, so deleting the app orphans a memory folder. **Either the ADR rules that memory is deleted with the app (and the copy says so), or it is kept (and the copy says where it went).** The screen cannot ship until that is ruled.
+✅ **Ruled 2026-09-17 (ADR-653 R1): memory is deleted with the app.** The confirm above is therefore TRUE as written — the app and its agent go away together, and the member's own files stay. The copy names the two things a member would worry about (the agent, their photos) and does not mention memory at all, which is correct: *what Mara learned* is part of Mara, and a confirm that itemised it would be explaining our storage rather than her consequence.
+
+⚠️ **One mechanism question the ruling opens** (ADR-653 §8a R1): the agent's memory sits at `agents/{slug}/memory/`, keyed by slug rather than by app, so the delete must derive the pairing. That is a backend question and does not change this screen.
 
 ---
 
@@ -250,13 +276,16 @@ Ordered by *what teaches the most per unit of build*, not by completeness.
 | # | Ships | Needs | Teaches |
 |---|---|---|---|
 | 1 | **Authored origin** (§3.3) — chat writes a declaration | the D1 file format, nothing visual | whether the declaration format survives a real ask |
-| 2 | **The surface** (§2.2) with `files` + `note` | D3.c's gate widening; two kinds | whether three bands is enough shape |
-| 3 | **Band 2 resting + raising** (§4) | the resident read | whether presence reads as calm or as noise |
-| 4 | **`needs-you`** (§5) | a declared condition | whether an app feels like work |
-| 5 | **Chosen origin** (§3.1) — first-run | a small catalog | time-to-value at minute zero |
-| 6 | **Derived origin** (§3.2) | accumulation (blockers §1) | the differentiated claim |
+| 2 | **The app binding kind** — a lane bound to an app (R3) | `create_lane` + posture widening | whether an app-level conversation composes |
+| 3 | **The surface** (§2.2) with `files` + `note` | D3.c's gate widening; two kinds | whether three bands is enough shape |
+| 4 | **The builder, as an app** (§3.2a) | `needs-you` over `apps/` | ⭐ whether the frame can express its own maker |
+| 5 | **Band 2 resting + raising** (§4) | the resident read | whether presence reads as calm or as noise |
+| 6 | **Chosen origin** (§3.1) — first-run | a small catalog | time-to-value at minute zero |
+| 7 | **Derived origin** (§3.2) | accumulation (blockers §1) | the differentiated claim |
 
 ⭐ **Step 1 ships no UI at all**, and that is deliberate: it proves the whole backend path with one chat message before a pixel is drawn. If the declaration format is wrong, it is wrong cheaply.
+
+⭐⭐ **Step 4 is the design's falsification** and it moved up because of R2. Building the builder as an ordinary app, before any member has one, tests the frame and the vocabulary against the hardest case we control. If it needs a special case, we have learned the frame is wrong while it is still cheap to change.
 
 ⚠️ **Step 2 is gated on the RED parity gate** (ADR-653 §10.1) — `connectors` is a phantom slug and that gate must be green on its own merits first.
 
@@ -264,8 +293,10 @@ Ordered by *what teaches the most per unit of build*, not by completeness.
 
 ## 9. Open — design questions, not mechanism
 
-1. ⭐⭐⭐ **Does the Dock show apps, or agents?** If an app is one agent's remit (blockers §3), those are the same icon and the question dissolves. If not, they compete for the same strip. **Gated on the coherence ruling** — this is where that abstract question becomes a pixel.
-2. ⭐⭐ **What does the app's own chat look like?** An app has a resident; chat has agents. Does opening an app's chat make a bound lane (like Slides/Text do today) or land in the ordinary chat surface with the resident addressed? The first is consistent with every existing app; the second avoids a second chat home. **Unresolved, and it is the biggest remaining interaction question.**
+1. ✅ **Does the Dock show apps, or agents?** **RULED (ADR-653 R3): apps.** An app is one door opening one pane with one conversation in it. Agents are met where they work — ADR-600 D2's `offered: False` posture — and do not need a second row of icons.
+2. ✅ **What does the app's own chat look like?** **RULED (ADR-653 R3): a bound lane**, consistent with every existing app. ⚠️ This is the largest mechanism consequence of the rulings: `create_lane` derives boundness from an ARTIFACT (`api/routes/lanes.py:971`) and an app-level lane has none, so the request is refused at `:976` today. **A third binding kind — the app itself — is required**, and the job overlay signature (`posture(client, user_id, artifact_path, artifact)`) widens with it.
+
+   ⭐ **The design consequence is that the app surface and its conversation are one thing, not two.** Band 3 (§2.2) is what the resident is looking at; the conversation is how she talks to it about that. The existing bound-pane shape — conversation on one side, the work on the other — is the precedent, and this design inherits it rather than inventing a second chat home.
 3. **Does an app appear in Files?** `apps/{slug}/_app.yaml` is a real file in a real folder. Showing it is honest and consistent with "everything is files"; hiding it keeps the folder tree about her work. Probably show it, in the same way `system/` is shown.
 4. **What does a broken app render?** A declaration naming a kind that does not exist gets the honest amber miss (ADR-653 D3.b). But a declaration naming a *folder* that no longer exists is more common and needs its own answer.
 5. **Does the first-run question ship before apps do?** Asking "what do you work on?" and then not acting on it is worse than not asking.
