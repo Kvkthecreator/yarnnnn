@@ -76,6 +76,18 @@ class AdminOverviewStats(BaseModel):
     sessions_7d: int
 
 
+class AdminEngineRow(BaseModel):
+    """One engine's share of platform spend over the window.
+
+    `model` is NULL on older rows (1426 of 1597 carry it), so the roster is
+    what the ledger actually recorded, never a hardcoded list of the engines we
+    believe we run — a spelled set cannot report an engine it omits.
+    """
+    model: str
+    runs: int
+    billed_usd: float
+
+
 class AdminExecutionStats(BaseModel):
     """Scheduler health + spend, from `execution_events` and `activity_log`.
 
@@ -88,6 +100,8 @@ class AdminExecutionStats(BaseModel):
     daily_spend_ceiling: float = 10.0
     last_scheduler_heartbeat: Optional[str]
     heartbeats_24h: int
+    #: Where the month's money actually went, biggest first.
+    engines: list[AdminEngineRow] = []
 
 
 class AdminWorkspaceRow(BaseModel):
@@ -108,7 +122,15 @@ class AdminWorkspaceRow(BaseModel):
     owner_label: Optional[str] = None
     created_at: str
     tier: str
+    #: The GRANTED total — every credit ever banked, never debited (ADR-396:
+    #: "balance IS the currency"; spend is netted at READ time by the RPC).
+    #: Shown as "Granted", never as "Balance" — see `effective_balance_usd`.
     balance_usd: float = 0.0
+    #: What the member actually has left: (allowance + balance) − spend since
+    #: the anchor, from the `get_effective_balance` RPC — the SAME figure their
+    #: own billing pane reads. The console shipped showing the raw column and
+    #: so read $124.21 where the member's UI said "$17.84 left".
+    effective_balance_usd: float = 0.0
     grant_count: int = 0
     events_7d: int = 0
     spend_7d: float = 0.0
@@ -138,6 +160,28 @@ _EVENT_CAP = 5000
 
 def _get_date_threshold(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+
+def _billed_draw(event: dict) -> float:
+    """What an execution event actually DREW from the workspace's balance.
+
+    `COALESCE(billed_usd, cost_usd)` — the ADR-490 rule every balance/spend
+    reader follows (`platform_limits._spend_since_anchor`,
+    `telemetry.spend_since`). `cost_usd` is the truthful provider cost;
+    `billed_usd` is that × USAGE_BILLING_MULTIPLIER (1.30), stamped at the same
+    single write site, and it is the figure the balance is debited by.
+
+    The console shipped reading raw `cost_usd` and so UNDER-REPORTED every
+    spend figure by the margin: the busiest workspace read $4.11 for 7 days
+    against a real draw of $5.34. A console beside a Balance column must report the
+    same dollars that column moves, or the two invite a reconciliation that
+    cannot come out. Both are coerced with `or 0` — either may be NULL on a
+    mechanical/skipped wake.
+    """
+    billed = event.get("billed_usd")
+    if billed is not None:
+        return float(billed)
+    return float(event.get("cost_usd") or 0)
 
 
 # =============================================================================
@@ -203,14 +247,14 @@ async def get_execution_stats(admin: AdminAuth):
         # NULL on mechanical/skipped wakes — coerce with `or 0`, not `, 0`
         # (the present-but-null trap that 500'd this route once before).
         spend_rows = client.table("execution_events")\
-            .select("cost_usd, created_at")\
+            .select("cost_usd, billed_usd, created_at, model")\
             .gte("created_at", month_start)\
             .limit(_EVENT_CAP)\
             .execute().data or []
 
-        spend_usd_this_month = sum(float(r.get("cost_usd") or 0) for r in spend_rows)
+        spend_usd_this_month = sum(_billed_draw(r) for r in spend_rows)
         daily_spend_today = sum(
-            float(r.get("cost_usd") or 0)
+            _billed_draw(r)
             for r in spend_rows
             if (r.get("created_at") or "") >= today_utc
         )
@@ -219,6 +263,29 @@ async def get_execution_stats(admin: AdminAuth):
                 "[ADMIN] month spend hit the %d-row cap — the figure is a FLOOR, raise the cap",
                 _EVENT_CAP,
             )
+
+        # Where the month's money went — bucketed from the fetch above, so the
+        # engine mix costs no extra round trip. Derived from what the ledger
+        # recorded: an engine we start running appears here without a code
+        # change, and one we stop running disappears.
+        engine_runs: dict[str, int] = defaultdict(int)
+        engine_spend: dict[str, float] = defaultdict(float)
+        for r in spend_rows:
+            model = r.get("model")
+            if not model:
+                continue
+            engine_runs[model] += 1
+            engine_spend[model] += _billed_draw(r)
+        engines = sorted(
+            (
+                AdminEngineRow(
+                    model=m, runs=engine_runs[m], billed_usd=round(engine_spend[m], 4)
+                )
+                for m in engine_runs
+            ),
+            key=lambda e: e.billed_usd,
+            reverse=True,
+        )
 
         hb = client.table("activity_log")\
             .select("created_at")\
@@ -238,6 +305,7 @@ async def get_execution_stats(admin: AdminAuth):
             daily_spend_ceiling=float(os.getenv("DAILY_SPEND_CEILING_USD", "10.0")),
             last_scheduler_heartbeat=last_heartbeat,
             heartbeats_24h=hb_24h.count or 0,
+            engines=engines,
         )
     except Exception as e:
         logger.error("[ADMIN] Execution stats query failed: %s", e)
@@ -298,7 +366,7 @@ async def list_workspaces(admin: AdminAuth):
         last_activity: dict[str, str] = {}
         try:
             for e in (client.table("execution_events")
-                      .select("workspace_id, cost_usd, created_at")
+                      .select("workspace_id, cost_usd, billed_usd, created_at")
                       .gte("created_at", cutoff_7d)
                       .order("created_at", desc=True)
                       .limit(_EVENT_CAP).execute().data or []):
@@ -306,12 +374,43 @@ async def list_workspaces(admin: AdminAuth):
                 if not wid:
                     continue
                 events_7d[wid] += 1
-                spend_7d[wid] += float(e.get("cost_usd") or 0)
+                spend_7d[wid] += _billed_draw(e)
                 # Rows arrive newest-first, so the first sighting is the latest.
                 if wid not in last_activity and e.get("created_at"):
                     last_activity[wid] = e["created_at"]
         except Exception as exc:  # noqa: BLE001 — activity is best-effort
             logger.warning("[ADMIN] 7d event rollup failed: %s", exc)
+
+        # --- effective balance (ADR-655 am.1) ------------------------------
+        # `workspaces.balance_usd` is the GRANTED total and is never debited —
+        # ADR-396's "balance IS the currency", with spend netted at READ time by
+        # the `get_effective_balance` RPC. The console shipped rendering the raw
+        # column under a "Balance" header, so it read **$124.21** for the
+        # workspace whose own billing pane said **"Free · $17.84 left"** — two
+        # numbers for one fact, at the same moment.
+        #
+        # This calls the RPC rather than re-deriving its arithmetic. The first
+        # cut DID re-derive it — bucketing spend-since-anchor from one capped
+        # fetch to stay O(1) — and was WRONG on 3 of 21 workspaces, the busiest
+        # by $47: the `_EVENT_CAP` row limit truncated its ledger, so the netted
+        # spend was a floor and the balance read high. The cap is a real hazard
+        # (this module's own `_EVENT_CAP` note says a cap hit silently
+        # undercounts spend) and re-deriving a money function is how you meet
+        # it. One RPC per workspace is a genuine per-row call, which D4 exists
+        # to forbid — but D4 forbids re-fetching data we already hold, not
+        # asking the database for the ONE figure only it can compute correctly.
+        # At 21 live workspaces this is 21 cheap STABLE calls; if the roster
+        # grows past a few hundred, the fix is a set-returning RPC, never a
+        # second copy of the formula here.
+        effective: dict[str, float] = {}
+        for wid in ws_ids:
+            try:
+                val = client.rpc(
+                    "get_effective_balance", {"p_workspace_id": wid}
+                ).execute().data
+                effective[wid] = round(float(val), 4) if val is not None else 0.0
+            except Exception as exc:  # noqa: BLE001 — one row never breaks the page
+                logger.warning("[ADMIN] effective balance failed for %s: %s", wid[:8], exc)
 
         # --- owner labels (ADR-655 D3: the ONE resolver, batched) -----------
         # `auth.users` is the writer of record for an account identity
@@ -340,6 +439,11 @@ async def list_workspaces(admin: AdminAuth):
                 created_at=w["created_at"],
                 tier=w.get("subscription_tier") or "free",
                 balance_usd=float(w.get("balance_usd") or 0),
+                # Absent (an RPC failure) degrades to the granted total rather
+                # than to 0, which would read as an empty wallet.
+                effective_balance_usd=effective.get(
+                    wid, float(w.get("balance_usd") or 0)
+                ),
                 grant_count=grant_counts.get(wid, 0),
                 events_7d=events_7d.get(wid, 0),
                 spend_7d=round(spend_7d.get(wid, 0.0), 4),

@@ -183,11 +183,20 @@ check(
 def queries_inside_row_loops(tree: ast.AST) -> list[str]:
     """`.table(...)` in a `for` BODY — the N+1 shape the predecessor had.
 
-    The loop's ITERATOR is explicitly not a hit: `for r in client.table(...)
-    .execute().data` is ONE fetch evaluated once, which is precisely the shape
-    this ADR requires. Walking the whole `ast.For` node flagged those three
-    correct fetches on the first run of this gate — a gate must execute the
-    shipped condition, not a plausible-looking superset of it.
+    Two deliberate exclusions, each learned by this gate accusing correct code:
+
+    * The loop's ITERATOR is not a hit. `for r in client.table(...).execute()
+      .data` is ONE fetch evaluated once, which is the shape D4 requires. The
+      first cut walked the whole `ast.For` and flagged three correct fetches —
+      a gate must execute the shipped condition, not a plausible superset.
+    * `.rpc(...)` is not `.table(...)`. D4 forbids RE-FETCHING per row data we
+      already hold; it does not forbid asking the database for the one figure
+      only it can compute correctly. The effective balance is exactly that:
+      re-deriving its formula here to stay O(1) was tried, and was wrong on 3
+      of 21 workspaces (the busiest by $47) because the row cap truncated the
+      ledger it summed. A per-row RPC that is RIGHT beats a bucketed loop that
+      is WRONG about money. If this check ever needs to bound RPC fan-out, it
+      should assert a set-returning RPC — never a second copy of the formula.
     """
     hits: list[str] = []
     for node in ast.walk(tree):
@@ -209,6 +218,28 @@ check(
     "⑨ D4 — the query count is constant in the number of workspaces",
     not n_plus_one,
     "; ".join(n_plus_one),
+)
+
+
+# The money figure is asked for, never re-derived (am.1). The first cut
+# reimplemented `get_effective_balance`'s arithmetic and was wrong by $47 on the
+# busiest workspace, because its bucketed sum hit the row cap. Assert the RPC is
+# called AND that the formula's give-away shape (`allowance_usd + balance_usd`)
+# is absent from the module.
+check(
+    "⑨b the effective balance is asked of the RPC, not re-derived",
+    "get_effective_balance" in CONSTS
+    and "allowance_usd" not in "".join(c for c in CONSTS if "select" not in c.lower()),
+    "the console re-implements the balance formula instead of calling the RPC",
+)
+
+# The row model must expose BOTH money figures under honest names — the raw
+# grant total alone is what made the console read $124.21 where the member's
+# own pane said $17.84.
+check(
+    "⑨c the row carries the granted total AND what is actually left",
+    "balance_usd" in ADMIN_SRC and "effective_balance_usd" in ADMIN_SRC,
+    "the console shows only one of the two money figures",
 )
 
 

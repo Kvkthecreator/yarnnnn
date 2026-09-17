@@ -25,6 +25,7 @@ import {
   KeyRound,
   MessageSquare,
   AlertCircle,
+  Cpu,
   DollarSign,
   Activity,
   Clock,
@@ -201,6 +202,49 @@ export default function OperatorConsolePage() {
         </Card>
       )}
 
+      {/* Where the month's money went */}
+      {execStats && execStats.engines.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cpu className="w-4 h-4" />
+              Engines
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                This month, by spend
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {execStats.engines.map((e) => {
+                const top = execStats.engines[0].billed_usd || 1;
+                return (
+                  <div key={e.model} className="flex items-center gap-3 text-sm">
+                    <div className="w-56 truncate" title={e.model}>
+                      {e.model}
+                    </div>
+                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-foreground/60 rounded-full"
+                        style={{
+                          width: `${Math.max(2, (e.billed_usd / top) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="w-20 text-right tabular-nums text-muted-foreground">
+                      {e.runs} runs
+                    </div>
+                    <div className="w-20 text-right tabular-nums">
+                      ${e.billed_usd.toFixed(2)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* The workspaces */}
       <Card>
         <CardHeader>
@@ -233,8 +277,17 @@ export default function OperatorConsolePage() {
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">
                     Spend 7d
                   </th>
-                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">
-                    Balance
+                  <th
+                    className="text-right py-2 px-2 font-medium text-muted-foreground"
+                    title="What the workspace has left — granted total minus spend since the anchor, the same figure the member's own billing pane shows"
+                  >
+                    Left
+                  </th>
+                  <th
+                    className="text-right py-2 px-2 font-medium text-muted-foreground"
+                    title="Every credit ever banked. Never debited — spend is netted at read time (ADR-396)."
+                  >
+                    Granted
                   </th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">
                     Last active
@@ -250,7 +303,7 @@ export default function OperatorConsolePage() {
               <tbody>
                 {workspaces.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={9} className="py-8 text-center text-muted-foreground">
                       No workspaces yet.
                     </td>
                   </tr>
@@ -283,7 +336,14 @@ export default function OperatorConsolePage() {
                         <td className="py-2 px-2 text-right tabular-nums">
                           ${w.spend_7d.toFixed(2)}
                         </td>
-                        <td className="py-2 px-2 text-right tabular-nums">
+                        <td
+                          className={`py-2 px-2 text-right tabular-nums ${
+                            w.effective_balance_usd <= 0 ? "text-red-600" : ""
+                          }`}
+                        >
+                          ${w.effective_balance_usd.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">
                           ${w.balance_usd.toFixed(2)}
                         </td>
                         <td className="py-2 px-2 text-right text-muted-foreground text-xs">

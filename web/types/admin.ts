@@ -21,6 +21,14 @@ export interface AdminOverviewStats {
   sessions_7d: number;
 }
 
+/** One engine's share of the month's spend. Derived from what the ledger
+ *  recorded — never a hardcoded roster of the engines we believe we run. */
+export interface AdminEngineRow {
+  model: string;
+  runs: number;
+  billed_usd: number;
+}
+
 // GET /admin/execution-stats
 export interface AdminExecutionStats {
   spend_usd_this_month: number;
@@ -28,6 +36,7 @@ export interface AdminExecutionStats {
   daily_spend_ceiling: number;
   last_scheduler_heartbeat: string | null;
   heartbeats_24h: number;
+  engines: AdminEngineRow[];
 }
 
 // GET /admin/workspaces
@@ -44,7 +53,18 @@ export interface AdminWorkspaceRow {
   owner_label: string | null;
   created_at: string;
   tier: string;
+  /**
+   * The GRANTED total — every credit ever banked, never debited. Rendered as
+   * "Granted", never as "Balance".
+   */
   balance_usd: number;
+  /**
+   * What the member actually has left, from the `get_effective_balance` RPC —
+   * the same figure their own billing pane shows. The console shipped
+   * rendering `balance_usd` under a "Balance" header and so read $124.21 where
+   * the member's menu said "Free · $17.84 left".
+   */
+  effective_balance_usd: number;
   grant_count: number;
   events_7d: number;
   spend_7d: number;

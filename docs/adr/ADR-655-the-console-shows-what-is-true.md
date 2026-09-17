@@ -118,6 +118,56 @@ reads exists and is non-empty on live; no route reads a retired name (`tasks` as
 `owner_email`, `freddie:` as a signal); the AST carries no per-row query inside a row loop (D4); and
 the deleted routes are absent from the router.
 
+## 2a. Amendment 1 — the dollars are the member's dollars (2026-09-17)
+
+Operator, on the shipped console beside their own account menu: *"the $ figures don't look
+consistent."* They were not. Two defects, one class — **the console showed dollars that no other
+surface agrees with**:
+
+**am.1 D1 — spend is the BILLED draw, not the raw provider cost.** The console summed `cost_usd`.
+Every other spend reader in the system (`platform_limits._spend_since_anchor`,
+`telemetry.spend_since`, the `get_effective_balance` RPC) reads `COALESCE(billed_usd, cost_usd)` —
+cost × `USAGE_BILLING_MULTIPLIER` (1.30, ADR-490), stamped at the same single write site. So the
+console under-reported every figure by the margin: the busiest workspace read **$4.11** for 7 days
+against a real draw of **$5.34**. One helper, `_billed_draw`, now serves the month, today and the
+per-workspace 7d figure.
+
+**am.1 D2 — `balance_usd` is the GRANTED total, and is never debited.** ADR-396's "balance IS the
+currency": spend is netted at READ time by `get_effective_balance`. The console rendered the raw
+column under a **"Balance"** header and so read **$124.21** for the workspace whose own account menu,
+open in the next window, said **"Free · $17.84 left"** — two numbers for one fact at the same moment.
+The row now carries both under honest names: **Left** (the RPC, what the member sees) and **Granted**
+(the raw total, muted). A negative Left renders red — `SK Personal` is at **−$0.15**, overdrawn,
+which the old console had no way to express.
+
+⭐**The first cut of D2 re-derived the RPC's arithmetic** to stay O(1) — bucketing spend-since-anchor
+from one capped fetch. It was **wrong on 3 of 21 workspaces, the busiest by $47**: `_EVENT_CAP`
+truncated that workspace's ledger, so the netted spend was a floor and the balance read high. This
+module's own `_EVENT_CAP` comment warns that a cap hit silently undercounts spend; re-deriving a
+money function is how you walk into it. The console now **asks the RPC**. That is a genuine per-row
+database call, which D4 exists to forbid — and D4 is narrowed rather than bent: it forbids
+**re-fetching per row data we already hold**, not asking the database for the one figure only it can
+compute correctly. At 21 workspaces this is 21 cheap `STABLE` calls; past a few hundred the fix is a
+**set-returning RPC, never a second copy of the formula**. The gate asserts both halves — the RPC is
+called, and the formula's give-away shape is absent from the module.
+
+**am.1 D3 — the engine mix, because it answers "where did the money go".** `execution_events.model`
+is recorded on 1,426 of 1,597 rows and nothing surfaced it. The month's spend now breaks down by
+engine, bucketed from the fetch `/execution-stats` already makes (no extra round trip) and **derived
+from what the ledger recorded** — an engine we start running appears without a code change, one we
+stop running disappears. Live at ratification: `claude-sonnet-5` 810 runs / **$69.46**,
+`claude-sonnet-4-6` 43 / $4.51, `claude-opus-5` 4 / $0.20, `claude-haiku-4-5` 41 / $0.13,
+`gemini-2.5-flash-image` 1 / $0.05.
+
+**Considered and not built** (operator-declined, named so the evidence is not re-gathered): the
+**activation split** — 14 of 21 live workspaces have never run a single execution event, and they
+average **1.0 authored file** against 59.7 for the 7 that did. It is the sharpest operator fact the
+probe turned up and the console is still silent on it.
+
+Receipts, driven over the real routes: month spend **$74.36**; `yarnnn workspace` 7d spend **$5.34**
+(was $4.11), Left **$17.84** (was $124.21), Granted $124.21; `SK Personal` Left **−$0.15**. Gate
+**22/23** (⑯ is migration 257, still unapplied), `next build` exit 0.
+
 ## 3. What this does not do
 
 Named, not silently skipped:
