@@ -599,7 +599,17 @@ export function AgentsSurface() {
   // returns the row to its declared engine, which is `model_default` — the same
   // value the server would send back.
   const setAgentEngine = async (slug: string, model: string | null) => {
-    await api.memberState.put(`agent_engine:${slug}`, model ? { model } : null);
+    // ⭐ `{}`, NOT `null`, to clear. The member-state door declares
+    // `value: Any = Body(...)` — REQUIRED — and FastAPI reads a bare JSON
+    // `null` body as a MISSING body, so clearing 422'd with "Field required"
+    // while setting worked fine. Found by driving the reset on prod; no
+    // structural check could see it, because both arms are one call.
+    //
+    // An empty object is a stored value the resolver already handles: it has
+    // no `model` key, so `_read_member_state_engine` returns None and the next
+    // step of the precedence stands — the same outcome as no row at all. The
+    // narrowing is what makes this safe, so the clear needs no new path.
+    await api.memberState.put(`agent_engine:${slug}`, model ? { model } : {});
     setAgents((prev) =>
       (prev ?? []).map((a) =>
         a.slug === slug

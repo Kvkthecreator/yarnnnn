@@ -152,6 +152,13 @@ check("an unknown engine resolves to None",
       _override("acme/does-not-exist") is None)
 check("a non-string value resolves to None", _override(12345) is None)
 check("an empty string resolves to None", _override("   ") is None)
+# ⭐ THE CLEAR PATH, found by driving it on prod (2026-09-17). The member-state
+# door is `value: Any = Body(...)` — REQUIRED — and FastAPI reads a bare JSON
+# `null` as a MISSING body, so "back to the default" 422'd while SETTING an
+# override worked. The pane now sends `{}`, which must resolve to None (the
+# declared engine stands) exactly as an absent row does.
+check("an empty object resolves to None (the clear path)",
+      _override({}) is None)
 
 # The narrowing is ONE definition, shared with the workspace-wide preference:
 # a second copy would drift on the first engine that left the roster.
@@ -315,6 +322,11 @@ check("the single-group section carries no discriminator header",
       "In an app" not in _pane_code)
 check("the sibling header survives for when an agent IS offered",
       "To work with" in _pane)
+# The clear must send a shape the door ACCEPTS. `Body(...)` is required and a
+# bare JSON `null` reads as a missing body — the live 422 this check pins.
+check("the pane clears with {} and never a bare null",
+      "model ? { model } : {}" in _pane_code
+      and "model ? { model } : null" not in _pane_code)
 
 _payload = _routes
 check("the envelope serves the declared default",
