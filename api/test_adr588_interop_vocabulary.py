@@ -184,6 +184,70 @@ examples = [
 ]
 check("no example teaches the kernel root", not examples)
 
+print("6. the BROWSER speaks the same two names (2026-09-17)")
+# ⭐ WHY THIS SECTION EXISTS. `display_home_alias` shipped with exactly ONE
+# caller — an MCP refusal sentence. The WEB surface had no display half at all,
+# so an operator standing in the folder the tree labels "Downloads" read
+# `inbound/uploads` under its title and `inbound/uploads/gate-427.png` under
+# every tile. Section 1 above was GREEN throughout: it proves the Python pair
+# round-trips, which says nothing about whether anything CALLS it.
+#
+# The browser holds a twin because path grammar is pure string work needed
+# before any request is in flight (see fileHandle.ts). Two hand-kept twins
+# drift, so this asserts they agree.
+FILE_HANDLE = Path("../web/lib/interop/fileHandle.ts")
+check("the browser twin exists", FILE_HANDLE.exists())
+if FILE_HANDLE.exists():
+    ts = FILE_HANDLE.read_text()
+    # Strip comments before ANY substring check — a gate that matches its own
+    # explanatory prose is green against nothing (recurred 2026-09-07, -09-17).
+    ts_code = re.sub(r"/\*.*?\*/", "", ts, flags=re.S)
+    ts_code = re.sub(r"^\s*//.*$", "", ts_code, flags=re.M)
+
+    for told, kernel in HOME_ALIASES.items():
+        check(
+            f"the browser maps {told} -> {kernel}",
+            re.search(rf"{told}:\s*'{kernel}'", ts_code) is not None,
+        )
+    # The count must match too: a home the BROWSER invents is the same split.
+    ts_pairs = re.findall(
+        r"(\w+):\s*'(\w+)'",
+        ts_code.split("HOME_ALIASES")[1].split("}")[0] if "HOME_ALIASES" in ts_code else "",
+    )
+    check(
+        "the browser knows exactly the kernel's homes, no more",
+        len(ts_pairs) == len(HOME_ALIASES),
+    )
+    check(
+        "the browser inverse is derived",
+        "Object.entries(HOME_ALIASES).map(([told, kernel]) => [kernel, told])" in ts_code,
+    )
+    # THE RETURN LEG. The surface displays AND copies the told-name, so the
+    # told-name arrives at the browser's own door. Without this, a copied path
+    # resolves to /workspace/Downloads/... and matches nothing — the app
+    # emitting a name it cannot read back (ADR-587 §1).
+    check("the arrival door resolves told-names", "resolveHomeAlias(rel)" in ts_code)
+    # ⚠️ A handle is an ADDRESS and must stay kernel-spelled (ADR-395/588:
+    # alias at presentation, never at authorization or storage).
+    handle_fn = ts_code.split("export function formatFileReference")[1].split("}")[0]
+    check(
+        "the yarnnn:// handle is NOT aliased",
+        "displayHomeAlias" not in handle_fn and "displayPath" not in handle_fn,
+    )
+
+    # No display surface may render a raw kernel path to a human again.
+    for surface, needle in [
+        ("web/app/(authenticated)/files/page.tsx", "displayPath(node.path)"),
+        ("web/components/workspace/ContentViewer.tsx", "workspaceDisplayPath(child.path)"),
+        ("web/components/workspace/NodeDetailsPanel.tsx", "displayPath(node.path)"),
+        ("web/components/workspace/ShareDialog.tsx", "displayPath(target.path)"),
+    ]:
+        sp = Path("..") / surface
+        check(
+            f"{surface.split('/')[-1]} shows the told-name",
+            sp.exists() and needle in sp.read_text(),
+        )
+
 print()
 if failures:
     print(f"FAILED ({len(failures)}): " + " · ".join(failures))

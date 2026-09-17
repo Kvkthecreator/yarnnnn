@@ -75,7 +75,16 @@ export function parseFileReference(reference: string | null | undefined): string
  */
 export function toWorkspacePath(reference: string | null | undefined): string | null {
   const rel = parseFileReference(reference);
-  return rel === null ? null : `${WORKSPACE_PREFIX}${rel}`;
+  // ADR-588 D2, the RETURN LEG. The surface now DISPLAYS and COPIES the
+  // told-name (`Downloads/uploads/a.png`), so the told-name is a spelling that
+  // arrives here — from the address bar, a pasted link, a shared handle. Before
+  // this call, `openPath` matched `workspace_files.path` verbatim and a
+  // told-name resolved to `/workspace/Downloads/…`, which matches nothing: the
+  // app would have emitted a name it could not read back, the exact ADR-587 §1
+  // asymmetry this module exists to close. The Python doors resolve the same
+  // told-names via `resolve_told_workspace_path`; this is that resolution for
+  // every door that takes a path from a browser.
+  return rel === null ? null : `${WORKSPACE_PREFIX}${resolveHomeAlias(rel)}`;
 }
 
 /**
@@ -117,4 +126,101 @@ export function formatAiReference(path: string, name: string): string {
     '(with the yarnnn connector, `open` this reference to read the exact ' +
     'current version; `history` shows who changed it and when).'
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HOME ALIASES — the told-name is what the operator reads (ADR-588 D2)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The TypeScript twin of `HOME_ALIASES` / `display_home_alias` /
+// `resolve_home_alias` in `api/services/workspace_paths.py`. Same two homes,
+// same first-segment-only scope, same case-insensitive match.
+//
+// ⭐ WHY THE BROWSER NEEDS ITS OWN COPY. The Python display half had exactly
+// ONE caller (an MCP refusal sentence) when this shipped, so every path string
+// the WEB surface rendered spoke kernel vocabulary while the tree beside it
+// spoke the told-name. The operator stood in a folder the sidebar called
+// "Downloads", read `inbound/uploads` under its title, and `inbound/uploads/
+// gate-427.png` under every tile — one folder, two names, on one screen
+// (operator-observed, 2026-09-17). The tree label was aliased at
+// `buildRootNodes`; nothing else was.
+//
+// Like the Python, this is pure string grammar with no workspace state in it,
+// so it stays a twin rather than a fetch.
+//
+// Keep in lockstep with the Python. `api/test_adr588_interop_vocabulary.py`
+// asserts the pair agree — a home added there without an edit here fails the
+// gate rather than silently re-opening the split.
+
+/** Told-name (what the operator is taught) → kernel root (what is stored). */
+export const HOME_ALIASES: Readonly<Record<string, string>> = {
+  Documents: 'operation',
+  Downloads: 'inbound',
+};
+
+/** The INVERSE, derived — never a second hand-kept map. Two hand-kept
+ *  directions are how the vocabularies diverged in the first place. */
+const HOME_ALIAS_DISPLAY: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(HOME_ALIASES).map(([told, kernel]) => [kernel, told]),
+);
+
+const HOME_ALIAS_LOOKUP: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(HOME_ALIASES).map(([told, kernel]) => [told.toLowerCase(), kernel]),
+);
+
+/**
+ * Resolve a told-name home in the FIRST segment to its kernel path — the twin
+ * of `resolve_home_alias`. `Downloads/x` → `inbound/x`; case-insensitive.
+ *
+ * SCOPE IS THE FIRST SEGMENT ONLY. A nested `operation/Documents/notes.md` is
+ * an ordinary folder someone named, exactly as ~/Projects/Documents is on any
+ * real machine — aliasing it would be the same silent misroute this closes.
+ *
+ * Takes and returns a WORKSPACE-RELATIVE path (no leading slash).
+ */
+export function resolveHomeAlias(relativePath: string): string {
+  const rel = relativePath || '';
+  if (!rel || rel.startsWith('/')) return rel;
+  const slash = rel.indexOf('/');
+  const head = slash === -1 ? rel : rel.slice(0, slash);
+  const tail = slash === -1 ? '' : rel.slice(slash);
+  const kernel = HOME_ALIAS_LOOKUP[head.toLowerCase()];
+  return kernel === undefined ? rel : `${kernel}${tail}`;
+}
+
+/**
+ * The told-name spelling of a kernel path — the DISPLAY half, twin of
+ * `display_home_alias`. `inbound/uploads/a.png` → `Downloads/uploads/a.png`.
+ * Any other path is returned byte-identical.
+ *
+ * ⚠️ PROSE ONLY — never a `yarnnn://` handle. A handle is an ADDRESS that must
+ * round-trip through other systems and back into `parse_file_reference`, so
+ * `formatFileReference` deliberately does NOT call this. The ADR-395/588 rule
+ * holds for storage and authorization: alias at PRESENTATION only.
+ *
+ * Takes and returns a WORKSPACE-RELATIVE path (no leading slash).
+ */
+export function displayHomeAlias(relativePath: string): string {
+  const rel = relativePath || '';
+  if (!rel || rel.startsWith('/')) return rel;
+  const slash = rel.indexOf('/');
+  const head = slash === -1 ? rel : rel.slice(0, slash);
+  const tail = slash === -1 ? '' : rel.slice(slash);
+  const told = HOME_ALIAS_DISPLAY[head];
+  return told === undefined ? rel : `${told}${tail}`;
+}
+
+/**
+ * THE ONE PATH STRING A HUMAN READS. `/workspace/inbound/uploads/a.png` →
+ * `Downloads/uploads/a.png`.
+ *
+ * `relPath` strips the ledger prefix and stops; this also speaks the home in
+ * the vocabulary the operator was taught. Every surface that renders a path
+ * for a person — a title strip, a tile caption, a list subtitle, a Properties
+ * row, a share target — calls THIS. `relPath` remains for the callers that
+ * need the kernel spelling (a request parameter, a comparison against
+ * `workspace_files.path`, a handle).
+ */
+export function displayPath(path: string): string {
+  return displayHomeAlias(relPath(path));
 }

@@ -43,7 +43,7 @@ import {
 import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
 import { resolveHandlers } from '@/lib/file-types/handlers';
 import { CopyField } from '@/components/workspace/CopyField';
-import { relPath } from '@/lib/interop/fileHandle';
+import { displayPath } from '@/lib/interop/fileHandle';
 import { resolveDownload } from '@/lib/workspace/download';
 import { ensureKindApps, extractTemplate, knownKind, rememberKind } from '@/lib/file-types';
 import type { WorkspaceTreeNode } from '@/types';
@@ -106,7 +106,7 @@ function FolderDetails({
       <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
         <PropRow label="Path">
           <CopyField
-            value={relPath(node.path)}
+            value={displayPath(node.path)}
             label="Folder path"
             hint="Paste it anywhere — here, or to an AI on your workspace."
           />
@@ -223,7 +223,7 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
   // the path. The workspace-relative form is the one the operator pastes back
   // (quick-open, chat, `open` on a connector); the `/workspace/` root is
   // implied by being here at all.
-  const reference = relPath(node.path);
+  const reference = displayPath(node.path);
 
   // ADR-422 D4: the plain-language "why" for a not-freely-editable file. For
   // agent-authored, name the most-recent contributor (the head author).

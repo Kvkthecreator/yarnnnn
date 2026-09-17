@@ -49,7 +49,7 @@ import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { describeViewerApplication } from '@/lib/file-types';
 import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
-import { relPath as workspaceRelPath } from '@/lib/interop/fileHandle';
+import { displayPath as workspaceDisplayPath } from '@/lib/interop/fileHandle';
 import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { useFeedback } from '@/contexts/FeedbackContext';
@@ -390,7 +390,7 @@ function DirectoryView({
               onClick={(e) => onNavigate(child, e)}
               onContextMenu={rowContext(child)}
               actions={rowKebab(child)}
-              subtext={workspaceRelPath(child.path)}
+              subtext={workspaceDisplayPath(child.path)}
               // THE TILE GETS ITS MATERIAL (2026-08-27). This prop was absent,
               // so a folder-listing tile could only ever draw the format glyph
               // — the reason every image in a folder looked like a generic
@@ -436,7 +436,7 @@ function DirectoryView({
                 kind={child.type === 'folder' ? 'folder' : 'file'}
                 selected={selectedSet.has(child.path)}
                 dnd={dnd ? { path: child.path, ...tileDnd(dnd, child) } : undefined}
-                subtitle={workspaceRelPath(child.path)}
+                subtitle={workspaceDisplayPath(child.path)}
                 when={formatTimestamp(child.updated_at)}
                 author={
                   <span className="inline-flex items-center gap-1.5">

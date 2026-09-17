@@ -89,7 +89,7 @@ import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { cn } from '@/lib/utils';
 import { formatAuthorLabel } from '@/lib/workspace/attribution';
-import { toWorkspacePath, relPath } from '@/lib/interop/fileHandle';
+import { toWorkspacePath, displayPath } from '@/lib/interop/fileHandle';
 import { CopyField } from '@/components/workspace/CopyField';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { RecentRevisions } from '@/components/workspace/RecentRevisions';
@@ -387,7 +387,12 @@ function nodeMetadataNode(node: TreeNode): React.ReactNode {
     // the hardest to pick out of it — which is the opposite of what a copy
     // affordance is for.
     <span className="flex min-w-0 flex-col gap-0.5">
-      <CopyField variant="inline" value={relPath(node.path)} label="path" />
+      {/* ADR-588 D2 — the told-name, not the kernel path. The operator stands
+          in a folder the tree calls "Downloads" and read `inbound/uploads`
+          here (2026-09-17). Copy carries the SAME string it shows: what you
+          read is what you paste, and `toWorkspacePath` resolves the told-name
+          back at the arrival door so the round trip closes. */}
+      <CopyField variant="inline" value={displayPath(node.path)} label="path" />
       {history && <span className="truncate">{history}</span>}
     </span>
   );

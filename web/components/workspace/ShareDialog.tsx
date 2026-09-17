@@ -53,7 +53,7 @@ import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { CopyField } from '@/components/workspace/CopyField';
-import { relPath } from '@/lib/interop/fileHandle';
+import { displayPath } from '@/lib/interop/fileHandle';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { isSubmitKey } from '@/lib/shell/submit-key';
 
@@ -342,7 +342,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
               side in the one surface whose job is capability is exactly the
               reach-vs-egress blur ADR-587 §4 refused. The handle stays on
               Export ("Copy AI reference"). */}
-          <p className="mt-1 truncate text-xs text-muted-foreground" title={relPath(target.path)}>
+          <p className="mt-1 truncate text-xs text-muted-foreground" title={displayPath(target.path)}>
             {target.name}
           </p>
           {/* No `path &&` guard: `target.path` is a REQUIRED string in all
@@ -353,7 +353,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
               and it carries no artifact path). */}
           <div className="mt-2">
             <CopyField
-              value={relPath(target.path)}
+              value={displayPath(target.path)}
               label="Workspace path"
               hint="Where this file lives — paste it back here or to an AI on your workspace."
             />
