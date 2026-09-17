@@ -1,58 +1,62 @@
 "use client";
 
+/**
+ * The operator console (ADR-655).
+ *
+ * Keyed on the workspace, because the workspace is the substrate's binding unit
+ * (ADR-373/378). Every figure here has a live writer, verified against prod —
+ * a figure with no live source is deleted, not carried at zero (D2). The
+ * predecessor rendered a Tasks card over a 0-row table and an Email column that
+ * read "unknown" for all 21 workspaces.
+ */
+
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
 import { formatLedgerTime } from "@/lib/formatting";
 import type {
   AdminOverviewStats,
   AdminExecutionStats,
-  AdminUserRow,
+  AdminWorkspaceRow,
 } from "@/types/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/admin/StatCard";
 import {
-  Users,
-  Zap,
+  Boxes,
+  KeyRound,
   MessageSquare,
-  ListTodo,
-  Bot,
-  Loader2,
   AlertCircle,
-  Download,
   DollarSign,
   Activity,
   Clock,
-  TrendingDown,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Working } from '@/components/shared/Working';
+import { Working } from "@/components/shared/Working";
 
-export default function AdminDashboardPage() {
+/** A heartbeat older than this means the scheduler is not draining. */
+const HEARTBEAT_STALE_MS = 30 * 60 * 1000;
+
+export default function OperatorConsolePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
 
   const [overview, setOverview] = useState<AdminOverviewStats | null>(null);
   const [execStats, setExecStats] = useState<AdminExecutionStats | null>(null);
-  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [workspaces, setWorkspaces] = useState<AdminWorkspaceRow[]>([]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      const [ov, ex, us] = await Promise.all([
+      const [ov, ex, ws] = await Promise.all([
         api.admin.stats(),
         api.admin.executionStats(),
-        api.admin.users(),
+        api.admin.workspaces(),
       ]);
-
       setOverview(ov);
       setExecStats(ex);
-      setUsers(us);
+      setWorkspaces(ws);
     } catch (err) {
-      console.error("Failed to fetch admin stats:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch stats");
+      console.error("Failed to load the console:", err);
+      setError(err instanceof Error ? err.message : "Failed to load the console");
     } finally {
       setLoading(false);
     }
@@ -62,232 +66,251 @@ export default function AdminDashboardPage() {
     fetchData();
   }, []);
 
-  // ADR-429 §12.3a — toggle a workspace's billing-exempt (comp) state. Optimistic:
-  // flip locally, call the admin route, revert on failure.
+  // ADR-429 §12.3a — toggle a workspace's billing-exempt (comp) state.
+  // Optimistic: flip locally, call the route, revert on failure.
   const [exemptPending, setExemptPending] = useState<string | null>(null);
-  const handleToggleExempt = async (user: AdminUserRow) => {
-    if (!user.workspace_id) return;
-    const next = !user.billing_exempt;
-    setExemptPending(user.id);
-    setUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, billing_exempt: next } : u)),
+  const handleToggleExempt = async (row: AdminWorkspaceRow) => {
+    const next = !row.billing_exempt;
+    setExemptPending(row.id);
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.id === row.id ? { ...w, billing_exempt: next } : w)),
     );
     try {
-      await api.admin.setBillingExempt(user.workspace_id, next);
+      await api.admin.setBillingExempt(row.id, next);
     } catch (err) {
       console.error("Failed to toggle billing exempt:", err);
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, billing_exempt: !next } : u)),
+      setWorkspaces((prev) =>
+        prev.map((w) => (w.id === row.id ? { ...w, billing_exempt: !next } : w)),
       );
     } finally {
       setExemptPending(null);
     }
   };
 
-  const handleExportReport = async () => {
-    try {
-      setExporting(true);
-      await api.admin.exportReport();
-    } catch (err) {
-      console.error("Failed to export:", err);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const formatDate = (dateStr: string) => formatLedgerTime(dateStr);
-
-  const formatTokens = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-    return n.toString();
-  };
+  /**
+   * How a workspace identifies itself. The resolver returns a display name or
+   * nothing; a workspace that does not resolve still says which one it is,
+   * rather than rendering "unknown" — which reads as data loss when it is only
+   * a missing join (ADR-655 D3).
+   */
+  const identify = (w: AdminWorkspaceRow) => ({
+    primary: w.name || w.owner_label || `Workspace ${w.id.slice(0, 8)}`,
+    secondary: w.owner_label ?? w.id.slice(0, 8),
+  });
 
   if (loading) {
-    return (
-      <Working label="Loading the dashboard…" fill className="py-20" />
-    );
+    return <Working label="Loading the console…" fill className="py-20" />;
   }
 
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <AlertCircle className="w-8 h-8 text-destructive mb-2" />
-        <p className="text-destructive font-medium">Error loading dashboard</p>
+        <p className="text-destructive font-medium">The console could not load</p>
         <p className="text-sm text-muted-foreground mt-1">{error}</p>
       </div>
     );
   }
 
+  const heartbeatAt = execStats?.last_scheduler_heartbeat
+    ? new Date(execStats.last_scheduler_heartbeat).getTime()
+    : null;
+  const heartbeatStale =
+    heartbeatAt === null || Date.now() - heartbeatAt > HEARTBEAT_STALE_MS;
 
   return (
-    <div className="space-y-8 max-w-6xl mx-auto p-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Operational metrics & cost analytics
-          </p>
-        </div>
-        <Button
-          variant="default"
-          onClick={handleExportReport}
-          disabled={exporting || loading}
-        >
-          {exporting ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Download className="w-4 h-4 mr-2" />
-          )}
-          Export Report
-        </Button>
+    <div className="space-y-8 max-w-6xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-semibold">Console</h1>
+        <p className="text-muted-foreground mt-1">
+          What the platform is doing, and what it costs.
+        </p>
       </div>
 
-      {/* Overview Stats */}
+      {/* Platform totals */}
       {overview && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <StatCard label="Users" value={overview.total_users} trend={overview.users_7d} trendLabel="7d" icon={Users} />
-          <StatCard label="Tasks" value={overview.total_tasks} trend={overview.tasks_7d} trendLabel="7d" icon={ListTodo} />
-          <StatCard label="Sessions" value={overview.total_sessions} trend={overview.sessions_7d} trendLabel="7d" icon={MessageSquare} />
+          <StatCard
+            label="Workspaces"
+            value={overview.total_workspaces}
+            trend={overview.workspaces_7d}
+            trendLabel="7d"
+            icon={Boxes}
+          />
+          <StatCard label="Grants" value={overview.total_grants} icon={KeyRound} />
+          <StatCard
+            label="Sessions"
+            value={overview.total_sessions}
+            trend={overview.sessions_7d}
+            trendLabel="7d"
+            icon={MessageSquare}
+          />
           <StatCard label="Messages" value={overview.total_messages} icon={MessageSquare} />
           <StatCard
             label="Spend (mo)"
-            value={execStats ? `$${(execStats.spend_usd_this_month ?? 0).toFixed(2)}/$${(execStats.spend_usd_limit ?? 0).toFixed(2)}` : "—"}
-            icon={Zap}
+            value={execStats ? `$${execStats.spend_usd_this_month.toFixed(2)}` : "—"}
+            icon={DollarSign}
           />
         </div>
       )}
 
-      {/* Execution Stats */}
+      {/* Scheduler health + the daily guard */}
       {execStats && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="w-4 h-4" />
-              Task Execution
-              {execStats.last_scheduler_heartbeat && (
-                <span className="text-xs font-normal text-muted-foreground ml-auto flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Last heartbeat: {formatDate(execStats.last_scheduler_heartbeat)}
-                  <span className="ml-2">({execStats.heartbeats_24h} in 24h)</span>
-                </span>
-              )}
+              Scheduler
+              <span
+                className={`text-xs font-normal ml-auto flex items-center gap-1 ${
+                  heartbeatStale ? "text-red-600" : "text-muted-foreground"
+                }`}
+              >
+                <Clock className="w-3 h-3" />
+                {execStats.last_scheduler_heartbeat
+                  ? `Last beat ${formatLedgerTime(execStats.last_scheduler_heartbeat)}`
+                  : "No heartbeat recorded"}
+                <span className="ml-2">({execStats.heartbeats_24h} in 24h)</span>
+              </span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Run summary + daily spend guard status */}
-            {/* The three Runs (24h/7d/30d) counters are DELETED (2026-08-26) —
-                they counted `agent_runs`, the retired model's EMPTY ledger. */}
+          <CardContent>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground">Today's Spend</p>
-                <p className={`text-xl font-semibold ${
-                  execStats.daily_spend_today >= execStats.daily_spend_ceiling
-                    ? "text-red-600"
-                    : execStats.daily_spend_today >= execStats.daily_spend_ceiling * 0.8
-                    ? "text-yellow-600"
-                    : ""
-                }`}>
+                <p className="text-muted-foreground">Today&apos;s spend</p>
+                <p
+                  className={`text-xl font-semibold tabular-nums ${
+                    execStats.daily_spend_today >= execStats.daily_spend_ceiling
+                      ? "text-red-600"
+                      : execStats.daily_spend_today >= execStats.daily_spend_ceiling * 0.8
+                        ? "text-yellow-600"
+                        : ""
+                  }`}
+                >
                   ${execStats.daily_spend_today.toFixed(2)}
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground">Daily Ceiling</p>
-                <p className="text-xl font-semibold">${execStats.daily_spend_ceiling.toFixed(2)}</p>
+                <p className="text-muted-foreground">Daily ceiling</p>
+                <p className="text-xl font-semibold tabular-nums">
+                  ${execStats.daily_spend_ceiling.toFixed(2)}
+                </p>
               </div>
             </div>
-
-            {/* The Per-Task Breakdown table is DELETED (2026-08-26). Every
-                column came from `agent_runs` + `agents`, the retired agent
-                model's EMPTY tables, so it rendered blank forever. Spend and
-                the scheduler heartbeat above are live (execution_events). */}
           </CardContent>
         </Card>
       )}
 
-      {/* Users Table */}
+      {/* The workspaces */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Users
+            <Boxes className="w-4 h-4" />
+            Workspaces
+            <span className="text-xs font-normal text-muted-foreground ml-auto">
+              Busiest first, last 7 days
+            </span>
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              try {
-                await api.admin.exportUsers();
-              } catch (err) {
-                console.error("Failed to export users:", err);
-              }
-            }}
-            disabled={users.length === 0}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2 px-2 font-medium text-muted-foreground">Email</th>
+                  <th className="text-left py-2 px-2 font-medium text-muted-foreground">
+                    Workspace
+                  </th>
                   <th className="text-left py-2 px-2 font-medium text-muted-foreground">Tier</th>
-                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">Tasks</th>
-                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">Sessions</th>
-                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">Spend (mo)</th>
-                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">Last Active</th>
-                  <th className="text-center py-2 px-2 font-medium text-muted-foreground" title="Billing-exempt: workspace pays nothing (ADR-429 §12.3a)">Comp</th>
+                  <th
+                    className="text-right py-2 px-2 font-medium text-muted-foreground"
+                    title="Principals with a grant on this workspace (ADR-405)"
+                  >
+                    Reach
+                  </th>
+                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                    Events 7d
+                  </th>
+                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                    Spend 7d
+                  </th>
+                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                    Balance
+                  </th>
+                  <th className="text-right py-2 px-2 font-medium text-muted-foreground">
+                    Last active
+                  </th>
+                  <th
+                    className="text-center py-2 px-2 font-medium text-muted-foreground"
+                    title="Billing-exempt: the workspace pays nothing (ADR-429 §12.3a)"
+                  >
+                    Comp
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {users.length === 0 ? (
+                {workspaces.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                      No users found
+                      No workspaces yet.
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => (
-                    <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="py-2 px-2 truncate max-w-[200px]" title={user.email}>
-                        {user.email}
-                      </td>
-                      <td className="py-2 px-2">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                          user.tier === "pro"
-                            ? "bg-purple-100 text-purple-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}>
-                          {user.tier}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2 text-right">{user.task_count}</td>
-                      <td className="py-2 px-2 text-right">{user.session_count}</td>
-                      <td className="py-2 px-2 text-right">${user.spend_usd?.toFixed(2) ?? "—"}</td>
-                      <td className="py-2 px-2 text-right text-muted-foreground text-xs">
-                        {user.last_activity ? formatDate(user.last_activity) : "—"}
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        {/* ADR-429 §12.3a — comp/exempt toggle. Exempt = pays nothing. */}
-                        <button
-                          type="button"
-                          disabled={!user.workspace_id || exemptPending === user.id}
-                          onClick={() => handleToggleExempt(user)}
-                          title={user.billing_exempt ? "Comped — click to bill normally" : "Billing normally — click to comp"}
-                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-colors disabled:opacity-40 ${
-                            user.billing_exempt
-                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                          }`}
-                        >
-                          {user.billing_exempt ? "Comped" : "Bill"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  workspaces.map((w) => {
+                    const id = identify(w);
+                    return (
+                      <tr key={w.id} className="border-b last:border-0 hover:bg-muted/50">
+                        <td className="py-2 px-2">
+                          <div className="truncate max-w-[220px]" title={w.id}>
+                            {id.primary}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate max-w-[220px]">
+                            {id.secondary}
+                          </div>
+                        </td>
+                        <td className="py-2 px-2">
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                              w.tier === "free"
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-purple-100 text-purple-700"
+                            }`}
+                          >
+                            {w.tier}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 text-right tabular-nums">{w.grant_count}</td>
+                        <td className="py-2 px-2 text-right tabular-nums">{w.events_7d}</td>
+                        <td className="py-2 px-2 text-right tabular-nums">
+                          ${w.spend_7d.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right tabular-nums">
+                          ${w.balance_usd.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-2 text-right text-muted-foreground text-xs">
+                          {w.last_activity ? formatLedgerTime(w.last_activity) : "—"}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          <button
+                            type="button"
+                            disabled={exemptPending === w.id}
+                            onClick={() => handleToggleExempt(w)}
+                            title={
+                              w.billing_exempt
+                                ? "Comped — click to bill normally"
+                                : "Billing normally — click to comp"
+                            }
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium transition-colors disabled:opacity-40 ${
+                              w.billing_exempt
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            }`}
+                          >
+                            {w.billing_exempt ? "Comped" : "Bill"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

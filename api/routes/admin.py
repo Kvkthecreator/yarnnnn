@@ -1,24 +1,57 @@
 """
-Admin routes — Operational dashboard for yarnnn.
+Admin routes — the operator console (ADR-655).
 
 Endpoints:
-- GET /stats - Overview: users, agents, tasks, sessions
-- GET /execution-stats - Task execution frequency, credits, scheduler health
-- GET /users - User list with activity metrics
-- GET /export/users - Export users as Excel
-- GET /export/report - Export full report as Excel
-- POST /trigger-agent/{agent_id} - Manually trigger agent run (testing)
+- GET  /stats            — platform totals: workspaces, grants, sessions, messages
+- GET  /execution-stats  — spend this month / today, the daily ceiling, scheduler health
+- GET  /workspaces       — the workspace list: tier, balance, grants, 7d events, 7d spend
+- POST /workspace/{id}/billing-exempt — the comp toggle (ADR-429 §12.3a)
+
+ADR-655 keys this console on the WORKSPACE, because the workspace is the
+substrate's binding unit (ADR-373/378). What it deleted, and why, so the shapes
+are not rebuilt by someone reading only the survivors:
+
+  * The `tasks` stat card and the per-user Tasks column. `tasks` is ADR-639's
+    drain index, live at 0 rows. A zero that cannot become non-zero is furniture.
+  * `workspaces.owner_email`. One reader (here), zero writers anywhere, NULL on
+    every live row — so the Users table's identifying column rendered "unknown"
+    for all 21 workspaces. The column is DROPPED by migration 257; identity
+    resolves from `owner_id` through the one resolver (D3 below).
+  * "Users", which was `count(workspaces)` wearing a user label. A workspace
+    count is now labelled as one.
+  * `/accounts` + `/accounts/{slug}` — the eval-persona forensics, with
+    `_load_personas` and seven `Account*` models. They read the Hat-B registry
+    at docs/alpha/personas.yaml through a Hat-A door and shared an auth gate
+    with real operators' money. A developer probe belongs in
+    api/scripts/operator/ (CLAUDE.md, the two hats). Their headline metric
+    counted `authored_by LIKE 'freddie:%'` — the seat ADR-632 retired, 1 row in
+    30 days against 1,024 `system` — and `action_proposals`, last written
+    2026-07-05.
+  * `/export/users` + `/export/report`, which exported the Users table's shape.
+    An export of a fiction is a fiction in a spreadsheet. The `openpyxl` import
+    they alone justified goes with them.
+
+⚠️ THIS MODULE COMPUTES NO COST, AND MUST NOT START AGAIN (2026-08-21).
+`GET /token-usage` lived here and was DELETED for two independent reasons: it
+aggregated `agent_runs.metadata` + `session_messages.metadata`, neither of which
+has an INSERT site left in `api/`; and its cost math was a SECOND implementation
+that halved every rate under a retired 2x markup and hardcoded Anthropic's cache
+arithmetic for every provider (~2x under-report, compounding). Both failures are
+INVISIBLE — a wrong cost number looks exactly like a right one, and an empty
+dashboard looks like a quiet month. Spend here is read, never computed: it is
+the `cost_usd` column of `execution_events` (ADR-291, written only by
+`telemetry.record_execution_event`). The per-model surface is
+`GET /user/usage-detail`; the sole canonical cost function is
+`compute_cost_usd_inclusive`. Never a local rate table.
 """
 
 import os
 import logging
-from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.admin_auth import AdminAuth
@@ -26,93 +59,60 @@ from services.admin_auth import AdminAuth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ⚠️ THIS MODULE COMPUTES NO COST, AND MUST NOT START AGAIN (2026-08-21).
-#
-# `GET /token-usage` lived here and was DELETED, along with its models, its
-# `_estimate_cost` helper, and the "Token Usage" sheet in the XLSX export. Two
-# independent reasons, either sufficient:
-#
-#   1. IT READ DEAD TABLES. It aggregated `agent_runs.metadata` and
-#      `session_messages.metadata`. Neither has an INSERT site left anywhere in
-#      `api/` — the one live meter is `execution_events` (ADR-396, written only
-#      by `telemetry.record_execution_event`). The card rendered a confident
-#      "$0.00 Total Cost" over tables nothing writes, and its `caller` axis was
-#      hard-coded to `task_pipeline`, a pipeline deleted by ADR-231.
-#   2. ITS COST MATH WAS A SECOND IMPLEMENTATION, AND IT WAS WRONG. It halved
-#      every rate under a "2x markup constant" — a multiplier RETIRED by the
-#      2026-07-06 operator ruling (margin lives in `billed_usd` at one write
-#      site, ADR-490 §2, x1.30, never in the rate table) — and re-implemented
-#      the cache arithmetic with Anthropic's 10%/125% hardcoded, mispricing
-#      every OpenAI / Gemini / DeepSeek row. Measured under-report: ~2.00x on
-#      Anthropic, 1.79-2.08x elsewhere, the two errors compounding.
-#
-# Both failures are INVISIBLE — a wrong cost number looks exactly like a right
-# one, and an empty dashboard looks like a quiet month. The live per-model
-# spend surface is `GET /user/usage-detail` (`routes/integrations.py`), which
-# reads `execution_events` and already answers this question. If admin needs a
-# cost view, build it on that ledger and on `compute_cost_usd_inclusive` — the
-# sole canonical cost function — never on a local rate table.
-#
-# `GET /execution-stats` DOES read `execution_events` for spend and is live;
-# it is deliberately untouched.
-
 
 # =============================================================================
 # Pydantic Models
 # =============================================================================
 
 class AdminOverviewStats(BaseModel):
-    total_users: int
-    # `total_agents` REMOVED 2026-08-26 — it counted the retired agent model's
-    # EMPTY table, so the "Agents" stat card could only ever read 0. This file's
-    # own tombstone at the top warns about exactly this failure mode (a deleted
-    # endpoint that "rendered a confident $0.00 over tables nothing writes").
-    total_tasks: int
+    """Platform totals. Every field has a live writer — ADR-655 D2: a figure
+    with no live source is deleted, not carried at zero."""
+    total_workspaces: int
+    total_grants: int
     total_sessions: int
     total_messages: int
     # Growth (7d)
-    users_7d: int
-    tasks_7d: int
+    workspaces_7d: int
     sessions_7d: int
 
 
-# TaskExecutionRow DELETED 2026-08-26 with the per-task breakdown it typed —
-# every field came from `agent_runs` + `agents` (both EMPTY), so the row could
-# never be constructed.
-
-
 class AdminExecutionStats(BaseModel):
-    """Scheduler health + spend.
+    """Scheduler health + spend, from `execution_events` and `activity_log`.
 
-    2026-08-26 — `total_runs_24h/7d/30d` and the per-task `tasks` breakdown are
-    REMOVED. Every one was derived from `agent_runs`, the retired agent model's
-    EMPTY ledger, so the counters read 0 and the table rendered empty. Spend and
-    the scheduler heartbeat below are LIVE — they come from `execution_events`
-    and `activity_log`, which are the real ledgers.
+    ADR-655 D7 drops `spend_usd_limit` — it was a hardcoded 20.0 labelled "Pro
+    default" against an aggregate figure it did not bound. `daily_spend_ceiling`
+    stays: a real guard reads DAILY_SPEND_CEILING_USD.
     """
-    # Spend
     spend_usd_this_month: float
-    spend_usd_limit: float
     daily_spend_today: float = 0.0
     daily_spend_ceiling: float = 10.0
-    # Scheduler
     last_scheduler_heartbeat: Optional[str]
     heartbeats_24h: int
 
 
-class AdminUserRow(BaseModel):
+class AdminWorkspaceRow(BaseModel):
+    """One workspace — the binding unit (ADR-373/378), shown as itself.
+
+    `owner_label` is resolved through `principal_display.resolve_member_names`
+    (the ONE resolver, TTL-cached), never read from a column. It is a display
+    NAME — `user_metadata.full_name`, else the email's local part — not an
+    address, which is why the field is not called `owner_email`: the resolver
+    deliberately returns a handle, and a field promising an address that holds
+    a handle is the `owner_email` defect again in a new spelling. When it does
+    not resolve the row still identifies itself by `name` + short id rather
+    than rendering "unknown", which reads as data loss when it is a missing join.
+    """
     id: str
-    email: str
+    name: Optional[str] = None
+    owner_id: str
+    owner_label: Optional[str] = None
     created_at: str
     tier: str
-    task_count: int
-    session_count: int
-    spend_usd: float
+    balance_usd: float = 0.0
+    grant_count: int = 0
+    events_7d: int = 0
+    spend_7d: float = 0.0
     last_activity: Optional[str] = None
-    # ADR-429 §12.3a — the comp/exempt state + its workspace target (for the admin
-    # toggle). `workspace_id` is the row's owner-workspace; `billing_exempt` is
-    # whether it pays nothing (base + seats forced $0).
-    workspace_id: Optional[str] = None
     billing_exempt: bool = False
 
 
@@ -125,323 +125,235 @@ class BillingExemptResponse(BaseModel):
     billing_exempt: bool
 
 
-class AdminAccountRow(BaseModel):
-    """Per-persona live health for the designated test/eval accounts.
-
-    Joins docs/alpha/personas.yaml (the test-account registry) against the
-    execution_events / workspace_file_versions ledgers. Substrate-derived,
-    no eval-specific schema — see docs/evaluations/README.md for the markdown
-    side of the eval discipline this surface complements.
-    """
-    slug: str
-    label: Optional[str] = None
-    program: Optional[str] = None
-    email: Optional[str] = None
-    user_id: str
-    # Wake activity (execution_events)
-    wakes_24h: int
-    wakes_7d: int
-    failed_7d: int
-    top_failure_reason: Optional[str] = None
-    cost_7d: float
-    last_wake: Optional[str] = None
-    # Tenure signal (workspace_file_versions, authored_by reviewer:*)
-    reviewer_edits_7d: int
-
-
-# --- /accounts/{slug} detail blocks ---------------------------------------
-
-class AccountDayPoint(BaseModel):
-    day: str
-    wakes: int
-    cost: float
-    input_tokens: int
-    output_tokens: int
-
-
-class AccountSlugRow(BaseModel):
-    slug: str
-    runs: int
-    failed: int
-    cost: float
-
-
-class AccountSourceRow(BaseModel):
-    wake_source: str
-    success: int
-    failed: int
-
-
-class AccountFailureRow(BaseModel):
-    created_at: str
-    slug: str
-    error_reason: Optional[str] = None
-    error_detail: Optional[str] = None
-
-
-class AccountRevisionRow(BaseModel):
-    created_at: str
-    path: str
-    message: Optional[str] = None
-
-
-class AccountProposalSummary(BaseModel):
-    status: str
-    count: int
-
-
-class AccountPerfRow(BaseModel):
-    mode: str
-    avg_envelope_ms: Optional[int] = None
-    avg_duration_ms: Optional[int] = None
-    avg_tool_rounds: Optional[float] = None
-    n: int
-
-
-class AdminAccountDetail(BaseModel):
-    """Full per-persona forensic view for /admin/accounts/{slug}.
-
-    Seven blocks, all sliced from execution_events / workspace_file_versions /
-    action_proposals / workspace_files. Substrate-derived; no eval-specific
-    table. The daily curve covers up to `curve_days`, but high-frequency
-    personas may truncate at the row cap — `curve_truncated` flags that so a
-    cut tail reads as cut, not as zero.
-    """
-    slug: str
-    label: Optional[str] = None
-    program: Optional[str] = None
-    email: Optional[str] = None
-    user_id: str
-    # Block 1: daily cost/activity curve
-    curve_days: int
-    curve_truncated: bool
-    daily: list[AccountDayPoint]
-    # Block 2: per-recurrence breakdown (7d)
-    by_slug: list[AccountSlugRow]
-    # Block 3: wake-source x status (7d)
-    by_source: list[AccountSourceRow]
-    # Block 4: recent failures with detail
-    recent_failures: list[AccountFailureRow]
-    # Block 5: reviewer self-amendment trail
-    reviewer_trail: list[AccountRevisionRow]
-    # Block 6: decision queue (proposals)
-    proposals: list[AccountProposalSummary]
-    # Block 7: substrate footprint + perf
-    total_files: int
-    persona_files: int
-    operation_files: int
-    perf: list[AccountPerfRow]
-
-
 # =============================================================================
-# Helper
+# Helpers
 # =============================================================================
+
+#: Row cap on the windowed `execution_events` fetch. The busiest live workspace
+#: ran 43 events in 7d and the platform 1,176 in 30d, so this is ~4x headroom;
+#: `events_truncated` is not modelled because a cap hit would silently undercount
+#: spend — instead the cap is logged loudly and raised deliberately.
+_EVENT_CAP = 5000
+
 
 def _get_date_threshold(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
 
 # =============================================================================
-# GET /stats — Overview
+# GET /stats — platform totals
 # =============================================================================
 
 @router.get("/stats", response_model=AdminOverviewStats)
 async def get_overview_stats(admin: AdminAuth):
-    """Overview dashboard statistics."""
+    """Platform totals. Counts are server-side (`count="exact"`, no rows moved)."""
     try:
         client = admin.client
         seven_days_ago = _get_date_threshold(7)
 
-        # Total users
-        users_result = client.table("workspaces").select("id", count="exact").execute()
-        total_users = users_result.count or 0
-
-        users_7d_result = client.table("workspaces")\
+        workspaces = client.table("workspaces").select("id", count="exact").execute()
+        workspaces_7d = client.table("workspaces")\
             .select("id", count="exact")\
             .gte("created_at", seven_days_ago).execute()
-        users_7d = users_7d_result.count or 0
 
-        # Total tasks
-        tasks_result = client.table("tasks").select("id", count="exact").execute()
-        total_tasks = tasks_result.count or 0
+        # Reach is a grant, never an ownership column (ADR-405) — so the honest
+        # "how much principal activity does this platform hold" figure is the
+        # grant count, not a user count.
+        grants = client.table("principal_grants").select("id", count="exact").execute()
 
-        tasks_7d_result = client.table("tasks")\
+        sessions = client.table("chat_sessions").select("id", count="exact").execute()
+        sessions_7d = client.table("chat_sessions")\
             .select("id", count="exact")\
             .gte("created_at", seven_days_ago).execute()
-        tasks_7d = tasks_7d_result.count or 0
 
-        # Sessions
-        sessions_result = client.table("chat_sessions").select("id", count="exact").execute()
-        total_sessions = sessions_result.count or 0
-
-        sessions_7d_result = client.table("chat_sessions")\
-            .select("id", count="exact")\
-            .gte("created_at", seven_days_ago).execute()
-        sessions_7d = sessions_7d_result.count or 0
-
-        # Messages
-        messages_result = client.table("session_messages").select("id", count="exact").execute()
-        total_messages = messages_result.count or 0
+        messages = client.table("session_messages").select("id", count="exact").execute()
 
         return AdminOverviewStats(
-            total_users=total_users,
-            total_tasks=total_tasks,
-            total_sessions=total_sessions,
-            total_messages=total_messages,
-            users_7d=users_7d,
-            tasks_7d=tasks_7d,
-            sessions_7d=sessions_7d,
+            total_workspaces=workspaces.count or 0,
+            total_grants=grants.count or 0,
+            total_sessions=sessions.count or 0,
+            total_messages=messages.count or 0,
+            workspaces_7d=workspaces_7d.count or 0,
+            sessions_7d=sessions_7d.count or 0,
         )
     except Exception as e:
+        logger.error("[ADMIN] Overview stats query failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch stats: {str(e)}")
 
 
 # =============================================================================
-# GET /execution-stats — Task Execution & Scheduler Health
+# GET /execution-stats — spend + scheduler health
 # =============================================================================
 
 @router.get("/execution-stats", response_model=AdminExecutionStats)
 async def get_execution_stats(admin: AdminAuth):
-    """Task execution frequency, credits, scheduler health."""
+    """Spend this month / today and the scheduler heartbeat.
+
+    One fetch over the month covers both figures — today's spend is a slice of
+    it, not a second round trip (ADR-655 D4).
+    """
     try:
         client = admin.client
         now = datetime.now(timezone.utc)
-        cutoff_24h = (now - timedelta(hours=24)).isoformat()
-        cutoff_7d = (now - timedelta(days=7)).isoformat()
-        cutoff_30d = (now - timedelta(days=30)).isoformat()
-
-        # Spend this month (ADR-291: execution_events is canonical cost ledger)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
-        spend_result = client.table("execution_events")\
-            .select("cost_usd")\
+        today_utc = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        cutoff_24h = (now - timedelta(hours=24)).isoformat()
+
+        # ADR-291: execution_events is the canonical cost ledger. `cost_usd` is
+        # NULL on mechanical/skipped wakes — coerce with `or 0`, not `, 0`
+        # (the present-but-null trap that 500'd this route once before).
+        spend_rows = client.table("execution_events")\
+            .select("cost_usd, created_at")\
             .gte("created_at", month_start)\
-            .execute()
-        spend_usd_this_month = sum(float(r.get("cost_usd") or 0) for r in (spend_result.data or []))
+            .limit(_EVENT_CAP)\
+            .execute().data or []
 
-        # Spend limit (aggregate — $20 pro default shown for overall)
-        spend_usd_limit = 20.0  # Pro default
+        spend_usd_this_month = sum(float(r.get("cost_usd") or 0) for r in spend_rows)
+        daily_spend_today = sum(
+            float(r.get("cost_usd") or 0)
+            for r in spend_rows
+            if (r.get("created_at") or "") >= today_utc
+        )
+        if len(spend_rows) >= _EVENT_CAP:
+            logger.warning(
+                "[ADMIN] month spend hit the %d-row cap — the figure is a FLOOR, raise the cap",
+                _EVENT_CAP,
+            )
 
-        # Scheduler heartbeat
-        hb_result = client.table("activity_log")\
+        hb = client.table("activity_log")\
             .select("created_at")\
             .eq("event_type", "scheduler_heartbeat")\
             .order("created_at", desc=True)\
             .limit(1).execute()
-        last_heartbeat = hb_result.data[0]["created_at"] if hb_result.data else None
+        last_heartbeat = hb.data[0]["created_at"] if hb.data else None
 
         hb_24h = client.table("activity_log")\
             .select("id", count="exact")\
             .eq("event_type", "scheduler_heartbeat")\
             .gte("created_at", cutoff_24h).execute()
 
-# The per-task breakdown (recent_runs -> agent_map -> task_stats) is DELETED
-# 2026-08-26. It read `agent_runs` + `agents`, both EMPTY, so task_stats was
-# always {} and the rendered table always blank. The execution_events pass
-# below SURVIVES — it computes daily_spend_today, which is live.
-
-        # ADR-250 Phase 4: enrich with execution_events (cost + failure counts per slug)
-        today_utc = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-        daily_spend_today = 0.0
-        # The per-slug cost / failed / skipped maps went with the per-task table
-        # they fed (2026-08-26). What remains is today's spend, which is live.
-        try:
-            ee_result = client.table("execution_events")\
-                .select("cost_usd, created_at")\
-                .gte("created_at", cutoff_30d)\
-                .execute()
-            for ee in (ee_result.data or []):
-                if ee.get("created_at", "") >= today_utc:
-                    daily_spend_today += float(ee.get("cost_usd") or 0)
-        except Exception as e:
-            logger.warning("[ADMIN] execution_events enrichment failed (non-fatal): %s", e)
-
-        import os as _os
         return AdminExecutionStats(
-            spend_usd_this_month=spend_usd_this_month,
-            spend_usd_limit=spend_usd_limit,
+            spend_usd_this_month=round(spend_usd_this_month, 4),
             daily_spend_today=round(daily_spend_today, 4),
-            daily_spend_ceiling=float(_os.getenv("DAILY_SPEND_CEILING_USD", "10.0")),
+            daily_spend_ceiling=float(os.getenv("DAILY_SPEND_CEILING_USD", "10.0")),
             last_scheduler_heartbeat=last_heartbeat,
             heartbeats_24h=hb_24h.count or 0,
         )
-
     except Exception as e:
-        logger.error(f"[ADMIN] Execution stats query failed: {e}")
+        logger.error("[ADMIN] Execution stats query failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch execution stats: {str(e)}")
 
 
 # =============================================================================
-# GET /users — User List
+# GET /workspaces — the workspace list
 # =============================================================================
 
-@router.get("/users", response_model=list[AdminUserRow])
-async def list_users(admin: AdminAuth):
-    """List users with activity metrics."""
+@router.get("/workspaces", response_model=list[AdminWorkspaceRow])
+async def list_workspaces(admin: AdminAuth):
+    """Every live workspace with its tier, balance, reach and 7d activity.
+
+    ADR-655 D4 — the query count is CONSTANT in the number of workspaces. The
+    predecessor issued 4 queries per row inside a Python loop (85 round trips
+    for 21 workspaces, growing linearly with signups). Here: one workspaces
+    fetch, one grants fetch, one events fetch, one batched email resolution —
+    everything else is bucketed in memory.
+    """
     try:
         client = admin.client
-        month_start = datetime.now(timezone.utc).replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
+        cutoff_7d = _get_date_threshold(7)
 
-        workspaces_result = client.table("workspaces")\
-            .select("id, owner_id, owner_email, created_at, billing_exempt")\
+        # Soft-deleted workspaces are not live workspaces (ADR-478's trash
+        # contract) — the console lists what is running.
+        workspaces = client.table("workspaces")\
+            .select("id, name, owner_id, created_at, balance_usd, "
+                    "subscription_tier, billing_exempt, deleted_at")\
+            .is_("deleted_at", "null")\
             .order("created_at", desc=True)\
-            .limit(100)\
-            .execute()
+            .limit(500)\
+            .execute().data or []
 
-        if not workspaces_result.data:
+        if not workspaces:
             return []
 
-        users = []
-        for workspace in workspaces_result.data:
-            user_id = workspace["owner_id"]
-            email = workspace.get("owner_email") or "unknown"
-            workspace_id = workspace.get("id")
-            billing_exempt = bool(workspace.get("billing_exempt", False))
+        ws_ids = [w["id"] for w in workspaces]
 
-            # Task count
-            tasks = client.table("tasks")\
-                .select("id", count="exact")\
-                .eq("user_id", user_id).execute()
+        # --- grants per workspace (one fetch) -------------------------------
+        grant_counts: dict[str, int] = defaultdict(int)
+        try:
+            for g in (client.table("principal_grants")
+                      .select("workspace_id")
+                      .in_("workspace_id", ws_ids)
+                      .limit(_EVENT_CAP).execute().data or []):
+                if g.get("workspace_id"):
+                    grant_counts[g["workspace_id"]] += 1
+        except Exception as exc:  # noqa: BLE001 — reach count is best-effort
+            logger.warning("[ADMIN] grant count lookup failed: %s", exc)
 
-            # Session count + last activity
-            sessions = client.table("chat_sessions")\
-                .select("id, created_at", count="exact")\
-                .eq("user_id", user_id)\
-                .order("created_at", desc=True)\
-                .limit(1).execute()
+        # --- 7d activity per workspace (one fetch, bucketed) ----------------
+        # `execution_events.workspace_id` is populated on every live row
+        # (1597/1597 at ADR-655), so the cost ledger keys on the binding unit
+        # directly — no owner-resolution hop.
+        events_7d: dict[str, int] = defaultdict(int)
+        spend_7d: dict[str, float] = defaultdict(float)
+        last_activity: dict[str, str] = {}
+        try:
+            for e in (client.table("execution_events")
+                      .select("workspace_id, cost_usd, created_at")
+                      .gte("created_at", cutoff_7d)
+                      .order("created_at", desc=True)
+                      .limit(_EVENT_CAP).execute().data or []):
+                wid = e.get("workspace_id")
+                if not wid:
+                    continue
+                events_7d[wid] += 1
+                spend_7d[wid] += float(e.get("cost_usd") or 0)
+                # Rows arrive newest-first, so the first sighting is the latest.
+                if wid not in last_activity and e.get("created_at"):
+                    last_activity[wid] = e["created_at"]
+        except Exception as exc:  # noqa: BLE001 — activity is best-effort
+            logger.warning("[ADMIN] 7d event rollup failed: %s", exc)
 
-            last_activity = sessions.data[0].get("created_at") if sessions.data else None
+        # --- owner labels (ADR-655 D3: the ONE resolver, batched) -----------
+        # `auth.users` is the writer of record for an account identity
+        # (ADR-650); `workspaces.owner_email` was dropped by migration 257
+        # precisely because it had no writer. `resolve_member_names` is
+        # TTL-cached, so a page refresh does not re-hammer the auth admin API.
+        owner_labels: dict[str, str] = {}
+        try:
+            from services.principal_display import resolve_member_names
+            owner_ids = sorted({w["owner_id"] for w in workspaces if w.get("owner_id")})
+            owner_labels = {
+                k: v for k, v in resolve_member_names(client, owner_ids).items() if v
+            }
+        except Exception as exc:  # noqa: BLE001 — humanization is best-effort
+            logger.warning("[ADMIN] owner label resolution failed: %s", exc)
 
-            # Spend this month (ADR-291: execution_events is canonical cost ledger)
-            spend = client.table("execution_events")\
-                .select("cost_usd")\
-                .eq("user_id", user_id)\
-                .gte("created_at", month_start)\
-                .execute()
-            spend_usd = sum(float(r.get("cost_usd") or 0) for r in (spend.data or []))
-
-            # Tier
-            from services.platform_limits import get_user_tier
-            tier = get_user_tier(client, user_id)
-
-            users.append(AdminUserRow(
-                id=user_id,
-                email=email,
-                created_at=workspace["created_at"],
-                tier=tier,
-                task_count=tasks.count or 0,
-                session_count=sessions.count or 0,
-                spend_usd=spend_usd,
-                last_activity=last_activity,
-                workspace_id=workspace_id,
-                billing_exempt=billing_exempt,
+        rows: list[AdminWorkspaceRow] = []
+        for w in workspaces:
+            wid = w["id"]
+            rows.append(AdminWorkspaceRow(
+                id=wid,
+                name=w.get("name"),
+                owner_id=w.get("owner_id") or "",
+                # None, never "unknown" — the client renders name + short id.
+                owner_label=owner_labels.get(w.get("owner_id") or ""),
+                created_at=w["created_at"],
+                tier=w.get("subscription_tier") or "free",
+                balance_usd=float(w.get("balance_usd") or 0),
+                grant_count=grant_counts.get(wid, 0),
+                events_7d=events_7d.get(wid, 0),
+                spend_7d=round(spend_7d.get(wid, 0.0), 4),
+                last_activity=last_activity.get(wid),
+                billing_exempt=bool(w.get("billing_exempt", False)),
             ))
 
-        return users
+        # Busiest first — what the operator is looking for at 8am (ADR-655 D7).
+        rows.sort(key=lambda r: (r.events_7d, r.spend_7d), reverse=True)
+        return rows
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
+        logger.error("[ADMIN] Workspace list query failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch workspaces: {str(e)}")
 
 
 @router.post("/workspace/{workspace_id}/billing-exempt", response_model=BillingExemptResponse)
@@ -464,535 +376,5 @@ async def set_billing_exempt(workspace_id: str, body: BillingExemptRequest, admi
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("[ADMIN] Billing exempt toggle failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to set billing exempt: {str(e)}")
-
-
-# =============================================================================
-# GET /accounts — Per-Persona Test-Account Health
-# =============================================================================
-
-def _load_personas() -> list[dict]:
-    """Read the test-account registry (docs/alpha/personas.yaml).
-
-    Single source of truth for who each eval persona is (slug, user_id,
-    program). Hat-B artifact per CLAUDE.md — dev-only, never surfaced to real
-    operators. Returns [] if the file is missing (e.g. a deploy that doesn't
-    ship docs/), so the surface degrades to empty rather than 500ing.
-    """
-    import yaml
-
-    # api/routes/admin.py -> repo root is two parents up from api/
-    here = os.path.dirname(os.path.abspath(__file__))
-    repo_root = os.path.abspath(os.path.join(here, "..", ".."))
-    path = os.path.join(repo_root, "docs", "alpha", "personas.yaml")
-    if not os.path.exists(path):
-        logger.warning("[ADMIN] personas.yaml not found at %s — /accounts empty", path)
-        return []
-    with open(path) as f:
-        data = yaml.safe_load(f) or {}
-    return data.get("personas", []) or []
-
-
-@router.get("/accounts", response_model=list[AdminAccountRow])
-async def list_accounts(admin: AdminAuth):
-    """Per-persona live health for the designated test/eval accounts.
-
-    Joins personas.yaml against execution_events (wake activity, cost,
-    failures) and workspace_file_versions (Reviewer self-amendment count, the
-    tenure signal). All substrate-derived — no eval-specific table.
-    """
-    try:
-        client = admin.client
-        personas = _load_personas()
-        if not personas:
-            return []
-
-        cutoff_24h = _get_date_threshold(1)
-        cutoff_7d = _get_date_threshold(7)
-
-        rows: list[AdminAccountRow] = []
-        for p in personas:
-            user_id = p.get("user_id")
-            if not user_id:
-                continue
-
-            # Wake activity over the last 7d (one fetch, bucketed in Python).
-            # Scoped to 7d, not 30d: high-frequency personas (the traders wake
-            # ~670×/day) blow past any row cap over 30d, which would silently
-            # undercount cost. 7d stays well under the 5000 cap, so every
-            # bucketed figure below — including cost — is exact, not truncated.
-            events = client.table("execution_events")\
-                .select("status, error_reason, cost_usd, created_at")\
-                .eq("user_id", user_id)\
-                .gte("created_at", cutoff_7d)\
-                .order("created_at", desc=True)\
-                .limit(5000)\
-                .execute()
-            event_rows = events.data or []
-
-            wakes_24h = sum(1 for e in event_rows if e["created_at"] >= cutoff_24h)
-            wakes_7d = len(event_rows)
-            failed_7d = sum(1 for e in event_rows if e.get("status") == "failed")
-            # cost_usd is NULL on mechanical/skipped wakes — coerce (the bug that
-            # 500'd /execution-stats; `or 0` not `, 0` per the present-but-null trap).
-            cost_7d = sum(float(e.get("cost_usd") or 0) for e in event_rows)
-            last_wake = event_rows[0]["created_at"] if event_rows else None
-
-            # Most common failure reason in the window (operator triage signal).
-            reason_counts: dict[str, int] = defaultdict(int)
-            for e in event_rows:
-                if e.get("status") == "failed" and e.get("error_reason"):
-                    reason_counts[e["error_reason"]] += 1
-            top_failure_reason = (
-                max(reason_counts, key=reason_counts.get) if reason_counts else None
-            )
-
-            # Tenure signal: system-agent self-amendments in 7d. Counts BOTH
-            # the live `freddie:` prefix AND the legacy `reviewer:` prefix
-            # (relabel-keep-slug, ADR-381 D1 / ADR-414) so a pre-rename row
-            # never undercounts — the same defensive OR the ADR-414 B1 feed
-            # fix used. (Prod today: 0 legacy rows, but the OR is cheap
-            # insurance against a restore or a missed backfill.)
-            reviewer_edits = client.table("workspace_file_versions")\
-                .select("id", count="exact")\
-                .eq("user_id", user_id)\
-                .or_("authored_by.like.freddie:%,authored_by.like.reviewer:%")\
-                .gte("created_at", cutoff_7d)\
-                .execute()
-
-            rows.append(AdminAccountRow(
-                slug=p.get("slug", "unknown"),
-                label=p.get("label"),
-                program=str(p["program"]) if p.get("program") else None,
-                email=p.get("email"),
-                user_id=user_id,
-                wakes_24h=wakes_24h,
-                wakes_7d=wakes_7d,
-                failed_7d=failed_7d,
-                top_failure_reason=top_failure_reason,
-                cost_7d=round(cost_7d, 4),
-                last_wake=last_wake,
-                reviewer_edits_7d=reviewer_edits.count or 0,
-            ))
-
-        # Most-active first (mirrors the validated query's ORDER BY wakes_7d DESC).
-        rows.sort(key=lambda r: r.wakes_7d, reverse=True)
-        return rows
-
-    except Exception as e:
-        logger.error("[ADMIN] Accounts query failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch accounts: {str(e)}")
-
-
-@router.get("/accounts/{slug}", response_model=AdminAccountDetail)
-async def get_account_detail(slug: str, admin: AdminAuth):
-    """Full forensic view for one test/eval persona.
-
-    Seven blocks sliced from execution_events / workspace_file_versions /
-    action_proposals / workspace_files. Same NULL-coercion and substrate-only
-    discipline as /accounts.
-    """
-    try:
-        client = admin.client
-        persona = next((p for p in _load_personas() if p.get("slug") == slug), None)
-        if not persona:
-            raise HTTPException(status_code=404, detail=f"Unknown persona: {slug}")
-        user_id = persona.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=404, detail=f"Persona {slug} has no user_id")
-
-        CURVE_DAYS = 30
-        CURVE_CAP = 5000
-        cutoff_curve = _get_date_threshold(CURVE_DAYS)
-        cutoff_7d = _get_date_threshold(7)
-
-        # --- Block 1: daily curve (lightweight columns, capped) -------------
-        curve_events = client.table("execution_events")\
-            .select("created_at, cost_usd, input_tokens, output_tokens")\
-            .eq("user_id", user_id)\
-            .gte("created_at", cutoff_curve)\
-            .order("created_at", desc=True)\
-            .limit(CURVE_CAP)\
-            .execute()
-        curve_rows = curve_events.data or []
-        curve_truncated = len(curve_rows) >= CURVE_CAP
-
-        day_buckets: dict[str, dict] = defaultdict(
-            lambda: {"wakes": 0, "cost": 0.0, "in": 0, "out": 0}
-        )
-        for e in curve_rows:
-            day = e["created_at"][:10]
-            b = day_buckets[day]
-            b["wakes"] += 1
-            b["cost"] += float(e.get("cost_usd") or 0)
-            b["in"] += int(e.get("input_tokens") or 0)
-            b["out"] += int(e.get("output_tokens") or 0)
-        daily = [
-            AccountDayPoint(
-                day=day, wakes=b["wakes"], cost=round(b["cost"], 4),
-                input_tokens=b["in"], output_tokens=b["out"],
-            )
-            for day, b in sorted(day_buckets.items())
-        ]
-
-        # --- Blocks 2/3: per-slug + per-source (7d full rows, bucketed) -----
-        events_7d = client.table("execution_events")\
-            .select("slug, status, error_reason, error_detail, cost_usd, created_at, wake_source")\
-            .eq("user_id", user_id)\
-            .gte("created_at", cutoff_7d)\
-            .order("created_at", desc=True)\
-            .limit(CURVE_CAP)\
-            .execute()
-        rows_7d = events_7d.data or []
-
-        slug_buckets: dict[str, dict] = defaultdict(
-            lambda: {"runs": 0, "failed": 0, "cost": 0.0}
-        )
-        source_buckets: dict[str, dict] = defaultdict(lambda: {"success": 0, "failed": 0})
-        for e in rows_7d:
-            s = slug_buckets[e.get("slug") or "—"]
-            s["runs"] += 1
-            s["cost"] += float(e.get("cost_usd") or 0)
-            if e.get("status") == "failed":
-                s["failed"] += 1
-            src = source_buckets[e.get("wake_source") or "—"]
-            if e.get("status") == "failed":
-                src["failed"] += 1
-            else:
-                src["success"] += 1
-        by_slug = sorted(
-            [AccountSlugRow(slug=k, runs=v["runs"], failed=v["failed"], cost=round(v["cost"], 4))
-             for k, v in slug_buckets.items()],
-            key=lambda r: r.runs, reverse=True,
-        )
-        by_source = sorted(
-            [AccountSourceRow(wake_source=k, success=v["success"], failed=v["failed"])
-             for k, v in source_buckets.items()],
-            key=lambda r: r.success + r.failed, reverse=True,
-        )
-
-        # --- Block 4: recent failures with detail ---------------------------
-        fail_result = client.table("execution_events")\
-            .select("created_at, slug, error_reason, error_detail")\
-            .eq("user_id", user_id)\
-            .eq("status", "failed")\
-            .order("created_at", desc=True)\
-            .limit(15)\
-            .execute()
-        recent_failures = [
-            AccountFailureRow(
-                created_at=r["created_at"], slug=r.get("slug") or "—",
-                error_reason=r.get("error_reason"),
-                error_detail=(r.get("error_detail") or "")[:200] or None,
-            )
-            for r in (fail_result.data or [])
-        ]
-
-        # --- Block 5: system-agent self-amendment trail --------------------
-        # Same freddie:/reviewer: OR as the 7d count (relabel-keep-slug).
-        trail_result = client.table("workspace_file_versions")\
-            .select("created_at, path, message")\
-            .eq("user_id", user_id)\
-            .or_("authored_by.like.freddie:%,authored_by.like.reviewer:%")\
-            .order("created_at", desc=True)\
-            .limit(15)\
-            .execute()
-        reviewer_trail = [
-            AccountRevisionRow(
-                created_at=r["created_at"], path=r["path"],
-                message=(r.get("message") or "")[:120] or None,
-            )
-            for r in (trail_result.data or [])
-        ]
-
-        # --- Block 6: decision queue (proposals, status mix) ----------------
-        prop_result = client.table("action_proposals")\
-            .select("status")\
-            .eq("user_id", user_id)\
-            .gte("created_at", cutoff_curve)\
-            .limit(2000)\
-            .execute()
-        prop_counts: dict[str, int] = defaultdict(int)
-        for r in (prop_result.data or []):
-            prop_counts[r.get("status") or "unknown"] += 1
-        proposals = sorted(
-            [AccountProposalSummary(status=k, count=v) for k, v in prop_counts.items()],
-            key=lambda r: r.count, reverse=True,
-        )
-
-        # --- Block 7: substrate footprint + perf ----------------------------
-        files_result = client.table("workspace_files")\
-            .select("path")\
-            .eq("user_id", user_id)\
-            .limit(5000)\
-            .execute()
-        file_paths = [r["path"] for r in (files_result.data or [])]
-        total_files = len(file_paths)
-        persona_files = sum(1 for p in file_paths if p.startswith("/workspace/persona/"))
-        operation_files = sum(1 for p in file_paths if p.startswith("/workspace/operation/"))
-
-        # Perf averages bucketed by mode (from the 7d full-row fetch would lack
-        # perf columns; re-fetch the perf columns over 7d, capped).
-        perf_result = client.table("execution_events")\
-            .select("mode, envelope_load_ms, duration_ms, tool_rounds")\
-            .eq("user_id", user_id)\
-            .gte("created_at", cutoff_7d)\
-            .limit(CURVE_CAP)\
-            .execute()
-        perf_buckets: dict[str, dict] = defaultdict(
-            lambda: {"env": [], "dur": [], "rounds": [], "n": 0}
-        )
-        for r in (perf_result.data or []):
-            mode = r.get("mode")
-            if not mode:
-                continue
-            pb = perf_buckets[mode]
-            pb["n"] += 1
-            if r.get("envelope_load_ms") is not None:
-                pb["env"].append(r["envelope_load_ms"])
-            if r.get("duration_ms") is not None:
-                pb["dur"].append(r["duration_ms"])
-            if r.get("tool_rounds") is not None:
-                pb["rounds"].append(r["tool_rounds"])
-
-        def _avg_int(xs):
-            return round(sum(xs) / len(xs)) if xs else None
-
-        def _avg_float(xs):
-            return round(sum(xs) / len(xs), 1) if xs else None
-
-        perf = [
-            AccountPerfRow(
-                mode=mode,
-                avg_envelope_ms=_avg_int(pb["env"]),
-                avg_duration_ms=_avg_int(pb["dur"]),
-                avg_tool_rounds=_avg_float(pb["rounds"]),
-                n=pb["n"],
-            )
-            for mode, pb in perf_buckets.items()
-        ]
-
-        return AdminAccountDetail(
-            slug=slug,
-            label=persona.get("label"),
-            program=str(persona["program"]) if persona.get("program") else None,
-            email=persona.get("email"),
-            user_id=user_id,
-            curve_days=CURVE_DAYS,
-            curve_truncated=curve_truncated,
-            daily=daily,
-            by_slug=by_slug,
-            by_source=by_source,
-            recent_failures=recent_failures,
-            reviewer_trail=reviewer_trail,
-            proposals=proposals,
-            total_files=total_files,
-            persona_files=persona_files,
-            operation_files=operation_files,
-            perf=perf,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("[ADMIN] Account detail query failed (%s): %s", slug, e)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch account detail: {str(e)}")
-
-
-# =============================================================================
-# Export Endpoints (kept from legacy — still useful for IR)
-# =============================================================================
-
-@router.get("/export/users")
-async def export_users_excel(admin: AdminAuth):
-    """Export users data as Excel file."""
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-
-        users = await list_users(admin)
-
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Users"
-
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
-        thin_border = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin"),
-        )
-
-        headers = ["Email", "Tier", "Tasks", "Sessions", "Spend (mo)", "Last Active", "Joined"]
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = thin_border
-
-        for row, user in enumerate(users, 2):
-            ws.cell(row=row, column=1, value=user.email).border = thin_border
-            ws.cell(row=row, column=2, value=user.tier).border = thin_border
-            ws.cell(row=row, column=3, value=user.task_count).border = thin_border
-            ws.cell(row=row, column=4, value=user.session_count).border = thin_border
-            ws.cell(row=row, column=5, value=user.spend_usd).border = thin_border
-            ws.cell(row=row, column=6, value=user.last_activity or "—").border = thin_border
-            ws.cell(row=row, column=8, value=user.created_at).border = thin_border
-
-        widths = [35, 8, 8, 10, 10, 25, 25]  # 7 cols since the Agents column left
-        for col, width in enumerate(widths, 1):
-            ws.column_dimensions[get_column_letter(col)].width = width
-        ws.freeze_panes = "A2"
-
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        return StreamingResponse(
-            output,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename=yarnnn_users_{timestamp}.xlsx"}
-        )
-    except ImportError:
-        raise HTTPException(status_code=500, detail="openpyxl not installed")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to export: {str(e)}")
-
-
-@router.get("/export/report")
-async def export_full_report(admin: AdminAuth):
-    """Export comprehensive report as multi-sheet Excel."""
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Border, Side
-        from openpyxl.utils import get_column_letter
-
-        client = admin.client
-        now = datetime.now(timezone.utc)
-
-        header_font = Font(bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
-        section_font = Font(bold=True, size=12, color="4F46E5")
-        metric_label_font = Font(bold=True, size=11)
-        metric_value_font = Font(size=14, bold=True)
-        thin_border = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin"),
-        )
-
-        # Fetch data
-        stats = await get_overview_stats(admin)
-        exec_stats = await get_execution_stats(admin)
-        users = await list_users(admin)
-
-        wb = Workbook()
-
-        # --- Summary Sheet ---
-        ws = wb.active
-        ws.title = "Summary"
-        ws.merge_cells("A1:D1")
-        ws["A1"].value = "yarnnn — Platform Metrics Report"
-        ws["A1"].font = Font(bold=True, size=16)
-        ws["A2"] = f"Generated: {now.strftime('%B %d, %Y at %H:%M UTC')}"
-        ws["A2"].font = Font(italic=True, color="666666")
-
-        row = 4
-        ws[f"A{row}"] = "PLATFORM"
-        ws[f"A{row}"].font = section_font
-        row += 1
-        for label, value in [
-            ("Total Users", stats.total_users),
-            ("Users (7d)", stats.users_7d),
-            ("Total Agents", stats.total_agents),
-            ("Total Tasks", stats.total_tasks),
-            ("Total Sessions", stats.total_sessions),
-            ("Total Messages", stats.total_messages),
-        ]:
-            ws[f"A{row}"] = label
-            ws[f"A{row}"].font = metric_label_font
-            ws[f"B{row}"] = value
-            ws[f"B{row}"].font = metric_value_font
-            row += 1
-
-        row += 1
-        ws[f"A{row}"] = "TOKEN COSTS (30d)"
-        ws[f"A{row}"].font = section_font
-        row += 1
-        for label, value in [
-        ]:
-            ws[f"A{row}"] = label
-            ws[f"A{row}"].font = metric_label_font
-            ws[f"B{row}"] = value
-            row += 1
-
-        row += 1
-        ws[f"A{row}"] = "EXECUTION (30d)"
-        ws[f"A{row}"].font = section_font
-        row += 1
-        for label, value in [
-            ("Task Runs (24h)", exec_stats.total_runs_24h),
-            ("Task Runs (7d)", exec_stats.total_runs_7d),
-            ("Task Runs (30d)", exec_stats.total_runs_30d),
-            ("Spend USD (month)", exec_stats.spend_usd_this_month),
-        ]:
-            ws[f"A{row}"] = label
-            ws[f"A{row}"].font = metric_label_font
-            ws[f"B{row}"] = value
-            row += 1
-
-        ws.column_dimensions["A"].width = 25
-        ws.column_dimensions["B"].width = 20
-
-        # --- Users Sheet ---
-        ws_users = wb.create_sheet("Users")
-        headers = ["Email", "Tier", "Tasks", "Sessions", "Credits", "Last Active", "Joined"]
-        for col, h in enumerate(headers, 1):
-            cell = ws_users.cell(row=1, column=col, value=h)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = thin_border
-        for r, u in enumerate(users, 2):
-            for c, v in enumerate([u.email, u.tier, u.task_count,
-                                   u.session_count, u.spend_usd, u.last_activity or "—", u.created_at], 1):
-                ws_users.cell(row=r, column=c, value=v).border = thin_border
-        for col, w in enumerate([35, 8, 8, 10, 10, 25, 25], 1):
-            ws_users.column_dimensions[get_column_letter(col)].width = w
-        ws_users.freeze_panes = "A2"
-
-        # --- Task Executions Sheet ---
-        ws_tasks = wb.create_sheet("Task Executions")
-        e_headers = ["Task", "Agent", "Role", "Runs (30d)", "Runs (7d)", "Avg Input Tokens", "Avg Output Tokens", "Last Run"]
-        for col, h in enumerate(e_headers, 1):
-            cell = ws_tasks.cell(row=1, column=col, value=h)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = thin_border
-        for r, t in enumerate(exec_stats.tasks, 2):
-            for c, v in enumerate([t.task_slug, t.agent_title, t.agent_role, t.runs_total,
-                                   t.runs_7d, t.avg_input_tokens, t.avg_output_tokens,
-                                   t.last_run_at or "—"], 1):
-                ws_tasks.cell(row=r, column=c, value=v).border = thin_border
-        ws_tasks.freeze_panes = "A2"
-
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-
-        timestamp = now.strftime("%Y%m%d_%H%M%S")
-        return StreamingResponse(
-            output,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename=yarnnn_report_{timestamp}.xlsx"}
-        )
-    except ImportError:
-        raise HTTPException(status_code=500, detail="openpyxl not installed")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to export: {str(e)}")
-
-
-# =============================================================================
-# Admin Testing Endpoints
-# =============================================================================
-

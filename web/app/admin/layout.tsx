@@ -6,9 +6,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminEmail } from "@/lib/internal-access";
 import { HOME_ROUTE } from "@/lib/routes";
-import { ArrowLeft, Shield, FlaskConical } from "lucide-react";
+import { ArrowLeft, Shield } from "lucide-react";
 import { Working } from '@/components/shared/Working';
-import { usePathname } from "next/navigation";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -18,7 +17,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const router = useRouter();
-  const pathname = usePathname();
   const supabase = createClient();
 
   useEffect(() => {
@@ -64,7 +62,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Admin Header */}
+      {/* One pane since ADR-655 D5 — the persona forensics moved to the Hat-B
+          toolchain, so the Overview/Accounts nav went with them. */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
@@ -79,32 +78,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <div className="h-4 w-px bg-border" />
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-orange-500" />
-                <span className="font-medium">Admin Dashboard</span>
+                <span className="font-medium">Console</span>
               </div>
-              <div className="h-4 w-px bg-border" />
-              <nav className="flex items-center gap-1">
-                <Link
-                  href="/admin"
-                  className={`text-sm px-2 py-1 rounded transition-colors ${
-                    pathname === "/admin"
-                      ? "text-foreground bg-muted/50"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                  }`}
-                >
-                  Overview
-                </Link>
-                <Link
-                  href="/admin/accounts"
-                  className={`text-sm px-2 py-1 rounded transition-colors flex items-center gap-1.5 ${
-                    pathname?.startsWith("/admin/accounts")
-                      ? "text-foreground bg-muted/50"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                  }`}
-                >
-                  <FlaskConical className="w-3.5 h-3.5" />
-                  Accounts
-                </Link>
-              </nav>
             </div>
             <div className="text-sm text-muted-foreground">{userEmail}</div>
           </div>

@@ -179,3 +179,13 @@ connected platform, a real phone, and the Slides/Blogger/Images authoring surfac
   2026-09-14. (The entity half was deleted 2026-09-13.)
 - `.claude/agents/alpha-operator.md` was deleted 2026-09-12 (it instructed retired Reviewer auto-approval,
   `ManageRecurrence`, `_recurring.yaml`); if alpha rituals are wanted, rebuild it against the live model (`docs/alpha/`, `api/scripts/alpha_ops/`).
+
+## The operator console (ADR-655)
+- **Migration 257 is written, dry-run clean, and NOT APPLIED** — the sandbox classifier blocked the DDL.
+  Run `scripts/db/run-migration.sh supabase/migrations/257_adr655_drop_workspaces_owner_email.sql`, then verify the
+  LIVE object (`information_schema.columns` must return 0 rows for `workspaces.owner_email`) and re-run
+  `cd api && python3 -B test_adr655_console.py` — check ⑯ is the one RED until it lands. No code reads the column
+  in either schema state, so the tree is safe unapplied; the gate simply keeps saying so.
+- **The console has had no browser click-pass.** `next build` is exit 0 and the gate is 20/21 with live
+  credentials, but nobody has driven `/admin` in a browser — the workspace list, the comp toggle's optimistic
+  revert, and the stale-heartbeat colour are unverified against real rendering.

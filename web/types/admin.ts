@@ -1,147 +1,54 @@
 /**
- * Admin Dashboard Types
+ * Operator console types (ADR-655).
  *
- * Matches backend models in api/routes/admin.py
+ * Matches backend models in api/routes/admin.py. Keyed on the WORKSPACE,
+ * because the workspace is the substrate's binding unit (ADR-373/378).
+ *
+ * This file previously declared `total_agents`, `agent_count`, `task_count`
+ * and a `tasks: TaskExecutionRow[]` breakdown — shapes the backend had already
+ * deleted (they read the retired agent model's empty tables). The console's
+ * types drifting behind its routes is how a pane renders a confident zero, so
+ * every field below has a live writer verified against prod.
  */
 
 // GET /admin/stats
 export interface AdminOverviewStats {
-  total_users: number;
-  total_agents: number;
-  total_tasks: number;
+  total_workspaces: number;
+  total_grants: number;
   total_sessions: number;
   total_messages: number;
-  users_7d: number;
-  tasks_7d: number;
+  workspaces_7d: number;
   sessions_7d: number;
 }
 
 // GET /admin/execution-stats
-export interface TaskExecutionRow {
-  task_slug: string;
-  agent_title: string;
-  agent_role: string;
-  runs_total: number;
-  runs_7d: number;
-  avg_input_tokens: number;
-  avg_output_tokens: number;
-  last_run_at: string | null;
-  // ADR-250 Phase 4 — from execution_events
-  cost_usd_total: number | null;
-  failed_count: number;
-  skipped_count: number;
-}
-
 export interface AdminExecutionStats {
-  total_runs_24h: number;
-  total_runs_7d: number;
-  total_runs_30d: number;
   spend_usd_this_month: number;
-  spend_usd_limit: number;
   daily_spend_today: number;
   daily_spend_ceiling: number;
   last_scheduler_heartbeat: string | null;
   heartbeats_24h: number;
-  tasks: TaskExecutionRow[];
 }
 
-// GET /admin/users
-export interface AdminUserRow {
+// GET /admin/workspaces
+export interface AdminWorkspaceRow {
   id: string;
-  email: string;
+  name: string | null;
+  owner_id: string;
+  /**
+   * A display NAME (metadata full_name, else the email's local part) resolved
+   * from auth — not an address, and not a column. Null when it does not
+   * resolve: the row then identifies itself by `name` + short id, never by the
+   * string "unknown".
+   */
+  owner_label: string | null;
   created_at: string;
   tier: string;
-  agent_count: number;
-  task_count: number;
-  session_count: number;
-  spend_usd: number;
+  balance_usd: number;
+  grant_count: number;
+  events_7d: number;
+  spend_7d: number;
   last_activity: string | null;
-  // ADR-429 §12.3a — the comp/exempt toggle target + state. When exempt, the
-  // workspace pays nothing (base + seats forced $0).
-  workspace_id: string | null;
+  /** ADR-429 §12.3a — when exempt, the workspace pays nothing. */
   billing_exempt: boolean;
-}
-
-// GET /admin/accounts — per-persona test-account health (Hat-B eval surface)
-export interface AdminAccountRow {
-  slug: string;
-  label: string | null;
-  program: string | null;
-  email: string | null;
-  user_id: string;
-  wakes_24h: number;
-  wakes_7d: number;
-  failed_7d: number;
-  top_failure_reason: string | null;
-  cost_7d: number;
-  last_wake: string | null;
-  reviewer_edits_7d: number;
-}
-
-// GET /admin/accounts/{slug} — full per-persona forensic detail
-export interface AccountDayPoint {
-  day: string;
-  wakes: number;
-  cost: number;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-export interface AccountSlugRow {
-  slug: string;
-  runs: number;
-  failed: number;
-  cost: number;
-}
-
-export interface AccountSourceRow {
-  wake_source: string;
-  success: number;
-  failed: number;
-}
-
-export interface AccountFailureRow {
-  created_at: string;
-  slug: string;
-  error_reason: string | null;
-  error_detail: string | null;
-}
-
-export interface AccountRevisionRow {
-  created_at: string;
-  path: string;
-  message: string | null;
-}
-
-export interface AccountProposalSummary {
-  status: string;
-  count: number;
-}
-
-export interface AccountPerfRow {
-  mode: string;
-  avg_envelope_ms: number | null;
-  avg_duration_ms: number | null;
-  avg_tool_rounds: number | null;
-  n: number;
-}
-
-export interface AdminAccountDetail {
-  slug: string;
-  label: string | null;
-  program: string | null;
-  email: string | null;
-  user_id: string;
-  curve_days: number;
-  curve_truncated: boolean;
-  daily: AccountDayPoint[];
-  by_slug: AccountSlugRow[];
-  by_source: AccountSourceRow[];
-  recent_failures: AccountFailureRow[];
-  reviewer_trail: AccountRevisionRow[];
-  proposals: AccountProposalSummary[];
-  total_files: number;
-  persona_files: number;
-  operation_files: number;
-  perf: AccountPerfRow[];
 }
