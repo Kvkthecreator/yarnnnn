@@ -406,3 +406,120 @@ def is_app_owned_path(path: str, slug: str) -> bool:
     if rel.startswith("workspace/"):
         rel = rel[len("workspace/"):]
     return any(rel.startswith(root) for root in app_delete_roots(slug))
+
+
+# =============================================================================
+# Reading the workspace — the ONE query, and the served row
+# =============================================================================
+
+#: How many member apps one workspace may surface. A bound read, for the same
+#: reason `MEMBER_INDEX_CAP` bounds skills: this runs on the surfaces payload,
+#: which every shell load fetches. R4 makes a large number unlikely (one app is
+#: one agent's remit, so apps are few because concerns are few — ADR-653 R4),
+#: and a workspace that exceeds this has a different problem than a cap.
+MEMBER_APP_CAP = 24
+
+
+def read_member_apps(client: Any, user_id: str) -> list["AppDecl"]:
+    """Every declared app in this workspace. ONE bounded query.
+
+    A malformed declaration is SKIPPED with a log line, never a failed payload
+    — the surfaces payload drives the Dock and the Launcher, so a broken app
+    must not be able to blank the shell (the ADR-630 posture for member
+    skills, which this mirrors exactly).
+
+    A declaration with a `problem` IS returned: it parsed, so the member can be
+    told what is wrong with it rather than watching it silently not appear.
+    The caller decides whether a problem row reaches a surface.
+    """
+    from services.workspace_context import substrate_scope_filter
+
+    try:
+        res = (
+            client.table("workspace_files")
+            .select("path, content")
+            .eq(*substrate_scope_filter(user_id))
+            .like("path", f"/workspace/{APPS_ROOT}%/{APP_DECLARATION_LEAF}")
+            .order("path")
+            .limit(MEMBER_APP_CAP + 1)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001 — a read must never break the shell
+        logger.warning("[MEMBER_APPS] read failed: %s", exc)
+        return []
+
+    kernel_apps, kernel_agents = _kernel_slugs()
+    out: list[AppDecl] = []
+    for row in (res.data or [])[:MEMBER_APP_CAP]:
+        path = row.get("path") or ""
+        slug = app_slug_from_path(path)
+        if not slug:
+            continue
+        decl = parse_app_yaml(
+            row.get("content") or "",
+            slug=slug,
+            declaration_path=path,
+            kernel_app_slugs=kernel_apps,
+            kernel_agent_slugs=kernel_agents,
+        )
+        if decl is None:
+            logger.info("[MEMBER_APPS] skipping unparseable %s", path)
+            continue
+        out.append(decl)
+    return out
+
+
+def _kernel_slugs() -> tuple[frozenset[str], frozenset[str]]:
+    """The kernel's app and agent slugs — read from their own registries.
+
+    Imported HERE rather than at module scope so the pure half of this module
+    (everything above) stays importable without the app registrations, and so
+    the registries remain the one source of those names.
+    """
+    import services.apps  # noqa: F401  (registration side-effect)
+    from services.agents_registry import AGENTS
+    from services.authoring import all_apps
+
+    return frozenset(all_apps()), frozenset(AGENTS)
+
+
+def surface_row(decl: "AppDecl") -> dict:
+    """The served surfaces[] row for one member app.
+
+    ⚠️ `register: "composition"` is what this row is FOR (ADR-653 D3.a). It is
+    the one field that tells the client this surface's shape is DECLARED rather
+    than mirrored, and therefore that its body renders through the component
+    vocabulary instead of a kernel component. `is_composition()` in
+    `kernel_surfaces` is the reader.
+
+    Shaped like a kernel surface row on purpose — the client already knows how
+    to read one (tier, title, route, icon_key, summary), so a member app joins
+    the Dock and the Launcher through the machinery that exists rather than a
+    parallel path.
+
+    ⚠️ NO AUTHORITY FIELD, and there must never be one. A served row carries
+    what to render; what anyone MAY do is decided by grants and gates at the
+    act (ADR-460 D3.a). `tier` is presentation, not permission.
+    """
+    return {
+        "slug": decl.slug,
+        # ADR-653 D3.a — the register IS the point of this row.
+        "register": "composition",
+        # One tier for every member app, so the Launcher groups them under one
+        # heading ("Your apps" — APP-BUILDER-UX §2.1) rather than one heading
+        # per app, which is what `program:{slug}` would have produced.
+        "tier": "app",
+        "title": decl.name,
+        "archetype": "dashboard",
+        # An app's material is the folders its sections name, not a namespace
+        # of its own — a member's work lives by MEANING (ADR-653 D1/D6).
+        "substrate_paths": [],
+        "icon_key": "layout-grid",
+        "default_pinned": False,
+        "route": f"/apps/{decl.slug}",
+        # The launcher summary slot, measured at ~48 chars (VOICE §2). The
+        # declaration's own `about`, which the parser has already WARNED about
+        # if it overruns — so the member hears it at the authoring door rather
+        # than seeing an ellipsis here.
+        "summary": decl.about,
+    }

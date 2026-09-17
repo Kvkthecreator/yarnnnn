@@ -10,9 +10,8 @@ SCOPE. This covers the DECLARATION half (ADR-653 D1/D2 + R4), which is what
 exists at this commit. The checks ADR-653 §11 names for later phases are listed
 at the bottom as NOT YET — named so their absence is visible rather than
 assumed:
-  3  — `register: "composition"` validated + has a runtime reader (D3.a)
-  4  — section kinds resolve in the client vocabulary (D3.b)
-  5  — a declared app slug foregrounds from the Launcher (D3.c)
+  4  — section kinds resolve in the CLIENT vocabulary (D3.b, FE side)
+  5  — a declared app slug foregrounds from the Launcher (D3.c, FE side)
   6  — standing executor resolves through the app (D5)
 Checks 6a (R3, the app binding kind) and 6b (R1, the delete blast radius) ARE
 implemented, below.
@@ -42,6 +41,7 @@ from services.member_apps import (  # noqa: E402
     is_app_owned_path,
     declaration_problem_message,
     parse_app_yaml,
+    surface_row,
 )
 
 _passed = 0
@@ -436,12 +436,110 @@ check(
 
 
 # =============================================================================
+print("\n[3] D3.a — `composition` is a validated register WITH a runtime reader")
+# =============================================================================
+
+from services.kernel_surfaces import (  # noqa: E402
+    KERNEL_SURFACES,
+    REGISTERS,
+    is_composition,
+)
+
+check("`composition` is a valid register", "composition" in REGISTERS, str(REGISTERS))
+check("the pre-existing three survive",
+      {"intent", "os-config", "application"} <= set(REGISTERS), str(REGISTERS))
+
+# ⭐ The reader is what makes the field load-bearing rather than decorative.
+# `register` had ZERO runtime readers before D3.a — a taxonomy nothing reads
+# is prose with a colon in it, which is how ADR-435's "the taxonomy could not
+# express its distinctness" was allowed to be true.
+check("no KERNEL surface is a composition (they are mirrors)",
+      not any(is_composition(e) for e in KERNEL_SURFACES),
+      str([e["slug"] for e in KERNEL_SURFACES if is_composition(e)]))
+
+# Fail-closed BOTH ways: a typo and an absence must degrade to the mirror
+# path, never into a dispatch with nothing to dispatch.
+check("an unknown register is NOT a composition", not is_composition({"register": "typo"}))
+check("a missing register is NOT a composition", not is_composition({}))
+check("a member app's served row IS a composition",
+      is_composition(surface_row(_parse(GOOD))))
+
+
+# =============================================================================
+print("\n[3b] D3.c — the served row, and what is WITHHELD from it")
+# =============================================================================
+
+_row = surface_row(_parse(GOOD))
+check("the row carries the declaration's name", _row["title"] == "Photos", _row["title"])
+check("the row routes under /apps/", _row["route"] == "/apps/photos", _row["route"])
+check("every member app shares ONE launcher tier", _row["tier"] == "app", _row["tier"])
+check("the row is not pinned by default", _row["default_pinned"] is False)
+check("the summary is the declaration's own `about`",
+      _row["summary"] == "Client shoots, culled and delivered.", _row["summary"])
+
+# ⚠️ THE CLIFF ON THE WIRE. A served row says what to RENDER; what anyone may
+# DO is decided by grants and gates at the act (ADR-460 D3.a).
+for _forbidden in ("resident", "agent", "model", "engine", "tools", "reach",
+                   "scope", "grant", "permissions"):
+    check(f"the served row carries no `{_forbidden}`", _forbidden not in _row)
+
+# Drive the resolver with a fake client: the payload is what the shell reads,
+# so a shape assertion here is worth more than a source scan.
+class _Q:
+    def __init__(self, rows): self.rows = rows
+    def select(self, *a, **k): return self
+    def eq(self, *a, **k): return self
+    def like(self, *a, **k): return self
+    def order(self, *a, **k): return self
+    def limit(self, *a, **k): return self
+    def execute(self):
+        class _R: data = self.rows
+        return _R()
+
+
+class _C:
+    def __init__(self, rows): self.rows = rows
+    def table(self, name): return _Q(self.rows if name == "workspace_files" else [])
+
+
+from services.composition_resolver import _resolve_member_app_surfaces  # noqa: E402
+
+_BROKEN = "name: Broken\nagent:\n  name: Bo\nsurface:\n  sections:\n    - kind: chart\n"
+_served = _resolve_member_app_surfaces("u1", _C([
+    {"path": "/workspace/apps/photos/_app.yaml", "content": GOOD},
+    {"path": "/workspace/apps/broken/_app.yaml", "content": _BROKEN},
+    {"path": "/workspace/apps/bad/_app.yaml", "content": "[["},
+]))
+check("a good declaration is SERVED", len(_served) == 1, f"served {len(_served)}")
+check("the served one is the good one",
+      _served and _served[0]["slug"] == "photos", str([r["slug"] for r in _served]))
+
+# ⭐⭐⭐ The empty-window class, refused at the source. A declaration with a
+# problem would give the client a slug it foregrounds and then cannot draw —
+# exactly the `connectors` phantom that shipped an empty window for nine days
+# (ADR-653 §10.1). It is READ (so the member can be told) and not SERVED.
+check("a declaration with a PROBLEM is withheld from the roster",
+      all(r["slug"] != "broken" for r in _served), str([r["slug"] for r in _served]))
+check("an unparseable declaration is withheld",
+      all(r["slug"] != "bad" for r in _served), str([r["slug"] for r in _served]))
+
+
+class _Boom:
+    def table(self, *a, **k): raise RuntimeError("db down")
+
+
+check("a failed read degrades to EMPTY, never blanks the shell",
+      _resolve_member_app_surfaces("u1", _Boom()) == [])
+
+
+# =============================================================================
 print("\n" + "=" * 70)
 print(f"  {_passed} passed, {_failed} failed")
 print("=" * 70)
 print(
-    "\n  NOT YET (later phases — ADR-653 §11): 3 composition register · "
-    "4 client vocabulary · 5 launcher foregrounding · 6 standing executor · "
-    "(all §11 declaration-phase checks implemented)\n"
+    "\n  NOT YET — the FE half and one later phase (ADR-653 §11):\n"
+    "    4  section kinds resolve in the CLIENT vocabulary (D3.b)\n"
+    "    5  a declared app slug foregrounds from the Launcher (D3.c)\n"
+    "    6  standing executor resolves through the app (D5)\n"
 )
 sys.exit(1 if _failed else 0)
