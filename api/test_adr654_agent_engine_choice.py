@@ -289,17 +289,48 @@ if _m:
     check("the pattern still refuses an empty segment",
           not _pat.match("agent_engine:"))
 
-_pane = (ROOT.parent / "web" / "components" / "agents" / "AgentsSurface.tsx").read_text()
+_agents_dir = ROOT.parent / "web" / "components" / "agents"
+# BOTH files: the trigger lives on the pane, the roster and the commit step in
+# the chooser. Reading only the pane would have gone quietly vacuous the moment
+# the picker moved (it did — 2026-09-17, select -> modal).
+_pane = ((_agents_dir / "AgentsSurface.tsx").read_text()
+         + "\n" + (_agents_dir / "EngineChooserModal.tsx").read_text())
 check("the pane no longer renders the raw routing key",
       "{agent.model}</dd>" not in _pane)
 check("the pane renders engine LABELS",
       "m.label" in _pane or "labelFor(" in _pane)
+# Strip comments: these two are about what RENDERS, and the files necessarily
+# DISCUSS both `<select>` (why it was replaced) and providers (the grouping).
+_pane_nc = _re.sub(r"\{/\*.*?\*/\}", "", _pane, flags=_re.S)
+_pane_nc = _re.sub(r"/\*.*?\*/", "", _pane_nc, flags=_re.S)
+_pane_nc = _re.sub(r"^\s*//.*$", "", _pane_nc, flags=_re.M)
 check("the pane offers every served engine (no client-side vendor filter)",
-      "models.map(" in _pane and "startsWith('anthropic" not in _pane)
+      "g.rows.map(" in _pane_nc and "startsWith('anthropic" not in _pane_nc)
 check("an unavailable engine is greyed, not filtered",
       "available === false" in _pane)
 check("the pane says the choice applies to NEW conversations",
       "new conversations" in _pane.lower())
+
+# ⭐ THE ACT IS DELIBERATE (operator, 2026-09-17: a dropdown "makes switching
+# almost too easy"). A native <select> COMMITS ON CHANGE — a stray scroll or
+# arrow key re-points an agent with no confirm and no undo. The chooser holds a
+# PENDING selection and writes only on confirm.
+check("no native select commits the engine",
+      "<select" not in _pane_nc)
+check("the choice is held pending until confirmed",
+      "setPicked(" in _pane and "const dirty =" in _pane)
+# ⚠️ This check was "onConfirm(picked) in _pane" and PASSED against a falsifier
+# that ALSO wrote on every pick — the confirm call still existed, so the check
+# could not see the second write. Assert the ROW only sets pending state: the
+# absence is the property, so the absence is what gets asserted.
+check("confirm is the only thing that writes",
+      "onConfirm(picked)" in _pane_nc
+      and "onClick={() => setPicked(id)}" in _pane_nc
+      and "setPicked(id); void onConfirm" not in _pane_nc)
+check("confirm is disabled until something actually changed",
+      "disabled={!dirty || busy}" in _pane)
+check("the engines are grouped by provider, DERIVED from the id",
+      "function providerOf(" in _pane and "id.split('/')[0]" in _pane)
 
 # The ROSTER shows the engine too (2026-09-17 operator ask). Before this the
 # engine lived only on the detail page, so "which of these is on Opus" was a

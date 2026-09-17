@@ -44,12 +44,13 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
 import { AgentMark } from './AgentIcon';
+import { EngineChooserModal, type EngineRow } from './EngineChooserModal';
 import { cn } from '@/lib/utils';
 
 // Provenance, rendered from the field. A member-authored agent simply lacks
@@ -136,16 +137,6 @@ type AgentRow = {
   tending?: { topic: string; target_path?: string | null }[];
 };
 
-/** One engine on the door (ADR-559 D3 / ADR-647 D8). Served, never filtered:
- *  an engine that cannot run right now is offered GREYED with its reason, so a
- *  member learns why rather than watching a row vanish. */
-type EngineRow = {
-  id: string;
-  label: string;
-  available?: boolean;
-  unavailable_reason?: string | null;
-  unavailable_detail?: string | null;
-};
 
 /** One agent's engine, as a quiet tag on the roster row (ADR-654 D4).
  *
@@ -187,62 +178,54 @@ function EnginePicker({
   models: EngineRow[];
   onChange: (model: string | null) => Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const current = agent.model ?? '';
   const declared = agent.model_default ?? '';
   const labelFor = (id: string) => models.find((m) => m.id === id)?.label ?? id;
   const chosen = models.find((m) => m.id === current);
 
-  const set = async (value: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      // '' is the explicit "back to the default" row — it CLEARS the override
-      // rather than storing the default as a choice, so an agent whose kernel
-      // engine later changes follows it instead of being pinned to today's.
-      await onChange(value || null);
-    } catch {
-      setError('That did not save. Try again.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <div className="min-w-0 flex-1 space-y-1.5">
-      <select
-        value={agent.model_override ?? ''}
-        disabled={busy}
-        onChange={(e) => void set(e.target.value)}
-        aria-label={`Engine for ${agent.name}`}
-        className="w-full max-w-xs rounded-md border bg-background px-2 py-1 text-xs disabled:opacity-60"
+      {/* A BUTTON, not a <select> (operator, 2026-09-17). A native select
+          commits on `change`, which a stray scroll or arrow key fires — so
+          re-pointing an agent could happen by accident, with no confirm step
+          and no undo. The act is deliberate now: this opens the chooser, and
+          nothing is written until the member confirms there. */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-muted/60"
       >
-        <option value="">
-          {declared ? `Default — ${labelFor(declared)}` : 'Default'}
-        </option>
-        {models.map((m) => (
-          <option key={m.id} value={m.id} disabled={m.available === false}>
-            {m.label}
-            {m.available === false ? ' — unavailable' : ''}
-          </option>
-        ))}
-      </select>
+        {current ? labelFor(current) : 'Choose an engine'}
+        {agent.model_override && (
+          <span className="text-[10px] text-muted-foreground">· yours</span>
+        )}
+        <ChevronDown className="h-3 w-3 text-muted-foreground" aria-hidden />
+      </button>
       {/* An engine the member CHOSE that cannot run right now says so here.
           The creation door narrows past it to the default (ADR-654 D2), so the
           honest sentence is "not running", never a silent substitution. */}
       {chosen?.available === false && (
         <p className="text-[11px] text-amber-600 dark:text-amber-500">
           {chosen.label} is not available right now
-          {chosen.unavailable_detail ? ` — ${chosen.unavailable_detail}` : ''}.
+          {chosen.unavailable_detail ? ` \u2014 ${chosen.unavailable_detail}` : ''}.
           New conversations use {declared ? labelFor(declared) : 'the default'}.
         </p>
       )}
-      {error && <p className="text-[11px] text-destructive">{error}</p>}
       <p className="text-[11px] text-muted-foreground">
         Applies to new conversations. Ones already running keep the engine they
         started with.
       </p>
+      <EngineChooserModal
+        open={open}
+        onClose={() => setOpen(false)}
+        agentName={agent.name}
+        models={models}
+        current={current}
+        declared={declared}
+        override={agent.model_override}
+        onConfirm={onChange}
+      />
     </div>
   );
 }
