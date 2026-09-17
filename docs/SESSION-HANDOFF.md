@@ -11,12 +11,17 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   (`6bcb234` the declaration parser + 59-check gate, falsified 4 ways; `0096569` the `connectors` phantom).
 - ~~Step 2 (R3, the app binding kind)~~ **DONE** (`b71b716`). ⚠️Nothing CALLS the app-only binding yet — it is
   reachable by `POST /lanes` with `app` alone and has no FE caller until step 3.
-- **Step 3 is HALF done.** D3.a landed (`b2b6972`): `composition` is a validated register with a real runtime
-  reader (`is_composition`), and two gates moved from restating the set to deriving it.
-- **Next: D3.c + the first kinds.** Widen `Launcher.tsx`'s `isKernelSurfaceSlug` gate so a declared app
-  foregrounds, mount ONE generic `AppSurface` (no per-app static import), and implement `files` + `note`.
-  ⚠️This is the first step that needs a SERVED app row — nothing currently reads `apps/{slug}/_app.yaml` from
-  the workspace, so a reader + a roster join comes with it. Gate checks 3/4/5 not yet implemented.
+- **Step 3's BACKEND is done** — D3.a (`b2b6972`, the validated register + `is_composition`) and D3.c's server
+  half (`f81aac4`, `read_member_apps` + `surface_row`, served before the bundle branch). Gate 116/116.
+- **Next: the FE half, and it is ALL that remains of step 3.** Three pieces, in order:
+  1. `Launcher.tsx:268` gates foregrounding on `isKernelSurfaceSlug` — a served app renders a tile that does
+     NOTHING today. Widen to *kernel slug OR a served app slug*.
+  2. ONE generic `AppSurface` component, parameterized by the declaration. NO per-app static import — that is
+     what keeps the ADR-338 three-way lockstep over KERNEL surfaces untouched.
+  3. The first two kinds (`files`, `note`) behind a client dispatch, with the honest amber miss for an unknown
+     kind (the deleted `dispatchComponent` posture, ADR-653 D3.b).
+  ⚠️Nothing renders a member app yet: the row is served and the client ignores it. Gate checks 4 and 5 are
+  the FE half and are NOT implemented.
 - ~~Owed by R1~~ **DONE**: `app_delete_roots()` derives the pairing (R4 makes the slugs equal), returning
   exactly two roots — `apps/{slug}/` and the ORDINARY `agents/{slug}/` home. The species split (memory under
   `apps/`) was refused and is asserted against. Gate check 6b, falsified three ways.
