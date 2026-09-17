@@ -94,7 +94,9 @@ without a receipt is narrative.
    proven RED before its green is trusted; a script-shaped gate reports a count, not an exit code; a gate that
    crashes reports nothing. Driving the path (a click-pass, a real run) finds what reading it cannot.
 6. **Git.** Conventional commits with ADR references. Other sessions commit concurrently: commit with
-   `git commit --only <paths>`, never `add` then a bare `commit`. No force-push to main.
+   `git commit --only <paths>`, never `add` then a bare `commit`. **A commit is not delivery — push to main
+   in the same breath**; work left unpushed is invisible to every other session and deploys nothing. Verify
+   with `git status -sb` (no `ahead`). No force-push to main.
 7. **Render parity.** Three services: `yarnnn-api` (web, `srv-d5sqotcr85hc73dpkqdg`), `yarnnn-unified-scheduler`
    (cron, `crn-d604uqili9vc73ankvag`), `yarnnn-mcp-server` (web, `srv-d6f4vg1drdic739nli4g`). All execution is
    inline: no worker, no Redis. An env var, OAuth or schema change is checked on every service that reads it.
