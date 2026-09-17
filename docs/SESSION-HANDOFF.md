@@ -32,9 +32,13 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   `system:publish-wordpress`, begins only on phase (a) receipts — never a general headless auth.
 
 ## Context budget / engines (ADR-647 · 648)
-- Re-measure lane spend a week after 2026-09-08 (every number in 647/648 is pre-change) · no door to SET the engine
-  preference; DeepSeek funding; GLM via `openrouter/z-ai/glm-4.6` · Gemini's automatic cache is not explicit caching
-  (named, unclosed).
+- Re-measure lane spend a week after 2026-09-08 (every number in 647/648 is pre-change) · DeepSeek funding;
+  GLM via `openrouter/z-ai/glm-4.6` · Gemini's automatic cache is not explicit caching (named, unclosed).
+- **ADR-654 owes a prod click-pass**: re-point an agent's engine on the agents pane, start a NEW conversation,
+  confirm the lane runs the chosen engine and that an existing lane keeps the one it started with. Gate is
+  50/50 and falsified three ways, but no re-pointed agent has run against prod.
+- ⚠️`api/test_agent_registry.py` is RED at baseline — it hardcodes `services/apps/images/decompose.py`, deleted
+  in `0b9920f`; the gate crashes at import and reports nothing. Pre-existing, untouched by ADR-654.
 - **Data-heavy work has a located kernel gap (2026-09-16, `b937e2e` §11).** A 5,000-row CSV probe measured it: ADR-648's
   pagination is FINE (the lane read 100% of 287,762 chars across 3 windows); the wall is `_LANE_MAX_TOKENS = 4096` — the
   turn cannot carry the answer it read. The gap is that the agent is doing the ARITHMETIC. Owed: a decision on a
