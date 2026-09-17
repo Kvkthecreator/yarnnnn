@@ -147,6 +147,25 @@ type EngineRow = {
   unavailable_detail?: string | null;
 };
 
+/** One agent's engine, as a quiet tag on the roster row (ADR-654 D4).
+ *
+ * Reads the same `models` roster the picker does, so the list and the detail
+ * page can never name an engine differently. Falls back to the raw id ONLY if
+ * the roster has not loaded — a member should never read a routing key, but a
+ * blank where the engine should be is worse than an ugly one.
+ *
+ * An override is not marked here. The roster answers "what runs this agent",
+ * and whether that came from a default or a choice is the detail page's
+ * question — a badge for it would put emphasis on a row that is chrome.
+ */
+function EngineTag({ agent, models }: { agent: AgentRow; models: EngineRow[] }) {
+  if (!agent.model) return null;
+  const label = models.find((m) => m.id === agent.model)?.label ?? agent.model;
+  return (
+    <span className="text-[11px] text-muted-foreground/80">{label}</span>
+  );
+}
+
 /** The engine a member has chosen for one agent (ADR-654 D4).
  *
  * The door ADR-647 shipped without: `default_engine` has been read by
@@ -643,17 +662,24 @@ export function AgentsSurface() {
           <h1 className="text-sm font-medium">Agents</h1>
           {/* The second sentence described a roster that does not exist yet
               (nobody is `offered`, ADR-599 D1) — the same unfulfillable
-              promise as the empty section below it. Says what IS true. */}
+              promise as the empty section below it. Says what IS true.
+              ADR-654: "each one lives in an app" also said what every row's
+              app chip ALREADY shows, a third telling after the chip and the
+              old section header. What a member cannot see from the rows is
+              that the engine is theirs to change. */}
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Who works with you here. Each one lives in an app, so you meet them
-            where the work is.
+            Who works with you here. Open one to change the engine behind it.
           </p>
         </header>
 
+        {/* NO section header here. "In an app" was a discriminator label with
+            nothing to discriminate against: its only sibling ("To work with")
+            renders when `offered.length > 0`, and nobody is offered (ADR-599
+            D1), so the page showed ONE group under a heading naming what every
+            row's own app chip already said. A discriminator and a constant must
+            not share a shape (ADR-629 D4 lesson). The header returns with its
+            sibling, in one edit, the moment an agent is offered. */}
         <section className="space-y-3">
-          <h2 className="text-xs font-medium text-muted-foreground">
-            In an app
-          </h2>
           {housed.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               {agents === null
@@ -684,7 +710,15 @@ export function AgentsSurface() {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {b.blurb}
                     </p>
-                    <AppChips agent={b} />
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                      <AppChips agent={b} />
+                      {/* ADR-654 D4 — the engine, on the ROSTER and not only on
+                          the detail page. A member comparing who works for them
+                          is comparing engines too, and "which of these is on
+                          Opus" was a three-click question. The LABEL, never the
+                          routing key. */}
+                      <EngineTag agent={b} models={models} />
+                    </div>
                     </div>
                   </button>
                 </li>

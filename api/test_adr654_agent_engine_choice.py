@@ -294,6 +294,28 @@ check("an unavailable engine is greyed, not filtered",
 check("the pane says the choice applies to NEW conversations",
       "new conversations" in _pane.lower())
 
+# The ROSTER shows the engine too (2026-09-17 operator ask). Before this the
+# engine lived only on the detail page, so "which of these is on Opus" was a
+# three-click question on a three-row list.
+check("the roster row renders the engine",
+      "EngineTag" in _pane and "function EngineTag(" in _pane)
+check("the roster row resolves the LABEL, not the routing key",
+      "models.find((m) => m.id === agent.model)?.label" in _pane)
+check("the roster reads the same models roster the picker does",
+      _pane.count("models={models}") >= 2)
+# A discriminator label with nothing to discriminate against: "In an app" named
+# what every row's own app chip already showed, and its only sibling section
+# renders when `offered.length > 0` — nobody is offered (ADR-599 D1).
+# Strip comments first: the rule is about what RENDERS, and the comment
+# explaining the removal necessarily quotes the label it removed. A raw
+# substring check would red on its own rationale.
+_pane_code = _re.sub(r"\{/\*.*?\*/\}", "", _pane, flags=_re.S)
+_pane_code = _re.sub(r"/\*.*?\*/", "", _pane_code, flags=_re.S)
+check("the single-group section carries no discriminator header",
+      "In an app" not in _pane_code)
+check("the sibling header survives for when an agent IS offered",
+      "To work with" in _pane)
+
 _payload = _routes
 check("the envelope serves the declared default",
       '"model_default"' in _payload)
