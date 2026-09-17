@@ -206,11 +206,17 @@ export interface CompositionTree {
 //     SURFACES.yaml surfaces[] block
 //   - "composed" — operator-authored (forward horizon per ADR-297 D10;
 //     no entries today)
+//   - "app" — a MEMBER app (ADR-653 D3.c). One tier for every member app,
+//     NOT one tier per app: the launcher groups them under a single heading
+//     ("Your apps" — APP-BUILDER-UX §2.1), which `program:{slug}` could not
+//     express because it carries the slug in the tier itself. Served by
+//     `member_apps.surface_row`, always beside `register: "composition"`.
 
 export type SurfaceTier =
   | 'kernel'
   | `program:${string}`
-  | 'composed';
+  | 'composed'
+  | 'app';
 
 /**
  * The windowed registers (ADR-309 2026-06-01; cleaved by ADR-312 2026-06-02).

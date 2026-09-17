@@ -15,6 +15,39 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.17.2] - A member's own agent gets a character in the frame
+### Changed
+- api/services/lane_runner.py: `build_lane_conventions` resolves a MEMBER app's agent when the
+  kernel register answers None, and hands the row to `build_agent_posture(row=)`. Guarded by
+  `resolve_agent(agent) is None and app and agent == app` — kernel lanes take a byte-identical
+  path, and no lane without an app can reach the branch.
+- api/services/agents_registry.py: `build_agent_posture` takes an already-resolved `row`. One
+  composition, not two: a member agent's character band is byte-for-byte the shape a kernel
+  agent's is, because it is the same code reading the same row keys.
+- Expected behavior: a lane bound to a member app opens with that app's declared character
+  under WHO YOU ARE. Before this it opened with NOTHING — `AGENTS` has no data ingress, so
+  `build_agent_posture` returned "" and the turn ran bare-engine while the pane named a colleague.
+
+### Why
+ADR-653 R3 makes an app a lane binding, and D2 makes its agent a member-authored row. The
+declaration path shipped first (`6bcb234`) and nothing read the `agent:` block at turn time, so
+the character a member wrote was inert. Driven on the rig workspace (bf5b25a9): a declaration
+naming Mara — *"You look after this member's photo work. You know which shoots are delivered and
+which are still waiting on a cull."* — composed into a 6,376-char frame and the turn answered
+*"I look after your photo work here — tracking which shoots are delivered and which are still
+waiting on a cull."* Receipts: declaration revision `0838ead9`, lane `71988eea`, both removed
+after the pass.
+
+⚠️ The row carries NO engine and no authority key — `AGENT_ROW_KEYS` is unchanged and asserted
+unchanged. A member agent is identity ⊕ character and takes the member's own engine choice
+(ADR-647 D4); a declaration that pinned one would out-rank that choice.
+
+### Gate
+`api/test_adr653_app_is_a_program.py` 185/185, block [2b] falsified in 9 arms (an authority key
+admitted, an engine pinned, `offered`/`kernel` flipped, a kernel slug allowed, the read stubbed,
+the precedence inverted, a read added to the serve path, the row ignored). Size ratchets:
+`test_adr632_the_seat_retires.py` 73/73 and `test_adr630_skills.py` 147/147.
+
 ## [2026.09.17.1] - An agent's token profile finally sets its own ceiling
 ### Changed
 - api/services/lane_runner.py: `resolve_max_tokens(agent, authoring=)` — ONE resolution of a

@@ -40,10 +40,15 @@ import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useViewport } from '@/lib/shell/useViewport';
 import { useShellChrome } from './ShellChromeContext';
-import { isKernelSurfaceSlug } from '@/types/surface';
+import {
+  appSlugFromPath,
+  appSurfaceSlugs,
+  isKernelSurfaceSlug,
+  isOpenableSurfaceSlug,
+} from '@/types/surface';
 import type { KernelSurfaceSlug } from '@/types/surface';
 import { surfaceTitleFor } from '@/lib/compositor/surfaceTitle';
-import { resolveSurfaceComponent } from './SurfaceRegistry';
+import { resolveOpenableComponent } from './SurfaceRegistry';
 import { Desktop } from './Desktop';
 import { WindowFrame } from './WindowFrame';
 
@@ -83,8 +88,25 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   // transports that open the named surface; the /desktop route itself
   // produces no pathnameSlug and just shows the Desktop layer.
   const firstSegment = pathname.split('/').filter(Boolean)[0];
-  const pathnameSlug: KernelSurfaceSlug | null =
-    firstSegment && isKernelSurfaceSlug(firstSegment) ? firstSegment : null;
+
+  // ADR-653 D3.c — the served member apps. Derived BEFORE pathnameSlug
+  // because the route resolution below consults it: a member app is the first
+  // TWO-segment surface route (`/apps/{slug}`), and the roster is what says
+  // which second segments are real.
+  const appSlugs = appSurfaceSlugs(composition.surfaces);
+
+  // ⚠️ An app slug is honoured ONLY when the roster carries it. Trusting the
+  // URL alone would let `/apps/anything` mount a window with no component
+  // behind it — the empty-window class the backend already refuses to serve
+  // a broken declaration into (ADR-653 §10.1).
+  const routeAppSlug = (() => {
+    const s = appSlugFromPath(pathname);
+    return s && appSlugs.has(s) ? s : null;
+  })();
+
+  const pathnameSlug: string | null =
+    routeAppSlug ??
+    (firstSegment && isKernelSurfaceSlug(firstSegment) ? firstSegment : null);
   const isDesktopRoute = pathname === '/desktop';
 
   // ADR-340 P2 — pane-grade slugs never mount as windows. Stale persisted
@@ -104,19 +126,23 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   // the render set so they vanish visually while their slugs stay in
   // the `open` registry (so the Dock icon retains its open-indicator).
   // Restore via foregroundSurface (Dock-click on minimized icon).
-  const mountSlugs: KernelSurfaceSlug[] = (() => {
+  const mountSlugs: string[] = (() => {
     const set = new Set<string>(open);
     if (pathnameSlug) set.add(pathnameSlug);
     return Array.from(set)
-      .filter(isKernelSurfaceSlug)
+      // ADR-653 D3.c — *kernel slug OR a served app slug*. This filter is
+      // what silently dropped a member app from the window system: the
+      // Launcher could foreground it, the slug persisted fine, and no window
+      // ever mounted.
+      .filter((slug) => isOpenableSurfaceSlug(slug, appSlugs))
       .filter((slug) => !paneSlugs.has(slug))
       .filter((slug) => !windowStates[slug]?.minimized);
   })();
 
-  const visibleSlug: KernelSurfaceSlug | null = (() => {
+  const visibleSlug: string | null = (() => {
     if (
       foregrounded &&
-      isKernelSurfaceSlug(foregrounded) &&
+      isOpenableSurfaceSlug(foregrounded, appSlugs) &&
       mountSlugs.includes(foregrounded)
     ) {
       return foregrounded;
@@ -152,7 +178,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   // inset so the surface fills its flex column edge-to-edge.
   if (singleSurface && hasWindows) {
     const slug = visibleSlug;
-    const Component = slug ? resolveSurfaceComponent(slug) : undefined;
+    const Component = slug ? resolveOpenableComponent(slug, appSlugs) : undefined;
     if (slug && Component) {
       return (
         <Desktop hasWindows={true}>
@@ -178,7 +204,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   return (
     <Desktop hasWindows={hasWindows}>
       {mountSlugs.map((slug) => {
-        const Component = resolveSurfaceComponent(slug);
+        const Component = resolveOpenableComponent(slug, appSlugs);
         // Pane-grade or unknown slugs have no window component (ADR-340
         // P2) — already filtered from mountSlugs, this is the defensive
         // backstop for a stale slug that slipped through.

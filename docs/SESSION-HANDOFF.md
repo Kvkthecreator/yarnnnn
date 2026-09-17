@@ -6,26 +6,30 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## ADR-653 — the app-builder (ACCEPTED, build in progress)
-- Sequence is `docs/design/APP-BUILDER-UX.md` §8. **Steps 1 and the RED-gate precondition are DONE**
-  (`6bcb234` the declaration parser + 59-check gate, falsified 4 ways; `0096569` the `connectors` phantom).
-- ~~Step 2 (R3, the app binding kind)~~ **DONE** (`b71b716`). ⚠️Nothing CALLS the app-only binding yet — it is
-  reachable by `POST /lanes` with `app` alone and has no FE caller until step 3.
-- **Step 3's BACKEND is done** — D3.a (`b2b6972`, the validated register + `is_composition`) and D3.c's server
-  half (`f81aac4`, `read_member_apps` + `surface_row`, served before the bundle branch). Gate 116/116.
-- **Next: the FE half, and it is ALL that remains of step 3.** Three pieces, in order:
-  1. `Launcher.tsx:268` gates foregrounding on `isKernelSurfaceSlug` — a served app renders a tile that does
-     NOTHING today. Widen to *kernel slug OR a served app slug*.
-  2. ONE generic `AppSurface` component, parameterized by the declaration. NO per-app static import — that is
-     what keeps the ADR-338 three-way lockstep over KERNEL surfaces untouched.
-  3. The first two kinds (`files`, `note`) behind a client dispatch, with the honest amber miss for an unknown
-     kind (the deleted `dispatchComponent` posture, ADR-653 D3.b).
-  ⚠️Nothing renders a member app yet: the row is served and the client ignores it. Gate checks 4 and 5 are
-  the FE half and are NOT implemented.
-- ~~Owed by R1~~ **DONE**: `app_delete_roots()` derives the pairing (R4 makes the slugs equal), returning
-  exactly two roots — `apps/{slug}/` and the ORDINARY `agents/{slug}/` home. The species split (memory under
-  `apps/`) was refused and is asserted against. Gate check 6b, falsified three ways.
-- Nothing reads `services/member_apps.py` yet — it is pure and unwired by design (step 1 ships no UI).
+## ADR-653 — the app-builder (ACCEPTED; UX §8 steps 1–3 DONE, step 4 next)
+- Sequence is `docs/design/APP-BUILDER-UX.md` §8. **Steps 1, 2 and 3 are DONE and click-passed**
+  (`6bcb234` the parser · `0096569` the phantom-slug precondition · `b71b716` the app binding kind ·
+  `b2b6972` + `f81aac4` the backend surface · this commit the FE half + member-agent resolution).
+  Gate `test_adr653_app_is_a_program.py` 185/185, checks 4 and 5 now implemented and falsified in
+  23 arms. ADR §11.1 carries the receipts; UX §8.1 carries what the steps taught.
+- **Next is step 4 — the builder AS an app (R2), the design's own falsification.** It needs
+  `needs-you` over `apps/`, which is the FIRST kind the growth rule must admit on evidence. The
+  evidence now exists: a declaration naming `needs-you` today renders the honest amber miss, so the
+  refusal is real and counted rather than hypothetical.
+- **Owed, small and named**: band 2 renders the RESTING state only. Working and raising (UX §4) wait
+  for step 5 and the resident read; §4.2's rules (one raise at a time, discharged by visiting,
+  decaying if unacted) are entirely unexercised.
+- ⚠️**`recent` is declared server-side and undrawn**, deliberately — `SECTION_KINDS` admits four, the
+  client draws two, and the gate asserts the gap is NON-EMPTY so the miss branch stays reachable and
+  tested. Drawing all four would make that check vacuous.
+- ⚠️**Three-bands is proven on ONE app.** Untested at the shapes that would strain it: many sections,
+  an `about` over the 48-char launcher budget (the parser WARNS, nothing surfaces the warning yet),
+  a narrow viewport.
+- ⚠️**The app-detail route has no write door and should not grow one** (`api/routes/member_apps.py`).
+  Editing an app is chat (UX §3.4) — a declaration is an ordinary file, and a bespoke PATCH would be
+  a second authoring face whose body could carry keys `write_revision` never sees.
+- ~~`app_delete_roots` unwired~~ still true and still by design: R1's delete blast radius is pure and
+  gate-asserted (6b), with no caller until a delete affordance exists (UX §3.4, not yet built).
 
 ## Genesis / the shared service client
 - **`[Errno 11] Resource temporarily unavailable` on the shared HTTP/2 service client is UNFIXED** (first seen

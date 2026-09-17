@@ -25,9 +25,37 @@ that parses nothing.
 
 from __future__ import annotations
 
+import re
 import sys
+from pathlib import Path
 
 sys.path.insert(0, ".")
+
+_WEB = Path(__file__).resolve().parent.parent / "web"
+
+
+def _web(rel: str) -> str:
+    """One frontend file's source, or "" when absent.
+
+    The ADR-338 idiom: checks 4 and 5 are FE-side, and a Python gate reads the
+    TypeScript rather than pretending the half it cannot import does not exist
+    (the ADR-653 §11 "NOT YET" block this replaces).
+    """
+    p = _WEB / rel
+    return p.read_text() if p.exists() else ""
+
+
+def _strip_comments(src: str) -> str:
+    """Source with // and /* */ comments removed.
+
+    ⚠️ RECURRING DEFECT, and the reason this exists. A substring check over raw
+    source is satisfied by a COMMENT — including a comment explaining the very
+    fix being asserted. It has cost this repo three separate green-against-
+    nothing gates (2026-09-07, 09-13, 09-17), so every check below reads the
+    stripped text.
+    """
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
+    return re.sub(r"(?m)^\s*//.*$", "", src)
 
 from services.member_apps import (  # noqa: E402
     AGENT_KEYS,
@@ -158,6 +186,87 @@ check(
     "a parked key is absent from DECLARATION_KEYS",
     "budget_cents" not in DECLARATION_KEYS,
 )
+
+
+# =============================================================================
+print("\n[2b] D2 — the MEMBER app's agent resolves, and carries no authority")
+# =============================================================================
+
+from services.agents_registry import AGENT_ROW_KEYS, build_agent_posture  # noqa: E402
+from services.member_apps import agent_row, is_member_app_slug  # noqa: E402
+
+_decl = _parse(GOOD)
+_row = agent_row(_decl)
+
+# ⭐ THE ROW SHAPE DOES NOT CHANGE (ADR-653 D2). A member agent is not a second
+# species — it is the SAME `AGENTS`-shaped row, distinguished by exactly one
+# descriptive field.
+check("the member row carries NO key outside AGENT_ROW_KEYS",
+      set(_row) <= AGENT_ROW_KEYS, str(set(_row) - AGENT_ROW_KEYS))
+
+# ⚠️ THE ADR-460 D3.a CLIFF, at the one place a member's words become an agent.
+for _forbidden in ("tools", "reach", "scope", "grant", "permissions",
+                   "mandate", "autonomy", "authority"):
+    check(f"no {_forbidden!r} key on a member agent row", _forbidden not in _row)
+
+# ⚠️ NO ENGINE — absent, not defaulted. The engine is the MEMBER's choice
+# (ADR-647 D4); a row that pinned one would out-rank the member's own pick.
+check("no engine is pinned by a declaration",
+      "model" not in _row and "engine" not in _row, str(sorted(_row)))
+
+check("kernel is False — a member wrote this row", _row.get("kernel") is False)
+check("offered is False — met where it works, never invited (ADR-600 D2)",
+      _row.get("offered") is False)
+check("R4 — the agent's slug IS the app's", _row.get("slug") == _decl.slug)
+check("the member's own words become the character",
+      _row.get("posture") == _decl.agent_character and bool(_decl.agent_character))
+
+# The character composes through the SAME door every kernel agent takes.
+check("a member row composes a posture", bool(build_agent_posture(_decl.slug, row=_row)))
+check("...and without the row the kernel lookup answers NOTHING",
+      build_agent_posture(_decl.slug) == "",
+      "a member slug must not resolve out of the kernel register")
+
+# ⭐ KERNEL-FIRST. A member app may never shadow a kernel app's resident, and
+# the predicate that decides it must refuse a kernel slug.
+for _k in sorted(_kernel_names()[0]):
+    check(f"{_k!r} (kernel app) is never a member app slug",
+          not is_member_app_slug(_k))
+check("a member slug IS one", is_member_app_slug("photos"))
+check("a malformed slug is not", not is_member_app_slug("Not A Slug"))
+
+# The lane door resolves kernel BEFORE member, and the order is the cliff.
+import inspect as _inspect  # noqa: E402
+import re as _re2  # noqa: E402
+from routes.lanes import _lane_agent, create_lane  # noqa: E402
+
+# ⚠️ Comments STRIPPED before every substring check below — a gate that reads
+# its own explanatory prose is green against nothing (the recurring defect).
+_cl = _re2.sub(r"#.*", "", _inspect.getsource(create_lane))
+# ⚠️ ASSERT THE CALL AND ITS RESULT, not the symbol. A first cut read
+# `"read_member_app" in src`, which the IMPORT satisfies on its own — stubbing
+# the call to `decl = None` left it green. Falsified.
+check("the lane door CALLS the member-app read",
+      bool(_re2.search(r"read_member_app\(\s*auth\.client", _cl)))
+check("...and turns the declaration into an agent row",
+      bool(_re2.search(r"member_agent\s*=\s*agent_row\(decl\)", _cl)))
+# ⭐ KERNEL-FIRST, asserted on the CALLS rather than on the import order: a
+# member declaration must never be able to re-point a kernel app's resident.
+_k_call = _re2.search(r"agent_slug\s*=\s*resident_for_app\(", _cl)
+_m_call = _re2.search(r"read_member_app\(\s*auth\.client", _cl)
+check("...asking the KERNEL registry first",
+      bool(_k_call and _m_call) and _k_call.start() < _m_call.start())
+check("...and consulting the member app ONLY when the kernel answered nothing",
+      "if not agent_slug:\n            from services.member_apps import" in _cl)
+check("a resolved member agent is used directly, never re-looked-up in AGENTS",
+      "member_agent or resolve_agent" in _cl)
+
+# ⚠️ The serve path must stay PURE: `_lane_agent` runs once per lane on a list
+# of fifty, so a read there is fifty reads per serve. R4 is what makes the
+# derivation free — the agent's slug IS the app's.
+_la = _re2.sub(r"#.*", "", _inspect.getsource(_lane_agent))
+check("the serve path derives a member resident with NO read",
+      "is_member_app_slug" in _la and "read_member_app" not in _la)
 
 
 # =============================================================================
@@ -533,13 +642,173 @@ check("a failed read degrades to EMPTY, never blanks the shell",
 
 
 # =============================================================================
+print("\n[4] D3.b — section kinds resolve in the CLIENT vocabulary")
+# =============================================================================
+
+_section = _strip_comments(_web("components/apps/AppSection.tsx"))
+check("the section dispatch exists", bool(_section))
+
+# ⭐ THE DATA-DRIVEN RENDERING PATH. YARNNN had exactly one and it died as
+# COLLATERAL in e18e178 — six weeks after ADR-435 explicitly preserved it, and
+# by no ruling of its own (ADR-653 §1.3). This check is what stops that
+# happening silently a second time.
+check("dispatch is by KIND, not by a per-app component",
+      "switch (kind)" in _section or "case 'files':" in _section)
+
+for _kind in ("files", "note"):
+    check(f"the client draws {_kind!r}", f"case '{_kind}':" in _section)
+
+# ⚠️ THE HONEST MISS (D3.b). A kind we cannot draw must SAY so. A blank band is
+# indistinguishable from an app that has nothing in it, and a member cannot
+# tell a limit from an emptiness.
+check("an unknown kind hits a default branch", "default:" in _section)
+# Read the default BRANCH, not the file: a `<SectionMiss` anywhere would
+# otherwise satisfy this while the default returned null.
+_default = _section[_section.index("default:"):] if "default:" in _section else ""
+_default = _default[: _default.index("}")] if "}" in _default else _default
+check("the default branch returns the honest MISS, never null",
+      "<SectionMiss" in _default and "return null" not in _default,
+      repr(_default[:120]))
+check("the miss names the kind it could not draw", "{kind" in _section)
+
+# The server admits four kinds; the client draws two. The gap must render the
+# SAME honest miss rather than a blank — asserted as a real inequality so a
+# later session cannot quietly let an undrawable kind through.
+_drawable = set(re.findall(r"case '([a-z-]+)':", _section))
+check("every drawable kind is one the server admits",
+      _drawable <= set(SECTION_KINDS), f"{_drawable} vs {SECTION_KINDS}")
+check("the kinds the client cannot draw are a real, non-empty set",
+      bool(set(SECTION_KINDS) - _drawable),
+      "if this is empty the miss branch is unreachable and untested")
+
+# ⚠️ THE TRAILING SLASH. `getTree` matches its `root` EXACTLY: the folder path
+# lists its files, and the same path with a trailing slash returns 200 with
+# ZERO ROWS. A member naming a folder writes `clients/` — ADR-653 D1's own
+# example does — so without the strip the section renders a convincing
+# "Nothing here yet" over a folder full of their work. Found by DRIVING the
+# surface: an empty 200 is indistinguishable from an empty folder at every
+# layer above the query.
+check("a declared source strips its trailing slash",
+      bool(re.search(r"replace\(/\\/\+\$/, ''\)", _section)),
+      "sourcePath must not hand getTree a trailing slash")
+
+# ⚠️ NO LAYOUT PROPS — the page-builder cliff (APP-BUILDER-UX §5).
+for _banned in ("columns", "align", "width", "height"):
+    check(f"a section may not carry {_banned!r}", _banned not in SECTION_KEYS)
+
+
+# =============================================================================
+print("\n[5] D3.c — a declared app slug FOREGROUNDS, and the kernel gate holds")
+# =============================================================================
+
+_surface_ts = _strip_comments(_web("types/surface.ts"))
+
+# ⭐⭐⭐ THE ROSTER IS THE AUTHORITY. The predicate must consult the SERVED set,
+# never the URL and never persisted state — a client that trusted either could
+# foreground an app that does not exist and draw an empty window, which is
+# exactly the `connectors` phantom (§10.1) arriving from the other direction.
+check("an openable-surface predicate exists",
+      "export function isOpenableSurfaceSlug" in _surface_ts)
+check("it admits a kernel slug OR a served app slug",
+      "isKernelSurfaceSlug(slug) || appSlugs.has(slug)" in _surface_ts)
+check("the served app set is DERIVED from the roster",
+      "export function appSurfaceSlugs" in _surface_ts)
+# D3.a's register is the classifier, not the route and not the tier: matching
+# on a route would make a string a capability.
+check("an app surface is identified by its REGISTER",
+      "register === 'composition'" in _surface_ts)
+
+# ⭐ THE KERNEL UNION STAYS CLOSED. Widening `KernelSurfaceSlug` to admit an
+# arbitrary string would make the ADR-338 three-way lockstep VACUOUSLY true and
+# retire that gate without a ruling — the §10.2 lesson, one level up.
+# ⚠️ SLICE FROM THE DECLARATION, not from the file start. A first cut took
+# everything up to the first `;` in the stripped source — which is blank-line
+# residue ahead of the union — so the slice was empty and `KernelSurfaceSlug =
+# string` passed. Falsified.
+_u_start = _surface_ts.find("export type KernelSurfaceSlug =")
+check("the kernel slug union is declared", _u_start >= 0)
+_union = _surface_ts[_u_start:]
+_union = _union[: _union.index(";")] if ";" in _union else _union
+check("the union is a real set of literals, not a bare string",
+      "'chat'" in _union and "string" not in _union,
+      repr(_union[:80]))
+
+# ⚠️ ASSERT THE CALL, NOT THE FILE. A first cut of this check read
+# `"isOpenableSurfaceSlug" in src`, which the IMPORT LINE satisfies on its own
+# — reverting a gate to `isKernelSurfaceSlug` left it green. Falsified.
+_gates = {
+    "components/shell/Launcher.tsx": ("the Launcher click", 1),
+    "components/shell/SurfaceViewport.tsx": ("the window mount", 2),
+    "components/shell/chrome/TopBarSurface.tsx": ("the Dock click", 2),
+}
+for _f, (_what, _n) in _gates.items():
+    _src = _strip_comments(_web(_f))
+    _calls = len(re.findall(r"isOpenableSurfaceSlug\(", _src))
+    check(f"{_what} gate CALLS the widened predicate ({_n} site/s)",
+          _calls >= _n, f"{_f}: {_calls} call(s), want >= {_n}")
+    # The kernel-only predicate may still be IMPORTED (SurfaceViewport and the
+    # registry legitimately use it); what must not survive is a DECIDING call
+    # that gates foregrounding on it.
+    check(f"{_what} no longer decides on the kernel predicate alone",
+          "isKernelSurfaceSlug(surface.slug)" not in _src
+          and "isKernelSurfaceSlug(contextMenu.slug)" not in _src
+          and "isKernelSurfaceSlug(foregrounded)" not in _src,
+          _f)
+
+# ⚠️ THE SILENT DROP. `mountSlugs` filtered on `isKernelSurfaceSlug`, so a
+# member app could be foregrounded and NO WINDOW EVER MOUNTED — the failure
+# that makes a Launcher-only fix look like it works.
+_viewport = _strip_comments(_web("components/shell/SurfaceViewport.tsx"))
+check("mountSlugs no longer filters on the kernel predicate alone",
+      ".filter(isKernelSurfaceSlug)" not in _viewport)
+check("the two-segment app route is read",
+      "appSlugFromPath" in _viewport)
+check("a URL-named app is honoured ONLY when the roster carries it",
+      "appSlugs.has(s) ? s : null" in _viewport)
+
+# ONE generic component for every app — no per-app static import, which is what
+# leaves the ADR-338 lockstep over KERNEL surfaces untouched.
+_registry = _strip_comments(_web("components/shell/SurfaceRegistry.tsx"))
+check("a resolver serves both kinds", "resolveOpenableComponent" in _registry)
+check("an app resolves to the ONE generic", "<AppSurface slug={slug} />" in _registry)
+check("the kernel registry map is still union-typed",
+      "Partial<Record<KernelSurfaceSlug, ComponentType>>" in _registry)
+check("an unserved slug resolves to NOTHING, never a guessed component",
+      "return undefined;" in _registry)
+
+# ⚠️ THE NAMESPACE IS AUTHENTICATED. The gate derives its protected set from
+# KERNEL_SURFACE_SLUGS as `/{slug}` — single-segment by construction — so a
+# two-segment app route slips under it however current the roster is. That is
+# the 2026-08-20 incident's SHAPE (eight surfaces served 200 to logged-out
+# visitors), reached a different way.
+_mw = _strip_comments(_web("lib/supabase/middleware.ts"))
+check("the app namespace is protected", 'APP_NAMESPACE_PREFIX = "/apps"' in _mw)
+check("and it is actually IN the protected set",
+      "APP_NAMESPACE_PREFIX," in _mw or "APP_NAMESPACE_PREFIX ," in _mw)
+
+# The app's own route exists and is a real page.
+check("the /apps/{slug} route exists",
+      bool(_web("app/(authenticated)/apps/[slug]/page.tsx")))
+
+# The three bands (APP-BUILDER-UX §2.2) — fixed frame, declared contents.
+_app_surface = _strip_comments(_web("components/apps/AppSurface.tsx"))
+check("band 1 renders the app's name", "{decl.name}" in _app_surface)
+check("band 1 renders its `about` (the visible claim)", "{decl.about}" in _app_surface)
+check("band 2 names who is minding it",
+      "looks after this." in _app_surface)
+check("band 3 renders the DECLARED sections", "<AppSection" in _app_surface)
+# ⚠️ Band 2's resting line is a complete sentence, not an empty state. Compare
+# "No new activity", which says the same thing and sounds like a failure.
+check("the resting line is not an absence",
+      "No new activity" not in _app_surface and "Nothing to report" not in _app_surface)
+
+
+# =============================================================================
 print("\n" + "=" * 70)
 print(f"  {_passed} passed, {_failed} failed")
 print("=" * 70)
 print(
-    "\n  NOT YET — the FE half and one later phase (ADR-653 §11):\n"
-    "    4  section kinds resolve in the CLIENT vocabulary (D3.b)\n"
-    "    5  a declared app slug foregrounds from the Launcher (D3.c)\n"
+    "\n  NOT YET (ADR-653 §11):\n"
     "    6  standing executor resolves through the app (D5)\n"
 )
 sys.exit(1 if _failed else 0)

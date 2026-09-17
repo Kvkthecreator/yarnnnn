@@ -1,6 +1,6 @@
 # ADR-653 — An app is an AI-native program: the member scaffolds an agent, its skills, and a surface
 
-> **Status**: **Accepted** (2026-09-17, operator-ratified through the four rulings in §8a — *"let's just make one app = one agent rule of thumb specific to these apps (not the kernel ones). thus we can now proceed in full"*). Doc-first; **no code rides this document yet.** Implementation sequence in [APP-BUILDER-UX.md](../design/APP-BUILDER-UX.md) §8; its step 1 ships no UI.
+> **Status**: **Accepted** (2026-09-17), **UX §8 steps 1–3 IMPLEMENTED** (2026-09-17 — see §11.1, operator-ratified through the four rulings in §8a — *"let's just make one app = one agent rule of thumb specific to these apps (not the kernel ones). thus we can now proceed in full"*). Implementation sequence in [APP-BUILDER-UX.md](../design/APP-BUILDER-UX.md) §8; **steps 1–3 have landed** — a member can declare an app, open its surface, and talk to its agent. Step 4 (the builder as an app) is next.
 > **Date**: 2026-09-16 (proposed) · 2026-09-17 (accepted)
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Identity** (Axiom 2 — a member may author an agent again) + **Channel** (Axiom 6 — a surface may be composed, not only mirrored) + **Mechanism** (Axiom 5 — where an app declaration LIVES and who may assert it). **No authority change**: every reach decision stays on grants and gates, and nothing here widens what any principal may do.
@@ -352,6 +352,69 @@ Found during the audit. Each is real, each predates this work, and **none is cau
 7. The `AGENT_ROW_KEYS` whitelist is unchanged and no authority key appears on any member row (§6, the D3.a ratchet).
 
 ⚠️ **Preconditions**: §10.1 must be green first. A gate that crashes reports nothing (the ADR-648 lesson), and a script-shaped gate reports a count, not an exit code.
+
+### 11.1 Implementation status — 2026-09-17
+
+**Checks 1, 2, 3, 6a, 6b, 6c, 7 and now 4 + 5 are IMPLEMENTED. 185/185, every new check falsified.**
+Only check 6 (D5, the standing executor) remains, and it belongs to a later step. §10.1 was green
+before this work and stayed green (17/0).
+
+| Step (UX §8) | State | Receipt |
+|---|---|---|
+| 1 — authored origin | done | `6bcb234` |
+| 2 — the app binding kind (R3) | done | `b71b716` |
+| 3 — the surface, backend | done | `b2b6972` (D3.a) · `f81aac4` (D3.c server half) |
+| **3 — the surface, FRONTEND** | **done** | this commit |
+
+**What the FE half turned out to be.** The handoff named one line (`Launcher.tsx:268`). Driving it
+found **five** `isKernelSurfaceSlug` gates across three shell files, and widening only the Launcher
+produces a click that foregrounds nothing: `SurfaceViewport`'s `mountSlugs` filtered the slug out
+**silently**, so no window ever mounted. The Dock was worse — `isDockable` filters only pane-grade
+and chrome-fronted rows, so an app already rendered a tile, and the tile did nothing on click. That
+is the `connectors` phantom (§10.1) arriving from the other direction.
+
+**The resolution: a SECOND predicate, not a widened union.** `KernelSurfaceSlug` is untouched.
+`isOpenableSurfaceSlug(slug, appSlugs)` admits *a kernel slug OR a slug the served roster carries
+with `register: "composition"`*, and `resolveOpenableComponent` maps an app to ONE generic
+`AppSurface` — no per-app import, so the ADR-338 three-way lockstep over kernel surfaces is
+untouched and the parity gate stays meaningful. Widening the union instead would have made that
+gate **vacuously true**, retiring it without a ruling — §10.2's lesson, one level up.
+
+⭐ **The roster is the authority.** The predicate takes the served set explicitly; the client never
+trusts the URL or persisted state. `/apps/anything` resolves to nothing rather than mounting an
+empty window.
+
+**A security defect found and closed.** `lib/supabase/middleware.ts` derives its protected set as
+`KERNEL_SURFACE_SLUGS.map(s => '/' + s)` — **single-segment by construction**. `/apps/{slug}` is the
+product's first two-segment surface route, so it slipped under that derivation however current the
+roster was, and would have served **200 to logged-out visitors**. That is the 2026-08-20 incident's
+shape (eight surfaces ungated), reached a different way. `APP_NAMESPACE_PREFIX` now protects the
+namespace as a whole — one prefix covering every app a member will ever declare, including ones
+that do not exist yet. Driven: `/apps/photos` → 307 to `/auth/login?next=%2Fapps%2Fphotos`.
+
+**D2 completed: a member agent now RESOLVES.** `b71b716` added the app-only binding kind, but
+`resident_for_app` reads the kernel registry only, so `POST /lanes {app:"photos"}` 422'd — driven,
+not read: `resolve_app('photos')` → None, `resolve_agent('mara')` → None. The lane door now asks the
+kernel registry first (the cliff — a member declaration can never re-point a kernel app's resident,
+and `_classify_slug` already refuses a kernel slug at write time, so the collision is closed at both
+ends) and falls through to `member_apps.agent_row`, an `AGENTS`-shaped row with `kernel: False`.
+`AGENT_ROW_KEYS` is unchanged and asserted unchanged.
+
+⚠️ **One consequence worth naming: a member agent has no engine**, deliberately — the engine is the
+member's choice (ADR-647 D4). The lane door's precedence ended in `agent["model"]`, which **500'd**
+on the first app-bound lane. `default_agent_engine()` is the new last resort, DERIVED from the
+kernel rows rather than spelled beside them, and it is the SAME engine they run: a member's agent is
+not a lesser agent.
+
+**Click-passed on the rig workspace (bf5b25a9), 2026-09-17.** A real declaration
+(revision `0838ead9`), a real lane (`71988eea`), both removed after. The three bands render; the
+Launcher shows **YOUR APPS → Photos** and the click foregrounds it; the Dock tile opens it from
+another surface; `needs-you` renders the honest amber miss rather than a blank.
+
+⚠️ **The pass found a defect reading could not.** `getTree` matches its `root` EXACTLY: a trailing
+slash returns **200 with zero rows**. A member naming a folder writes `clients/` — D1's own example
+does — so the `files` section rendered a convincing *"Nothing here yet"* over a folder holding their
+work. An empty 200 is indistinguishable from an empty folder at every layer above the query.
 
 ---
 

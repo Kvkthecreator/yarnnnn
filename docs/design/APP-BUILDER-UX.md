@@ -2,7 +2,7 @@
 
 *What she sees, what she does, and how someone minding her work is made visible without becoming noise.*
 
-> **Status**: Design spec, first cut 2026-09-17. **ADR-653 is ACCEPTED (2026-09-17); this document is its design half and is ratified with it.** Nothing here is built yet — §8 is the sequence, and its step 1 ships no UI.
+> **Status**: Design spec, first cut 2026-09-17. **ADR-653 is ACCEPTED (2026-09-17); this document is its design half and is ratified with it.** §8 is the sequence: **steps 1–3 are BUILT and click-passed** (2026-09-17 — §8.1 records what they taught); steps 4–7 are not.
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Why a dedicated document**: ADR-653 carries exactly ONE frontend decision (D3.c — widen the Launcher's slug gate, mount a generic app surface), and that is a routing fix, not a design. The frame's whole argument is a UX argument — *an app is a **visible claim**… not capability, but legibility of capability* — so an ADR that argues for visibility and specifies none of it is half an ADR. This is the other half.
 > **Binding constraints**: [VOICE-AND-TONE.md](VOICE-AND-TONE.md) §2 slot budgets and §3 word map are LAW here, guarded by `api/test_voice_no_kernel_nouns_in_copy.py`. Every string in this document is written to a measured budget, and no kernel noun appears in any of them.
@@ -20,7 +20,7 @@ Every decision below is answerable to that. The test for any screen here is not 
 
 ## 1. What is undesigned today — the honest inventory
 
-A member cannot, at `fd82fba`:
+A member cannot, at `fd82fba`:  *(rows 1, 3 and 4 are CLOSED as of 2026-09-17 — §8.1)*
 
 | # | She cannot… | Why |
 |---|---|---|
@@ -275,9 +275,9 @@ Ordered by *what teaches the most per unit of build*, not by completeness.
 
 | # | Ships | Needs | Teaches |
 |---|---|---|---|
-| 1 | **Authored origin** (§3.3) — chat writes a declaration | the D1 file format, nothing visual | whether the declaration format survives a real ask |
-| 2 | **The app binding kind** — a lane bound to an app (R3) | `create_lane` + posture widening | whether an app-level conversation composes |
-| 3 | **The surface** (§2.2) with `files` + `note` | D3.c's gate widening; two kinds | whether three bands is enough shape |
+| 1 | ✅ **Authored origin** (§3.3) — chat writes a declaration | the D1 file format, nothing visual | whether the declaration format survives a real ask |
+| 2 | ✅ **The app binding kind** — a lane bound to an app (R3) | `create_lane` + posture widening | whether an app-level conversation composes |
+| 3 | ✅ **The surface** (§2.2) with `files` + `note` | D3.c's gate widening; two kinds | whether three bands is enough shape |
 | 4 | **The builder, as an app** (§3.2a) | `needs-you` over `apps/` | ⭐ whether the frame can express its own maker |
 | 5 | **Band 2 resting + raising** (§4) | the resident read | whether presence reads as calm or as noise |
 | 6 | **Chosen origin** (§3.1) — first-run | a small catalog | time-to-value at minute zero |
@@ -287,7 +287,28 @@ Ordered by *what teaches the most per unit of build*, not by completeness.
 
 ⭐⭐ **Step 4 is the design's falsification** and it moved up because of R2. Building the builder as an ordinary app, before any member has one, tests the frame and the vocabulary against the hardest case we control. If it needs a special case, we have learned the frame is wrong while it is still cheap to change.
 
-⚠️ **Step 2 is gated on the RED parity gate** (ADR-653 §10.1) — `connectors` is a phantom slug and that gate must be green on its own merits first.
+✅ **Step 2's precondition cleared**: the ADR-653 §10.1 parity gate (`connectors`, a phantom slug) went green in `0096569` and has stayed green (17/0) through step 3.
+
+### 8.1 What steps 1–3 taught — 2026-09-17
+
+**Three bands IS enough shape** (step 3's question), on the one app we have driven. Band 1's claim,
+band 2's resting line and a band of declared sections read as one thing, and the `note` kind carrying
+a full markdown document — headings, a table, task list, code fence — did not strain the frame.
+⚠️ Untested at the shapes that would strain it: many sections, a long `about`, a narrow viewport.
+
+**The vocabulary's first refusal is already recorded.** A declaration naming `needs-you` renders the
+honest amber miss — *"This app asks for a needs-you section, which this workspace cannot show yet."*
+That is §5's growth rule working before any member has asked for anything: the server admits four
+kinds, the client draws two, and the gap is VISIBLE rather than blank. ⭐ The count of refused kinds
+starts here, and the first entry is one of our own.
+
+**An app-level conversation composes** (step 2's question): the app-bound lane appears in Chat
+labelled by the app, with its agent seated. Driven on the rig, receipts in ADR-653 §11.1.
+
+⚠️ **What step 3 did NOT ship, and is owed to step 5**: band 2 renders the RESTING state only.
+*"{Name} looks after this."* is live; working and raising are not, because raising needs the resident
+read. §4.2's rules (one raise at a time, discharged by visiting, decaying if unacted) are unexercised
+— the hardest part of this design is still ahead of it.
 
 ---
 

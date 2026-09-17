@@ -67,7 +67,7 @@ import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
-import { isKernelSurfaceSlug } from '@/types/surface';
+import { appSurfaceSlugs, isOpenableSurfaceSlug } from '@/types/surface';
 import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
 import { AttentionCenter } from '../AttentionCenter';
@@ -140,6 +140,15 @@ export function TopBarSurface() {
     return map;
   }, [composition.surfaces]);
 
+  // ADR-653 D3.c — the served member apps. A Dock tile for an app was ALREADY
+  // renderable (`isDockable` filters only pane-grade and chrome-fronted rows);
+  // what was missing was the click, so the tile drew and did nothing — the
+  // `connectors` phantom (ADR-653 §10.1) arriving from the other direction.
+  const appSlugs = useMemo(
+    () => appSurfaceSlugs(composition.surfaces),
+    [composition.surfaces],
+  );
+
   // 2026-07-22 — the fixed HOME ANCHOR slot is DELETED (dead code since
   // ADR-435). It reserved a permanent, un-releasable Dock entry for
   // `slug: 'home'`, but ADR-435 deleted that surface from the registry and the
@@ -207,7 +216,7 @@ export function TopBarSurface() {
     const surfaceIsKept = isKept(surface.slug);
 
     const handleClick = () => {
-      if (!isKernelSurfaceSlug(surface.slug)) return;
+      if (!isOpenableSurfaceSlug(surface.slug, appSlugs)) return;
       // Dock click semantics (D15 + D19.3):
       //   - Not open               → open + foreground (cap-checked)
       //   - Minimized              → restore (foregroundSurface clears
@@ -319,7 +328,7 @@ export function TopBarSurface() {
         action: () => {
           // D19.2: foregroundSurface is the singular action; URL is
           // informational add-on, not rewritten on summon.
-          if (isKernelSurfaceSlug(contextMenu.slug)) {
+          if (isOpenableSurfaceSlug(contextMenu.slug, appSlugs)) {
             foregroundSurface(contextMenu.slug);
           }
         },

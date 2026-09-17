@@ -395,6 +395,78 @@ def app_delete_roots(slug: str) -> list[str]:
     return [app_home(slug), agent_home(slug)]
 
 
+def is_member_app_slug(slug: str, kernel_app_slugs: Optional[frozenset] = None) -> bool:
+    """Could ``slug`` name a MEMBER app? Pure — no read, no I/O.
+
+    A shape test, deliberately, not an existence test. It answers *"is this a
+    slug a member app could own"*, which is what a caller on the serve path
+    needs: `_lane_agent` derives a resident for fifty lanes per list, and an
+    existence check there is fifty reads.
+
+    ⚠️ The kernel set is asked FIRST (ADR-653 D2). A kernel slug is never a
+    member app's, so this returns False for one even though it is well-formed
+    — the cliff, at a predicate. The set is read from `all_apps()` by default
+    rather than passed, because a caller that had to remember to pass it would
+    eventually forget and re-open the shadowing this closes.
+    """
+    slug = (slug or "").strip()
+    if not slug or not _SLUG_RE.match(slug):
+        return False
+    if kernel_app_slugs is None:
+        kernel_app_slugs = _kernel_slugs()[0]
+    return slug not in kernel_app_slugs
+
+
+def agent_row(decl: "AppDecl") -> dict:
+    """The declaration's agent, as an ``AGENTS``-shaped row (ADR-653 D2).
+
+    A member agent is not a second species. It is the SAME row shape the kernel
+    register uses, resolved through the same path, distinguished by exactly one
+    descriptive field: ``kernel: False``. ADR-653 D2 states the whole design —
+    *"the row shape does not change"* — and `AGENT_ROW_KEYS` is therefore
+    unchanged by this function. Every key below is already in that whitelist.
+
+    ⚠️ NO AUTHORITY KEY, and there must never be one. This is the ADR-460 D3.a
+    cliff at the one place a member's words become an agent: if a declaration
+    could add a key here, `_app.yaml` would be an authority surface a member
+    edits. `AGENT_KEYS` admits `name` and `character` and nothing else, so
+    there is nothing in a declaration that COULD become one.
+
+    ⚠️ NO ENGINE. `model` is deliberately absent rather than set to a default:
+    the engine is the MEMBER's choice (ADR-647 D4), resolved at the lane door
+    by the same precedence every other agent takes. A row that pinned one here
+    would let a declaration out-rank the member's own pick — which is the
+    inversion D1's whitelist exists to prevent.
+
+    ⚠️ `offered: False` — a member agent is met where it works (ADR-600 D2),
+    exactly like Editor and Designer. R4 makes this structural rather than
+    stylistic: the agent serves ONE app, so there is nowhere else to invite it
+    TO. An invite roster entry would name a colleague who can only ever answer
+    in one pane.
+
+    Pure. Returns a row even when the declaration has a `problem`; the caller
+    decides what a broken app means, the same posture `read_member_apps` takes.
+    """
+    return {
+        "slug": decl.agent_slug,
+        "name": decl.agent_name,
+        # The member's own words about who this is. It rides the lane frame as
+        # the CHARACTER band (ADR-601 D2's 2.4%), never as a job overlay: what
+        # the agent DOES is the app's, what the agent IS is theirs.
+        "posture": decl.agent_character,
+        "blurb": decl.about,
+        "icon": "sparkles",
+        # ADR-600 D2 — the two orthogonal declared facts, and nothing else.
+        "offered": False,
+        # ⭐ The one field that says a member wrote this row (ADR-653 D2).
+        # DESCRIPTIVE, never authority — it says who authored the agent, never
+        # what the agent may do. Under R4 it also PREDICTS the cardinality
+        # rule (one app, one agent), which is still not authority: a member
+        # agent is not less capable, it simply belongs to one app.
+        "kernel": False,
+    }
+
+
 def is_app_owned_path(path: str, slug: str) -> bool:
     """Is ``path`` inside what deleting app ``slug`` removes? Pure.
 
@@ -467,6 +539,55 @@ def read_member_apps(client: Any, user_id: str) -> list["AppDecl"]:
             continue
         out.append(decl)
     return out
+
+
+def read_member_app(client: Any, user_id: str, slug: str) -> Optional["AppDecl"]:
+    """One declared app by slug, or None. ONE bounded query.
+
+    The single-app read the lane door needs (ADR-653 R3): a lane bound to an
+    app must resolve THAT app's resident, and reading the whole roster to find
+    one row is a query per pane load for no reason.
+
+    ⚠️ A declaration with a `problem` returns None here, where
+    `read_member_apps` returns it. The two callers want opposite things and
+    the difference is deliberate: the roster tells a member what is wrong with
+    their app, and a LANE cannot run on a broken one — its resident may have
+    no name. Refusing is the ADR-548 posture (an honest absence beats a
+    plausible default); the caller turns it into "unknown app", which is what
+    it is.
+    """
+    from services.workspace_context import substrate_scope_filter
+
+    slug = (slug or "").strip()
+    if not slug or not _SLUG_RE.match(slug):
+        return None
+    try:
+        res = (
+            client.table("workspace_files")
+            .select("path, content")
+            .eq(*substrate_scope_filter(user_id))
+            .eq("path", f"/workspace/{app_declaration_path(slug)}")
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001 — a read must never break a turn
+        logger.warning("[MEMBER_APPS] read of %r failed: %s", slug, exc)
+        return None
+
+    rows = res.data or []
+    if not rows:
+        return None
+    kernel_apps, kernel_agents = _kernel_slugs()
+    decl = parse_app_yaml(
+        rows[0].get("content") or "",
+        slug=slug,
+        declaration_path=rows[0].get("path") or "",
+        kernel_app_slugs=kernel_apps,
+        kernel_agent_slugs=kernel_agents,
+    )
+    if decl is None or decl.problem:
+        return None
+    return decl
 
 
 def _kernel_slugs() -> tuple[frozenset[str], frozenset[str]]:
