@@ -9,13 +9,14 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 ## ADR-653 — the app-builder (ACCEPTED, build in progress)
 - Sequence is `docs/design/APP-BUILDER-UX.md` §8. **Steps 1 and the RED-gate precondition are DONE**
   (`6bcb234` the declaration parser + 59-check gate, falsified 4 ways; `0096569` the `connectors` phantom).
-- **Next: step 2 — the app binding kind (R3).** `create_lane` derives boundness from an ARTIFACT
-  (`api/routes/lanes.py:971`) and an app-level lane has none, so the request is refused at `:976` today.
-  The job overlay signature `posture(client, user_id, artifact_path, artifact)` widens with it. This is the
-  largest single mechanism consequence of the rulings; gate check 6a is written but NOT YET implemented.
-- **Owed by R1**: agent memory is keyed by slug (`agents/{slug}/memory/`) but deleted WITH the app, so the
-  delete must derive the pairing. Two shapes named in ADR-653 §8a R1; moving memory under `apps/` would be the
-  species split ADR-624 refused. Gate check 6b written, not implemented.
+- ~~Step 2 (R3, the app binding kind)~~ **DONE** (`b71b716`). ⚠️Nothing CALLS the app-only binding yet — it is
+  reachable by `POST /lanes` with `app` alone and has no FE caller until step 3.
+- **Next: step 3 — the app surface.** Needs D3.c (widen `Launcher.tsx`'s `isKernelSurfaceSlug` gate, mount one
+  generic `AppSurface`) + D3.a (`register: "composition"` validated, with a runtime reader — today `register`
+  has ZERO runtime readers) + the two first kinds (`files`, `note`). Gate checks 3/4/5 not yet implemented.
+- ~~Owed by R1~~ **DONE**: `app_delete_roots()` derives the pairing (R4 makes the slugs equal), returning
+  exactly two roots — `apps/{slug}/` and the ORDINARY `agents/{slug}/` home. The species split (memory under
+  `apps/`) was refused and is asserted against. Gate check 6b, falsified three ways.
 - Nothing reads `services/member_apps.py` yet — it is pure and unwired by design (step 1 ships no UI).
 
 ## Genesis / the shared service client

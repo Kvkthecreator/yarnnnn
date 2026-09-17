@@ -14,9 +14,8 @@ assumed:
   4  — section kinds resolve in the client vocabulary (D3.b)
   5  — a declared app slug foregrounds from the Launcher (D3.c)
   6  — standing executor resolves through the app (D5)
-  6b — deleting an app deletes its agent's memory, and nothing else (R1)
-
-Check 6a (R3, the app binding kind) IS implemented, below.
+Checks 6a (R3, the app binding kind) and 6b (R1, the delete blast radius) ARE
+implemented, below.
 
 ⚠️ FALSIFIED BEFORE IT SHIPPED. Each check below was driven RED by mutating the
 thing it asserts: an authority key admitted into AGENT_KEYS, a kernel slug
@@ -38,7 +37,9 @@ from services.member_apps import (  # noqa: E402
     SECTION_KEYS,
     SECTION_KINDS,
     app_declaration_path,
+    app_delete_roots,
     app_slug_from_path,
+    is_app_owned_path,
     declaration_problem_message,
     parse_app_yaml,
 )
@@ -390,12 +391,57 @@ check(
 
 
 # =============================================================================
+print("\n[6b] R1 — deleting an app takes its agent's memory, and NOTHING else")
+# =============================================================================
+
+_roots = app_delete_roots("photos")
+check("exactly two roots — the app and its agent's home", len(_roots) == 2, str(_roots))
+check("the app's own folder is a root", "apps/photos/" in _roots, str(_roots))
+check("the agent's HOME is a root (not just its memory/)",
+      "agents/photos/" in _roots, str(_roots))
+
+# ⭐ R4 is what makes the pairing a DERIVATION rather than a lookup: the agent's
+# slug IS the app's, so there is no declaration to read and no way for the two
+# to disagree at delete time.
+_other = app_delete_roots("client-work")
+check("a second app's roots do not overlap the first",
+      not set(_roots) & set(_other), f"{_roots} vs {_other}")
+
+# ⚠️ THE BLAST RADIUS, asserted as a NEGATIVE. The delete confirm promises the
+# member's files stay; this is that promise as a check. Their work lives by
+# MEANING anywhere in the workspace, so every path below must be outside.
+for _inside in ("apps/photos/_app.yaml", "apps/photos/notes.md",
+                "agents/photos/memory/feedback.md", "agents/photos/_autonomy.yaml",
+                "/workspace/apps/photos/deep/nested.md"):
+    check(f"inside the radius: {_inside}", is_app_owned_path(_inside, "photos"))
+
+for _outside in ("clients/shoot.jpg", "Documents/notes.md", "Downloads/raw.csv",
+                 "apps/client-work/_app.yaml", "agents/editor/memory/notes.md",
+                 "skills/culling-a-shoot/SKILL.md", "system/skills/writing-a-spec/SKILL.md"):
+    check(f"OUTSIDE the radius: {_outside}", not is_app_owned_path(_outside, "photos"))
+
+# The agent home must be the SAME shape a kernel agent uses — the species split
+# ADR-624 refused would arrive here first, as a second home under apps/.
+from services.workspace_paths import agent_home as _agent_home  # noqa: E402
+check(
+    "a member agent's home is the ordinary agent home (no species split)",
+    _agent_home("photos") in _roots and _agent_home("photos") == "agents/photos/",
+    _agent_home("photos"),
+)
+check(
+    "no delete root lives under apps/ for the AGENT half",
+    not any(r.startswith("apps/") and "agent" in r for r in _roots),
+    str(_roots),
+)
+
+
+# =============================================================================
 print("\n" + "=" * 70)
 print(f"  {_passed} passed, {_failed} failed")
 print("=" * 70)
 print(
     "\n  NOT YET (later phases — ADR-653 §11): 3 composition register · "
     "4 client vocabulary · 5 launcher foregrounding · 6 standing executor · "
-    "6b delete blast radius\n"
+    "(all §11 declaration-phase checks implemented)\n"
 )
 sys.exit(1 if _failed else 0)

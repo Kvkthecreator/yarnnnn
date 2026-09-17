@@ -350,3 +350,59 @@ def declaration_problem_message(problem: str) -> str:
         ),
         "section_key_refused": "A section can have a kind, a source and a title, and nothing else.",
     }.get(problem, "This app could not be read.")
+
+
+# =============================================================================
+# Deletion — ADR-653 R1: memory is deleted WITH the app
+# =============================================================================
+#
+# The operator's ruling, and the coherent half of it: an app-bound agent's
+# memory is PART OF THE APP. What it learned was about this work, so when the
+# work goes there is nowhere for it to carry that judgment to. The delete
+# confirm can therefore say the true thing — *the app and its agent go away;
+# your files stay* — rather than quietly orphaning a folder.
+#
+# ⚠️ WHY THIS FUNCTION EXISTS AT ALL. ADR-624 D1 puts every agent's memory at
+# `agents/{slug}/memory/` — a PRINCIPAL HOME keyed by slug, not by app. So
+# deleting `apps/photos/` cannot reach `agents/photos/memory/` without knowing
+# the pairing. Two shapes were available (ADR-653 §8a R1) and the other one —
+# moving an app agent's memory under `apps/{slug}/memory/` — was REFUSED: it
+# would give member agents a different home shape from kernel agents, which is
+# the species split ADR-624 argued against on a scaling argument, arriving
+# through the filesystem. One home shape for every agent; the pairing is
+# DERIVED here instead, which is cheap because R4 makes the slugs equal.
+
+
+def app_delete_roots(slug: str) -> list[str]:
+    """Every folder deleting app ``slug`` removes, workspace-relative.
+
+    TWO roots and never more: the app's own folder, and its agent's home.
+    Pure — the caller trashes them through the ordinary folder path, so
+    attribution, the archive revision and restorability come for free (nothing
+    here is a bespoke deleter).
+
+    R4 is what makes the pairing a derivation rather than a lookup: the agent's
+    slug IS the app's, so there is no declaration to read and no way for the
+    two to disagree.
+
+    ⚠️ The agent HOME is returned, not just its `memory/` — the home holds
+    exactly what it knows (free) and the grants it runs under (locked), and a
+    dismissed agent keeps neither. Leaving the locked sidecars behind would
+    strand a dial for an agent that no longer exists.
+    """
+    from services.workspace_paths import agent_home
+
+    return [app_home(slug), agent_home(slug)]
+
+
+def is_app_owned_path(path: str, slug: str) -> bool:
+    """Is ``path`` inside what deleting app ``slug`` removes? Pure.
+
+    The blast-radius predicate, so a caller (and the gate) can assert the
+    negative — that a member's OWN files, which live by meaning anywhere else
+    in the workspace, are never inside the two roots.
+    """
+    rel = path.strip().lstrip("/")
+    if rel.startswith("workspace/"):
+        rel = rel[len("workspace/"):]
+    return any(rel.startswith(root) for root in app_delete_roots(slug))
