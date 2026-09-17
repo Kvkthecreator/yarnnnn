@@ -168,16 +168,18 @@ The ratchets run and the ADR's gate.
 | Memory — in-session, no batch extraction | `api/services/memory.py`; guidance rides the lane frame's commons contract |
 | Alpha-ops harness — orchestrates real persona workspaces, so Hat A | `api/scripts/alpha_ops/` |
 
-## Hooks and the verification radar
+## Hooks
 
-`.claude/settings.json` wires two `SessionStart` hooks (startup + compact). Hooks carry dynamic state only;
+`.claude/settings.json` wires one `SessionStart` hook (startup + compact). Hooks carry dynamic state only;
 doctrine lives here or in the docs they point at.
 
 | Hook | Purpose |
 |---|---|
 | `.claude/hooks/session-reorient.sh` | recent commits, branch, uncommitted work, and the open-items file below |
-| `.claude/hooks/verification-radar.sh` | which lanes have changes since their last-validated SHA in `.claude/validation-ledger.json`; criteria per lane in [VERIFICATION.md](docs/evaluations/VERIFICATION.md) |
-| `.claude/hooks/mark-validated.sh <lane>` | records a lane validated at HEAD — only after its exit criteria are actually met; commit the ledger with the validation |
+
+Verification criteria per lane stay in [VERIFICATION.md](docs/evaluations/VERIFICATION.md); you run the
+instrument the work calls for. The radar hook and its validation ledger are RETIRED — a per-lane
+last-validated SHA tracked staleness, not verification, and a lane read "clean" while its gate was dead.
 
 **`docs/SESSION-HANDOFF.md` holds OPEN items only** — the debt one session leaves the next. Delete an item in the
 commit that closes it; narrative goes to the ADR, the evaluation record, or memory. It is not a journal.

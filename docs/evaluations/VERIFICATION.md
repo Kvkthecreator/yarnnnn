@@ -1,10 +1,14 @@
-# VERIFICATION.md — lane criteria for the verification radar
+# VERIFICATION.md — lane criteria
 
-**Consumed by**: the `verification-radar.sh` SessionStart hook (which lanes are
-due) and any session doing refactor work (what "verified" means per lane).
-**Updated by**: `.claude/hooks/mark-validated.sh <lane>` after a lane's exit
-criteria are MET — never before. The ledger (`.claude/validation-ledger.json`)
-is committed with the validation work so state survives sessions.
+**Consumed by**: any session doing work in a lane below — what "verified" means
+there, and which instrument says so.
+
+The radar hook that once computed "which lanes are due" from a per-lane
+last-validated SHA is RETIRED (2026-09-17), with its ledger and
+`mark-validated.sh`. It tracked STALENESS, not verification: a lane whose gate
+had been dead for three weeks still read "clean" because nothing had touched
+its pathspec. The criteria below are the durable half and stand on their own —
+you run the instrument the work calls for, and the gate reports.
 
 The shape of every lane follows the prompt-structure principles
 (`docs/analysis/prompt-engineering-principles-2026-07-30.md`): what to verify
