@@ -584,9 +584,57 @@ def _apps_payload() -> list[dict]:
     ]
 
 
+def _agent_engine_overrides(auth: UserClient) -> dict[str, str]:
+    """Every agent engine override this member has set, by slug (ADR-654 D4).
+
+    Read ONCE for the whole roster (the `_face_urls` precedent) rather than per
+    row: the pane renders every agent, and a per-row query would be one round
+    trip per agent for a fact that is one query.
+
+    UNNARROWED, deliberately. This is the pane's echo of what the member CHOSE,
+    so an override naming an engine that has since gone dark must still render
+    as chosen — the `models` roster on the same envelope already carries
+    `available` + `unavailable_reason`, so the door can grey it WITH a reason
+    (ADR-559 D3). Narrowing here would silently blank a member's own setting and
+    look like the pane had forgotten it. What RUNS is narrowed at the creation
+    door, which is the only place narrowing belongs.
+
+    Total: any read failure is an empty dict — the pane falls back to showing
+    each agent's declared engine, which is honest.
+    """
+    from services.lane_runner import _AGENT_ENGINE_KEY_PREFIX
+    from services.supabase import get_service_client
+
+    ws = _acting_workspace(auth)
+    principal = getattr(auth, "principal_id", None) or auth.user_id
+    if not ws or not principal:
+        return {}
+    try:
+        rows = (
+            get_service_client().table("member_state")
+            .select("key, value")
+            .eq("workspace_id", ws)
+            .eq("principal_id", principal)
+            .like("key", f"{_AGENT_ENGINE_KEY_PREFIX}%")
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001 — a preference never fails a read
+        logger.warning("[LANES] agent engine overrides unreadable: %s", exc)
+        return {}
+    out: dict[str, str] = {}
+    for row in rows:
+        slug = (row.get("key") or "")[len(_AGENT_ENGINE_KEY_PREFIX):].strip()
+        raw = row.get("value")
+        model = raw.get("model") if isinstance(raw, dict) else raw
+        if slug and isinstance(model, str) and model.strip():
+            out[slug] = model.strip()
+    return out
+
+
 def _agents_payload(
     tending_by_slug: Optional[dict[str, list[dict]]] = None,
     face_urls: Optional[dict[str, str]] = None,
+    engine_overrides: Optional[dict[str, str]] = None,
 ) -> list[dict]:
     """Every agent, FE-shaped, with provenance and the apps it works in.
 
@@ -636,7 +684,20 @@ def _agents_payload(
             # ADR-602 D6 — the engine, so an agent's page can SAY what runs it
             # rather than implying it. Already public on the lane envelope
             # (`model_names`); no new disclosure.
-            "model": r.get("model") or "",
+            #
+            # ADR-654 D2/D4 — THREE facts, never collapsed into one:
+            #   `model`          — what runs this agent NOW (override, else the
+            #                      declared engine). What the pane states.
+            #   `model_default`  — the kernel's declared engine, so the door can
+            #                      offer "back to the default" and NAME it.
+            #   `model_override` — what THIS member chose, or absent. The picker
+            #                      renders a chosen state from the field rather
+            #                      than inferring it from `model != default`,
+            #                      which would read as "chosen" the moment a
+            #                      member picked the default explicitly.
+            "model": (engine_overrides or {}).get(r["slug"]) or r.get("model") or "",
+            "model_default": r.get("model") or "",
+            "model_override": (engine_overrides or {}).get(r["slug"]),
             # ADR-624 D4 — WHERE what this agent knows lives. An ADDRESS, not
             # the contents: memory is ordinary substrate, so the page hands the
             # member a door into Files rather than hosting a second reading
@@ -790,7 +851,9 @@ def _lane_envelope(auth: UserClient, enabled: bool, lanes: list[dict]) -> dict:
         # ADR-600 D6 / ADR-631 — every agent, with the apps it works in. ONE
         # roster: `offered` rides each row, so the door that lists candidates
         # filters it rather than reading a second key.
-        "agents": _agents_payload(_tending_by_agent(auth), _face_urls(auth)),
+        "agents": _agents_payload(
+            _tending_by_agent(auth), _face_urls(auth), _agent_engine_overrides(auth)
+        ),
         # ADR-450 D5 / ADR-630: the Learn-from chooser payload — yarnnn's
         # skills, served on the capability envelope (no new endpoint).
         "skills": list_skills(),
@@ -888,6 +951,7 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     from services.lane_runner import (
         LANE_MODELS,
         lane_model_availability,
+        resolve_agent_engine,
         resolve_member_engine,
     )
     from services.model_router import lanes_enabled
@@ -972,20 +1036,26 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         if not agent:
             # The ADR-450 precedent: an unknown skill is a caller bug, not a lane.
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
-        # ADR-647 D4 — THE PRECEDENCE, and it is the whole feature:
+        # ADR-647 D4, widened by ADR-654 D2 — THE PRECEDENCE, most specific
+        # first, and it is the whole feature:
         #
         #   1. what the member asked for AT THE DOOR (chat lanes only — a bound
         #      lane's colleague is its app's, refused above)
-        #   2. the member's standing engine preference for this workspace
-        #   3. the agent's own declared engine
+        #   2. the member's engine override for THIS AGENT (ADR-654)
+        #   3. the member's standing engine preference for this workspace
+        #   4. the agent's own declared engine
         #
-        # (2) is what makes engine choice first-class for APP lanes, which had
-        # no engine question at all: Studio/Text/Slides/Images all run bound
-        # lanes, so the surface carrying most of the spend was the one surface
-        # a member could not re-point. The preference NARROWS to what the door
-        # already offers (`resolve_member_engine` re-asks the chooser's own two
+        # (3) made engine choice first-class for APP lanes, which had no engine
+        # question at all: Studio/Text/Slides/Images all run bound lanes, so the
+        # surface carrying most of the spend was the one surface a member could
+        # not re-point. (2) makes it PER AGENT — one workspace-wide engine could
+        # not express "Editor on a frontier reasoner, Blogger on something fast
+        # and cheap", so choosing for one agent chose for all of them.
+        #
+        # Every stored step NARROWS to what the door already offers (both
+        # resolvers share `_narrow_engine`, which re-asks the chooser's own two
         # questions), so this can only ever select something the member could
-        # have picked themselves.
+        # have picked themselves — across ANY provider, with no vendor branch.
         #
         # ⚠️ NEW conversations only. A lane's engine is persisted at creation
         # and is a HISTORICAL FACT (ADR-460 D4) — it is what ACTUALLY ran, and
@@ -996,12 +1066,14 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         if chat_agent and model:
             pass  # (1) the member named an engine explicitly — it stands
         else:
-            _pref = resolve_member_engine(
-                get_service_client(),
-                _acting_workspace(auth),
-                getattr(auth, "principal_id", None) or auth.user_id,
+            _ws = _acting_workspace(auth)
+            _principal = getattr(auth, "principal_id", None) or auth.user_id
+            _svc = get_service_client()
+            model = (
+                resolve_agent_engine(_svc, _ws, _principal, agent_slug)
+                or resolve_member_engine(_svc, _ws, _principal)
+                or agent["model"]
             )
-            model = _pref or agent["model"]
     if not model:
         raise HTTPException(status_code=422, detail="model is required")
     if model not in LANE_MODELS:

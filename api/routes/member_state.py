@@ -27,7 +27,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_KEY_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+# ADR-654 D2 — the colon admits ONE family of scoped keys: `agent_engine:{slug}`,
+# a member's engine override for one agent. Widened deliberately rather than by
+# spelling the key some other way: the alternative was a flat key encoding the
+# slug (`agent_engine_designer`), which is the same scoping with a separator that
+# hides it — and an agent slug is already lowercase-alnum, so the pattern stays
+# as tight as it was on both sides of the colon.
+_KEY_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}(:[a-z][a-z0-9_-]{0,63})?$")
 
 # Presentation payloads stay small — a window layout is a few KB; anything
 # larger is content trying to sneak out of the substrate.

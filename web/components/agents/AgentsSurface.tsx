@@ -112,8 +112,16 @@ type AgentRow = {
    *  Rendered as chips carrying the SAME mark the Dock shows. */
   apps: { slug: string; title: string; icon_key: string; route: string }[];
   /** The engine behind the name (ADR-460 D4). Served so the page can say what
-   *  actually runs this agent rather than implying it. */
+   *  actually runs this agent rather than implying it. ADR-654: this is what
+   *  runs it NOW — the member's override when set, else the declared engine. */
   model?: string;
+  /** ADR-654 D4 — the kernel's declared engine, so the door can offer "back to
+   *  the default" and NAME it rather than describing it. */
+  model_default?: string;
+  /** ADR-654 D4 — what THIS member chose for this agent, absent when they have
+   *  not chosen. A FIELD, not an inference from `model !== model_default`:
+   *  choosing the default explicitly is a real choice and must render as one. */
+  model_override?: string | null;
   /** ADR-624 D4 — WHERE what this agent knows lives. An ADDRESS, never the
    *  contents: memory is ordinary substrate, so the page opens the Files door
    *  rather than hosting a second reading face (ADR-595 D1, one surface out). */
@@ -127,6 +135,98 @@ type AgentRow = {
    *  discovery the drain runs; read-only. Not a history (D1). */
   tending?: { topic: string; target_path?: string | null }[];
 };
+
+/** One engine on the door (ADR-559 D3 / ADR-647 D8). Served, never filtered:
+ *  an engine that cannot run right now is offered GREYED with its reason, so a
+ *  member learns why rather than watching a row vanish. */
+type EngineRow = {
+  id: string;
+  label: string;
+  available?: boolean;
+  unavailable_reason?: string | null;
+  unavailable_detail?: string | null;
+};
+
+/** The engine a member has chosen for one agent (ADR-654 D4).
+ *
+ * The door ADR-647 shipped without: `default_engine` has been read by
+ * ChatSurface and written by NOTHING since 2026-09-08, so a member could not
+ * set the preference the lane already consulted.
+ *
+ * ⭐ THE LABEL, NOT THE ROUTING KEY. This pane rendered `anthropic/claude-sonnet-5`
+ * verbatim. `LANE_MODELS` carries `label` for exactly this, and the registry is
+ * emphatic that a label is not chrome — it is written into every revision's
+ * attribution and is what the model is TOLD IT IS. A member reads "Claude
+ * Sonnet 5"; the routing key stays server-side where it belongs.
+ */
+function EnginePicker({
+  agent,
+  models,
+  onChange,
+}: {
+  agent: AgentRow;
+  models: EngineRow[];
+  onChange: (model: string | null) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const current = agent.model ?? '';
+  const declared = agent.model_default ?? '';
+  const labelFor = (id: string) => models.find((m) => m.id === id)?.label ?? id;
+  const chosen = models.find((m) => m.id === current);
+
+  const set = async (value: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      // '' is the explicit "back to the default" row — it CLEARS the override
+      // rather than storing the default as a choice, so an agent whose kernel
+      // engine later changes follows it instead of being pinned to today's.
+      await onChange(value || null);
+    } catch {
+      setError('That did not save. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="min-w-0 flex-1 space-y-1.5">
+      <select
+        value={agent.model_override ?? ''}
+        disabled={busy}
+        onChange={(e) => void set(e.target.value)}
+        aria-label={`Engine for ${agent.name}`}
+        className="w-full max-w-xs rounded-md border bg-background px-2 py-1 text-xs disabled:opacity-60"
+      >
+        <option value="">
+          {declared ? `Default — ${labelFor(declared)}` : 'Default'}
+        </option>
+        {models.map((m) => (
+          <option key={m.id} value={m.id} disabled={m.available === false}>
+            {m.label}
+            {m.available === false ? ' — unavailable' : ''}
+          </option>
+        ))}
+      </select>
+      {/* An engine the member CHOSE that cannot run right now says so here.
+          The creation door narrows past it to the default (ADR-654 D2), so the
+          honest sentence is "not running", never a silent substitution. */}
+      {chosen?.available === false && (
+        <p className="text-[11px] text-amber-600 dark:text-amber-500">
+          {chosen.label} is not available right now
+          {chosen.unavailable_detail ? ` — ${chosen.unavailable_detail}` : ''}.
+          New conversations use {declared ? labelFor(declared) : 'the default'}.
+        </p>
+      )}
+      {error && <p className="text-[11px] text-destructive">{error}</p>}
+      <p className="text-[11px] text-muted-foreground">
+        Applies to new conversations. Ones already running keep the engine they
+        started with.
+      </p>
+    </div>
+  );
+}
 
 // The connector scoping control (ADR-612, defaults settled by ADR-615). Three
 // states a member can express, and they must stay distinguishable:
@@ -260,13 +360,17 @@ function AgentDetail({
   agent,
   available,
   optIn,
+  models,
   onScope,
+  onSetEngine,
   onBack,
 }: {
   agent: AgentRow;
   available: string[];
   optIn: Record<string, string[]>;
+  models: EngineRow[];
   onScope: (slug: string, platforms: string[] | null) => Promise<void>;
+  onSetEngine: (slug: string, model: string | null) => Promise<void>;
   onBack: () => void;
 }) {
   // The Files door for the Memory row — the SAME `navigateToSurface('files',
@@ -319,10 +423,19 @@ function AgentDetail({
           <dt className="w-24 shrink-0 text-muted-foreground">Add to a chat</dt>
           <dd>Yes — start a chat with them, or add them to one you are in.</dd>
         </div>
-        {agent.model && (
+        {/* ADR-654 D4 — the engine is the member's CHOICE, not a statement
+            about them. Every offered engine, every provider; an unavailable one
+            greyed WITH its reason rather than filtered (ADR-559 D3). */}
+        {(agent.model || models.length > 0) && (
           <div className="flex gap-3">
             <dt className="w-24 shrink-0 text-muted-foreground">Runs on</dt>
-            <dd className="break-all">{agent.model}</dd>
+            <dd className="min-w-0 flex-1">
+              <EnginePicker
+                agent={agent}
+                models={models}
+                onChange={(model) => onSetEngine(agent.slug, model)}
+              />
+            </dd>
           </div>
         )}
         {/* ADR-640 D2 — two relations the kernel DERIVES, stated read-only.
@@ -431,6 +544,10 @@ export function AgentsSurface() {
   // read as "nothing", which is the whole default this feature rests on.
   const [available, setAvailable] = useState<string[]>([]);
   const [optIn, setOptIn] = useState<Record<string, string[]>>({});
+  // ADR-654 D4 — the engine roster, from the SAME envelope as the agents. No
+  // second endpoint and no FE table: `models` is what the chat chooser already
+  // reads, so the two doors cannot offer different engines.
+  const [models, setModels] = useState<EngineRow[]>([]);
   // Read UNPREFIXED: the shell owns the `agents.` namespacing on the way in
   // and out (surface-preferences), and a surface reads its own key plainly —
   // the SettingsPaneShell `tab` precedent.
@@ -454,6 +571,25 @@ export function AgentsSurface() {
     setOptIn(res.opt_in ?? {});
   };
 
+  // ADR-654 D4 — the member's engine choice for ONE agent, through the generic
+  // member-state door (no bespoke endpoint for one key).
+  //
+  // Patched locally rather than re-fetched: unlike connector scoping, which
+  // holds the SERVER's map because the server resolves the whole relation, this
+  // is one value the member just set and the server stores verbatim. Clearing
+  // returns the row to its declared engine, which is `model_default` — the same
+  // value the server would send back.
+  const setAgentEngine = async (slug: string, model: string | null) => {
+    await api.memberState.put(`agent_engine:${slug}`, model ? { model } : null);
+    setAgents((prev) =>
+      (prev ?? []).map((a) =>
+        a.slug === slug
+          ? { ...a, model_override: model, model: model || a.model_default || '' }
+          : a,
+      ),
+    );
+  };
+
   useEffect(() => {
     let alive = true;
     api.lanes
@@ -461,6 +597,7 @@ export function AgentsSurface() {
       .then((res) => {
         if (!alive) return;
         setAgents((res.agents ?? []) as AgentRow[]);
+        setModels((res.models ?? []) as EngineRow[]);
       })
       // A failed read must not render as "you have nobody" — that is the exact
       // false statement this surface exists to stop telling.
@@ -490,7 +627,9 @@ export function AgentsSurface() {
           agent={selected}
           available={available}
           optIn={optIn}
+          models={models}
           onScope={scopeConnectors}
+          onSetEngine={setAgentEngine}
           onBack={() => open(null)}
         />
       </div>

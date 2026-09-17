@@ -169,7 +169,9 @@ precisely the boundary ADR-556 drew, and this ADR does not reopen it.
 
 **D7 — the preference is not authority.** It is stored on the member, not on
 the agent row. No field is added to `AGENTS`; the ADR-460 D3.a cliff is
-untouched. An app's resident still declares the app's voice, and the engine
+untouched.
+
+> **WIDENED 2026-09-17 by [ADR-654](ADR-654-an-agents-engine-is-the-members-choice.md).** D7's *reasoning* is preserved exactly — the choice is member state, and no field is added to `AGENTS`. What changes is GRANULARITY: this preference is ONE engine for the whole member, so *"Editor on a frontier reasoner, Blogger on something fast"* was unsayable. ADR-654 adds the per-agent key `agent_engine:{slug}` on the same shelf, resolved BEFORE this one through the same narrowing. `AGENT_ROW_KEYS` is still unchanged. An app's resident still declares the app's voice, and the engine
 riding behind that name is now a member-scoped default rather than a constant.
 
 ## 5. DeepSeek, and failing loudly (D8)

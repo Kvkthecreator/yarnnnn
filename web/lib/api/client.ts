@@ -43,9 +43,7 @@ import type {
 import type {
   AdminOverviewStats,
   AdminExecutionStats,
-  AdminUserRow,
-  AdminAccountRow,
-  AdminAccountDetail,
+  AdminWorkspaceRow,
 } from "@/types/admin";
 // ADR-312 home-bundle: the bundle's `surfaces` field is the full compositor
 // SurfacesResponse (including surfaces[]), so useComposition can be primed
@@ -686,6 +684,13 @@ export const api = {
           offered: boolean; kernel: boolean;
           apps: Array<{ slug: string; title: string; icon_key: string; route: string }>;
           model?: string;
+          /** ADR-655 D4 — `model` is what runs this agent NOW (the member's
+           *  override when set). `model_default` is the kernel's declared
+           *  engine, so a door can offer "back to the default" and NAME it;
+           *  `model_override` is what THIS member chose, absent when they have
+           *  not chosen — a field, never inferred from a difference. */
+          model_default?: string;
+          model_override?: string | null;
           /** ADR-624 D4 — WHERE what this agent knows lives. An address into
            *  the ordinary substrate, never the contents. */
           memory_path?: string }>;
@@ -1532,64 +1537,23 @@ export const api = {
       request<CancelResponse>("/api/subscription/cancel", { method: "POST" }),
   },
 
-  // Admin endpoints (requires admin access)
+  // Operator console (ADR-655) — admin allowlist required.
+  //
+  // `users`, `accounts`, `accountDetail`, `exportUsers` and `exportReport` are
+  // DELETED with the routes they called. The first three read shapes with no
+  // live writer (`tasks` at 0 rows, `owner_email` NULL everywhere) or the Hat-B
+  // persona registry through a Hat-A door; the exports served the Users table's
+  // shape, so an export of a fiction. See ADR-655 D2/D5/D6.
   admin: {
     stats: () => request<AdminOverviewStats>("/api/admin/stats"),
     executionStats: () => request<AdminExecutionStats>("/api/admin/execution-stats"),
-    users: () => request<AdminUserRow[]>("/api/admin/users"),
+    workspaces: () => request<AdminWorkspaceRow[]>("/api/admin/workspaces"),
     // ADR-429 §12.3a — toggle a workspace's billing-exempt (comp) state.
     setBillingExempt: (workspaceId: string, exempt: boolean) =>
       request<{ workspace_id: string; billing_exempt: boolean }>(
         `/api/admin/workspace/${encodeURIComponent(workspaceId)}/billing-exempt`,
         { method: "POST", body: JSON.stringify({ exempt }) },
       ),
-    accounts: () => request<AdminAccountRow[]>("/api/admin/accounts"),
-    accountDetail: (slug: string) =>
-      request<AdminAccountDetail>(`/api/admin/accounts/${encodeURIComponent(slug)}`),
-    exportUsers: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/api/admin/export/users`, {
-        credentials: "include",
-        headers,
-      });
-      if (!response.ok) {
-        throw new APIError(response.status, response.statusText);
-      }
-      const contentDisposition = response.headers.get("Content-Disposition");
-      const filenameMatch = contentDisposition?.match(/filename=(.+)/);
-      const filename = filenameMatch ? filenameMatch[1] : "yarnnn_users.xlsx";
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    },
-    exportReport: async () => {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`${API_BASE_URL}/api/admin/export/report`, {
-        credentials: "include",
-        headers,
-      });
-      if (!response.ok) {
-        throw new APIError(response.status, response.statusText);
-      }
-      const contentDisposition = response.headers.get("Content-Disposition");
-      const filenameMatch = contentDisposition?.match(/filename=(.+)/);
-      const filename = filenameMatch ? filenameMatch[1] : "yarnnn_report.xlsx";
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    },
   },
 
   // The `agents` client block is DELETED (2026-08-26). It called the

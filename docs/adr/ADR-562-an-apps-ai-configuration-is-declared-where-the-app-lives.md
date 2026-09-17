@@ -47,6 +47,8 @@ One declaration per app, in the app's own module, through the same door as its l
 
 **Why not a workspace folder.** ADR-464's ruling holds verbatim — *"the member's copy is a folder; the kernel's is code."* A member's agent is `agents/{slug}/_agent.yaml`, theirs to author, discovered never registered. An **app is kernel**, so its resident is a code declaration. Were an app's resident member-editable substrate, a workspace could re-point Docs' colleague — the ADR-460 D3.a cliff arriving through a config file. **Same convention, different tree; that difference IS the cliff.**
 
+> **AMENDED 2026-09-17 by [ADR-654](ADR-654-an-agents-engine-is-the-members-choice.md) — this paragraph conflated two facts.** It is correct about the **resident** (D3 stands verbatim: the app asks, the server answers WHO) and incorrect about the **engine**. ADR-460 D3.a makes *consequential authority* unrepresentable; its own ratified row shape (ADR-460 §5 D4) is `{name, icon, model, posture, tools, token_profile}` — **`model` is in the row**, and ADR-566 states the partition as *"Reach is a grant; authority is a dial; only the second was ever deferred."* An engine is neither. A member may therefore choose the ENGINE behind an app's resident (per agent, any provider, narrowing never granting); the resident's IDENTITY remains the app's code declaration, exactly as this D1 requires.
+
 **The cliff holds on this layer.** An app row carries `slug · resident · name` — identity only. There is no field for authority or reach, and the gate asserts the row shape, so the absence is structural rather than documentary (the D3.a pattern's fourth instance). **An app pins a colleague; it can never widen one.**
 
 ## 3. D2 — Registration is the door, and the package is the registration

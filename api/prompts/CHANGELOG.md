@@ -15,6 +15,37 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.17.1] - An agent's token profile finally sets its own ceiling
+### Changed
+- api/services/lane_runner.py: `resolve_max_tokens(agent, authoring=)` — ONE resolution of a
+  turn's output ceiling, replacing the identical `_studio_max_tokens() if ... else
+  _LANE_MAX_TOKENS` expression at BOTH turn loops. An authoring turn keeps
+  `STUDIO_LANE_MAX_TOKENS` (ADR-440 D3 untouched); a CHAT turn now resolves the agent's own
+  `token_profile`, falling back to the 4096 constant when there is no agent or no valid profile.
+- Expected behavior: a chat turn with a kernel agent (Designer, Editor, Blogger) runs at 8192
+  output tokens instead of 4096. Longer answers complete instead of hitting the budget. No
+  frame text, posture or tool definition changes — this moves a CEILING, not an instruction.
+
+### Why
+`token_profile` has been in `AGENT_ROW_KEYS` since ADR-460 and declared at 8192 on all three
+agents, and **nothing ever read it** — every chat turn ran the 4096 module constant. Receipt:
+`grep token_profile` over `services/` and `routes/` returned only the registry definition and
+the row literals; zero readers. Same class as `finish_reason`, plumbed from birth with zero
+consumers until the 2026-09-16 probe measured a turn that spent its whole 4096 budget on a
+5,000-row CSV and returned `finish_reason='length'` with empty text — billed 4,438 output
+tokens, showed a BLANK message.
+
+ADR-654 makes the engine a member's choice across five providers, which is what forces this:
+a member moving an agent to a higher-headroom engine while the ceiling stays 4096 buys a more
+expensive model with the identical cut-off, and output ceilings differ sharply between
+providers, so one constant tuned against a single vendor is not a sane default for five.
+
+### Gate
+`api/test_adr654_agent_engine_choice.py` §5 — 50/50, falsified: reverting the resolver to the
+bare constant reds "a chat turn resolves the agent's own profile" (got 4096, want 8192). §5
+also asserts the profile DIFFERS from the constant, so the check cannot pass vacuously.
+`api/test_adr647_member_engine.py` 39/39 unchanged. Ratchets: `test_adr632` §5, `test_adr630`.
+
 ## [2026.09.16.2] - A cut-off answer says so instead of showing an empty message
 ### Changed
 - api/services/lane_runner.py: `_final_text_for()` — one helper, both turn loops. A round that

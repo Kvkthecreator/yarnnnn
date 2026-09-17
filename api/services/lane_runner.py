@@ -215,6 +215,40 @@ def _studio_max_tokens() -> int:
     from services.authoring import STUDIO_LANE_MAX_TOKENS
     return STUDIO_LANE_MAX_TOKENS
 
+
+def resolve_max_tokens(agent: Optional[str], *, authoring: bool) -> int:
+    """The output ceiling for one turn — ONE resolution, both loops (ADR-654 D3).
+
+    Authoring turns keep `STUDIO_LANE_MAX_TOKENS` (ADR-440 D3: authoring > chat,
+    gate-asserted). A CHAT turn resolves the agent's own `token_profile`, falling
+    back to `_LANE_MAX_TOKENS`.
+
+    ⭐ WHY THIS EXISTS. `token_profile` has been in `AGENT_ROW_KEYS` since
+    ADR-460 and was read by NOTHING — declared on all three agents at 8192 while
+    every chat turn ran at the 4096 constant. That is the `finish_reason` class
+    (2026-09-16): a field plumbed from birth with zero consumers, discovered
+    only when a turn spent its whole budget and returned an empty message.
+
+    It becomes load-bearing here because ADR-654 makes the engine a member's
+    choice: a stronger engine with an unchanged ceiling is optionality in name
+    only, and output ceilings differ sharply ACROSS PROVIDERS, so one constant
+    tuned against a single vendor is not a sane default for five.
+
+    Defensive, deliberately: a non-positive or non-int profile falls back rather
+    than raising. This sits directly on the turn path, and a malformed row must
+    never fail a turn — the same posture as the preference resolvers above.
+    """
+    if authoring:
+        return _studio_max_tokens()
+    if agent:
+        from services.agents_registry import resolve_agent
+
+        row = resolve_agent(agent) or {}
+        profile = row.get("token_profile")
+        if isinstance(profile, int) and not isinstance(profile, bool) and profile > 0:
+            return profile
+    return _LANE_MAX_TOKENS
+
 # ---------------------------------------------------------------------------
 # Tool surface (ADR-411 D3) — the file + folder verbs, registry definitions converted
 # ---------------------------------------------------------------------------
@@ -567,6 +601,121 @@ def lane_model_availability(model: str) -> tuple[bool, Optional[str]]:
 #: is exactly the right shelf: a preference must not be able to grant anything.
 MEMBER_ENGINE_KEY = "default_engine"
 
+#: The `member_state` key holding one member's engine override for ONE agent
+#: (ADR-654 D2). Same shelf, same scope, same narrowing as the workspace-wide
+#: preference above — the ONLY difference is granularity, which is why this is
+#: a key rather than a second mechanism.
+#:
+#: NOT a field on the agent row: `AGENT_ROW_KEYS` stays closed (ADR-460 D3.a),
+#: and an engine a member chose is a fact about the MEMBER, not about the being.
+_AGENT_ENGINE_KEY_PREFIX = "agent_engine:"
+
+
+def agent_engine_key(slug: str) -> str:
+    """The `member_state` key for one agent's engine override (ADR-654 D2).
+
+    One speller, because the FE writes this key through the generic
+    `PUT /api/member-state/{key}` door and the API reads it — two spellings of
+    the same key is the drift ADR-562 calls the second-home failure. The
+    `member_state` door's own `_KEY_RE` (`^[a-z][a-z0-9_-]{0,63}$`) does NOT
+    admit a colon, so the separator is deliberate: see the route's ADR-654
+    note, which widens the pattern for exactly this family.
+    """
+    return f"{_AGENT_ENGINE_KEY_PREFIX}{(slug or '').strip()}"
+
+
+def _narrow_engine(model: Optional[str], *, why_label: str) -> Optional[str]:
+    """A stored engine, or None — THE narrowing, in one place (ADR-647 D5).
+
+    Shared by the workspace-wide preference and the per-agent override
+    (ADR-654 D2) so the two can never disagree about what "offered and
+    available" means. A second copy of these two questions is a second
+    definition of the door, and the two would drift on the first engine that
+    left the roster.
+
+    NARROWS, NEVER GRANTS: both questions are the chooser's own, so a stored
+    value can only ever select something the member could have picked at the
+    door. Retired, unknown, unpriced, keyless and upstream-refused all resolve
+    to None, and the caller's own default stands.
+
+    PROVIDER-BLIND (ADR-654 D2): there is no vendor branch here and there must
+    never be one — `offered_lane_models()` spans every provider, and a filter
+    naming one would be exactly the gating this ADR removes.
+    """
+    if not model:
+        return None
+    model = model.strip()
+    if not model:
+        return None
+    if model not in offered_lane_models():
+        # Retired or unknown. Not an error: an engine leaving the door is
+        # exactly when a stale preference should stop applying.
+        logger.info("[LANE] %s %r is not offered — using the default", why_label, model)
+        return None
+    ok, why = lane_model_availability(model)
+    if not ok:
+        logger.info("[LANE] %s %r unavailable (%s) — using the default",
+                    why_label, model, why)
+        return None
+    return model
+
+
+def _read_member_state_engine(client: Any, workspace_id: Optional[str],
+                              principal_id: Optional[str], key: str) -> Optional[str]:
+    """One `member_state` engine value, unnarrowed, or None. Total.
+
+    Any read failure is None (the caller's default), because a preference that
+    fails must never fail a turn.
+    """
+    if not workspace_id or not principal_id:
+        return None
+    try:
+        result = (
+            client.table("member_state")
+            .select("value")
+            .eq("workspace_id", workspace_id)
+            .eq("principal_id", principal_id)
+            .eq("key", key)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows:
+            return None
+        raw = rows[0].get("value")
+        # The PUT door stores whatever JSON the member sent. Accept the two
+        # honest shapes and refuse everything else rather than guessing.
+        model = raw.get("model") if isinstance(raw, dict) else raw
+        if not isinstance(model, str) or not model.strip():
+            return None
+        return model.strip()
+    except Exception as exc:  # noqa: BLE001 — a preference never fails a turn
+        logger.warning("[LANE] engine preference (%s) unreadable: %s", key, exc)
+        return None
+
+
+def resolve_agent_engine(client: Any, workspace_id: Optional[str],
+                         principal_id: Optional[str],
+                         agent_slug: Optional[str]) -> Optional[str]:
+    """This member's engine override for THIS agent, or None (ADR-654 D2).
+
+    The most specific stored step in the resolution order: an override for one
+    agent beats the member's workspace-wide default, which beats the agent's
+    own declared engine. Narrows exactly like the workspace-wide preference —
+    same resolver, so an engine that left the door stops applying everywhere at
+    once.
+
+    Per-agent, per-member (the operator's scope choice, 2026-09-17): the
+    existing `member_state` scope is already `(workspace, principal, key)`, so
+    granularity is a key rather than a new table or a second resolution layer.
+    """
+    if not agent_slug:
+        return None
+    raw = _read_member_state_engine(
+        client, workspace_id, principal_id, agent_engine_key(agent_slug)
+    )
+    return _narrow_engine(raw, why_label=f"agent {agent_slug} engine override")
+
 
 def resolve_member_engine(client: Any, workspace_id: Optional[str],
                           principal_id: Optional[str]) -> Optional[str]:
@@ -587,43 +736,15 @@ def resolve_member_engine(client: Any, workspace_id: Optional[str],
 
     Total: any read failure is None (the app's own default), because a
     preference that fails must never fail a turn.
-    """
-    if not workspace_id or not principal_id:
-        return None
-    try:
-        result = (
-            client.table("member_state")
-            .select("value")
-            .eq("workspace_id", workspace_id)
-            .eq("principal_id", principal_id)
-            .eq("key", MEMBER_ENGINE_KEY)
-            .limit(1)
-            .execute()
-        )
-        rows = result.data or []
-        if not rows:
-            return None
-        raw = rows[0].get("value")
-        # The PUT door stores whatever JSON the member sent. Accept the two
-        # honest shapes and refuse everything else rather than guessing.
-        model = raw.get("model") if isinstance(raw, dict) else raw
-        if not isinstance(model, str) or not model.strip():
-            return None
-        model = model.strip()
-    except Exception as exc:  # noqa: BLE001 — a preference never fails a turn
-        logger.warning("[LANE] member engine preference unreadable: %s", exc)
-        return None
 
-    if model not in offered_lane_models():
-        # Retired or unknown. Not an error: an engine leaving the door is
-        # exactly when a stale preference should stop applying.
-        logger.info("[LANE] member engine %r is not offered — using the default", model)
-        return None
-    ok, why = lane_model_availability(model)
-    if not ok:
-        logger.info("[LANE] member engine %r unavailable (%s) — using the default", model, why)
-        return None
-    return model
+    ADR-654 D2: the read and the narrowing are shared with the per-agent
+    override (`resolve_agent_engine`) — one definition of "offered and
+    available", so the two steps of the resolution order cannot drift.
+    """
+    raw = _read_member_state_engine(
+        client, workspace_id, principal_id, MEMBER_ENGINE_KEY
+    )
+    return _narrow_engine(raw, why_label="member engine")
 
 
 def _anthropic_to_openai_tool(tool: dict) -> dict:
@@ -1710,9 +1831,8 @@ async def run_lane_turn(
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
-    max_tokens = (
-        _studio_max_tokens() if (artifact_path or skill) else _LANE_MAX_TOKENS
-    )
+    # ADR-654 D3 — a chat turn resolves the AGENT's token profile.
+    max_tokens = resolve_max_tokens(agent, authoring=bool(artifact_path or skill))
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []
@@ -1972,9 +2092,8 @@ async def run_lane_turn_stream(
     )
     # ADR-440 D3 — authoring turns need more room than chat turns. ADR-450:
     # derive turns author whole files from a source — same profile.
-    max_tokens = (
-        _studio_max_tokens() if (artifact_path or skill) else _LANE_MAX_TOKENS
-    )
+    # ADR-654 D3 — a chat turn resolves the AGENT's token profile.
+    max_tokens = resolve_max_tokens(agent, authoring=bool(artifact_path or skill))
 
     messages: list[dict] = list(history) + [{"role": "user", "content": user_message}]
     tools_called: list[str] = []
@@ -2147,6 +2266,10 @@ __all__ = [
     "upstream_refusal_detail",
     "MEMBER_ENGINE_KEY",
     "resolve_member_engine",
+    # ADR-654 — the per-agent engine override and the token profile it carries.
+    "agent_engine_key",
+    "resolve_agent_engine",
+    "resolve_max_tokens",
     "LANE_TOOL_NAMES",
     "LANE_SURFACE_EXTRA",
     "lane_tools_openai",
