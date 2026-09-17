@@ -171,8 +171,19 @@ print("5. machinery resolves a BEING, never a container (ADR-600 D4)")
 # `designer` moved containers in ADR-599 and two planners KeyError'd into a
 # permanent silent fallback. Resolution has one door; reaching past it is the
 # bug, so the gate refuses the shape rather than the symptom.
+# ADR-472 follow-on (2026-09-08, `0b9920f`) — the IMAGES layer planner
+# (`services/apps/images/decompose.py`) is DELETED. It planned a brief into
+# layers server-side for a route with zero client callers, while its own
+# docstring said the judgment "belongs to an agent, not to a rule table" —
+# which it does: Designer composes a stage through the ordinary lane verbs.
+# Its ROW leaves this dict with it. The RULE is unchanged and still enforced
+# over every planner that remains, plus the whole-tree sweep below.
+#
+# ⚠️ This gate CRASHED AT COLLECTION from 2026-09-08 until 2026-09-17 —
+# `read_text()` on a deleted path raises before any check runs, so all 40+
+# checks reported NOTHING. A gate anchored to a filename decays in both
+# directions (the ADR-647 lesson); `ls` the subject before trusting a green.
 _planners = {
-    "services/apps/images/decompose.py": "IMAGES layer plan",
     "services/studio_arrangement_plan.py": "Slides arrangement plan",
 }
 for _rel, _what in _planners.items():
@@ -470,8 +481,18 @@ _check("the roster is read from the server, not hardcoded in copy",
 # Supervisor the day it landed (audited 2026-08-24).
 for _name in sorted({_b["name"] for _b in AGENTS.values()}):
     _check(f"the surface does not hardcode '{_name}'", _name not in _surface_code)
-_check("both sections exist — housed beings and the offered roster",
-       "In an app" in _surface_code and "To work with" in _surface_code)
+# ADR-629 D4 (2026-09-12) — "In an app" is DELETED as a rendered header, and
+# this check is re-anchored to what survives rather than to what it asserted.
+# It was a DISCRIMINATOR label with nothing to discriminate against: its only
+# sibling ("To work with") renders when `offered.length > 0`, and nobody is
+# offered (ADR-599 D1), so the page showed one group under a heading naming
+# what every row's own app chip already said. A discriminator and a constant
+# must not share a shape. The header returns with its sibling, in one edit.
+#
+# So the offered section is what this leg still holds — it is the one that is
+# CONDITIONAL, and therefore the one a change could silently drop.
+_check("the offered roster section exists (it returns with its header)",
+       "To work with" in _surface_code)
 # ADR-601 D4 — rendered from the FIELDS, never inferred.
 _check("the surface renders provenance from the served field",
        "b.kernel" in _surface_code)
