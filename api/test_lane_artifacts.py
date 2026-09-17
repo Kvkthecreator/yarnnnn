@@ -167,3 +167,205 @@ def test_the_type_table_has_a_binary_terminal_and_media_nodes():
     # The terminal is DERIVED from text-ness, not an enumerated allowlist.
     assert "isTextualContentType" in src
     assert "if (t && !isTextualContentType(t)) return 'download';" in src
+
+
+# ---------------------------------------------------------------------------
+# 6 — the PENDING artifact: the shape arrives before the file (2026-09-17)
+#
+# `pending_artifact_from` is `artifact_path_from`'s weaker sibling: it reads
+# the ARGUMENTS and means "asked for", where the other reads the RESULT and
+# means "landed". The whole of its correctness is that the two never get
+# confused, so this section pins the difference rather than the function.
+# ---------------------------------------------------------------------------
+
+def _strip_comments(src: str) -> str:
+    """Source with `#` comments and docstring bodies removed.
+
+    ⚠️ Load-bearing, and learned the hard way three times: `inspect.getsource`
+    and `read_text` both return COMMENTS, so a substring check can pass against
+    prose that merely DESCRIBES the thing it is meant to prove — including a
+    comment explaining why the code was removed. Every source assertion below
+    runs on this.
+    """
+    out, in_doc, doc_q = [], False, ""
+    for line in src.splitlines():
+        stripped = line.strip()
+        if in_doc:
+            if doc_q in stripped:
+                in_doc = False
+            continue
+        for q in ('"""', "'''"):
+            if stripped.startswith(q):
+                if not (stripped.endswith(q) and len(stripped) > len(q) * 2 - 1):
+                    in_doc, doc_q = True, q
+                stripped = ""
+                break
+        if not stripped or stripped.startswith("#"):
+            continue
+        out.append(line.split("  #")[0])
+    return "\n".join(out)
+
+
+def test_pending_reads_the_arguments_where_the_card_reads_the_result():
+    from services.lane_runner import pending_artifact_from
+
+    # The SAME call: arguments say where it is going, the result says where it
+    # landed. Both must be derivable, independently, from their own source.
+    args = {"path": "operation/reports/q3.md"}
+    assert pending_artifact_from("WriteFile", args) == {
+        "path": "/workspace/operation/reports/q3.md", "verb": "WriteFile",
+    }
+    assert artifact_path_from("WriteFile", args) is None, (
+        "a pending path must never satisfy the LANDED derivation — that is the "
+        "whole distinction, and it is what keeps a card off a failed write"
+    )
+
+
+def test_pending_normalizes_to_the_form_the_landed_card_carries():
+    """The three spellings the model uses must converge on ONE path.
+
+    If they do not, the pending card and the real card key differently and the
+    member gets TWO cards for one write — the defect this normalization exists
+    to prevent.
+    """
+    from services.lane_runner import pending_artifact_from
+
+    landed = artifact_path_from("WriteFile", _OK_WRITE)
+    for spelling in (
+        "/workspace/operation/reports/q3.md",
+        "workspace/operation/reports/q3.md",
+        "operation/reports/q3.md",
+    ):
+        assert pending_artifact_from("WriteFile", {"path": spelling})["path"] == landed
+
+
+def test_pending_is_silent_for_every_verb_that_makes_no_file():
+    from services.lane_runner import pending_artifact_from
+
+    # Reads echo a path; a delete names one that is about to STOP existing.
+    for verb in ("ReadFile", "ListFiles", "SearchFiles", "DeleteFile", "DeleteFolder"):
+        assert pending_artifact_from(verb, {"path": "a/b.md"}) is None
+
+
+def test_pending_never_cards_a_prompt():
+    """`GenerateImage`'s subject is its PROMPT — free text, not an address.
+
+    Excluded BY ARGUMENT NAME, never by sniffing the string: a "looks like a
+    path" heuristic rejected `toplevel.md` (a legal root write) while passing a
+    one-word prompt.
+    """
+    from services.lane_runner import pending_artifact_from
+
+    for prompt in ("a red bicycle at dusk", "sunset", "q3.md"):
+        assert pending_artifact_from("GenerateImage", {"prompt": prompt}) is None
+    # ...and the legal root write the heuristic used to reject:
+    assert pending_artifact_from("WriteFile", {"path": "toplevel.md"}) == {
+        "path": "/workspace/toplevel.md", "verb": "WriteFile",
+    }
+
+
+def test_pending_exposes_only_the_address_argument():
+    """Never the raw argument dict — `content` must not reach the wire."""
+    from services.lane_runner import pending_artifact_from
+
+    out = pending_artifact_from(
+        "WriteFile", {"path": "a/b.md", "content": "SECRET-BYTES"},
+    )
+    assert "SECRET-BYTES" not in str(out)
+    assert set(out) == {"path", "verb"}
+
+
+def test_pending_handles_malformed_arguments():
+    from services.lane_runner import pending_artifact_from
+
+    for bad in (None, "a/b.md", 42, ["a/b.md"]):
+        assert pending_artifact_from("WriteFile", bad) is None
+    for empty in ({}, {"path": ""}, {"path": "   "}, {"path": None}):
+        assert pending_artifact_from("WriteFile", empty) is None
+
+
+def test_the_pending_frame_is_emitted_and_forwarded_but_never_persisted():
+    runner = _strip_comments((_API / "services" / "lane_runner.py").read_text())
+    assert 'yield ("artifact_pending", _pending)' in runner
+    # ⚠️ The pending path must NOT join `artifacts` — that list is what the
+    # route persists, and persisting a provisional path is how a card for a
+    # file that never landed would survive a reload.
+    assert "artifacts.append(_pending" not in runner
+
+    route = _strip_comments((_API / "routes" / "lanes.py").read_text())
+    assert 'elif kind == "artifact_pending":' in route
+    assert 'yield sse({"artifact_pending": payload})' in route
+    pend = route.split('elif kind == "artifact_pending":')[1].split("elif kind ==")[0]
+    assert "artifacts.append" not in pend, "the pending frame must not touch the persisted list"
+
+
+def test_the_frontend_settles_the_pending_card_and_drops_what_never_landed():
+    client = _strip_comments((_WEB / "lib" / "api" / "client.ts").read_text())
+    assert "onArtifactPending" in client
+    assert "evt.artifact_pending" in client
+
+    panel = _strip_comments((_WEB / "components" / "chat-surface" / "LanePanel.tsx").read_text())
+    assert "onArtifactPending" in panel
+    assert "pending: true" in panel, "the pending card must be marked as such"
+    # The drop at turn end: a card still pending when `done` arrives never
+    # landed, and must not survive into the settled transcript.
+    assert "const landed =" in panel and "f.path === a.path" in panel
+
+    card = _strip_comments((_WEB / "components" / "chat-surface" / "ArtifactCard.tsx").read_text())
+    assert "if (pending) {" in card, "the card must short-circuit before any load/Open branch"
+
+
+# ---------------------------------------------------------------------------
+# 7 — one tool frame, not two (2026-09-17)
+#
+# A bare `{"tool": name}` string rode beside `{"tool_step": {...}}` for readers
+# deployed before the subject seam. Both halves shipped in the SAME commit
+# (4e9df71, 2026-08-25), so the window it guarded never existed and no reader
+# ever took the arm — it was a duplicated payload on every tool call.
+# ---------------------------------------------------------------------------
+
+def test_the_route_emits_one_tool_frame():
+    route = _strip_comments((_API / "routes" / "lanes.py").read_text())
+    assert '"tool_step": {' in route
+    assert '"tool": payload["name"]' not in route, (
+        "the bare tool string is deleted — one frame carries the step"
+    )
+
+
+def test_the_client_has_no_bare_tool_arm():
+    client = _strip_comments((_WEB / "lib" / "api" / "client.ts").read_text())
+    assert "evt.tool_step" in client
+    assert 'typeof evt.tool === "string"' not in client, (
+        "a compat arm for a producer that does not exist is dead code"
+    )
+
+
+def test_the_error_frame_keeps_the_structure_the_runner_built():
+    """ADR-647 D8 carries the provider's own words; a flattened string loses
+    the code the client needs to branch on."""
+    route = _strip_comments((_API / "routes" / "lanes.py").read_text())
+    assert '"code": payload.get("error")' in route
+    assert 'errored = f"{payload.get(\'error\')}: {payload.get(\'message\')}"' in route, (
+        "the LEDGER keeps the flat form — only the wire gains structure"
+    )
+
+    client = _strip_comments((_WEB / "lib" / "api" / "client.ts").read_text())
+    assert 'evt.error && typeof evt.error === "object"' in client
+    assert 'typeof evt.error === "string"' not in client, (
+        "both producers emit the object; a string arm would be dead on arrival"
+    )
+
+
+def test_the_catch_all_does_not_leak_an_exception_to_the_member():
+    """This arm catches our OWN bugs too. `name 'req' is not defined` in a chat
+    bubble tells a member nothing and leaks internals; the ledger keeps it."""
+    route = _strip_comments((_API / "routes" / "lanes.py").read_text())
+    # ⚠️ Anchor on the STREAM's catch-all, not on "the last `except Exception`
+    # in the file" — `lanes.py` has several and the archive handler's is last.
+    # A gate that reads the wrong block is green against code it never saw.
+    assert "logger.exception(" in route
+    tail = route.split('logger.exception("[LANE stream] turn failed')[1]
+    tail = tail.split("persist_reply(stopped=False)")[0]
+    assert 'yield sse({"error": errored})' not in tail
+    assert '"code": "turn_failed"' in tail
+    assert "errored = str(exc)" in tail, "the ledger still records the real fault"

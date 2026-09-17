@@ -381,6 +381,61 @@ def artifact_path_from(name: str, result: Any) -> Optional[str]:
     return path if isinstance(path, str) and path else None
 
 
+#: Which `_TOOL_SUBJECT_KEYS` entries name a FILE ADDRESS rather than free
+#: text. Only these can become a pending card: a subject is for reading, an
+#: address is for opening, and the two are not the same claim.
+_PATH_ARGUMENT_KEYS = frozenset({"path", "new_path", "destination"})
+
+
+def pending_artifact_from(name: str, arguments: Any) -> Optional[dict]:
+    """The artifact a lane tool call is ABOUT TO make, or None (2026-09-17).
+
+    Pure, and the weaker sibling of `artifact_path_from`. That one reads the
+    RESULT and means "this landed"; this one reads the ARGUMENTS and means
+    "this was asked for". Both claims are useful and they are NOT
+    interchangeable — only the result-derived path is ever persisted or carded
+    as fact. This one exists so the member sees the shape of a long write while
+    it is still being written, instead of tool rows, silence, then a card.
+
+    ⚠️ The path is normalized to the same absolute form `handle_write_file`
+    produces. The model sends "/workspace/x", "workspace/x" or bare "x"
+    interchangeably; the landed card always carries the absolute spelling. If
+    the two disagree the client cannot match them and the member gets two cards
+    for one write, so the normalization is load-bearing, not cosmetic.
+
+    Returns None — and a card simply never appears early — when the verb makes
+    no file (`ReadFile`), or names no destination in its arguments at all
+    (`GenerateImage`, whose subject is its PROMPT: it has no path until the
+    result carries one, and a guess would be a lie about where to look).
+
+    ⚠️ The prompt case is excluded BY KEY NAME, never by sniffing the string.
+    A "does this look like a path" heuristic rejected `toplevel.md` — a legal
+    root write — while a prompt that happened to contain no space would have
+    passed it. The argument's NAME is what says whether it addresses a file.
+    """
+    # The write door's OWN normalizer, imported rather than re-derived: a
+    # fourth copy of "strip the prefix the model echoed" is how the pending
+    # path and the landed path drift apart.
+    from services.primitives.workspace import _normalize_workspace_rel
+
+    if name not in LANE_ARTIFACT_VERBS:
+        return None
+    keys = _TOOL_SUBJECT_KEYS.get(name)
+    if not keys or not isinstance(arguments, dict):
+        return None
+    for key in keys:
+        if key not in _PATH_ARGUMENT_KEYS:
+            # The verb's subject is not an address (GenerateImage → prompt).
+            continue
+        value = arguments.get(key)
+        if isinstance(value, str) and value.strip():
+            rel = _normalize_workspace_rel(value.strip()).lstrip("/")
+            if not rel:
+                return None
+            return {"path": f"/workspace/{rel}", "verb": name}
+    return None
+
+
 #: The lane tools whose ARGUMENTS carry a subject worth showing mid-stream, and
 #: which argument names it. A streaming step reads "Reading Documents/memo.md"
 #: rather than a bare "Reading files in your workspace" — the member can see
@@ -1419,7 +1474,21 @@ def build_lane_conventions(
         # ADR-599: kernel characters only — the member-agent machinery
         # (manifests, tone, skills) is deleted; a resident's character is
         # self-contained.
-        from services.agents_registry import build_agent_posture
+        from services.agents_registry import build_agent_posture, resolve_agent
+
+        # ADR-653 D2 — a MEMBER app's agent, whose character lives in a
+        # workspace file rather than in `AGENTS`. Resolved ONLY when the kernel
+        # register answers None, so the kernel path is byte-identical and a
+        # member declaration can never shadow a kernel character. R4 is what
+        # makes this a derivation rather than a second lookup: the agent's slug
+        # IS its app's, so `agent` already names the app to read.
+        _member_row = None
+        if resolve_agent(agent) is None and app and agent == app:
+            from services.member_apps import agent_row, read_member_app
+
+            _decl = read_member_app(client, user_id, app)
+            if _decl:
+                _member_row = agent_row(_decl)
         # ADR-562 D6 — the APP's name for its resident. DERIVED from the
         # artifact's own `data-template`, never stored on the lane: the app is
         # a fact about the DOCUMENT, so deriving it means a lane can never
@@ -1436,7 +1505,8 @@ def build_lane_conventions(
 
             _app = app_for_layout(extract_template(artifact))
             _as_name = (resolve_app(_app) or {}).get("name") or ""
-        posture_section += build_agent_posture(agent, as_name=_as_name)
+        posture_section += build_agent_posture(
+            agent, as_name=_as_name, row=_member_row)
     if artifact_path or app:
         # ADR-653 R3 — `or app`: an APP-BOUND lane (no artifact) gets its job
         # overlay too. Before this the overlay hung off the artifact, because
@@ -2037,13 +2107,22 @@ async def run_lane_turn_stream(
 
     An async generator over the SAME bounded tool loop, yielding events for
     SSE transport:
-      - ``("tool", {"name": str})``       — a tool round called this tool
+      - ``("tool", {"name", "subject"})`` — a tool round called this tool
                                             (emitted BEFORE execution, so the
                                             member sees the spinner name)
+      - ``("artifact_pending", {"path", "verb"})``
+                                          — a write is ABOUT TO run. Emitted
+                                            BEFORE execution, so the path comes
+                                            from the ARGUMENTS: it says "asked
+                                            for", not "landed". Provisional by
+                                            construction — never persisted, and
+                                            dropped by the reader if no
+                                            ``artifact`` follows for it.
       - ``("artifact", {"path", "verb"})`` — a WriteFile/EditFile LANDED. The
                                             member's chat renders the file
                                             inline (the artifact card). Emitted
-                                            AFTER execution, success only.
+                                            AFTER execution, success only, and
+                                            the path comes from the RESULT.
       - ``("delta", str)``                — a text fragment on the FINAL round
       - ``("done", {result dict})``       — terminal; the same shape
                                             ``run_lane_turn`` returns
@@ -2202,6 +2281,34 @@ async def run_lane_turn_stream(
             # say WHICH file is being read is legible mid-turn; the bare verb
             # is the honest fallback when no key applies.
             yield ("tool", {"name": name, "subject": tool_subject_from(name, tc.get("arguments"))})
+            # ⭐ THE SHAPE OF THE WRITE, BEFORE THE WRITE (2026-09-17).
+            #
+            # A card only exists once the write LANDS (`artifact_path_from`
+            # reads the RESULT, and that rule is not relaxed here). But a
+            # WriteFile composing a long document can run for many seconds, and
+            # for all of them the member saw tool rows, then silence, then a
+            # card — the output's shape arrived last. This frame announces WHAT
+            # IS BEING MADE at the moment the call starts, so the card's header
+            # is on screen while the body is still being written.
+            #
+            # ⚠️ IT IS A WEAKER CLAIM AND ITS SOURCE SAYS SO. The path here is
+            # read from the ARGUMENTS because no result exists yet — the same
+            # source, and the same honesty, as the step row above: "this is
+            # what was asked for", never "this landed". The pending card is
+            # therefore NEVER persisted and NEVER joins `artifacts`; the
+            # terminal list stays result-derived, so a write that fails leaves
+            # a step row and no card, exactly as before.
+            #
+            # ⚠️ IT MUST BE NORMALIZED, and that is not optional. The model
+            # sends any of three spellings ("/workspace/x", "workspace/x", "x")
+            # and `handle_write_file` is what canonicalizes them — so the raw
+            # argument is NOT the path the landed card will carry. Left raw,
+            # the pending card and the real card key differently and the member
+            # gets TWO cards for one write. `pending_artifact_from` is the one
+            # place that reconciliation lives.
+            _pending = pending_artifact_from(name, tc.get("arguments"))
+            if _pending:
+                yield ("artifact_pending", _pending)
             if name not in _allowed:
                 result: Any = {
                     "success": False, "error": "tool_not_on_lane_surface",

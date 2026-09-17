@@ -83,6 +83,22 @@
  *   - "Show more" is BOUNDED (70vh, internal scroll): an unbounded expand
  *     made the transcript itself a mile of document, with "Show less"
  *     stranded past it. Full-length reading lives in the Open modal.
+ *
+ * ── THE SHAPE ARRIVES BEFORE THE FILE (2026-09-17) ────────────────────────
+ *
+ * `streaming` above holds the header while the BODY loads; `pending` is the
+ * step before it — the write has not landed at all. A long compose showed the
+ * member tool rows, then silence, then a finished card: the output's shape was
+ * the LAST thing to arrive, when it is the thing that tells them whether to
+ * stop the turn.
+ *
+ * The two claims are kept apart on purpose, and the asymmetry is the point:
+ *   - pending  — path from the call's ARGUMENTS. "This is being written."
+ *   - settled  — path from the call's RESULT. "This exists; open it."
+ * Only the second may be persisted, opened, or counted. A pending card that
+ * never settles is DROPPED at turn end (LanePanel's `onDone`), because a card
+ * for a file that does not exist is the one failure this component must never
+ * produce — it is the same rule that keeps `DeleteFile` off `LANE_ARTIFACT_VERBS`.
  */
 
 import { useState } from 'react';
@@ -123,9 +139,20 @@ interface ArtifactCardProps {
   /** The turn that produced this card is still streaming: hold the tile
    *  posture (header only) and unfold the render when it ends (see header). */
   streaming?: boolean;
+  /** The write has STARTED but not landed (2026-09-17). The file does not
+   *  exist yet, so the card announces its SHAPE and nothing more: no load, no
+   *  "Open" (there is nothing to open), no "no longer at this path" (it was
+   *  never there). It settles into an ordinary card when the write lands. */
+  pending?: boolean;
 }
 
-export function ArtifactCard({ path, verb, attribution, streaming = false }: ArtifactCardProps) {
+export function ArtifactCard({
+  path,
+  verb,
+  attribution,
+  streaming = false,
+  pending = false,
+}: ArtifactCardProps) {
   // ADR-436 §6: the shared file-load hook (was a hand-written getFile machine).
   // `cachedFirst`: this mount re-mounts on every post-turn transcript resync
   // (row identities swap local→DB); a card already read must not respin.
@@ -151,6 +178,33 @@ export function ArtifactCard({ path, verb, attribution, streaming = false }: Art
   // Ownership no longer decides IF there's a tile — it decides where the tile
   // GOES: an owned format opens in its app, an unowned one in the chat frame.
   const owningApp = resolveSurfaceApplication(path, file?.content_type);
+
+  // ── PENDING: the shape, and only the shape ──────────────────────────────
+  // The file does not exist yet, so every branch below would be a lie: the
+  // loader would report an error, `notFound` would say it is "no longer at"
+  // a path it was never at, and "Open" would 404. This returns BEFORE all of
+  // them. It sits after the hooks, never inside a condition, so the hook
+  // order is identical on the pending and settled renders — the card settles
+  // in place rather than remounting and losing its prefetch.
+  if (pending) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-background/40 px-3 py-2">
+        <div className="flex items-start gap-2">
+          <FileIcon filename={filename} size="sm" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-foreground/80">{filename}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {verb === 'EditFile' ? 'Revising' : 'Writing'}
+              </span>
+              <span className="truncate" title={relPath}>{relPath}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isChatsOwnMaterial) {
     if (notFound) {

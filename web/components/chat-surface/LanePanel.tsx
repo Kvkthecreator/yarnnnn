@@ -155,6 +155,12 @@ function dayKey(ts?: string): string {
 interface LaneArtifact {
   path: string;
   verb?: string;
+  /** The write has STARTED but not landed (`artifact_pending`). The card holds
+   *  its header so the member sees what is being made while it is written.
+   *  Cleared when the `artifact` frame arrives for the same path; any entry
+   *  still pending at `done` is DROPPED — the write never landed, and a card
+   *  for a file that does not exist is the one thing this must not do. */
+  pending?: boolean;
 }
 
 /** ADR-579 D7 — what a gesture door clicked, carried typed beside the intent.
@@ -962,15 +968,38 @@ export function LanePanel({
                 : m,
             ),
           ),
+        // A write STARTED. Show the card's header now, so a long compose is
+        // visible as a shape rather than as silence. Deliberately does NOT
+        // call `onArtifactWrite` — that tells the MOUNT a file changed, and
+        // nothing has changed yet.
+        onArtifactPending: ({ path, verb }: { path: string; verb: string }) => {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== replyId) return m;
+              const existing = m.artifacts ?? [];
+              if (existing.some((a) => a.path === path)) return m;
+              return { ...m, artifacts: [...existing, { path, verb, pending: true }] };
+            }),
+          );
+        },
         // A write landed. Show the file as soon as it exists — mid-turn, before
-        // the model has finished narrating it.
+        // the model has finished narrating it. Settles the pending card in
+        // place when there is one (same path), so the header the member is
+        // already reading simply grows its body.
         onArtifact: ({ path, verb }: { path: string; verb: string }) => {
           onArtifactWrite?.(path);
           setMessages((prev) =>
             prev.map((m) => {
               if (m.id !== replyId) return m;
               const existing = m.artifacts ?? [];
-              if (existing.some((a) => a.path === path)) return m;
+              if (existing.some((a) => a.path === path)) {
+                return {
+                  ...m,
+                  artifacts: existing.map((a) =>
+                    a.path === path ? { path, verb, pending: false } : a,
+                  ),
+                };
+              }
               return { ...m, artifacts: [...existing, { path, verb }] };
             }),
           );
@@ -1010,19 +1039,29 @@ export function LanePanel({
           // verb, which the terminal list does not.
           const finalArtifacts = toArtifacts(artifacts);
           finalArtifacts?.forEach((a) => onArtifactWrite?.(a.path));
-          if (finalArtifacts) {
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id !== replyId) return m;
-                const seen = m.artifacts ?? [];
-                const merged = [
-                  ...seen,
-                  ...finalArtifacts.filter((a) => !seen.some((s) => s.path === a.path)),
-                ];
-                return { ...m, artifacts: merged };
-              }),
-            );
-          }
+          // ⚠️ THE TERMINAL LIST IS ALSO THE ARBITER OF WHAT NEVER LANDED.
+          // A pending card is provisional; if the write failed (or was refused
+          // by a gate) no `artifact` frame ever arrived and the path is absent
+          // from this list. Such a card must GO — leaving it would be a card
+          // for a file that does not exist, and "Open" would 404. Settled
+          // cards are kept even when the terminal list is empty, because a
+          // dropped frame must not erase a write that really landed.
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== replyId) return m;
+              const landed = (a: LaneArtifact) =>
+                !a.pending || (finalArtifacts?.some((f) => f.path === a.path) ?? false);
+              const seen = (m.artifacts ?? [])
+                .filter(landed)
+                .map((a) => ({ ...a, pending: false }));
+              const merged = [
+                ...seen,
+                ...(finalArtifacts ?? []).filter((a) => !seen.some((s) => s.path === a.path)),
+              ];
+              if (!merged.length && !(m.artifacts ?? []).length) return m;
+              return { ...m, artifacts: merged };
+            }),
+          );
           // A turn that streamed no text shows a marker — UNLESS it produced an
           // artifact, in which case the card is the reply and a "[no reply]"
           // bubble above it would be a lie.
@@ -1478,8 +1517,11 @@ export function LanePanel({
                         // Tile posture while the turn still streams (this row
                         // is the in-flight reply): the write is visible the
                         // moment it lands, but the full render waits for the
-                        // words — mid-turn, the message stays primary.
+                        // words — mid-turn, the message stays primary. A
+                        // pending card is always mid-turn, so it takes the
+                        // same posture and says WHY it has no body yet.
                         streaming={sending && isLast}
+                        pending={a.pending}
                       />
                     ),
                   )}

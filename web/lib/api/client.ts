@@ -48,7 +48,7 @@ import type {
 // ADR-312 home-bundle: the bundle's `surfaces` field is the full compositor
 // SurfacesResponse (including surfaces[]), so useComposition can be primed
 // from it directly. Type-only import — erased at runtime, no layering cost.
-import type { SurfacesResponse } from "@/lib/compositor/types";
+import type { Surface, SurfacesResponse } from "@/lib/compositor/types";
 import type { FocusWire } from "@/lib/shell/useSurfaceFocus";
 
 const API_BASE_URL =
@@ -427,9 +427,13 @@ type LaneStreamHandlers = {
   onSpeaker?: (s: { agent_slug: string; reason?: string }) => void;
   /** A tool round started. `subject` is the ONE short label the server chose
    *  for what the call is about (a path, a query) — never the raw arguments.
-   *  Undefined for a verb with no meaningful subject, and for any frame from a
-   *  server deployed before the step seam. */
+   *  Undefined for a verb with no meaningful subject. */
   onTool?: (step: { name: string; subject?: string }) => void;
+  /** A write STARTED — show the card's header while the body is still being
+   *  written. The weaker claim: the path is what the call ASKED for, read from
+   *  its arguments, so this card is provisional. It is never persisted, and
+   *  `onDone` drops any that never landed. */
+  onArtifactPending?: (a: { path: string; verb: string }) => void;
   /** A WriteFile/EditFile landed — render the file inline (artifact card). */
   onArtifact?: (a: { path: string; verb: string }) => void;
   onDone?: (info: {
@@ -514,13 +518,22 @@ async function streamLaneTurn(
       } else if (evt.tool_step && typeof evt.tool_step === "object") {
         const step = evt.tool_step as { name: string; subject?: string | null };
         handlers.onTool?.({ name: step.name, subject: step.subject ?? undefined });
-      } else if (typeof evt.tool === "string") {
-        // Pre-step-seam server: the name alone. Same handler, no subject.
-        handlers.onTool?.({ name: evt.tool });
-      }
-      else if (evt.artifact && typeof evt.artifact === "object") {
+      } else if (evt.artifact_pending && typeof evt.artifact_pending === "object") {
+        handlers.onArtifactPending?.(
+          evt.artifact_pending as { path: string; verb: string },
+        );
+      } else if (evt.artifact && typeof evt.artifact === "object") {
         handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
-      } else if (typeof evt.error === "string") handlers.onError?.(evt.error);
+      } else if (evt.error && typeof evt.error === "object") {
+        // The structured frame: `message` is the member's sentence, `code` is
+        // for branching. Only the sentence is shown — a code in a bubble is
+        // our vocabulary, not theirs. Both producers in `routes/lanes.py` emit
+        // this shape; there is deliberately NO bare-string arm, because a
+        // compat arm for a producer that does not exist is the duplication
+        // this same change deleted from the tool frame.
+        const e = evt.error as { code?: string; message?: string };
+        handlers.onError?.(e.message || "The turn stopped unexpectedly. Try again.");
+      }
       else if (evt.done) {
         handlers.onDone?.({
           rounds: (evt.rounds as number) ?? 0,
@@ -1566,6 +1579,23 @@ export const api = {
 
   // ADR-225 + ADR-240: Programs — composition surfaces (ADR-225) +
   // activation lifecycle (ADR-240 FE consumption of ADR-226 backend).
+  // ADR-653 D3.c — a MEMBER app's declaration, read by its own surface. The
+  // surfaces roster says an app exists and how to reach it; this says what it
+  // looks like when opened. Separate because the roster rides every shell load
+  // and deliberately carries no `agent` and no sections.
+  apps: {
+    get: (slug: string) =>
+      request<{
+        slug: string;
+        name: string;
+        about: string;
+        /** Band 2 — who is minding this work. The NAME only, never a character. */
+        agent_name: string;
+        sections: Array<{ kind: string; source?: string; title?: string }>;
+        declaration_path: string;
+      }>(`/api/apps/${encodeURIComponent(slug)}`),
+  },
+
   programs: {
     getSurfaces: () => request<{
       schema_version: 1;
@@ -1581,6 +1611,17 @@ export const api = {
         tabs: Record<string, unknown>;
         chat_chips: string[];
       };
+      // ADR-653 §10.3 — `surfaces[]` was OMITTED from this type while being
+      // the single most load-bearing field the endpoint returns: the Dock, the
+      // Launcher, the viewport and route sync all read it. Omitted here and
+      // `as unknown as`-cast at the compositor boundary, it had NO compile-time
+      // checking at all — so a served field the client depends on (e.g.
+      // ADR-653 D3.a's `register`) could go missing with a green typecheck.
+      //
+      // Declared with the compositor's OWN `Surface` type rather than a second
+      // inline shape: two hand-kept spellings of one wire contract is the
+      // drift this repair exists to end.
+      surfaces: Surface[];
     }>("/api/programs/surfaces"),
 
     // ADR-240 D1: list bundles the operator may activate at signup.
