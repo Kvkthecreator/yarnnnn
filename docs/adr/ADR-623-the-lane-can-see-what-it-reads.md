@@ -4,7 +4,8 @@
 > **Date**: 2026-08-31
 > **Dimension**: **Channel** (Axiom 6 — what a principal can perceive of the substrate) primary; **Substrate** (Axiom 1) untouched — no new storage, no new capability, one already-minted capability finally redeemed.
 > **Relates to**: [ADR-621](ADR-621-a-binary-file-is-not-an-empty-file.md) (the external half — whose success created the asymmetry this closes), [ADR-427](ADR-427-binary-native-substrate-and-the-storage-seam.md) §8 + D4 (the binary notice, and the minted serving URL), [ADR-467](ADR-467-app-residency-and-the-cast.md) D4 (one tool surface, every lane), [ADR-411](ADR-411-chat-lanes-and-the-lane-tool-surface.md) (the lane contract), [ADR-395](ADR-395-model-consumable-projection-and-upload-intake-conformance.md) (DP34 — a model reads text and images).
-> **Gate**: `api/test_adr623_the_lane_can_see.py` (24/24).
+> **Gate**: `api/test_adr623_the_lane_can_see.py` (42/42 — §8 is the 2026-09-17 amendment).
+> **Amended**: 2026-09-17 — §8, *the lane can place what it is handed*.
 
 ---
 
@@ -169,3 +170,72 @@ one layer up.
   member-legible words). A gate that pins a spelling goes red on a copy change,
   and a red gate stops being read — which is exactly how ADR-621's defect
   survived.
+
+---
+
+## 8. AMENDMENT 2026-09-17 — the lane can PLACE what it is handed
+
+### 8.1 The defect — the same asymmetry, in the other direction
+
+This ADR fixed a **read that could not end in seeing**. It left standing a
+**seeing that could not end in a write**.
+
+A pasted screenshot has been a real workspace file since ADR-555 A2: the
+composer uploads it to `inbound/uploads/chat/` *before* the turn is sent, and
+the member sees it chipped on their own message. But `_build_turn_message` handed
+the model the **pixels** and never the **path**. Observed live, the Editor lane:
+
+> "I can't save images you paste into the chat. My write tools (`WriteFile`,
+> `GenerateImage`) create text files or AI-generated images from a prompt;
+> there's no path for me to take a pasted screenshot and drop it into the
+> filesystem as-is. … you'd need to upload them through the workspace's own
+> upload/Downloads flow — once they land as files, I can then read them and move
+> or rename them into that folder."
+
+Every clause is what a model with no path would conclude, and the last one
+**describes a move it could have made that turn**. The files were in Downloads.
+`MoveFile` was on its surface, carries a binary by re-referencing the head blob
+(the 2026-08-27 fix), and drags the `.extracted.md` projection sibling with it
+(ADR-554 D1). Nothing was missing but the sentence naming where the bytes were.
+
+⭐⭐⭐ **And §1's asymmetry repeated verbatim.** The same member, on the same
+workspace, through the MCP connector, saved the same screenshot to
+`marketing/assets/screenshots/` in one turn — because that surface names paths.
+External must never be better than internal. That it recurred within three weeks
+of this ADR closing it says the rule needs a gate, not a principle.
+
+⭐ **The FILE branch had always named its path.** Only the image branch dropped
+it, because the pixels feel like the whole message. A per-kind branch is where a
+shared fact goes to be stated once and forgotten once.
+
+### 8.2 A2 — one note, both kinds, both entrances
+
+`_attachment_note(path, name, kind)` in `api/routes/lanes.py` is the single
+spelling of *where this attachment already is*. It is called from the live turn
+(`_build_turn_message`, both branches) and from the replay (`_fetch_history`) —
+because the path must survive the turn for exactly the reason §4 says the pixels
+must. A lane that can move an attached picture on turn 1 and not on turn 5 has
+forgotten half of what an attachment is.
+
+The note states the fact and names the verb; it does not instruct the model how
+to feel about it. No new tool, no new capability, no new storage — `MoveFile`
+already did all of this.
+
+### 8.3 Found while gating
+
+- ⭐ **A latent hole in §4c.** The vanished-attachment branch rebuilt `parts[0]`
+  from the **original** `text`, and the tail fell back to bare `text` when no
+  image minted. So with exactly **one** vanished attachment the "no longer
+  available" notice was composed and then **thrown away** — the model was
+  silently back to answering as if it had never been shown a picture, the exact
+  defect §4 exists to prevent. With two, the second overwrote the first. §4c
+  passed throughout, because it greps the source for the string. Clauses 8i/8j
+  assert the composition instead.
+- ⭐ Clauses 8a–8f **drive** `_build_turn_message` rather than read it. A note
+  asserted by grep is a note that can be spelled into a docstring and never
+  reach a model — which is how the image branch lost its path in the first place.
+
+Falsified: the image note removed (8b/8c red) · the helper re-duplicated per
+branch (8g red) · the replay reverted to pixels-only (8h red) · the vanished
+notice rebuilt from `text` (8i/8j red). Six of ten proven RED at HEAD before the
+fix; 8a/8d/8e/8f are the regression guards on the half that was never broken.

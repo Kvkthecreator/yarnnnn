@@ -15,6 +15,38 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.17.3] - A chat attachment tells the lane WHERE it already is
+### Changed
+- api/routes/lanes.py: new `_attachment_note(path, name, kind)` — the one spelling of an
+  attachment's workspace path. `_build_turn_message` now emits it for IMAGES as well as files
+  ("[Attached image: {name} — already a workspace file at {path}. … MoveFile it to put it
+  somewhere else.]"), and `_fetch_history` emits it on replay beside the re-minted pixels.
+- Expected behavior: asked to save or file a pasted screenshot, the lane moves it instead of
+  refusing. The path survives the turn, so the move is still available on turn 5.
+### Why
+Observed live 2026-09-17, the Editor lane, two pasted screenshots and "save these to
+marketing/assets/screenshots/":
+
+> "I can't save images you paste into the chat. My write tools (WriteFile, GenerateImage)
+> create text files or AI-generated images from a prompt; there's no path for me to take a
+> pasted screenshot and drop it into the filesystem as-is. … you'd need to upload them through
+> the workspace's own upload/Downloads flow — once they land as files, I can then read them and
+> move or rename them into that folder."
+
+The files were ALREADY there. ADR-555 A2 has the composer upload a chat attachment to
+`inbound/uploads/chat/` before the turn is sent; `MoveFile` was on the surface and carries a
+binary correctly. The turn handed the model the pixels and never the path, so it reasoned from
+what it could observe and refused — correctly, by its own lights. ⭐The FILE branch had always
+named its path; only the image branch dropped it. ⭐⭐⭐And ADR-623 §1's asymmetry recurred
+verbatim: the same member saved the same screenshot through the MCP connector in one turn,
+because that surface names paths. External must never be better than internal.
+### Gate
+`test_adr623_the_lane_can_see.py` 42/42 (§8 amendment; 6 of 10 new clauses proven RED at HEAD
+first — 8a–8f DRIVE `_build_turn_message` rather than grep it). Ratchets: `test_adr632` §5,
+`test_adr630_skills.py`. Neighbours green: 411, 522, 605, 626, 648.
+
+---
+
 ## [2026.09.17.2] - A member's own agent gets a character in the frame
 ### Changed
 - api/services/lane_runner.py: `build_lane_conventions` resolves a MEMBER app's agent when the

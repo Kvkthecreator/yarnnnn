@@ -262,6 +262,93 @@ check("7g the single-call case that used to pass still passes "
       "(the fix is not a regression)",
       not _violates(_simulate(1, {0})))
 
+# --- 8. AMENDMENT 2026-09-17 — the lane can PLACE what it is HANDED -----------
+#
+# ⭐⭐⭐ THE SAME ASYMMETRY, IN THE OTHER DIRECTION. §1 fixed a read that could
+# not end in seeing. This fixes a seeing that could not end in a write. A
+# pasted screenshot has been a real workspace file since ADR-555 A2 (the
+# composer uploads it to `inbound/uploads/chat/` BEFORE the turn is sent) — but
+# the turn handed the model the PIXELS and never the PATH, so it reasoned from
+# what it could observe and refused. Observed live 2026-09-17, the Editor lane:
+#
+#     "I can't save images you paste into the chat. My write tools (WriteFile,
+#      GenerateImage) create text files or AI-generated images from a prompt;
+#      there's no path for me to take a pasted screenshot and drop it into the
+#      filesystem as-is. … you'd need to upload them through the workspace's own
+#      upload/Downloads flow — once they land as files, I can then read them and
+#      move or rename them into that folder."
+#
+# The files WERE in Downloads. `MoveFile` WAS on its surface, carries a binary
+# by re-referencing the head blob, and drags the projection sibling with it. The
+# same member, same workspace, through the MCP connector, saved the same
+# screenshot to `marketing/assets/screenshots/` in one turn — because that
+# surface names paths. External must never be better than internal (§1).
+#
+# ⭐ The FILE branch had always named its path; only the IMAGE branch dropped it,
+# because the pixels felt like the whole message. These clauses DRIVE the
+# builder rather than read it — a note asserted by grep is a note that can be
+# spelled into a docstring and never reach a model.
+import routes.lanes as RL  # noqa: E402
+
+RL._resolve_blob_storage_path = lambda auth, path: None
+RL._mint_cas_url_for_path = lambda auth, path: _MINTED
+
+
+class _Att:
+    """A `LaneAttachment` by duck type — the builder reads three fields."""
+
+    def __init__(self, path: str, kind: str, name: str | None = None) -> None:
+        self.path, self.kind, self.name = path, kind, name
+
+
+IMG_PATH = "/workspace/inbound/uploads/chat/image.png"
+built, built_meta = RL._build_turn_message(
+    auth, "save these to marketing/assets/screenshots/",
+    [_Att(IMG_PATH, "image", "image.png")], VISION,
+)
+check("8a an image attachment still rides as text + image_url parts",
+      isinstance(built, list) and [p["type"] for p in built] == ["text", "image_url"])
+img_text = built[0]["text"] if isinstance(built, list) else ""
+check("8b the text NAMES THE WORKSPACE PATH the pixels already live at "
+      "(the whole defect: pixels with no path)",
+      IMG_PATH in img_text, img_text[-90:])
+check("8c and names the verb that relocates it, so the refusal has no premise",
+      "MoveFile" in img_text)
+check("8d the member's own words survive ahead of the note",
+      img_text.startswith("save these to marketing/assets/screenshots/"))
+check("8e the pixels are still a URL, never base64",
+      built[1]["image_url"]["url"] == _MINTED and "base64" not in str(built))
+
+# The file branch must not have REGRESSED while the image branch was fixed —
+# one spelling now serves both, which is exactly how one of them rots.
+doc_path = "/workspace/inbound/uploads/chat/spec.pdf"
+built_doc, _ = RL._build_turn_message(auth, "read this", [_Att(doc_path, "file", "spec.pdf")], VISION)
+check("8f a FILE attachment still names its path and its text projection",
+      isinstance(built_doc, str) and doc_path in built_doc
+      and ".extracted.md" in built_doc and "ReadFile" in built_doc)
+
+check("8g ONE spelling of the note, shared by both branches and by the replay",
+      lanes_src.count("def _attachment_note(") == 1
+      and lanes_src.count("_attachment_note(") >= 3)
+
+# ⭐ The path must survive the turn for the SAME reason the pixels do (§4): a
+# lane that can move an attached picture on turn 1 and not on turn 5 has
+# forgotten half of what an attachment is.
+hist8 = lanes_src.split("def _fetch_history(")[1].split("\ndef ")[0]
+check("8h the REPLAY carries the path too, through the same helper",
+      "_attachment_note(" in hist8)
+
+# ⭐ A LATENT §4c HOLE, found while driving this. The vanished-image branch
+# rebuilt `parts[0]` from the ORIGINAL `text`, and the tail fell back to bare
+# `text` when no image minted — so with exactly ONE vanished attachment the
+# "no longer available" notice was composed and then THROWN AWAY, and with two
+# the second overwrote the first. §4c passed throughout: it greps the source.
+check("8i a vanished attachment's notice is accumulated, not overwritten",
+      'parts[0][\'text\']' in hist8 and 'f"{text}\\n[an image' not in hist8)
+check("8j and it still reaches the model when it is the ONLY attachment",
+      'else parts[0]["text"]' in hist8)
+
+
 print()
 print("=" * 62)
 if FAILURES:

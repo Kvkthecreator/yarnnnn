@@ -6,6 +6,14 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## ADR-427 ratchet is RED at HEAD — two unclassified `.content` readers
+- `test_adr427_reader_classification.py` fails: `services/agent_faces/__init__.py` and
+  `services/member_apps.py` read `.content` and are not in `CLASSIFICATION`; seven entries are
+  stale (`routes/feed.py`, `routes/images.py`, `services/recurrence.py`, four
+  `services/primitives/mirror_*.py`). Arrived with the ADR-653 work, not with ADR-623 §8 —
+  confirmed by running the ratchet at `e15ae7f` with the §8 diff stashed. Classify the two,
+  drop the seven.
+
 ## ADR-653 — the app-builder (ACCEPTED; UX §8 steps 1–3 DONE, step 4 next)
 - Sequence is `docs/design/APP-BUILDER-UX.md` §8. **Steps 1, 2 and 3 are DONE and click-passed**
   (`6bcb234` the parser · `0096569` the phantom-slug precondition · `b71b716` the app binding kind ·

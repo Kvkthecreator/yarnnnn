@@ -1657,15 +1657,24 @@ def _fetch_history(
             for a in images:
                 url = _mint_cas_url_for_path(auth, a["path"])
                 if url:
+                    # The PATH rides the replay beside the pixels, in the one
+                    # spelling the live turn uses. Without it a lane could move
+                    # an attached picture on the turn it arrived and not on any
+                    # turn after — the ADR-623 §4 "vision survives the turn"
+                    # rule, applied to the other half of what an attachment is.
+                    parts[0] = {"type": "text", "text": (
+                        parts[0]["text"] + "\n"
+                        + _attachment_note(a["path"], a.get("name") or a["path"].split("/")[-1], "image")
+                    )}
                     parts.append({"type": "image_url", "image_url": {"url": url}})
                 else:
                     # The file moved or was deleted since. Say so in words
                     # rather than dropping it: "I can no longer see it" is a
                     # different answer from never having been shown it.
                     parts[0] = {"type": "text", "text": (
-                        f"{text}\n[an image attached earlier ({a.get('name') or a['path']}) "
+                        f"{parts[0]['text']}\n[an image attached earlier ({a.get('name') or a['path']}) "
                         "is no longer available in the workspace]")}
-            out.append({"role": "user", "content": parts if len(parts) > 1 else text})
+            out.append({"role": "user", "content": parts if len(parts) > 1 else parts[0]["text"]})
         else:
             out.append({"role": r["role"], "content": text})
     return _clamp_history_chars(out)
@@ -1777,6 +1786,55 @@ def _mint_cas_url_for_path(auth: UserClient, path: str) -> Optional[str]:
 
     return mint_serving_url_for_path(auth, path)
 
+
+def _attachment_note(path: str, name: str, kind: str) -> str:
+    """The one sentence that tells the lane WHERE an attachment already is.
+
+    ⭐⭐⭐ ADR-623's asymmetry, a second time, in the other direction. That ADR
+    fixed a read that could not end in seeing; this fixes a SEEING that could
+    not end in a write. A pasted screenshot has been a real workspace file
+    since ADR-555 A2 (`inbound/uploads/chat/`, uploaded by the composer before
+    the turn is even sent) — but the model was handed the PIXELS and never the
+    PATH. So it reasoned from what it could observe and refused, correctly by
+    its own lights (observed live 2026-09-17, the Editor lane):
+
+        "I can't save images you paste into the chat. My write tools
+         (WriteFile, GenerateImage) create text files or AI-generated images
+         from a prompt; there's no path for me to take a pasted screenshot and
+         drop it into the filesystem as-is. … you'd need to upload them through
+         the workspace's own upload/Downloads flow — once they land as files, I
+         can then read them and move or rename them into that folder."
+
+    Every clause of that is what a model with no path would conclude, and the
+    last one describes a move it could have made THAT TURN: the files were in
+    Downloads, `MoveFile` was on its surface, and `MoveFile` already carries a
+    binary by re-referencing the head blob and drags the projection sibling
+    with it. Meanwhile the SAME member, on the SAME workspace, through the MCP
+    connector, saved the SAME screenshot to `marketing/assets/screenshots/`
+    without friction — because that surface names paths and this one did not.
+    External must never be better than internal (ADR-623 §1).
+
+    The file branch had always named its path; only the image branch dropped
+    it, because the pixels felt like the whole message. One spelling, both
+    branches, and both entrances (this turn, and the ADR-623 §4 replay) — a
+    note the live turn has and the replay lacks is a lane that can move the
+    picture on turn 1 and not on turn 5.
+    """
+    if kind == "image":
+        return (
+            f"[Attached image: {name} — already a workspace file at {path}. "
+            "The picture below is that file's own bytes; it landed there when "
+            "the member attached it. MoveFile it to put it somewhere else.]"
+        )
+    from services.documents import upload_projection_path
+
+    return (
+        f"[Attached file: {name} — already a workspace file at {path}; text "
+        f"projection at {upload_projection_path(path)}, read it with ReadFile. "
+        "MoveFile it to put it somewhere else.]"
+    )
+
+
 def _build_turn_message(
     auth: UserClient,
     content: str,
@@ -1792,10 +1850,7 @@ def _build_turn_message(
     (model_message, attachments_meta) — the persisted user row keeps the
     plain text + metadata, never the parts array.
     """
-    from services.documents import (
-        create_signed_url_for_storage_path,
-        upload_projection_path,
-    )
+    from services.documents import create_signed_url_for_storage_path
     from services.lane_runner import LANE_MODELS
     from services.supabase import get_service_client
 
@@ -1804,7 +1859,8 @@ def _build_turn_message(
     meta: list[dict] = []
     for att in attachments:
         kind = "image" if att.kind == "image" else "file"
-        meta.append({"path": att.path, "kind": kind, "name": att.name or att.path.split("/")[-1]})
+        name = att.name or att.path.split("/")[-1]
+        meta.append({"path": att.path, "kind": kind, "name": name})
         if kind == "image":
             if not LANE_MODELS.get(model, {}).get("vision", True):
                 raise HTTPException(
@@ -1823,11 +1879,10 @@ def _build_turn_message(
             if not signed:
                 raise HTTPException(status_code=404, detail=f"Attachment not found: {att.path}")
             image_parts.append({"type": "image_url", "image_url": {"url": signed}})
-        else:
-            notes.append(
-                f"[Attached file: {att.path} — text projection at "
-                f"{upload_projection_path(att.path)}; read it with ReadFile]"
-            )
+        # The path is stated for BOTH kinds. The file branch always did; the
+        # image branch did not, and a lane holding pixels with no path refuses
+        # a move it is fully able to make (see `_attachment_note`).
+        notes.append(_attachment_note(att.path, name, kind))
 
     model_text = content + ("\n\n" + "\n".join(notes) if notes else "")
     if image_parts:
