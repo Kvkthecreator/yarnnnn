@@ -36,6 +36,7 @@ import {
   type Attestation,
 } from '@/lib/content-shapes/sources';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { isSubmitKey } from '@/lib/shell/submit-key';
 
 export type SourcesVariant = 'full' | 'compact';
@@ -99,13 +100,23 @@ function WatchEditor({
   onSave: (declarationPath: string, sources: WatchSource[]) => Promise<void>;
   compact: boolean;
 }) {
+  const { runAction } = useFeedback();
   const [saving, setSaving] = useState(false);
   const observedById = new Map<string, ObservedSourceHealth>(watch.observed.map((o) => [o.id, o]));
 
+  // `writeShape` is a library helper several layers below this component and
+  // holds no hook, so the report belongs HERE — the caller that knows what the
+  // member did. try/finally with no catch left a failed source edit silent.
   const save = async (next: WatchSource[]) => {
     setSaving(true);
     try {
-      await onSave(watch.declaration_path, next);
+      await runAction(() => onSave(watch.declaration_path, next), {
+        pending: 'Saving sources…',
+        success: 'Sources saved',
+        error: 'Could not save those sources',
+      });
+    } catch {
+      /* reported; the next load shows what is actually stored */
     } finally {
       setSaving(false);
     }

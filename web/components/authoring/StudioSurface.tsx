@@ -54,6 +54,11 @@ import { FlowEditor, type FlowEditorHandle } from './FlowEditor';
 import { readRegionInner, replaceRegionInner } from '@/lib/authoring/flow/roundtrip';
 // ADR-529 D1 — the one share act, shared with Files and every file surface.
 import { ShareDialog } from '@/components/workspace/ShareDialog';
+// ACTION-FEEDBACK.md — the one toast/confirm/async layer. Studio's discrete
+// verbs (rename, create, import, set default) report THROUGH it; the surface's
+// own `opError` banner is kept only for the lanes the canon calls in-surface:
+// an unresolved state that must SURVIVE beside what the member is editing.
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import {
   resolveArtifactHtml,
@@ -426,6 +431,7 @@ export const BLOGGER_APP: AuthoringApp = authoringApp(
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
   const { get: getParam, set: setParam } = useSurfaceParam(app.slug);
+  const { runAction } = useFeedback();
   const artifactParam = getParam('file');
   const artifactPath = artifactParam
     ? artifactParam.startsWith('/')
@@ -909,21 +915,33 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         return;
       }
       setRenameBusy(true);
-      setOpError(null);
       try {
-        const r = await api.studio.renameArtifact(artifactPath, trimmed);
+        // ACTION-FEEDBACK.md self-act lane: a rename is a discrete verb with a
+        // POINT outcome, and the field closes on commit either way — so there
+        // is no surviving surface for `opError` to persist beside. The crumb
+        // showing the new name is not enough of a receipt on its own (a
+        // refused rename leaves the OLD name there, which reads as nothing
+        // having happened), so this one keeps its success line.
+        const r = await runAction(() => api.studio.renameArtifact(artifactPath, trimmed), {
+          pending: 'Renaming…',
+          success: 'Renamed',
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || 'Couldn’t rename that'
+              : 'Couldn’t rename that',
+        });
         if (r.renamed) {
           setParam({ file: relPath(r.path) }); // follow the artifact to its new path
           setReloadKey((k) => k + 1); // the retitle is a server-side write
         }
-      } catch (e) {
-        setOpError(e instanceof Error ? e.message : 'Rename failed.');
+      } catch {
+        /* runAction reported it; the field still closes (below) */
       } finally {
         setRenameBusy(false);
         setRenaming(false);
       }
     },
-    [artifactPath, renameBusy, setParam, artifactDisplayName],
+    [artifactPath, renameBusy, setParam, artifactDisplayName, runAction],
   );
 
   // ADR-442 D4: the Studio declares its surface chrome into the surface bar
@@ -1718,11 +1736,25 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
           }
           setPlanning(true);
           try {
-            const { placements } = await api.studio.planArrangement({
-              blocks,
-              areas: a.areas.map((s) => ({ name: s.name, role: s.role, place: s.place })),
-              arrangement: a.slug,
-            });
+            // PENDING ONLY, deliberately (ACTION-FEEDBACK.md). Two halves:
+            //  - no `success` — the page RE-ARRANGING is the receipt, the same
+            //    reasoning as a file opening; a "Done" line under a visual act
+            //    the member is already looking at is noise.
+            //  - no `error` — a planner that refuses or is unreachable is NOT a
+            //    failed act. The mechanical ladder below lands as the real
+            //    result (ADR-479's degraded path), so an error toast would
+            //    report a failure that did not happen.
+            // The wait itself still earns a line: the judgment runs 2-4s behind
+            // a canvas that has ALREADY moved, and nothing else says so.
+            const { placements } = await runAction(
+              () =>
+                api.studio.planArrangement({
+                  blocks,
+                  areas: a.areas.map((s) => ({ name: s.name, role: s.role, place: s.place })),
+                  arrangement: a.slug,
+                }),
+              { pending: 'Arranging…' },
+            );
             if (placements) {
               // Settle to the judgment. `applyOp` computes from LIVE state
               // inside the write queue, and the preview advanced `liveRef` —
@@ -1761,6 +1793,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             `${app.label}: change to ${a.label} — content moved to a new ${receiver.label.toLowerCase()} ${pageNoun}`,
           );
         }
+        // STAYS in-surface (ACTION-FEEDBACK.md's banner lane), not a toast:
+        // this is a refusal that names the member's NEXT ACT — move or delete
+        // the blocks — performed on the canvas it is sitting above. A toast
+        // would evaporate in four seconds, taking the instruction with it.
         setOpError(
           `"${a.label}" has no place for this ${pageNoun}'s content — move or delete the blocks first.`,
         );
@@ -1771,7 +1807,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         `${app.label}: change arrangement to ${a.label}`,
       );
     },
-    [applyOp, anchor, file, vocabulary, template],
+    [applyOp, anchor, file, vocabulary, template, runAction],
   );
 
   // ADR-466 D5 — the galleries forewarn: how many blocks would an arrangement
@@ -4711,6 +4747,7 @@ function StudioStart({
   const [defaultSystem, setDefaultSystem] = useState<string | null>(null);
   const [openPickerOn, setOpenPickerOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { runAction } = useFeedback();
 
   const loadRecents = useCallback(() => {
     api.studio
@@ -4870,12 +4907,22 @@ function StudioStart({
     // ADR-472 D3: a stage is born at its real size; a document ignores dims.
     // ADR-646 D2: `app` names WHO is minting, and the server refuses a type
     // this app does not own — the palette is scoped, and now so is the write.
-    const res = await api.studio.createArtifact(templateSlug, {
-      path,
-      name,
-      app: app.slug,
-      ...(dims ?? {}),
-    });
+    //
+    // PENDING ONLY (ACTION-FEEDBACK.md). No `success`: the artifact OPENING is
+    // the receipt — the same reasoning as a file-open, and a "Created" toast
+    // would land on top of the thing it is announcing. No `error` either: this
+    // throws back to NewArtifactModal, which renders the failure inline and
+    // stays open for a retry. One failure, one channel.
+    const res = await runAction(
+      () =>
+        api.studio.createArtifact(templateSlug, {
+          path,
+          name,
+          app: app.slug,
+          ...(dims ?? {}),
+        }),
+      { pending: 'Creating…' },
+    );
     onOpen(res.path);
   };
 
@@ -4900,32 +4947,53 @@ function StudioStart({
       // source's folder — except for an arrival (`inbound/`), which is not a
       // home, so those still default to Documents.
       const sourceName = source.name.replace(/\.[a-z0-9]+$/i, '');
-      const res = await api.studio.createArtifact(target.template, {
-        path: `${defaultDestinationFor(source.path)}/${slugify(sourceName)}/${target.template}.html`,
-        name: sourceName,
-      });
-      await api.lanes.create({
-        name: `Learn: ${source.name}`.slice(0, 60),
-        // A canvas target IS an authoring lane (it carries `artifact_path`), so
-        // it gets THIS app's declared resident — resolved server-side from the
-        // app's own module (ADR-562 D3, re-homing ADR-467 D1).
-        app: app.slug,
-        artifact_path: res.path,
-        skill: target.skill,
-        derive_source: source.path,
-      });
+      // Bound OUTSIDE the closure below: the `if (target.template)` narrowing
+      // does not follow a captured field into an async callback.
+      const template = target.template;
+      // ONE pending line over BOTH writes (ACTION-FEEDBACK.md). The artifact
+      // and its lane are two calls but one member act — "Setting up…" is the
+      // honest sentence, and two toasts for one gesture would double-report it.
+      // No `success`: the artifact opening is the receipt. No `error`: this
+      // throws back to LearnFromFlowModal, which keeps the failure inline and
+      // stays open for a retry.
+      const res = await runAction(
+        async () => {
+          const created = await api.studio.createArtifact(template, {
+            path: `${defaultDestinationFor(source.path)}/${slugify(sourceName)}/${template}.html`,
+            name: sourceName,
+          });
+          await api.lanes.create({
+            name: `Learn: ${source.name}`.slice(0, 60),
+            // A canvas target IS an authoring lane (it carries `artifact_path`), so
+            // it gets THIS app's declared resident — resolved server-side from the
+            // app's own module (ADR-562 D3, re-homing ADR-467 D1).
+            app: app.slug,
+            artifact_path: created.path,
+            skill: target.skill,
+            derive_source: source.path,
+          });
+          return created;
+        },
+        { pending: 'Setting up…' },
+      );
       setLearnOpen(false);
       onOpen(res.path);
     } else {
-      const lane = await api.lanes.create({
-        name: `Learn: ${source.name}`.slice(0, 60),
-        // No canvas — it lands in /chat as an ordinary conversation. The
-        // cast answers (ADR-495) — a skill never names an agent (ADR-630); the
-        // `agent: 'scout'` literal that lived here was the same client-asserted
-        // identity the app registry removed, surviving one rung down.
-        skill: target.skill,
-        derive_source: source.path,
-      });
+      // Same shape, one call: the chat lane ARRIVING is the receipt, so
+      // pending only — and the modal owns the failure.
+      const lane = await runAction(
+        () =>
+          api.lanes.create({
+            name: `Learn: ${source.name}`.slice(0, 60),
+            // No canvas — it lands in /chat as an ordinary conversation. The
+            // cast answers (ADR-495) — a skill never names an agent (ADR-630); the
+            // `agent: 'scout'` literal that lived here was the same client-asserted
+            // identity the app registry removed, surviving one rung down.
+            skill: target.skill,
+            derive_source: source.path,
+          }),
+        { pending: 'Starting a chat…' },
+      );
       setLearnOpen(false);
       navigateToSurface('chat', { lane: lane.id });
     }
@@ -4936,17 +5004,30 @@ function StudioStart({
   // list). DERIVE creates the design-system lane (same shape learnFrom uses for
   // the no-template target) and navigates to chat — the modal just closes.
   const importNewSystem = async (file: File) => {
-    const r = await api.studio.importDesignSystem(file);
+    // PENDING ONLY — an import is the one act on this landing with a real WAIT
+    // (a .zip, unpacked server-side) and no optimistic pixels to stand in for
+    // it. Both outcomes already have a home in NewDesignSystemModal: it prints
+    // its own receipt ("Imported X — N files") and its own inline failure, and
+    // stays open either way. Adding a second channel would say it twice.
+    const r = await runAction(() => api.studio.importDesignSystem(file), {
+      pending: 'Importing…',
+    });
     loadSystems();
     return { name: r.name, written: r.written.length, warnings: r.warnings?.length ?? 0 };
   };
   const deriveNewSystem = async (source: { path: string; name: string }) => {
-    const lane = await api.lanes.create({
-      name: `Design system: ${source.name}`.slice(0, 60),
-      // No resident of its own — a skill never names an agent (ADR-630).
-      skill: 'deriving-a-design-system',
-      derive_source: source.path,
-    });
+    // The chat lane ARRIVING is the receipt (create-then-navigate); the modal
+    // holds the failure inline.
+    const lane = await runAction(
+      () =>
+        api.lanes.create({
+          name: `Design system: ${source.name}`.slice(0, 60),
+          // No resident of its own — a skill never names an agent (ADR-630).
+          skill: 'deriving-a-design-system',
+          derive_source: source.path,
+        }),
+      { pending: 'Starting a chat…' },
+    );
     setNewSystemOpen(false);
     navigateToSurface('chat', { lane: lane.id });
   };
@@ -5249,6 +5330,7 @@ function StudioManage({
   const [isDefault, setIsDefault] = useState<boolean | null>(null);
   const [defaultBusy, setDefaultBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { runAction } = useFeedback();
 
   const load = useCallback(() => {
     setError(null);
@@ -5275,12 +5357,29 @@ function StudioManage({
   const toggleDefault = async () => {
     if (isDefault === null) return;
     setDefaultBusy(true);
-    setError(null);
+    const turningOn = !isDefault;
     try {
-      const r = await api.studio.setDefaultDesignSystem(isDefault ? null : manifestPath);
+      // Toast, not the in-surface banner: the act is DISCRETE (one flip, one
+      // outcome) and its consequence is INVISIBLE here — the workspace default
+      // only shows itself on the next artifact born wearing it, so the badge
+      // swapping on this card is a thin receipt. The success line names what
+      // changed; the failure has no surviving surface to sit beside, so it
+      // goes to the corridor too.
+      const r = await runAction(
+        () => api.studio.setDefaultDesignSystem(turningOn ? manifestPath : null),
+        {
+          pending: turningOn ? 'Setting as default…' : 'Clearing the default…',
+          success: turningOn ? 'Now the workspace default' : 'No longer the default',
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail ||
+                'Couldn’t change the workspace default'
+              : 'Couldn’t change the workspace default',
+        },
+      );
       setIsDefault(r.default_design_system === manifestPath);
     } catch {
-      setError('Could not update the workspace default.');
+      /* runAction reported it; the badge simply stays where it was */
     } finally {
       setDefaultBusy(false);
     }
@@ -5305,12 +5404,25 @@ function StudioManage({
   // stable, so worn-by and citations survive.
   const reimport = async (file: File) => {
     setReimporting(true);
-    setError(null);
     try {
-      await api.studio.importDesignSystem(file, detail?.name);
+      // Unlike the modal's first-time import, this one has no modal to report
+      // into — and its old home, this page's `{error}` line, is the slot that
+      // carries the LOAD failure ("could not be read"), a state that must
+      // survive. A transient verb's failure sharing that slot is the one-var-
+      // for-two-states hazard the canon calls out, so it moves to the corridor.
+      // A success line earns its place because a re-import of the same folder
+      // often looks identical on screen — nothing else would say it landed.
+      await runAction(() => api.studio.importDesignSystem(file, detail?.name), {
+        pending: 'Re-importing…',
+        success: 'Re-imported',
+        error: (e) =>
+          e instanceof APIError
+            ? (e.data as { detail?: string })?.detail || 'Couldn’t re-import that export'
+            : 'Couldn’t re-import that export',
+      });
       load(); // pick up the new sources/warnings
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Re-import failed.');
+    } catch {
+      /* runAction reported it; the design system on screen is unchanged */
     } finally {
       setReimporting(false);
     }

@@ -131,6 +131,40 @@ Entrance animations use **`tailwindcss-animate`** — the shadcn-ecosystem compa
 
 ---
 
+## The gate, and the one escape hatch (2026-09-17)
+
+`api/test_action_feedback_layer.py` holds this canon. Its load-bearing check
+**derives** its census: every mutating method in `web/lib/api/client.ts` (each
+`request(...)` carrying POST/PUT/PATCH/DELETE), every call site of every one of
+them, and each must ride `runAction` or be named in the gate's `IN_SURFACE`
+register. **Silence is the failure mode** — a new silent verb fails on arrival,
+with no edit to the gate.
+
+It is written that way because the previous version could not have caught what
+prompted this one. It asserted a dozen NAMED sites stayed migrated; two of its
+anchors were deleted by later refactors, so it crashed on a missing file and
+reported nothing for 22 days and 184 commits. And even green it was blind to a
+multi-select delete on Files that ran a bare `for` loop of `api.documents.delete`
+with no pending toast, because that site was not one of the dozen it knew. **A
+gate hardcoding a set cannot fail on what it omits.**
+
+`IN_SURFACE` is the ONE escape hatch, and it is a register, not an amnesty.
+Each entry is `(path, method, why)`, and a stale entry — one that no longer
+matches a real call site — **fails the gate**, so it cannot rot into a blanket
+exemption the way the old named-site list did. It holds exactly four shapes:
+
+| Shape | Why it is exempt | Example |
+|---|---|---|
+| Continuous persistence | Not a discrete verb — the canon excludes "a long save with its own progress bar" | Text's debounced autosave, Studio's queued CAS write |
+| A read side-effect | Not a member's verb at all | the attention cursor write-through |
+| Outcome-is-the-page | A full-page accept/redirect flow; a toast cannot survive it | invite / share accept, the OAuth return |
+| A non-React library helper | Holds no hook and CANNOT report; the calling component owns the feedback | `content-shapes/write.ts`, `rasterExport.ts` |
+
+Batch verbs are NOT exempt. One `runAction` wraps the whole loop with a pending
+line that names the size ("Moving 9 items to Trash…"); per-iteration would raise
+N toasts for one gesture, and bare leaves the member with nothing while a
+folder fan-out writes one revision per file underneath.
+
 ## Adoption checklist (for the next surface)
 
 1. `const { toast, confirm, runAction } = useFeedback();`

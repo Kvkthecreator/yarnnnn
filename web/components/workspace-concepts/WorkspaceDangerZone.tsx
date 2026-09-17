@@ -35,7 +35,8 @@ import {
   Users,
 } from "lucide-react";
 
-import { api } from "@/lib/api/client";
+import { api, APIError } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
 import { WorkspaceDeleteCard } from "./WorkspaceDeleteCard";
 import { WorkspaceExportCard } from "./WorkspaceExportCard";
@@ -105,7 +106,12 @@ export function WorkspaceDangerZone() {
   }, []);
   const [pending, setPending] = useState<WorkspaceAction | null>(null);
   const [confirming, setConfirming] = useState<WorkspaceAction | null>(null);
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // The outcome reports through the canonical action-feedback layer
+  // (ACTION-FEEDBACK.md). The bespoke `result` state that used to carry it is
+  // DELETED: one `{ ok, message }` var rendered both arms, so a failure printed
+  // in the same muted line as a success — the exact shared channel rule 6 bans.
+  // `pending` stays: that is the button's own spinner, not a notice.
+  const { runAction } = useFeedback();
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -123,21 +129,38 @@ export function WorkspaceDangerZone() {
   }, [loadStats]);
 
   const run = async (action: WorkspaceAction) => {
+    const isHistory = action === "work-history";
     setPending(action);
     setConfirming(null);
-    setResult(null);
     try {
-      const res =
-        action === "work-history"
-          ? await api.account.clearWorkHistory()
-          : await api.account.clearWorkspace();
-      setResult({ ok: true, message: res.message });
+      // The server counts what it removed and says so; that sentence is the
+      // only honest success line here (a fixed "Cleared" would claim a number
+      // nobody measured), so the success toast repeats it.
+      await runAction(
+        () =>
+          isHistory
+            ? api.account.clearWorkHistory()
+            : api.account.clearWorkspace(),
+        {
+          pending: isHistory ? "Clearing work history…" : "Clearing workspace…",
+          success: (res) =>
+            res.message ||
+            (isHistory ? "Work history cleared" : "Workspace cleared"),
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail ||
+                (isHistory
+                  ? "Couldn't clear work history."
+                  : "Couldn't clear the workspace.")
+              : isHistory
+                ? "Couldn't clear work history."
+                : "Couldn't clear the workspace.",
+        },
+      );
       await loadStats();
-    } catch (err) {
-      setResult({
-        ok: false,
-        message: err instanceof Error ? err.message : "Action failed",
-      });
+    } catch {
+      // Reported by runAction. The counts on the cards are left as they were —
+      // nothing was removed, so nothing to re-read.
     } finally {
       setPending(null);
     }
@@ -230,14 +253,6 @@ export function WorkspaceDangerZone() {
       {/* ADR-578 — ending the workspace, below the two that empty it. Clearing
           keeps the workspace; deleting ends it. */}
       <WorkspaceDeleteCard workspaceId={activeWorkspaceId} />
-
-      {result && (
-        <p
-          className={`text-sm ${result.ok ? "text-muted-foreground" : "text-destructive"}`}
-        >
-          {result.message}
-        </p>
-      )}
 
       {/* Two doors, two scopes. Connections moved to the Connectors pane
           (ADR-425 — a human's credential is an account object), so they need

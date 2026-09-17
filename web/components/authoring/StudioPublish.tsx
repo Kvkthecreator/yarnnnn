@@ -22,7 +22,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, APIError } from '@/lib/api/client';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 interface StudioPublishProps {
@@ -47,14 +48,16 @@ export function StudioPublish({
   const [open, setOpen] = useState(false);
   const [sites, setSites] = useState<SitesState>({ kind: 'loading' });
   const [siteId, setSiteId] = useState<string>('');
-  const [act, setAct] = useState<
-    | { kind: 'idle' }
-    | { kind: 'working' }
-    | { kind: 'done'; url: string; status: string; publiclyReadable?: boolean }
-    | { kind: 'error'; message: string }
-  >({ kind: 'idle' });
+  const [publishing, setPublishing] = useState(false);
+  /** The receipt the member reads AFTER the act (URL + the D7 readability
+   *  caveat). It stays in the panel; publishing/failed ride the canonical
+   *  action-feedback layer. */
+  const [receipt, setReceipt] = useState<
+    { url: string; status: string; publiclyReadable?: boolean } | null
+  >(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { navigateToSurface } = useSurfacePreferences();
+  const { runAction } = useFeedback();
 
   // The ShareExport click-away grammar (outclick + Escape + in-frame press).
   useEffect(() => {
@@ -98,37 +101,50 @@ export function StudioPublish({
     setOpen((o) => {
       const next = !o;
       if (next) {
-        setAct({ kind: 'idle' });
+        setReceipt(null);
         void loadSites();
       }
       return next;
     });
   }, [loadSites]);
 
+  // Publishing / failed ride the canonical action-feedback layer (the bespoke
+  // idle|working|done|error machine here re-implemented runAction). Only the
+  // receipt stays in the panel — it is read after the act, not during it.
   const run = useCallback(
     async (status: 'publish' | 'draft') => {
       if (!siteId) return;
-      setAct({ kind: 'working' });
+      setPublishing(true);
       try {
-        const res = await api.publish.wordpress({
-          path: artifactPath,
-          site_id: siteId,
-          status,
-        });
-        setAct({
-          kind: 'done',
+        const res = await runAction(
+          () =>
+            api.publish.wordpress({
+              path: artifactPath,
+              site_id: siteId,
+              status,
+            }),
+          {
+            pending: status === 'draft' ? 'Saving draft…' : 'Publishing…',
+            success: (r) =>
+              r.status === 'draft' ? 'Draft saved on your site' : 'Published',
+            error: (e) =>
+              e instanceof APIError
+                ? (e.data as { detail?: string })?.detail || 'Publish failed — try again.'
+                : 'Publish failed — try again.',
+          },
+        );
+        setReceipt({
           url: res.url,
           status: res.status,
           publiclyReadable: res.publicly_readable,
         });
-      } catch (e) {
-        setAct({
-          kind: 'error',
-          message: e instanceof Error ? e.message : 'Publish failed — try again.',
-        });
+      } catch {
+        // runAction already reported it; the panel stays open to retry.
+      } finally {
+        setPublishing(false);
       }
     },
-    [artifactPath, siteId],
+    [artifactPath, siteId, runAction],
   );
 
   const btn =
@@ -208,7 +224,7 @@ export function StudioPublish({
               </p>
             )}
 
-            {sites.kind === 'ready' && act.kind !== 'done' && (
+            {sites.kind === 'ready' && !receipt && (
               <>
                 <label className="block text-[10px] text-muted-foreground">
                   Site
@@ -228,25 +244,22 @@ export function StudioPublish({
                   <button
                     type="button"
                     className={actBtn}
-                    disabled={act.kind === 'working' || !siteId}
+                    disabled={publishing || !siteId}
                     onClick={() => void run('publish')}
                     title="Publish live, now — the post goes public on your site"
                   >
-                    {act.kind === 'working' ? 'Publishing…' : 'Publish'}
+                    {publishing ? 'Publishing…' : 'Publish'}
                   </button>
                   <button
                     type="button"
                     className={actBtn}
-                    disabled={act.kind === 'working' || !siteId}
+                    disabled={publishing || !siteId}
                     onClick={() => void run('draft')}
                     title="Send as a draft — it lands on your site unpublished, for a final look there"
                   >
                     Save as draft there
                   </button>
                 </div>
-                {act.kind === 'error' && (
-                  <p className="text-[10px] leading-snug text-red-500">{act.message}</p>
-                )}
                 <p className="text-[10px] leading-snug text-muted-foreground">
                   Published under your own account. The receipt lands beside the
                   post; nothing here ever publishes on a schedule.
@@ -254,27 +267,27 @@ export function StudioPublish({
               </>
             )}
 
-            {act.kind === 'done' && (
+            {receipt && (
               <div className="space-y-1">
                 <p className="text-[11px] text-foreground">
-                  {act.status === 'draft' ? 'Draft saved on your site ✓' : 'Published ✓'}
+                  {receipt.status === 'draft' ? 'Draft saved on your site ✓' : 'Published ✓'}
                 </p>
-                {act.url && (
+                {receipt.url && (
                   <a
-                    href={act.url}
+                    href={receipt.url}
                     target="_blank"
                     rel="noreferrer"
                     className="block truncate text-[10px] text-muted-foreground underline hover:text-foreground"
                   >
-                    {act.url}
+                    {receipt.url}
                   </a>
                 )}
                 {/* ADR-628 D7 — the platform accepted it, but nobody can read
                     it. Reporting plain success here is the incorrect-success
                     class pointed outward. Shown only when KNOWN false. */}
-                {act.publiclyReadable === false && (
+                {receipt.publiclyReadable === false && (
                   <p className="text-[10px] leading-snug text-amber-600">
-                    {act.status === 'draft'
+                    {receipt.status === 'draft'
                       ? 'Your site is not launched yet — launch it in WordPress when you want readers.'
                       : 'Live on your site, but no one can read it yet — the site is private or still “coming soon”. Launch it in WordPress to make this public.'}
                   </p>

@@ -62,7 +62,8 @@ import {
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, APIError } from '@/lib/api/client';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { PANE_HEADING, PANE_SECTION } from '@/lib/authoring/pane-spine';
 import {
   type StudioArrangement,
@@ -1378,6 +1379,7 @@ export function StudioDesignTab({
   artifactName,
   onRenameCommit,
 }: StudioDesignTabProps) {
+  const { runAction } = useFeedback();
   const doc = useMemo(() => {
     if (typeof window === 'undefined' || !html) return null;
     return new DOMParser().parseFromString(html, 'text/html');
@@ -1915,7 +1917,9 @@ export function StudioDesignTab({
   const [applyError, setApplyError] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
+  // The failure line moved to the canonical action-feedback layer; the RECEIPT
+  // stays — it is durable structured content (what landed, what was skipped,
+  // what the flatten could not resolve) the member reads after the import.
   const [importReceipt, setImportReceipt] = useState<{
     name: string;
     written: string[];
@@ -1927,22 +1931,28 @@ export function StudioDesignTab({
   const runImport = useCallback(
     async (f: File) => {
       setImporting(true);
-      setImportError(null);
       setImportReceipt(null);
       try {
-        const r = await api.studio.importDesignSystem(f);
+        const r = await runAction(() => api.studio.importDesignSystem(f), {
+          pending: 'Importing…',
+          success: (res) => `Imported “${res.name}”`,
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || 'Import failed.'
+              : 'Import failed.',
+        });
         setImportReceipt(r);
         // The picker reads the served vocabulary, so the new system is
         // invisible until it refetches — the exact staleness that made the
         // picker deny a design system that already existed (2026-07-16).
         onImported?.();
-      } catch (e) {
-        setImportError(e instanceof Error ? e.message : 'Import failed.');
+      } catch {
+        // runAction already reported it; the panel stays put to retry.
       } finally {
         setImporting(false);
       }
     },
-    [onImported],
+    [onImported, runAction],
   );
 
   // ADR-487 D9: INSIDE AN ARTIFACT THE SYSTEM IS WORN, NEVER LISTED.
@@ -2540,7 +2550,6 @@ export function StudioDesignTab({
                 'Import a design system…'
               )}
             </button>
-            {importError && <p className="mt-1 text-[10px] text-red-500">{importError}</p>}
             {importReceipt && (
               // The receipt, warnings included. An import that half-lands
               // SILENTLY is the failure this whole arc exists to prevent — so

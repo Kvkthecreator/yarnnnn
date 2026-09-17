@@ -23,7 +23,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Hash } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, APIError } from '@/lib/api/client';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 interface SendToSlackProps {
@@ -42,26 +43,26 @@ type ChannelsState =
   | { kind: 'ready'; channels: Channel[] }
   | { kind: 'error' };
 
-type ActState =
-  | { kind: 'idle' }
-  | { kind: 'working' }
-  | {
-      kind: 'done';
-      channel: string;
-      url?: string | null;
-      readBack: 'matched' | 'differs' | 'unreadable';
-      readBackDetail?: string;
-      folded: boolean;
-    }
-  | { kind: 'error'; message: string };
+/** The ADR-628 D8 receipt — the read-back verdict the member reads AFTER the
+ *  act. It stays in the panel (a durable report, not a point outcome); the
+ *  sending/failed channel is the canonical toast layer's. */
+type Receipt = {
+  channel: string;
+  url?: string | null;
+  readBack: 'matched' | 'differs' | 'unreadable';
+  readBackDetail?: string;
+  folded: boolean;
+};
 
 export function SendToSlack({ artifactPath, compact = false, coarsePointer = false }: SendToSlackProps) {
   const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<ChannelsState>({ kind: 'loading' });
   const [channelId, setChannelId] = useState<string>('');
-  const [act, setAct] = useState<ActState>({ kind: 'idle' });
+  const [sending, setSending] = useState(false);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { navigateToSurface } = useSurfacePreferences();
+  const { runAction } = useFeedback();
 
   // The ShareExport click-away grammar (outclick + Escape + in-frame press).
   useEffect(() => {
@@ -106,33 +107,45 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
     setOpen((o) => {
       const next = !o;
       if (next) {
-        setAct({ kind: 'idle' });
+        setReceipt(null);
         void loadChannels();
       }
       return next;
     });
   }, [loadChannels]);
 
+  // Sending / failed ride the canonical action-feedback layer (the bespoke
+  // idle|working|done|error machine here re-implemented runAction). Only the
+  // D8 read-back receipt stays in the panel — it is read after the act, not
+  // in the moment of it.
   const run = useCallback(async () => {
     if (!channelId) return;
-    setAct({ kind: 'working' });
+    setSending(true);
     try {
-      const res = await api.publish.slack({ path: artifactPath, channel_id: channelId });
-      setAct({
-        kind: 'done',
+      const res = await runAction(
+        () => api.publish.slack({ path: artifactPath, channel_id: channelId }),
+        {
+          pending: 'Sending to Slack…',
+          success: (r) => `Sent to ${r.channel}`,
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || 'Send failed — try again.'
+              : 'Send failed — try again.',
+        },
+      );
+      setReceipt({
         channel: res.channel,
         url: res.url,
         readBack: res.read_back,
         readBackDetail: res.read_back_detail,
         folded: res.folded,
       });
-    } catch (e) {
-      setAct({
-        kind: 'error',
-        message: e instanceof Error ? e.message : 'Send failed — try again.',
-      });
+    } catch {
+      // runAction already reported it; the panel stays open to retry.
+    } finally {
+      setSending(false);
     }
-  }, [artifactPath, channelId]);
+  }, [artifactPath, channelId, runAction]);
 
   const selected =
     channels.kind === 'ready' ? channels.channels.find((c) => c.id === channelId) : undefined;
@@ -204,7 +217,7 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
               </p>
             )}
 
-            {channels.kind === 'ready' && act.kind !== 'done' && (
+            {channels.kind === 'ready' && !receipt && (
               <>
                 <label className="block text-[10px] text-muted-foreground">
                   Channel
@@ -232,16 +245,13 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
                   <button
                     type="button"
                     className={actBtn}
-                    disabled={act.kind === 'working' || !channelId || needsInvite}
+                    disabled={sending || !channelId || needsInvite}
                     onClick={() => void run()}
                     title="Send now — the file's text is posted to the channel as one message"
                   >
-                    {act.kind === 'working' ? 'Sending…' : `Send to ${selected?.name ? `#${selected.name}` : 'channel'}`}
+                    {sending ? 'Sending…' : `Send to ${selected?.name ? `#${selected.name}` : 'channel'}`}
                   </button>
                 </div>
-                {act.kind === 'error' && (
-                  <p className="text-[10px] leading-snug text-red-500">{act.message}</p>
-                )}
                 <p className="text-[10px] leading-snug text-muted-foreground">
                   Sent under your own account, then read back to check it landed as
                   written. The receipt lands beside the file; nothing here ever sends
@@ -250,12 +260,12 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
               </>
             )}
 
-            {act.kind === 'done' && (
+            {receipt && (
               <div className="space-y-1">
-                <p className="text-[11px] text-foreground">Sent to {act.channel} ✓</p>
-                {act.url && (
+                <p className="text-[11px] text-foreground">Sent to {receipt.channel} ✓</p>
+                {receipt.url && (
                   <a
-                    href={act.url}
+                    href={receipt.url}
                     target="_blank"
                     rel="noreferrer"
                     className="block truncate text-[10px] text-muted-foreground underline hover:text-foreground"
@@ -264,23 +274,23 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
                   </a>
                 )}
                 {/* ADR-628 D8 — the read-back verdict. Never a silent "sent". */}
-                {act.readBack === 'matched' && (
+                {receipt.readBack === 'matched' && (
                   <p className="text-[10px] leading-snug text-muted-foreground">
                     Read back from Slack: it matches what was sent.
                   </p>
                 )}
-                {act.readBack === 'differs' && (
+                {receipt.readBack === 'differs' && (
                   <p className="text-[10px] leading-snug text-amber-600">
                     Read back from Slack: stored differently than sent
-                    {act.readBackDetail ? ` (${act.readBackDetail})` : ''}. Open it and check.
+                    {receipt.readBackDetail ? ` (${receipt.readBackDetail})` : ''}. Open it and check.
                   </p>
                 )}
-                {act.readBack === 'unreadable' && (
+                {receipt.readBack === 'unreadable' && (
                   <p className="text-[10px] leading-snug text-amber-600">
-                    Could not read it back from Slack{act.readBackDetail ? ` — ${act.readBackDetail}` : ''}. Open it and check.
+                    Could not read it back from Slack{receipt.readBackDetail ? ` — ${receipt.readBackDetail}` : ''}. Open it and check.
                   </p>
                 )}
-                {act.folded && (
+                {receipt.folded && (
                   <p className="text-[10px] leading-snug text-muted-foreground">
                     Long — readers will see “Show more”.
                   </p>

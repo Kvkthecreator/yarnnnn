@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api, APIError } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import type { BalanceEntry, SubscriptionStatus, SubscriptionTier } from "@/types";
 
 export function useSubscription() {
@@ -23,6 +24,14 @@ export function useSubscription() {
   // `null` = not yet loaded (or unavailable); `[]` = loaded and genuinely empty.
   const [history, setHistory] = useState<BalanceEntry[] | null>(null);
   const [historyHasMore, setHistoryHasMore] = useState(false);
+  // The three purchase/cancel verbs report through the canonical
+  // action-feedback layer (docs/design/ACTION-FEEDBACK.md). The hook is only
+  // ever called from the Billing pane, inside the authenticated shell where
+  // FeedbackProvider is mounted. `error` stays for the STATUS FETCH — it feeds
+  // `isForbidden` (the 403 member gate, ADR-491 D2) and a load failure must
+  // survive on the card — but a VERB's failure no longer writes it: the toast
+  // is that outcome's one channel, and setting both rendered it twice.
+  const { runAction } = useFeedback();
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -79,10 +88,18 @@ export function useSubscription() {
     try {
       setIsLoading(true);
       setError(null);
-      const { checkout_url } = await api.subscription.createTopup(amountUsd);
+      // No `success` line: the member is handed to the checkout page, and that
+      // page arriving is the outcome.
+      const { checkout_url } = await runAction(
+        () => api.subscription.createTopup(amountUsd),
+        {
+          pending: "Opening checkout\u2026",
+          error: (e) => toUserError(e, "Couldn't start that top-up").message,
+        },
+      );
       window.location.href = checkout_url;
-    } catch (err) {
-      setError(toUserError(err, "Failed to start top-up"));
+    } catch {
+      // Reported by the toast.
       setIsLoading(false);
     }
   };
@@ -91,10 +108,17 @@ export function useSubscription() {
     try {
       setIsLoading(true);
       setError(null);
-      const { checkout_url } = await api.subscription.createSubscription(nextTier);
+      // As with `topup`: the checkout page is the success, so no success line.
+      const { checkout_url } = await runAction(
+        () => api.subscription.createSubscription(nextTier),
+        {
+          pending: "Opening checkout\u2026",
+          error: (e) => toUserError(e, "Couldn't start that plan").message,
+        },
+      );
       window.location.href = checkout_url;
-    } catch (err) {
-      setError(toUserError(err, "Failed to start subscription"));
+    } catch {
+      // Reported by the toast.
       setIsLoading(false);
     }
   };
@@ -125,11 +149,15 @@ export function useSubscription() {
     try {
       setIsLoading(true);
       setError(null);
-      const res = await api.subscription.cancel();
+      const res = await runAction(() => api.subscription.cancel(), {
+        pending: "Cancelling\u2026",
+        success: "Plan cancelled",
+        error: (e) => toUserError(e, "Couldn't cancel that plan").message,
+      });
       await fetchStatus();
       return { ends_at: res.ends_at ?? null };
-    } catch (err) {
-      setError(toUserError(err, "Failed to cancel the plan"));
+    } catch {
+      // Reported by the toast.
       setIsLoading(false);
       return null;
     }

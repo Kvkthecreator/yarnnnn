@@ -35,6 +35,7 @@ import { GitCompare, Undo2, X } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { authorClass, formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
 
@@ -121,6 +122,7 @@ export function PaneActivityRail({
   /** The app's sentence for a non-success ledger event. */
   eventLine?: (e: RailEvent) => string;
 }) {
+  const { runAction } = useFeedback();
   const [revisions, setRevisions] = useState<RailRevision[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -207,12 +209,25 @@ export function PaneActivityRail({
       if (detail.content == null) throw new Error('revision has no content to restore');
       const headId = head.revisions?.[0]?.id ?? null;
       if (headId === rev.id) throw new Error('already the current version');
-      await api.workspace.editFile(
-        rev.path,
-        detail.content,
-        undefined,
-        `revert to revision ${rev.id.slice(0, 8)}`,
-        headId,
+      // Bound before the wrapper: the null check above does not survive into
+      // the callback's closure.
+      const content: string = detail.content;
+      // The peer of RevisionHistoryPanel's revert, and it carried even less —
+      // no wait, no success, and a raw error string. Same act, same words.
+      await runAction(
+        () =>
+          api.workspace.editFile(
+            rev.path,
+            content,
+            undefined,
+            `revert to revision ${rev.id.slice(0, 8)}`,
+            headId,
+          ),
+        {
+          pending: 'Restoring…',
+          success: `Restored the version from ${rev.id.slice(0, 8)}`,
+          error: 'Could not restore that version',
+        },
       );
       setExpandedId(null);
       setDiffText(null);
@@ -222,7 +237,7 @@ export function PaneActivityRail({
     } finally {
       setRevertBusy(false);
     }
-  }, [onReverted]);
+  }, [onReverted, runAction]);
 
   if (revisions === null) {
     return (

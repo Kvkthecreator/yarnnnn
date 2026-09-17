@@ -34,6 +34,7 @@ import { FileText, Folder, Download } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import {
@@ -435,6 +436,7 @@ function FileDownload({ node }: { node: WorkspaceTreeNode }) {
 // dropdown of one is noise.
 
 function FileOpensWith({ path }: { path: string }) {
+  const { runAction } = useFeedback();
   // ADR-518 click-pass run-1 finding: resolve WITH the file's kind, else a
   // document's row read "Studio (default)" and never offered Docs. This
   // panel reads the file anyway (for the override), so the kind rides the
@@ -475,10 +477,15 @@ function FileOpensWith({ path }: { path: string }) {
     setSaving(true);
     const next = id === handlers[0].id ? null : id; // choosing the registry default clears
     try {
-      await api.documents.setLaunchHandler(path, next);
+      // The failure used to be swallowed: the select snapped back to its old
+      // value with no reason given, which reads as the control refusing the
+      // click rather than the save failing.
+      await runAction(() => api.documents.setLaunchHandler(path, next), {
+        error: 'Could not change which app opens this file',
+      });
       setOverride(next);
     } catch {
-      /* the select reverts on the next read; nothing durable changed */
+      /* reported; the select keeps the stored value, which is the truth */
     } finally {
       setSaving(false);
     }

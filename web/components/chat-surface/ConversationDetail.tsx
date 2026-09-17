@@ -36,6 +36,7 @@ import { AgentFace } from '@/components/agents/AgentFace';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api, type Participant } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 
 export interface DetailAgentChoice {
   slug: string;
@@ -85,6 +86,7 @@ export function ConversationDetail({
   onBack,
   onCastChanged,
 }: ConversationDetailProps) {
+  const { runAction } = useFeedback();
   const [participants, setParticipants] = useState<Participant[]>(
     initialParticipants ?? [],
   );
@@ -164,7 +166,12 @@ export function ConversationDetail({
       setBusy(key);
       setError(null);
       try {
-        const res = await api.lanes.addParticipant(laneId, data);
+        // The inline `error` STAYS: it sits beside the roster the member is
+        // editing and must survive while they pick someone else (the canon's
+        // in-surface lane). The wait is what was missing.
+        const res = await runAction(() => api.lanes.addParticipant(laneId, data), {
+          pending: 'Adding…',
+        });
         commit(res.participants);
         setAdding(false);
       } catch (e) {
@@ -173,7 +180,7 @@ export function ConversationDetail({
         setBusy(null);
       }
     },
-    [laneId, commit],
+    [laneId, commit, runAction],
   );
 
   const remove = useCallback(
@@ -182,11 +189,15 @@ export function ConversationDetail({
       setBusy(key);
       setError(null);
       try {
-        const res = await api.lanes.removeParticipant(
-          laneId,
-          p.member_kind === 'human'
-            ? { principal_id: p.principal_id! }
-            : { agent_slug: p.agent_slug! },
+        const res = await runAction(
+          () =>
+            api.lanes.removeParticipant(
+              laneId,
+              p.member_kind === 'human'
+                ? { principal_id: p.principal_id! }
+                : { agent_slug: p.agent_slug! },
+            ),
+          { pending: 'Removing…' },
         );
         commit(res.participants);
       } catch (e) {
@@ -197,7 +208,7 @@ export function ConversationDetail({
         setBusy(null);
       }
     },
-    [laneId, commit],
+    [laneId, commit, runAction],
   );
 
   const label = (p: Participant) => {

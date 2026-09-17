@@ -40,7 +40,8 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { api } from "@/lib/api/client";
+import { api, APIError } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { formatRelativeTime } from "@/lib/formatting";
 import type { ConnectorMeta } from "@/lib/connectors/registry";
 import { SurfaceLink } from "@/components/shell/SurfaceLink";
@@ -152,13 +153,16 @@ export function ManageConnectionSubsurface({
   const [scopeError, setScopeError] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [probing, setProbing] = useState(false);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   // Operator-opened while dormant; forced open when the lane runs.
   const [captureOpen, setCaptureOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Saving the selection reports through the canonical action-feedback layer
+  // (docs/design/ACTION-FEEDBACK.md) — the bespoke "· saved" tail it replaces
+  // was a second success channel for one discrete verb.
+  const { runAction } = useFeedback();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -243,17 +247,24 @@ export function ManageConnectionSubsurface({
       else next.add(id);
       return next;
     });
-    setSavedAt(null);
   };
 
   const save = async () => {
     setSaving(true);
-    setError(null);
     try {
-      await api.integrations.updateSources(provider, Array.from(selected));
-      setSavedAt(Date.now());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save selection.");
+      await runAction(
+        () => api.integrations.updateSources(provider, Array.from(selected)),
+        {
+          pending: "Saving\u2026",
+          success: "Saved what this connection may read",
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || "Couldn't save that selection"
+              : "Couldn't save that selection",
+        },
+      );
+    } catch {
+      // Reported by the toast; the selection stays as the member left it.
     } finally {
       setSaving(false);
     }
@@ -652,7 +663,7 @@ export function ManageConnectionSubsurface({
                       <span className="text-xs text-muted-foreground">
                         {selected.size === 0
                           ? `nothing selected — the writer captures nothing`
-                          : `${selected.size} selected${savedAt ? " · saved" : ""}`}
+                          : `${selected.size} selected`}
                       </span>
                     </div>
                   )}

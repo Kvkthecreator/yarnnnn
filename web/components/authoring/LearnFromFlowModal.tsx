@@ -20,6 +20,7 @@ import { Working } from '@/components/shared/Working';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { api } from '@/lib/api/client';
+import { useFeedback } from '@/contexts/FeedbackContext';
 
 export interface LearnTarget {
   skill: string;
@@ -55,6 +56,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { runAction } = useFeedback();
 
   useEffect(() => {
     if (!open) return;
@@ -92,11 +94,16 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
 
   if (!open) return null;
 
+  // The WAIT rides the canonical layer (an upload can take a while and the
+  // modal gave no sign of it); the FAILURE stays inline — this modal stays
+  // open so the member can pick another file and try again right here.
   const uploadFile = async (file: File) => {
     setUploading(true);
     setErr(null);
     try {
-      const res = await api.documents.upload(file);
+      const res = await runAction(() => api.documents.upload(file), {
+        pending: 'Uploading…',
+      });
       const first = res.results?.[0];
       if (first?.success && first.workspace_path) {
         setSource({ path: first.workspace_path, name: first.filename });

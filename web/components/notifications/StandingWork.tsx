@@ -28,6 +28,7 @@ import { CalendarClock, FolderOpen, Loader2, Pause, Play, RefreshCw, Zap } from 
 import { Working } from '@/components/shared/Working';
 import { api, type StandingLastRun, type StandingSummary } from '@/lib/api/client';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatLedgerTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 
@@ -68,6 +69,7 @@ function scheduleLine(s: StandingSummary['schedule'], tz?: string | null): strin
 
 export function StandingWork() {
   const { navigateToSurface } = useSurfacePreferences();
+  const { runAction } = useFeedback();
   const [rows, setRows] = useState<StandingSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -89,7 +91,13 @@ export function StandingWork() {
     if (busy) return;
     setBusy(row.topic);
     try {
-      const res = await api.standing.run(row.topic);
+      // The per-row `note` STAYS: it is a durable result the member reads
+      // against that row (which file, what changed), not a transient outcome
+      // — the canon's in-surface lane. What was missing is the wait: a run
+      // takes seconds and the row said nothing while it ran.
+      const res = await runAction(() => api.standing.run(row.topic), {
+        pending: `Running ${row.topic}…`,
+      });
       const line = res.no_change
         ? 'Ran — nothing changed.'
         : res.success
@@ -106,18 +114,25 @@ export function StandingWork() {
       setBusy(null);
       void load();
     }
-  }, [busy, load]);
+  }, [busy, load, runAction]);
 
   const togglePause = useCallback(async (row: StandingSummary) => {
     if (busy) return;
     setBusy(row.topic);
     try {
-      await api.standing.update(row.topic, { paused: !row.paused });
+      // try/finally with NO catch: a failed pause threw into the void, the row
+      // reloaded unchanged, and the member read it as the toggle ignoring them.
+      await runAction(() => api.standing.update(row.topic, { paused: !row.paused }), {
+        success: row.paused ? 'Resumed' : 'Paused',
+        error: row.paused ? 'Could not resume this' : 'Could not pause this',
+      });
+    } catch {
+      /* reported; the reload below restores the true state */
     } finally {
       setBusy(null);
       void load();
     }
-  }, [busy, load]);
+  }, [busy, load, runAction]);
 
   if (rows === null) {
     return (

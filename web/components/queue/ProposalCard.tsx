@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { proposalActionLabel, proposalQueuedByDialLine } from '@/lib/proposal-labels';
 import { InteractiveModal } from './InteractiveModal';
 
@@ -456,6 +457,7 @@ interface ProposalDetailProps {
 }
 
 function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
+  const { runAction } = useFeedback();
   // ADR-632: the steward retired. A verdict is the operator's (`human:`) or,
   // on historical rows, the retired steward's.
   const personaName = verdictGiverLabel(proposal.reviewer_identity);
@@ -493,16 +495,23 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
     liveProposal.status,
   );
 
+  // The modal CLOSES on success, so a transient outcome has nowhere to live
+  // in-surface — the toast corridor is the right home. `errorMsg` survives for
+  // the REFUSED case (res.success === false), where the modal stays open and
+  // the reason must sit beside the decision the member is still making.
   const handleApprove = async () => {
     setStatus('approving');
     setErrorMsg(null);
     try {
-      const res = await api.proposals.approve(liveProposal.id);
+      const res = await runAction(() => api.proposals.approve(liveProposal.id), {
+        pending: 'Approving…',
+        success: (r) => (r.success ? 'Approved' : ''),
+        error: 'Could not approve this',
+      });
       if (res.success) { setStatus('approved'); onClose(); }
       else { setStatus('error'); setErrorMsg(res.error || 'Execution failed'); }
-    } catch (err) {
+    } catch {
       setStatus('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Network error');
     }
   };
 
@@ -510,12 +519,15 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
     setStatus('rejecting');
     setErrorMsg(null);
     try {
-      const res = await api.proposals.reject(liveProposal.id);
+      const res = await runAction(() => api.proposals.reject(liveProposal.id), {
+        pending: 'Rejecting…',
+        success: (r) => (r.success ? 'Rejected' : ''),
+        error: 'Could not reject this',
+      });
       if (res.success) { setStatus('rejected'); onClose(); }
       else { setStatus('error'); setErrorMsg('Rejection failed'); }
-    } catch (err) {
+    } catch {
       setStatus('error');
-      setErrorMsg(err instanceof Error ? err.message : 'Network error');
     }
   };
 

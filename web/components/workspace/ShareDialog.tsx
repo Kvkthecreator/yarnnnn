@@ -46,7 +46,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
+import { COPY_FEEDBACK_MS, useFeedback } from '@/contexts/FeedbackContext';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
 
@@ -101,9 +101,9 @@ function shortDate(iso?: string | null): string {
 }
 
 export function ShareDialog({ target, onClose }: ShareDialogProps) {
+  const { runAction } = useFeedback();
   const [tab, setTab] = useState<Tab>('link');
   const [copied, setCopied] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [links, setLinks] = useState<ShareRow[] | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [minting, setMinting] = useState(false);
@@ -162,7 +162,6 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
     if (!target) return;
     setTab('link');
     setCopied(null);
-    setError(null);
     setLinks(null);
     setForceMint(null);
     setStale(false);
@@ -227,9 +226,16 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
   const mint = useCallback(async (role: ShareRole) => {
     if (!path || !target) return;
     setMinting(true);
-    setError(null);
     try {
-      const res = await api.workspace.createShare(path, target.name, undefined, role);
+      const res = await runAction(
+        () => api.workspace.createShare(path, target.name, undefined, role),
+        {
+          pending: 'Creating link…',
+          error: (e) =>
+            (e instanceof APIError ? (e.data as { detail?: string })?.detail : null)
+            || 'Could not create the link. Try again.',
+        },
+      );
       if (res.share_link && typeof navigator !== 'undefined' && navigator.clipboard) {
         await navigator.clipboard.writeText(res.share_link).then(
           () => setCopied(res.share_link ?? null),
@@ -238,9 +244,8 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
       }
       setForceMint(null);
       await loadLinks();
-    } catch (e) {
-      const data = e instanceof APIError ? (e.data as { detail?: unknown } | undefined) : undefined;
-      setError(typeof data?.detail === 'string' ? data.detail : 'Could not create the link. Try again.');
+    } catch {
+      /* reported by the layer; the dialog stays open to retry */
     } finally {
       setMinting(false);
     }
@@ -256,37 +261,50 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
     }
   }, []);
 
+  // Revoke used to swallow its failure: the spinner stopped, the row stayed,
+  // and nothing said the link was STILL LIVE. On an access act that reads as
+  // "revoked" — the one reading a member must never get wrong. It reports now.
   const revoke = useCallback(async (id: string) => {
     setRevoking(id);
     try {
-      await api.workspace.revokeShare(id);
+      await runAction(() => api.workspace.revokeShare(id), {
+        pending: 'Revoking…',
+        success: 'Link revoked',
+        error: (e) =>
+          (e instanceof APIError ? (e.data as { detail?: string })?.detail : null)
+          || 'Could not revoke that link — it is still live.',
+      });
       await loadLinks();
     } catch {
-      /* the row stays; the next load shows the truth */
+      /* reported; the row stays, which is the truth */
     } finally {
       setRevoking(null);
     }
-  }, [loadLinks]);
+  }, [loadLinks, runAction]);
 
   const invite = useCallback(async () => {
     const addr = email.trim();
     if (!addr) return;
     setInviting(true);
-    setInviteNote(null);
     try {
-      await api.workspace.inviteMember(addr);
+      // `inviteNote` used to carry BOTH outcomes in one string — the shape the
+      // canon bans (rule 6), because a failure then renders in the success
+      // dress. Success and failure are two channels now.
+      await runAction(() => api.workspace.inviteMember(addr), {
+        pending: 'Sending invite…',
+        success: `Invited ${addr}.`,
+        error: (e) =>
+          (e instanceof APIError ? (e.data as { detail?: string })?.detail : null)
+          || 'Could not send that invite.',
+      });
       setEmail('');
-      setInviteNote(`Invited ${addr}.`);
       await loadPeople();
-    } catch (e) {
-      const data = e instanceof APIError ? (e.data as { detail?: unknown } | undefined) : undefined;
-      setInviteNote(
-        typeof data?.detail === 'string' ? data.detail : 'Could not send that invite.',
-      );
+    } catch {
+      /* reported; the address stays in the field so it can be retried */
     } finally {
       setInviting(false);
     }
-  }, [email, loadPeople]);
+  }, [email, loadPeople, runAction]);
 
   if (!target) return null;
 
@@ -446,7 +464,6 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                   </button>
                 </>
               )}
-              {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
             </div>
           )}
 

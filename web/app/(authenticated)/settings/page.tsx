@@ -253,11 +253,14 @@ export default function SettingsPage() {
     setNotificationPrefs(next);
     setIsSavingNotifications(true);
     try {
-      await api.memberState.put('notification_prefs', next);
-    } catch (err) {
-      console.error("Failed to update notification preference:", err);
+      // Optimistic, so no `pending` — the toggle already moved. This already
+      // reported its failure correctly; routing it through runAction keeps the
+      // one error channel and puts the call inside the census like every peer.
+      await runAction(() => api.memberState.put('notification_prefs', next), {
+        error: "Couldn't save that setting",
+      });
+    } catch {
       setNotificationPrefs(previous);
-      toast({ message: "Couldn't save that setting", description: "Your change was not stored — try again.", kind: "error" });
     } finally {
       setIsSavingNotifications(false);
     }

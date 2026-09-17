@@ -167,7 +167,7 @@ export function RevisionHistoryPanel({
   const [diffIdentical, setDiffIdentical] = useState(false);
   const [revertBusy, setRevertBusy] = useState(false);
   const [revertError, setRevertError] = useState<string | null>(null);
-  const { toast } = useFeedback();
+  const { toast, runAction } = useFeedback();
 
   const fetchRevisions = useCallback(async () => {
     setLoading(true);
@@ -222,17 +222,34 @@ export function RevisionHistoryPanel({
         if (detail.content === null || detail.content === undefined) {
           throw new Error('Revision has no content to restore');
         }
+        // Bound before the wrapper: the narrowing above does not survive into
+        // the callback's closure.
+        const content: string = detail.content;
         const shortId = rev.id.slice(0, 8);
         // ADR-406 D2 — conditional write: headId is the head this panel
         // loaded (revisions[0]). If another writer moved the file past it
         // while the operator was reading history, the server rejects with
         // 409 instead of silently clobbering the newer revision.
-        await api.workspace.editFile(
-          path,
-          detail.content,
-          undefined,
-          `revert to revision ${shortId}`,
-          headId
+        // The 409 branch below is a WITNESS moment and keeps its own richer
+        // toast. This wrapper covers the ordinary path, which had neither a
+        // wait nor a success: a revert writes a whole revision and the panel
+        // sat still while it did.
+        await runAction(
+          () =>
+            api.workspace.editFile(
+              path,
+              content,
+              undefined,
+              `revert to revision ${shortId}`,
+              headId
+            ),
+          {
+            pending: 'Restoring…',
+            success: `Restored the version from ${shortId}`,
+            // The 409 is re-thrown to the catch below, which replaces this
+            // line with the who-moved-past-you sentence.
+            error: (e) => (staleWriteHead(e) ? '' : 'Could not restore that version'),
+          },
         );
         // Close diff view + refetch
         setSelectedId(null);
@@ -263,7 +280,7 @@ export function RevisionHistoryPanel({
         setRevertBusy(false);
       }
     },
-    [path, headId, fetchRevisions, onRevert, toast]
+    [path, headId, fetchRevisions, onRevert, toast, runAction]
   );
 
   const totalCount = revisions.length;

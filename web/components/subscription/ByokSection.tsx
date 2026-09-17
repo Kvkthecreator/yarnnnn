@@ -12,7 +12,8 @@
  */
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api/client";
+import { api, APIError } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { Button } from "@/components/ui/button";
 import { Loader2, KeyRound, Check } from "lucide-react";
 import type { ByokStatus } from "@/types";
@@ -31,7 +32,10 @@ export function ByokSection() {
   const [apiKey, setApiKey] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  // Save / turn on-off / remove are discrete verbs: they report through the
+  // canonical action-feedback layer (docs/design/ACTION-FEEDBACK.md). The
+  // bespoke `err` banner they used to share is gone.
+  const { runAction } = useFeedback();
 
   useEffect(() => {
     let cancelled = false;
@@ -55,13 +59,19 @@ export function ByokSection() {
   const handleSave = async () => {
     if (!apiKey.trim()) return;
     setSaving(true);
-    setErr(null);
     try {
-      const s = await api.workspace.setByok(provider, apiKey.trim());
+      const s = await runAction(() => api.workspace.setByok(provider, apiKey.trim()), {
+        pending: "Saving your key\u2026",
+        success: "Key saved",
+        error: (e) =>
+          e instanceof APIError
+            ? (e.data as { detail?: string })?.detail || "Couldn't save that key"
+            : "Couldn't save that key",
+      });
       setStatus(s);
       setApiKey(""); // never keep the plaintext in state after save
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not save the key");
+    } catch {
+      // Reported by the toast; the key stays in the field to be corrected.
     } finally {
       setSaving(false);
     }
@@ -69,13 +79,22 @@ export function ByokSection() {
 
   const handleToggle = async () => {
     if (!status) return;
+    const turningOn = !status.enabled;
     setToggling(true);
-    setErr(null);
     try {
-      const s = await api.workspace.toggleByok(!status.enabled);
+      const s = await runAction(() => api.workspace.toggleByok(turningOn), {
+        pending: turningOn ? "Turning on your keys\u2026" : "Turning off your keys\u2026",
+        success: turningOn
+          ? "Chat lanes now run on your keys"
+          : "Chat lanes are back on this workspace's allowance",
+        error: (e) =>
+          e instanceof APIError
+            ? (e.data as { detail?: string })?.detail || "Couldn't change that setting"
+            : "Couldn't change that setting",
+      });
       setStatus(s);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not update BYOK");
+    } catch {
+      // Reported by the toast; the card keeps showing the state that still holds.
     } finally {
       setToggling(false);
     }
@@ -83,12 +102,18 @@ export function ByokSection() {
 
   const handleClear = async () => {
     setToggling(true);
-    setErr(null);
     try {
-      const s = await api.workspace.clearByok();
+      const s = await runAction(() => api.workspace.clearByok(), {
+        pending: "Removing your key\u2026",
+        success: "Key removed",
+        error: (e) =>
+          e instanceof APIError
+            ? (e.data as { detail?: string })?.detail || "Couldn't remove that key"
+            : "Couldn't remove that key",
+      });
       setStatus(s);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Could not remove the key");
+    } catch {
+      // Reported by the toast; the key is still in place.
     } finally {
       setToggling(false);
     }
@@ -110,12 +135,6 @@ export function ByokSection() {
         those model calls bill to your provider and draw nothing from this workspace&rsquo;s
         allowance. The system agent always runs on our keys.
       </p>
-
-      {err && (
-        <div className="p-2 rounded border border-destructive/20 bg-destructive/5 text-xs text-destructive">
-          {err}
-        </div>
-      )}
 
       {/* Current key state */}
       {status?.configured ? (

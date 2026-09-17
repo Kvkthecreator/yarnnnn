@@ -15,15 +15,13 @@
  *   - Bundle taglines + "(Reference)" + COMING SOON deduplicated
  *
  * State machine:
- *   - opSuccess and opError live here (the only block with mutations)
+ *   - activate/deactivate outcomes ride the canonical feedback layer
  *   - Refresh after activate/deactivate is owned by the parent via onMutation
  */
 
 import { useState } from 'react';
 import {
   Loader2,
-  Check,
-  AlertCircle,
   Sparkles,
   Power,
   Link2,
@@ -32,6 +30,7 @@ import {
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { getPlatformDisplay } from '@/lib/platform-display';
 
 type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
@@ -47,10 +46,9 @@ interface ProgramLifecycleDrawerProps {
 }
 
 export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDrawerProps) {
+  const { runAction } = useFeedback();
   const [expanded, setExpanded] = useState(false);
   const [isMutating, setIsMutating] = useState<string | null>(null);
-  const [opError, setOpError] = useState<string | null>(null);
-  const [opSuccess, setOpSuccess] = useState<string | null>(null);
 
   const activeProgram = state.active_program_slug
     ? state.available_programs.find(p => p.slug === state.active_program_slug) ?? null
@@ -65,25 +63,36 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
     p => p.slug !== state.active_program_slug,
   );
 
+  // The `opSuccess` / `opError` pair here was a hand-rolled toast — two styled
+  // banners, one green one red, re-implementing what the layer already does.
+  // Deleted; both outcomes ride the corridor now (canon rule 5).
   const handleActivate = async (slug: string) => {
-    setIsMutating(slug); setOpError(null);
+    setIsMutating(slug);
     try {
-      await api.programs.activate(slug);
-      setOpSuccess(`Activated ${slug}`);
+      await runAction(() => api.programs.activate(slug), {
+        pending: `Activating ${slug}…`,
+        success: `Activated ${slug}`,
+        error: (e) => (e instanceof APIError ? e.message : 'Activation failed'),
+      });
       await onMutation();
-    } catch (err) {
-      setOpError(err instanceof APIError ? err.message : 'Activation failed');
+    } catch {
+      /* reported */
     } finally { setIsMutating(null); }
   };
 
   const handleDeactivate = async () => {
-    setIsMutating('deactivate'); setOpError(null);
+    setIsMutating('deactivate');
     try {
-      const res = await api.programs.deactivate();
-      if (res.deactivated) setOpSuccess(`Deactivated ${res.prior_program_slug}`);
+      await runAction(() => api.programs.deactivate(), {
+        pending: 'Deactivating…',
+        // Only a real deactivation gets a line — the server can answer "there
+        // was nothing running", and claiming otherwise would be a lie.
+        success: (res) => (res.deactivated ? `Deactivated ${res.prior_program_slug}` : ''),
+        error: (e) => (e instanceof APIError ? e.message : 'Deactivation failed'),
+      });
       await onMutation();
-    } catch (err) {
-      setOpError(err instanceof APIError ? err.message : 'Deactivation failed');
+    } catch {
+      /* reported */
     } finally { setIsMutating(null); }
   };
 
@@ -220,19 +229,6 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
             </p>
           )}
 
-          {/* Op feedback */}
-          {opError && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-2">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>{opError}</span>
-            </div>
-          )}
-          {opSuccess && (
-            <div className="rounded-md border border-green-500/30 bg-green-500/5 px-3 py-2 text-xs text-green-700 dark:text-green-400 flex items-center gap-2">
-              <Check className="w-3.5 h-3.5 shrink-0" />
-              <span>{opSuccess}</span>
-            </div>
-          )}
         </div>
       )}
     </section>

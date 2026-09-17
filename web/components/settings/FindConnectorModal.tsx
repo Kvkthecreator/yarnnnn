@@ -32,7 +32,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Search, ArrowLeft, X } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
-import { api, type DirectoryEntry } from '@/lib/api/client';
+import { api, APIError, type DirectoryEntry } from '@/lib/api/client';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
 interface FindConnectorModalProps {
@@ -90,6 +91,7 @@ export function FindConnectorModal({
   const [pasteUrl, setPasteUrl] = useState('');
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const { runAction } = useFeedback();
 
   const reset = useCallback(() => {
     setStep('browse');
@@ -165,17 +167,34 @@ export function FindConnectorModal({
     setAttaching(true);
     setPickError(null);
     try {
-      const res = await api.connectors.attach({
-        url: picked.url,
-        key: picked.key ?? null,
-        title: picked.title ?? null,
-        category: picked.category ?? null,
-        header_name: headerName.trim() || null,
-        header_value: headerValue.trim() || null,
-        client_id: clientId.trim() || null,
-        client_secret: clientSecret.trim() || null,
-        redirect_to: redirectTo,
-      });
+      // The toast is the outcome notice (docs/design/ACTION-FEEDBACK.md); the
+      // in-surface `pickError` below stays because a failure has to remain
+      // legible ON the server's own step, beside the fields the member may
+      // need to correct — a toast evaporates and the modal is still open.
+      const res = await runAction(
+        () =>
+          api.connectors.attach({
+            url: picked.url,
+            key: picked.key ?? null,
+            title: picked.title ?? null,
+            category: picked.category ?? null,
+            header_name: headerName.trim() || null,
+            header_value: headerValue.trim() || null,
+            client_id: clientId.trim() || null,
+            client_secret: clientSecret.trim() || null,
+            redirect_to: redirectTo,
+          }),
+        {
+          pending: `Connecting to ${picked.title ?? 'the server'}\u2026`,
+          // A redirect leaves the page, so the arrival is the receipt there;
+          // the quiet success line is for the attach that finishes here.
+          success: (r) => (r.authorization_url ? '' : `Connected to ${picked.title ?? 'the server'}`),
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || "Couldn't connect to that server"
+              : "Couldn't connect to that server",
+        },
+      );
       if (res.authorization_url) {
         window.location.href = res.authorization_url;
         return;

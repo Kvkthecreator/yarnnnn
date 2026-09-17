@@ -18,6 +18,7 @@ import { AtSign } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useFeedback } from '@/contexts/FeedbackContext';
 
 interface MentionRow {
   conversation_id: string;
@@ -29,6 +30,7 @@ interface MentionRow {
 }
 
 export function MentionQueue() {
+  const { runAction } = useFeedback();
   const [rows, setRows] = useState<MentionRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
@@ -56,7 +58,12 @@ export function MentionQueue() {
       const key = `${m.conversation_id}:${m.sequence}`;
       setResolving(key);
       try {
-        await api.mentions.markRead(m.conversation_id, m.sequence);
+        // The row correctly SURVIVES a failure (an unadvanced cursor is still
+        // unread) — but it did so in silence, so a failed dismiss looked like
+        // a click that missed. The row still stays; now it says why.
+        await runAction(() => api.mentions.markRead(m.conversation_id, m.sequence), {
+          error: 'Could not clear that mention',
+        });
         // Optimistic local clear of everything the cursor now covers.
         setRows((prev) =>
           prev.filter(
@@ -70,7 +77,7 @@ export function MentionQueue() {
         setResolving(null);
       }
     },
-    [],
+    [runAction],
   );
 
   if (!loaded || rows.length === 0) return null;

@@ -291,21 +291,37 @@ export function useFileOrganizeVerbs(
     async (fromPaths: string[], destFolder: string) => {
       const moved: string[] = [];
       const failed: string[] = [];
-      for (const from of fromPaths) {
-        const leaf = from.slice(from.lastIndexOf('/') + 1);
-        const newPath = destFolder.endsWith('/') ? `${destFolder}${leaf}` : `${destFolder}/${leaf}`;
-        if (newPath === from) continue;
-        try {
-          await api.documents.move(from, newPath);
-          moved.push(newPath);
-        } catch {
-          failed.push(leaf);
-        }
-      }
+      // ONE runAction around the WHOLE loop, not one per member (2026-09-17).
+      // Per-iteration would raise N toasts for one gesture; bare — as this was
+      // — leaves a 20-file move with no in-flight signal at all, which is what
+      // "delete did nothing" actually was. The pending line NAMES the size so
+      // the wait is legible while it runs; the outcome can only be phrased
+      // after the fact, because a partial result is the normal case here.
+      await runAction(
+        async () => {
+          for (const from of fromPaths) {
+            const leaf = from.slice(from.lastIndexOf('/') + 1);
+            const newPath = destFolder.endsWith('/') ? `${destFolder}${leaf}` : `${destFolder}/${leaf}`;
+            if (newPath === from) continue;
+            try {
+              await api.documents.move(from, newPath);
+              moved.push(newPath);
+            } catch {
+              failed.push(leaf);
+            }
+          }
+        },
+        {
+          pending: `Moving ${fromPaths.length} item${fromPaths.length === 1 ? '' : 's'}…`,
+          // The caller composes the outcome sentence (it knows the destination
+          // and the locked set), so this reports only the in-flight half.
+          success: undefined,
+        },
+      );
       if (moved.length) onAfterMutate?.(moved[moved.length - 1], fromPaths[0]);
       return { moved, failed };
     },
-    [onAfterMutate],
+    [runAction, onAfterMutate],
   );
 
   /**
@@ -507,21 +523,37 @@ export function useFileOrganizeVerbs(
       });
       if (!ok) return { trashed, failed, locked };
 
-      for (const t of eligible) {
-        try {
-          if (t.isFolder) await api.documents.trashFolder(t.path);
-          else await api.documents.delete(t.path);
-          trashed.push(t.path);
-        } catch {
-          failed.push(t.name);
-        }
-      }
+      // ONE runAction around the WHOLE loop — see commitMoveMany for why not
+      // per-iteration. This is the site the operator reported as "delete did
+      // nothing": the confirm in front of it was always canonical, but the
+      // execution ran bare, so an N-file trash was silent for its whole
+      // duration and a folder fan-out (one request per file underneath) was
+      // the worst case. The summary toast the CALLER raises afterwards cannot
+      // cover the wait — it only exists once the loop is over.
+      await runAction(
+        async () => {
+          for (const t of eligible) {
+            try {
+              if (t.isFolder) await api.documents.trashFolder(t.path);
+              else await api.documents.delete(t.path);
+              trashed.push(t.path);
+            } catch {
+              failed.push(t.name);
+            }
+          }
+        },
+        {
+          pending: `Moving ${eligible.length} item${eligible.length === 1 ? '' : 's'} to Trash…`,
+          // The caller phrases the outcome — it alone knows the locked count.
+          success: undefined,
+        },
+      );
       // ONCE, at the end — calling it per member would clear the selection
       // mid-loop and reload the explorer N times.
       if (trashed.length) onAfterMutate?.(null, trashed[0]);
       return { trashed, failed, locked };
     },
-    [confirm, onAfterMutate],
+    [confirm, runAction, onAfterMutate],
   );
 
   const modals = (

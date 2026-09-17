@@ -52,6 +52,7 @@ import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-ic
 import { AgentMark } from './AgentIcon';
 import { EngineChooserModal, type EngineRow } from './EngineChooserModal';
 import { cn } from '@/lib/utils';
+import { useFeedback } from '@/contexts/FeedbackContext';
 
 // Provenance, rendered from the field. A member-authored agent simply lacks
 // the mark — there is no "yours" badge, because the member already knows.
@@ -537,6 +538,7 @@ function AgentDetail({
 }
 
 export function AgentsSurface() {
+  const { runAction } = useFeedback();
   const params = useSearchParams();
   const { setSurfaceParams } = useSurfacePreferences();
   const [agents, setAgents] = useState<AgentRow[] | null>(null);
@@ -569,7 +571,14 @@ export function AgentsSurface() {
   // a client that kept its own optimistic copy would show a scoping the lane
   // does not have.
   const scopeConnectors = async (slug: string, platforms: string[] | null) => {
-    const res = await api.agentConnectors.set(slug, platforms);
+    // Neither of these two verbs had a try/catch at all: a rejection was an
+    // unhandled promise, so a failed scoping left the switch showing a
+    // reach the agent does not have and said nothing.
+    const res = await runAction(() => api.agentConnectors.set(slug, platforms), {
+      pending: 'Saving…',
+      success: 'Saved what this agent may reach',
+      error: 'Could not save that — this agent keeps the reach it had',
+    });
     setOptIn(res.opt_in ?? {});
   };
 
@@ -592,7 +601,14 @@ export function AgentsSurface() {
     // no `model` key, so `_read_member_state_engine` returns None and the next
     // step of the precedence stands — the same outcome as no row at all. The
     // narrowing is what makes this safe, so the clear needs no new path.
-    await api.memberState.put(`agent_engine:${slug}`, model ? { model } : {});
+    await runAction(
+      () => api.memberState.put(`agent_engine:${slug}`, model ? { model } : {}),
+      {
+        pending: 'Saving…',
+        success: model ? 'Engine changed' : 'Back to the declared engine',
+        error: 'Could not change the engine',
+      },
+    );
     setAgents((prev) =>
       (prev ?? []).map((a) =>
         a.slug === slug

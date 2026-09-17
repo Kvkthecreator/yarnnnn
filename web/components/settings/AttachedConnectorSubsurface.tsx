@@ -22,7 +22,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
-  Check,
   ExternalLink,
   Loader2,
   Plug,
@@ -30,8 +29,9 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { api, type AttachedConnector } from "@/lib/api/client";
+import { api, APIError, type AttachedConnector } from "@/lib/api/client";
 import { Working } from '@/components/shared/Working';
+import { useFeedback } from "@/contexts/FeedbackContext";
 
 type Mode = "off" | "propose" | "direct";
 
@@ -79,8 +79,11 @@ export function AttachedConnectorSubsurface({
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, Mode>>({});
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Save and Refresh report through the canonical action-feedback layer
+  // (docs/design/ACTION-FEEDBACK.md); `error` below stays for the LOAD, which
+  // has no verb behind it and must survive until the member retries.
+  const { runAction } = useFeedback();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,17 +111,22 @@ export function AttachedConnectorSubsurface({
 
   const save = async () => {
     setSaving(true);
-    setError(null);
     try {
       const aperture: Record<string, "direct" | "propose"> = {};
       for (const [tool, mode] of Object.entries(draft)) {
         if (mode === "direct" || mode === "propose") aperture[tool] = mode;
       }
-      const res = await api.connectors.setAperture(slug, aperture);
+      const res = await runAction(() => api.connectors.setAperture(slug, aperture), {
+        pending: "Saving\u2026",
+        success: "Saved what this connector may do",
+        error: (e) =>
+          e instanceof APIError
+            ? (e.data as { detail?: string })?.detail || "Couldn't save that setting"
+            : "Couldn't save that setting",
+      });
       if (res.connector) setRow(res.connector);
-      setSavedAt(Date.now());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save.");
+    } catch {
+      // Reported by the toast; the draft stays as the member left it.
     } finally {
       setSaving(false);
     }
@@ -126,12 +134,18 @@ export function AttachedConnectorSubsurface({
 
   const refreshTools = async () => {
     setRefreshing(true);
-    setError(null);
     try {
-      await api.connectors.refresh(slug);
+      await runAction(() => api.connectors.refresh(slug), {
+        pending: "Checking what this server offers\u2026",
+        success: "Tool list updated",
+        error: (e) =>
+          e instanceof APIError
+            ? (e.data as { detail?: string })?.detail || "Couldn't reach that server"
+            : "Couldn't reach that server",
+      });
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not list the server's tools.");
+    } catch {
+      // Reported by the toast; the tools already on screen stay as they were.
     } finally {
       setRefreshing(false);
     }
@@ -251,7 +265,6 @@ export function AttachedConnectorSubsurface({
                             title={m.hint}
                             onClick={() => {
                               setDraft((d) => ({ ...d, [t.name]: m.value }));
-                              setSavedAt(null);
                             }}
                             className={`px-2.5 py-1 ${
                               mode === m.value
@@ -280,12 +293,6 @@ export function AttachedConnectorSubsurface({
               </button>
               <span className="text-xs text-muted-foreground">
                 {exposed} of {row.tools.length} tools offered
-                {savedAt && !dirty ? (
-                  <>
-                    {" "}
-                    · <Check className="inline h-3 w-3" /> saved
-                  </>
-                ) : null}
               </span>
             </div>
           </SectionShell>

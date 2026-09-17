@@ -51,6 +51,7 @@ import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { isSubmitKey } from '@/lib/shell/submit-key';
 
 interface LaneInfo {
@@ -156,6 +157,7 @@ export function ChatSurface() {
     [citeParam],
   );
   const { userId } = useSurfacePreferences();
+  const { runAction } = useFeedback();
   const { members: wsMembers } = useWorkspaceMembers();
   // The workspace's other humans — invitable into any conversation (ADR-495
   // D3: one species-blind invite; a person is a participant like any other).
@@ -637,7 +639,12 @@ export function ChatSurface() {
       // ADR-614 D1 — the door sends WHO or WHICH ENGINE. Naming a colleague
       // seeds the cast server-side and resolves their engine there; the client
       // never names a model on the member's behalf, and never both.
-      const lane = await api.lanes.create(choice);
+      // The modal STAYS OPEN on failure and renders what we throw (the live
+      // 409 "Lane limit reached" below), so the error keeps its in-surface
+      // home — one failure, one channel. The wait is what was missing.
+      const lane = await runAction(() => api.lanes.create(choice), {
+        pending: 'Starting the chat…',
+      });
       const info: LaneInfo = {
         id: lane.id,
         name: lane.name,
@@ -653,19 +660,27 @@ export function ChatSurface() {
       // renders what we throw.
       throw e instanceof Error ? e : new Error('Could not start this chat');
     }
-  }, [setParam]);
+  }, [setParam, runAction]);
 
+  // The archive used to `catch {}`: the lane vanished from the list whether or
+  // not the server archived it, so a failure looked exactly like a success and
+  // the lane returned on the next load. The row is removed only AFTER the call
+  // resolves, and a failure now says so.
   const archiveLane = useCallback(
     async (laneId: string) => {
       try {
-        await api.lanes.archive(laneId);
-        setData((d) =>
-          d ? { ...d, lanes: d.lanes.filter((l) => l.id !== laneId) } : d,
-        );
-        if (activeLaneId === laneId) setParam({ lane: null, detail: null });
-      } catch {}
+        await runAction(() => api.lanes.archive(laneId), {
+          pending: 'Archiving…',
+          success: 'Archived',
+          error: 'Could not archive this chat',
+        });
+      } catch {
+        return; // reported; the lane stays in the list, which is the truth
+      }
+      setData((d) => (d ? { ...d, lanes: d.lanes.filter((l) => l.id !== laneId) } : d));
+      if (activeLaneId === laneId) setParam({ lane: null, detail: null });
     },
-    [activeLaneId, setParam],
+    [activeLaneId, setParam, runAction],
   );
 
   // Phase-A hygiene: pin toggle + rename (lane_meta writes via PATCH).
@@ -682,12 +697,17 @@ export function ChatSurface() {
       const next = !lane.pinned;
       updateLaneLocal(lane.id, { pinned: next });
       try {
-        await api.lanes.patch(lane.id, { pinned: next });
+        // Optimistic, so no `pending` — the pin already moved. The revert is
+        // what needs the words: without them the pin silently flips back and
+        // the member reads it as the app ignoring the click.
+        await runAction(() => api.lanes.patch(lane.id, { pinned: next }), {
+          error: next ? 'Could not pin this chat' : 'Could not unpin this chat',
+        });
       } catch {
         updateLaneLocal(lane.id, { pinned: lane.pinned });
       }
     },
-    [updateLaneLocal],
+    [updateLaneLocal, runAction],
   );
 
   const commitRename = useCallback(async () => {
@@ -698,11 +718,14 @@ export function ChatSurface() {
     const prev = data?.lanes.find((l) => l.id === laneId)?.name;
     updateLaneLocal(laneId, { name });
     try {
-      await api.lanes.patch(laneId, { name });
+      // Optimistic like the pin: the name already changed in the list.
+      await runAction(() => api.lanes.patch(laneId, { name }), {
+        error: 'Could not rename this chat',
+      });
     } catch {
       if (prev) updateLaneLocal(laneId, { name: prev });
     }
-  }, [renamingId, renameText, data, updateLaneLocal]);
+  }, [renamingId, renameText, data, updateLaneLocal, runAction]);
 
   if (loading) {
     return (

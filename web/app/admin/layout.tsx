@@ -8,6 +8,10 @@ import { isAdminEmail } from "@/lib/internal-access";
 import { HOME_ROUTE } from "@/lib/routes";
 import { ArrowLeft, Shield } from "lucide-react";
 import { Working } from '@/components/shared/Working';
+// The console is OUTSIDE (authenticated), so it does not inherit
+// AuthenticatedLayout's FeedbackProvider. Its verbs still need the one layer
+// — mount it here rather than growing a second feedback system for one route.
+import { FeedbackProvider } from '@/contexts/FeedbackContext';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -61,6 +65,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   return (
+    <FeedbackProvider>
     <div className="min-h-screen bg-background">
       {/* One pane since ADR-655 D5 — the persona forensics moved to the Hat-B
           toolchain, so the Overview/Accounts nav went with them. */}
@@ -91,5 +96,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         {children}
       </main>
     </div>
+    </FeedbackProvider>
   );
 }

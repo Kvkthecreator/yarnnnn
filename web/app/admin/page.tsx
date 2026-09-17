@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { formatLedgerTime } from "@/lib/formatting";
 import type {
   AdminOverviewStats,
@@ -36,6 +37,7 @@ import { Working } from "@/components/shared/Working";
 const HEARTBEAT_STALE_MS = 30 * 60 * 1000;
 
 export default function OperatorConsolePage() {
+  const { runAction } = useFeedback();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,9 +79,15 @@ export default function OperatorConsolePage() {
       prev.map((w) => (w.id === row.id ? { ...w, billing_exempt: next } : w)),
     );
     try {
-      await api.admin.setBillingExempt(row.id, next);
-    } catch (err) {
-      console.error("Failed to toggle billing exempt:", err);
+      // Optimistic, so no `pending` — the switch already moved. The failure
+      // reported to the CONSOLE only, so the switch silently snapped back on a
+      // money-visible act and nobody watching the screen learned anything.
+      await runAction(() => api.admin.setBillingExempt(row.id, next), {
+        error: next
+          ? "Could not make this workspace comp"
+          : "Could not remove comp from this workspace",
+      });
+    } catch {
       setWorkspaces((prev) =>
         prev.map((w) => (w.id === row.id ? { ...w, billing_exempt: !next } : w)),
       );

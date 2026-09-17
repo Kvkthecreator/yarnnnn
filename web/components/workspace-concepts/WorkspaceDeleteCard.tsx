@@ -25,7 +25,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Loader2, RotateCcw, Trash2 } from "lucide-react";
 
-import { api, clearActiveWorkspace } from "@/lib/api/client";
+import { api, APIError, clearActiveWorkspace } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 
 interface Preview {
   workspace_id: string;
@@ -50,7 +51,13 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
   // to type through the irreversible one.
   const [purgeTyped, setPurgeTyped] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  // `error` carries ONLY the preview's load failure — an unresolved state that
+  // must survive until the operator retries (the in-surface banner lane). The
+  // three VERBS below report through the canonical action-feedback layer
+  // (ACTION-FEEDBACK.md): they are discrete acts with a point outcome, and two
+  // of them hard-navigate, so an inline line would never be read.
   const [error, setError] = useState<string | null>(null);
+  const { runAction } = useFeedback();
 
   const load = useCallback(async () => {
     if (!workspaceId) return;
@@ -135,27 +142,61 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
 
   const act = async (verb: "delete" | "restore" | "purge") => {
     setPending(verb);
-    setError(null);
     setPurgeTyped("");
+    // Delete and purge END with a hard navigation, so there is no moment left
+    // in which to show a success line — the pending toast is what makes the
+    // wait legible, and arriving at Chat is the receipt. Restore stays put, so
+    // it gets a success line.
+    const copy = {
+      delete: {
+        pending: "Deleting workspace…",
+        success: undefined,
+        fallback: "Couldn't delete this workspace.",
+      },
+      purge: {
+        pending: "Purging workspace…",
+        success: undefined,
+        fallback: "Couldn't purge this workspace.",
+      },
+      restore: {
+        pending: "Restoring workspace…",
+        success: "Workspace restored",
+        fallback: "Couldn't restore this workspace.",
+      },
+    }[verb];
     try {
-      if (verb === "delete") {
-        await api.workspace.softDelete(workspaceId);
+      await runAction(
+        async () => {
+          if (verb === "delete") {
+            await api.workspace.softDelete(workspaceId);
+            return;
+          }
+          if (verb === "purge") {
+            await api.workspace.purge(workspaceId);
+            return;
+          }
+          await api.workspace.restore(workspaceId);
+        },
+        {
+          pending: copy.pending,
+          success: copy.success,
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || copy.fallback
+              : copy.fallback,
+        },
+      );
+      if (verb === "delete" || verb === "purge") {
         // The acting workspace is now unreachable — drop the pin and hard-
         // navigate, or every surface keeps requesting a workspace that 403s.
         clearActiveWorkspace();
         window.location.assign("/chat");
         return;
       }
-      if (verb === "purge") {
-        await api.workspace.purge(workspaceId);
-        clearActiveWorkspace();
-        window.location.assign("/chat");
-        return;
-      }
-      await api.workspace.restore(workspaceId);
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : `Couldn't ${verb} this workspace`);
+    } catch {
+      // Reported by runAction; the card stays where it is so the act can be
+      // retried. `error` is not touched — it belongs to the preview load.
     } finally {
       setPending(null);
       setConfirming(null);
@@ -207,6 +248,9 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
             </div>
           )}
 
+          {/* The PREVIEW's load failure only — reachable when a refresh after
+              Restore fails and the card is left showing stale details. The
+              verbs' own failures report through the action-feedback layer. */}
           {error && (
             <p className="text-sm text-destructive mt-2" role="alert">
               {error}

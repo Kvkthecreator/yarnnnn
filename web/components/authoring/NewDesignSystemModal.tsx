@@ -30,6 +30,7 @@ import { Working } from '@/components/shared/Working';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { api } from '@/lib/api/client';
+import { useFeedback } from '@/contexts/FeedbackContext';
 
 // Look-carrying source types (DESIGN-SYSTEMS.md §6). A design system is derived
 // from evidence of a LOOK — a brand guide, a styled page, a screenshot, a CSS
@@ -84,6 +85,7 @@ export function NewDesignSystemModal({
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const srcUploadRef = useRef<HTMLInputElement>(null);
+  const { runAction } = useFeedback();
 
   useEffect(() => {
     if (!open) return;
@@ -151,7 +153,11 @@ export function NewDesignSystemModal({
     setUploading(true);
     setErr(null);
     try {
-      const res = await api.documents.upload(file);
+      // The WAIT rides the canonical layer; the FAILURE stays inline — this
+      // modal stays open so the member can pick another file right here.
+      const res = await runAction(() => api.documents.upload(file), {
+        pending: 'Uploading…',
+      });
       const first = res.results?.[0];
       if (first?.success && first.workspace_path) {
         setSource({ path: first.workspace_path, name: first.filename });

@@ -29,6 +29,7 @@ import { useEffect, useState } from 'react';
 import { Users, ShieldCheck, Bot, User, Cpu, Loader2, MoreHorizontal, ShieldMinus, Trash2, AlertTriangle, Link as LinkIcon, Plus, Wallet } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, getActiveWorkspaceId } from '@/lib/api/client';
+import { useFeedback } from '@/contexts/FeedbackContext';
 import { useWorkspaceMemberships } from '@/lib/workspace/viewer';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
@@ -251,17 +252,19 @@ export function WorkspaceMembersCard({
   // ADR-445 §7 Phase 4 — the per-member spend-cap dialog target.
   const [capTarget, setCapTarget] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
-  // The server's refusal, in its own words. The governance verbs (narrow /
-  // revoke / cap) are owner-only and `narrow` additionally refuses a WIDENING
-  // change; both arrive as a 403 whose `detail` already explains why. Without
-  // somewhere to put it the throw was swallowed and the dialog just sat there.
-  const [governError, setGovernError] = useState<string | null>(null);
+  // The governance verbs (narrow / revoke / cap) and the invite verbs report
+  // through the canonical action-feedback layer (ACTION-FEEDBACK.md) — they are
+  // discrete verbs with a point outcome. The bespoke `governError` / `inviteError`
+  // channels that used to carry the server's refusal here are deleted; the
+  // server's own words still reach the operator, now via runAction's `error`
+  // line (`serverDetail` reads both wire shapes). `busy` / `inviting` stay:
+  // that is micro-feedback at the control, not a notice.
+  const { runAction } = useFeedback();
   // ADR-404 step 5 — human-member invites (owner-only; API 403s otherwise).
   type Invite = Awaited<ReturnType<typeof api.workspace.listInvites>>['invites'][number];
   const [invites, setInvites] = useState<Invite[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [canInvite, setCanInvite] = useState(true); // false when the API 403s (non-owner)
 
@@ -291,15 +294,22 @@ export function WorkspaceMembersCard({
     const email = inviteEmail.trim();
     if (!email) return;
     setInviting(true);
-    setInviteError(null);
     setLastInviteLink(null);
     try {
-      const created = await api.workspace.inviteMember(email);
+      // The success line names the person invited — an invite goes to someone,
+      // and a bare "Invited" leaves the operator checking the pending list.
+      // The link below is NOT the success notice: it is a fallback the operator
+      // may need to copy, so it stays in the surface and outlives the toast.
+      const created = await runAction(() => api.workspace.inviteMember(email), {
+        pending: 'Sending invite…',
+        success: `Invited ${email}`,
+        error: (e) => serverDetail(e, 'Could not send the invite.'),
+      });
       setInviteEmail('');
       setLastInviteLink(created.invite_link ?? null);
       await refreshInvites();
-    } catch (e) {
-      setInviteError(serverDetail(e, 'Could not send the invite.'));
+    } catch {
+      // Reported by runAction; the typed email stays put so it can be retried.
     } finally {
       setInviting(false);
     }
@@ -307,10 +317,17 @@ export function WorkspaceMembersCard({
 
   const onRevokeInvite = async (id: string) => {
     try {
-      await api.workspace.revokeInvite(id);
+      // Was a total swallow (`catch { /* best-effort */ }`): revoking an invite
+      // is a permission act, and a failed one left the invite LIVE with nothing
+      // said. The list refresh shows truth; the toast says what happened.
+      await runAction(() => api.workspace.revokeInvite(id), {
+        pending: 'Revoking invite…',
+        success: 'Invite revoked',
+        error: (e) => serverDetail(e, 'Could not revoke this invite.'),
+      });
       await refreshInvites();
     } catch {
-      // best-effort; list refresh shows truth
+      // Reported by runAction.
     }
   };
 
@@ -351,24 +368,33 @@ export function WorkspaceMembersCard({
   }, []);
 
   const onRevoke = async (m: Member) => {
+    const who = m.label ?? 'this member';
     setBusy(true);
-    setGovernError(null);
     try {
       // ADR-431 — target the specific member's connection when a provider is
       // connected by several members (connected_by disambiguates the grant).
-      await api.workspace.revokeMember(m.principal_id, m.connected_by);
+      await runAction(
+        () => api.workspace.revokeMember(m.principal_id, m.connected_by),
+        {
+          pending: 'Revoking access…',
+          success: `${who} no longer has access`,
+          error: (e) => serverDetail(e, 'Could not revoke this member.'),
+        },
+      );
       setRevokeTarget(null);
       await refresh();
-    } catch (e) {
-      setGovernError(serverDetail(e, 'Could not revoke this member.'));
+    } catch {
+      // Reported by runAction. The dialog stays OPEN on a refusal — the server
+      // refuses for a reason the operator can act on (not the owner), and
+      // closing it would throw away the target they had chosen.
     } finally {
       setBusy(false);
     }
   };
 
   const onNarrow = async (m: Member, writeScopes: string[], readScopes: string[]) => {
+    const who = m.label ?? 'this member';
     setBusy(true);
-    setGovernError(null);
     try {
       // Two axes. Omit readScopes when it equals writeScopes (read ⊇ write, the
       // common case) so the backend applies its mirror default; pass it when the
@@ -376,19 +402,27 @@ export function WorkspaceMembersCard({
       const sameAxes =
         readScopes.length === writeScopes.length &&
         readScopes.every((s) => writeScopes.includes(s));
-      await api.workspace.narrowMember(m.principal_id, writeScopes, {
-        readScopes: sameAxes ? undefined : readScopes,
-        connectedBy: m.connected_by,
-      });
-      setNarrowTarget(null);
-      await refresh();
-    } catch (e) {
       // The server refuses this for two good reasons — the caller is not the
       // owner, or the change would WIDEN rather than narrow. Both arrive as a
-      // 403 carrying the reason in `detail`. Before this, the throw was
-      // swallowed by a bare try/finally and the dialog just sat there
-      // (2026-07-31 click-pass F4): a correct refusal the operator could not see.
-      setGovernError(serverDetail(e, 'Could not change this member’s access.'));
+      // 403 carrying the reason in `detail` / `error.message`, which
+      // `serverDetail` reads and the error toast repeats verbatim: the refusal
+      // is already operator-grade, and inventing a line over it loses the why.
+      await runAction(
+        () =>
+          api.workspace.narrowMember(m.principal_id, writeScopes, {
+            readScopes: sameAxes ? undefined : readScopes,
+            connectedBy: m.connected_by,
+          }),
+        {
+          pending: 'Changing access…',
+          success: `Access changed for ${who}`,
+          error: (e) => serverDetail(e, 'Could not change this member’s access.'),
+        },
+      );
+      setNarrowTarget(null);
+      await refresh();
+    } catch {
+      // Reported by runAction; the dialog stays open with the operator's picks.
     } finally {
       setBusy(false);
     }
@@ -396,14 +430,24 @@ export function WorkspaceMembersCard({
 
   // ADR-445 §7 Phase 4 — owner sets/clears a member's spend cap on the shared pool.
   const onCap = async (m: Member, capUsd: number | null) => {
+    const who = m.label ?? 'this member';
     setBusy(true);
-    setGovernError(null);
     try {
-      await api.workspace.capMember(m.principal_id, capUsd);
+      // Clearing a cap and setting one are the same verb with opposite meanings
+      // — the outcome line has to say which one happened, or the operator reads
+      // "Saved" and cannot tell whether the member is now bounded or not.
+      await runAction(() => api.workspace.capMember(m.principal_id, capUsd), {
+        pending: capUsd === null ? 'Removing spend cap…' : 'Setting spend cap…',
+        success:
+          capUsd === null
+            ? `Spend cap removed for ${who}`
+            : `${who} is capped at $${capUsd.toFixed(2)} a month`,
+        error: (e) => serverDetail(e, 'Could not set this member’s spend cap.'),
+      });
       setCapTarget(null);
       await refresh();
-    } catch (e) {
-      setGovernError(serverDetail(e, 'Could not set this member’s spend cap.'));
+    } catch {
+      // Reported by runAction; the dialog stays open with the typed amount.
     } finally {
       setBusy(false);
     }
@@ -764,7 +808,9 @@ export function WorkspaceMembersCard({
               restated what the member rows already show: each row renders its own
               "Can write:" chips and a Narrow/Revoke menu, so the sentence was
               describing the controls sitting directly beneath it. */}
-          {inviteError && <p className="mt-1.5 text-xs text-destructive">{inviteError}</p>}
+          {/* The invite's failure line moved to the canonical action-feedback
+              layer (2026-09-17). The link below is not a notice — it is content
+              the operator may need to copy, so it stays here. */}
           {lastInviteLink && (
             <p className="mt-1.5 break-all text-xs text-muted-foreground">
               Invite sent — share this link if the email doesn&rsquo;t arrive:{' '}
@@ -863,16 +909,14 @@ export function WorkspaceMembersCard({
                 </p>
               </div>
             </div>
-            {governError && (
-              <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
-                {governError}
-              </p>
-            )}
+            {/* The refusal line moved to the canonical action-feedback layer
+                (2026-09-17). The dialog stays open on a refusal so the target
+                the operator chose is not thrown away. */}
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => { setGovernError(null); setRevokeTarget(null); }}
+                onClick={() => setRevokeTarget(null)}
                 className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
               >
                 Cancel
@@ -897,8 +941,7 @@ export function WorkspaceMembersCard({
         <NarrowDialog
           member={narrowTarget}
           busy={busy}
-          error={governError}
-          onCancel={() => { setGovernError(null); setNarrowTarget(null); }}
+          onCancel={() => setNarrowTarget(null)}
           onConfirm={(write, read) => onNarrow(narrowTarget, write, read)}
         />
       )}
@@ -908,8 +951,7 @@ export function WorkspaceMembersCard({
         <CapDialog
           member={capTarget}
           busy={busy}
-          error={governError}
-          onCancel={() => { setGovernError(null); setCapTarget(null); }}
+          onCancel={() => setCapTarget(null)}
           onConfirm={(cap) => onCap(capTarget, cap)}
         />
       )}
@@ -926,13 +968,11 @@ export function WorkspaceMembersCard({
 function CapDialog({
   member,
   busy,
-  error,
   onCancel,
   onConfirm,
 }: {
   member: Member;
   busy: boolean;
-  error?: string | null;
   onCancel: () => void;
   onConfirm: (capUsd: number | null) => void;
 }) {
@@ -971,11 +1011,8 @@ function CapDialog({
           <span className="text-xs text-muted-foreground">/ month</span>
         </div>
         {invalid && <p className="mt-1.5 text-xs text-destructive">Enter a positive dollar amount, or leave blank to clear.</p>}
-        {error && (
-          <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
-            {error}
-          </p>
-        )}
+        {/* The server's refusal reports through the canonical action-feedback
+            layer (2026-09-17), not a per-dialog error slot. */}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -1062,13 +1099,11 @@ function normalizePrefix(p: string): string {
 function NarrowDialog({
   member,
   busy,
-  error,
   onCancel,
   onConfirm,
 }: {
   member: Member;
   busy: boolean;
-  error?: string | null;
   onCancel: () => void;
   onConfirm: (writeScopes: string[], readScopes: string[]) => void;
 }) {
@@ -1239,11 +1274,8 @@ function NarrowDialog({
             "Read: nothing · Write: nothing" ended up contradicting each other
             on the same screen. */}
 
-        {error && (
-          <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
-            {error}
-          </p>
-        )}
+        {/* The server's refusal reports through the canonical action-feedback
+            layer (2026-09-17), not a per-dialog error slot. */}
 
         <div className="mt-4 flex justify-end gap-2">
           <button

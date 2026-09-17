@@ -28,7 +28,8 @@ import { useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
 import { Working } from '@/components/shared/Working';
 
-import { api } from "@/lib/api/client";
+import { api, APIError } from "@/lib/api/client";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
 
 export function WorkspaceGeneralPane() {
@@ -42,7 +43,12 @@ export function WorkspaceGeneralPane() {
   const [iconEdit, setIconEdit] = useState<string | null>(null);
   const [tzEdit, setTzEdit] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // FIELD validation only ("the workspace needs a name") — it sits beside the
+  // input and must survive until the operator fixes it, so it stays here. The
+  // SAVE's own failure moved to the canonical action-feedback layer
+  // (ACTION-FEEDBACK.md); the two never shared a channel and must not start.
   const [error, setError] = useState<string | null>(null);
+  const { runAction } = useFeedback();
 
   if (!loaded) {
     return (
@@ -97,19 +103,24 @@ export function WorkspaceGeneralPane() {
       if (nameEdit !== null) body.name = trimmed;
       if (iconEdit !== null) body.icon = icon.trim() || null;
       if (tzEdit !== null) body.timezone = tz || null;
-      await api.workspace.updateIdentity(body);
+      // NO success line: the reload below wipes the page, and a toast cannot
+      // survive it. The pending toast is what makes the wait legible, and the
+      // pane coming back with the new name is the receipt.
+      await runAction(() => api.workspace.updateIdentity(body), {
+        pending: "Saving…",
+        error: (e) =>
+          e instanceof APIError
+            ? (e.data as { detail?: string })?.detail || "Couldn't save — try again."
+            : "Couldn't save — try again.",
+      });
       // The switcher label rides the module-cached memberships read
       // (lib/workspace/viewer.ts) and every open surface may render the old
       // identity — a hard reload is the shell's existing rebind gesture
       // (workspace switch does the same), and a rename is rare enough to
       // afford it.
       window.location.reload();
-    } catch (e) {
-      const detail =
-        e && typeof e === "object" && "message" in e
-          ? String((e as { message?: string }).message)
-          : null;
-      setError(detail || "Couldn't save — try again.");
+    } catch {
+      // Reported by runAction; the operator's edits stay in the form.
       setSaving(false);
     }
   };
