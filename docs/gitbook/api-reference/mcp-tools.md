@@ -34,6 +34,10 @@ Connected before 2026-08-10? The surface changed twice that day (the memory verb
 
 *Requires `files:read`.*
 
+{% openapi src="mcp" path="/whoami" method="post" %}
+[openapi.json](https://yarnnn.com/openapi.json)
+{% endopenapi %}
+
 Name where you are standing. A read.
 
 Returns which workspace this connection is bound to, whether that is the one the
