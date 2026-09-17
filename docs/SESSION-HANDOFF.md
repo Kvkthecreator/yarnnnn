@@ -38,7 +38,10 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   (ws bf5b25a9); a new bound Images lane bound to it (session 24aa8b2c, `context_metadata.lane.model`),
   while all seven older lanes kept `anthropic/claude-sonnet-5`. Persistence survived a hard reload.
   The pass FOUND a defect: clearing an override 422'd (`Body(...)` reads a bare JSON `null` as a missing
-  body) — fixed in `78f4dd9`, **whose own clear path is not yet driven on prod**. Rig row deleted.
+  body) — fixed in `78f4dd9` and **driven on prod 01:51** (clear persisted `{}`, no 422, pane back to
+  the default). The deliberate-commit chooser (`234cd83`) also driven: picking writes NOTHING (0 rows
+  mid-pick), Cancel discards, Confirm writes `anthropic/claude-opus-5`, reopen re-seeds clean. Rig row
+  deleted; ADR-654 is CLOSED.
 - ⚠️`api/test_agent_registry.py` is RED at baseline — it hardcodes `services/apps/images/decompose.py`, deleted
   in `0b9920f`; the gate crashes at import and reports nothing. Pre-existing, untouched by ADR-654.
 - **Data-heavy work has a located kernel gap (2026-09-16, `b937e2e` §11).** A 5,000-row CSV probe measured it: ADR-648's
