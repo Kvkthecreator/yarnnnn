@@ -65,6 +65,11 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   deleted; ADR-654 is CLOSED.
 - ⚠️`api/test_agent_registry.py` is RED at baseline — it hardcodes `services/apps/images/decompose.py`, deleted
   in `0b9920f`; the gate crashes at import and reports nothing. Pre-existing, untouched by ADR-654.
+- ⚠️`api/test_adr412_chat_surface.py` is RED at baseline (7 failed, 1 passed at HEAD) — it reads
+  `web/components/shell/chrome/ChatDrawer.tsx` and `web/components/agents/AgentContentView.tsx`, both long
+  deleted, so it crashes on `FileNotFoundError` and reports nothing. Same family as the two above: a gate
+  anchored to a name decays in both directions. Found while gating `dee2719`; untouched by it. Decide
+  whether ADR-412's chat-surface claims still need a gate, then rewrite it against live anchors or delete it.
 - **Data-heavy work has a located kernel gap (2026-09-16, `b937e2e` §11).** A 5,000-row CSV probe measured it: ADR-648's
   pagination is FINE (the lane read 100% of 287,762 chars across 3 windows); the wall is `_LANE_MAX_TOKENS = 4096` — the
   turn cannot carry the answer it read. The gap is that the agent is doing the ARITHMETIC. Owed: a decision on a
