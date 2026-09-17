@@ -49,12 +49,18 @@ The tiers are additive — write includes read, share includes both. A client th
 
 This is enforced on every call, not just displayed at sign-up: a token holding `files:read` is refused when it tries to save. You see the specific tiers a connection asked for on the approval screen before you authorise it, and again on its row in **Workspace Settings → Access**.
 
-> Connections made before this was introduced carry an older full-access grant, so they keep working. You can narrow or revoke any of them at any time.
+{% hint style="info" %}
+Connections made before this was introduced carry an older full-access grant, so they keep working. You can narrow or revoke any of them at any time.
+{% endhint %}
 
 ---
 
-## Setup: Claude.ai
+## Setup
 
+Pick the client you use. The server URL is the same everywhere: `https://mcp.yarnnn.com`
+
+{% tabs %}
+{% tab title="Claude.ai" %}
 1. **Settings** → **Connectors**
 2. **Add custom connector**
 3. Name: `yarnnn` · URL: `https://mcp.yarnnn.com`
@@ -62,35 +68,31 @@ This is enforced on every call, not just displayed at sign-up: a token holding `
 
 Try: *"Use YARNNN to find what I have on the Q1 roadmap."*
 
-<figure><img src="../.gitbook/assets/mcp connect - claud.png" alt=""><figcaption></figcaption></figure>
+![Adding YARNNN as a custom connector in Claude.ai](../.gitbook/assets/mcp%20connect%20-%20claud.png)
+{% endtab %}
 
----
-
-## Setup: ChatGPT
-
+{% tab title="ChatGPT" %}
 ChatGPT connects MCP servers through Developer mode.
 
-### Step 1 — Enable Developer mode
+**Step 1 — Enable Developer mode**
 
 **Settings** → **Apps** → **Advanced settings** → toggle **Developer mode** on.
 
-<figure><img src="../.gitbook/assets/mcp connect - openai2.png" alt=""><figcaption></figcaption></figure>
+![Enabling Developer mode in ChatGPT settings](../.gitbook/assets/mcp%20connect%20-%20openai2.png)
 
-### Step 2 — Create the app
+**Step 2 — Create the app**
 
 1. **Create app**
 2. Name: `yarnnn` · MCP Server URL: `https://mcp.yarnnn.com` · Authentication: **OAuth**
 3. Leave the OAuth Client ID and Secret empty
 4. Check the acknowledgment, click **Create**, and complete the authorisation
 
-<figure><img src="../.gitbook/assets/mcp connect - openai3.png" alt=""><figcaption></figcaption></figure>
+![Creating the YARNNN app in ChatGPT](../.gitbook/assets/mcp%20connect%20-%20openai3.png)
 
 ChatGPT also renders YARNNN's results as inline cards — a history timeline, search-result cards, a save receipt — rather than plain text.
+{% endtab %}
 
----
-
-## Setup: Claude Desktop
-
+{% tab title="Claude Desktop" %}
 Add to your config file:
 
 **macOS** `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -111,11 +113,9 @@ Add to your config file:
 ```
 
 Replace `YOUR_TOKEN` with the bearer token from your YARNNN account settings, then restart Claude Desktop.
+{% endtab %}
 
----
-
-## Setup: Claude Code
-
+{% tab title="Claude Code" %}
 ```bash
 claude mcp add yarnnn \
   --transport http \
@@ -124,6 +124,8 @@ claude mcp add yarnnn \
 ```
 
 Tools are available in your next session.
+{% endtab %}
+{% endtabs %}
 
 ---
 

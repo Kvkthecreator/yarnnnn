@@ -30,7 +30,9 @@ Slack, Notion and GitHub are inbound — the workspace reads through them. **Wor
 
 You can also attach an MCP connector, which appears here alongside the first-party connections.
 
-> **Scheduled background pulling is not running yet.** The capture lane — the machinery that would sweep a connected platform on a cadence — is turned off. Connections work when you or your work reach through them; nothing pulls on its own yet.
+{% hint style="warning" %}
+**Scheduled background pulling is not running yet.** The capture lane — the machinery that would sweep a connected platform on a cadence — is turned off. Connections work when you or your work reach through them; nothing pulls on its own yet.
+{% endhint %}
 
 ## The queue moved here
 

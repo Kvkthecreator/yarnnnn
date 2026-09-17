@@ -45,7 +45,9 @@ This is the dial to reach for if you want spend to be a decision rather than a d
 
 In a team workspace, the owner can set a spend cap on an individual member from the members card — a **Set spend cap** action on their row.
 
-> **Note:** the cap binds a member's own addressed work. It does not bound **standing work**, which attributes to the workspace owner and is never capped — by design, since the owner is the one who funded it. If you need a hard bound on total spend, use the workspace budget and the balance, which do bound everything.
+{% hint style="info" %}
+**Note:** the cap binds a member's own addressed work. It does not bound **standing work**, which attributes to the workspace owner and is never capped — by design, since the owner is the one who funded it. If you need a hard bound on total spend, use the workspace budget and the balance, which do bound everything.
+{% endhint %}
 
 ## Running out
 

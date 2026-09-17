@@ -24,10 +24,9 @@ Tokens issued before scopes existed carry a legacy `read` scope that authorizes 
 
 Each verb below names the scope it requires.
 
-> Connected before 2026-08-10? The surface changed twice that day (the
-> memory verbs retired; `edit`/`delete`/`move` + the change feed added) —
-> disconnect and reconnect the integration so your host fetches the current
-> tool list.
+{% hint style="warning" %}
+Connected before 2026-08-10? The surface changed twice that day (the memory verbs retired; `edit`/`delete`/`move` + the change feed added) — disconnect and reconnect the integration so your host fetches the current tool list.
+{% endhint %}
 
 ---
 

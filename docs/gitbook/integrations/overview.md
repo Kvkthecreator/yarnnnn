@@ -24,7 +24,9 @@ Authorise Slack, Notion, GitHub, and a couple of others so YARNNN can read from 
 
 → [Platform connections](platform-connections.md)
 
-> **Status:** you can connect a platform and choose which channels or pages are in scope. Automatic pulling on a cadence isn't running yet, so for now the reliable way to get material in is uploading it or saving it over MCP.
+{% hint style="warning" %}
+**Status:** you can connect a platform and choose which channels or pages are in scope. Automatic pulling on a cadence isn't running yet, so for now the reliable way to get material in is uploading it or saving it over MCP.
+{% endhint %}
 
 ## 3. Uploads — the direct route
 

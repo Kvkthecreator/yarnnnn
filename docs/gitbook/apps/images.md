@@ -44,4 +44,6 @@ The open image carries the standard verbs: rename, move, duplicate, copy link, m
 
 An image leaves as a raster file you can download.
 
-> **Images is in beta.** It's on the Dock and it works; expect the rough edges of something young.
+{% hint style="info" %}
+**Images is in beta.** It's on the Dock and it works; expect the rough edges of something young.
+{% endhint %}

@@ -46,4 +46,6 @@ A post is a file in your workspace like any other until you send it somewhere. P
 
 The open post carries the standard verbs: rename, move, duplicate, copy link, move to trash. They behave identically to the same verbs on the [Files](files.md) surface.
 
-> **Blogger is in beta.** It's on the Dock and it works; expect the rough edges of something young.
+{% hint style="info" %}
+**Blogger is in beta.** It's on the Dock and it works; expect the rough edges of something young.
+{% endhint %}
