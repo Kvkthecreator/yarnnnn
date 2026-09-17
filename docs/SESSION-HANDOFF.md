@@ -11,9 +11,12 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   (`6bcb234` the declaration parser + 59-check gate, falsified 4 ways; `0096569` the `connectors` phantom).
 - ~~Step 2 (R3, the app binding kind)~~ **DONE** (`b71b716`). ⚠️Nothing CALLS the app-only binding yet — it is
   reachable by `POST /lanes` with `app` alone and has no FE caller until step 3.
-- **Next: step 3 — the app surface.** Needs D3.c (widen `Launcher.tsx`'s `isKernelSurfaceSlug` gate, mount one
-  generic `AppSurface`) + D3.a (`register: "composition"` validated, with a runtime reader — today `register`
-  has ZERO runtime readers) + the two first kinds (`files`, `note`). Gate checks 3/4/5 not yet implemented.
+- **Step 3 is HALF done.** D3.a landed (`b2b6972`): `composition` is a validated register with a real runtime
+  reader (`is_composition`), and two gates moved from restating the set to deriving it.
+- **Next: D3.c + the first kinds.** Widen `Launcher.tsx`'s `isKernelSurfaceSlug` gate so a declared app
+  foregrounds, mount ONE generic `AppSurface` (no per-app static import), and implement `files` + `note`.
+  ⚠️This is the first step that needs a SERVED app row — nothing currently reads `apps/{slug}/_app.yaml` from
+  the workspace, so a reader + a roster join comes with it. Gate checks 3/4/5 not yet implemented.
 - ~~Owed by R1~~ **DONE**: `app_delete_roots()` derives the pairing (R4 makes the slugs equal), returning
   exactly two roots — `apps/{slug}/` and the ORDINARY `agents/{slug}/` home. The species split (memory under
   `apps/`) was refused and is asserted against. Gate check 6b, falsified three ways.
