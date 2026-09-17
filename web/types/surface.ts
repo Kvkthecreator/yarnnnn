@@ -88,8 +88,16 @@ export type KernelSurfaceSlug =
   | 'notifications'  // ADR-346/349 — the operating-work composition (was 'operation')
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
-  | 'connectors'  // ADR-425 — the account door's Connections pane (pane_of: settings)
   | 'notification-settings';  // ADR-593 D5 — the account door's Notifications pane (pane_of: settings)
+  // ADR-645 D3 (2026-09-08): `connectors` LEFT this union — the pane retired to
+  // Reach → Connected and its registry row went `stage: internal`, so it no
+  // longer reaches the served roster. It stayed here until 2026-09-17, which
+  // made it a PHANTOM: `isKernelSurfaceSlug('connectors')` was true, so
+  // `Launcher.navigate` foregrounded it (Launcher.tsx) and `SurfaceViewport`
+  // resolved no component and rendered null — an empty window. Same treatment
+  // as `sources` (ADR-425 D2) and `system-agent` (ADR-454 D4) before it: a
+  // retired slug leaves the union WITH the roster. /connectors remains a
+  // redirect stub, hand-listed in middleware.ts.
   // ADR-454 D4 (2026-07-13): the ADR-426 system-agent slug LEFT the navigable
   // allowlist — the door is reversed (the ambient steward); the registry row is
   // `hidden` (hide-not-delete), the dials re-home pane_of → workspace-settings
@@ -130,7 +138,8 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // ADR-454 D4: the system-agent slug LEFT too (door reversed; hidden row).
   // ADR-593 D5: `notification-settings` joins — the account door's
   // Notifications pane (pane-grade, search-only; /notification-settings stub).
-  'settings', 'workspace-settings', 'connectors', 'notification-settings',
+  // ADR-645 D3: `connectors` LEFT (retired to Reach; redirect-stub only).
+  'settings', 'workspace-settings', 'notification-settings',
 ] as const;
 
 export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {

@@ -20,10 +20,24 @@ Two real instances were found and fixed:
 
 This gate locks the invariant so the drift cannot recur silently: the set of
 navigable backend kernel surfaces MUST equal the FE allowlist MUST equal the FE
-component registry. (The `tsc` exhaustiveness check on
-`Record<KernelSurfaceSlug, ComponentType>` already couples the type union to
-the registry; this gate adds the third leg — the backend — which TypeScript
-cannot see.)
+component registry.
+
+⚠️ THIS GATE IS THE ONLY THING HOLDING THE UNION↔REGISTRY LEG. This docstring
+used to claim that `tsc` already coupled them via an exhaustiveness check on
+`Record<KernelSurfaceSlug, ComponentType>`. That was FALSE: the registry is
+declared `Partial<Record<...>>` (SurfaceRegistry.tsx), which makes every key
+optional and performs no exhaustiveness check at all. The `Partial` is correct
+and deliberate — pane-grade slugs (`billing`, `usage`, `notification-settings`)
+are navigable surfaces with NO window component, so a total Record could not
+type-check — but it means TypeScript sees nothing here. Check 6
+(`registry == allowlist minus panes`) is the whole enforcement. Weakening it
+leaves the leg unheld, silently.
+
+Corrected 2026-09-17 alongside the `connectors` phantom fix (ADR-653 §10.1/10.2):
+a retired slug had stayed in the FE union after its registry row went
+`stage: internal`, so `isKernelSurfaceSlug` admitted it, the Launcher
+foregrounded it, and the viewport resolved no component and rendered an empty
+window. Checks 5 and 6 caught it; nothing in `tsc` could have.
 
 Usage:
     cd api
