@@ -1,7 +1,7 @@
 # ADR-653 — An app is an AI-native program: the member scaffolds an agent, its skills, and a surface
 
-> **Status**: **Proposed** (2026-09-16), doc-first. Awaiting operator ratification. **No code rides this document.**
-> **Date**: 2026-09-16
+> **Status**: **Accepted** (2026-09-17, operator-ratified through the four rulings in §8a — *"let's just make one app = one agent rule of thumb specific to these apps (not the kernel ones). thus we can now proceed in full"*). Doc-first; **no code rides this document yet.** Implementation sequence in [APP-BUILDER-UX.md](../design/APP-BUILDER-UX.md) §8; its step 1 ships no UI.
+> **Date**: 2026-09-16 (proposed) · 2026-09-17 (accepted)
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Identity** (Axiom 2 — a member may author an agent again) + **Channel** (Axiom 6 — a surface may be composed, not only mirrored) + **Mechanism** (Axiom 5 — where an app declaration LIVES and who may assert it). **No authority change**: every reach decision stays on grants and gates, and nothing here widens what any principal may do.
 >
@@ -261,20 +261,54 @@ An app-level lane has **no artifact** — it is bound to the app itself. Today t
 
 **So R3 requires a third binding kind — the app itself** — alongside artifact-bound and skill-bound. That is a real widening of `create_lane` and of the posture signature, and it is the **largest single mechanism consequence of these three rulings.** It is coherent with the frame (the app IS the binding; ADR-562 D3's *"the resident is DERIVED from the app's own declaration"* already holds) but it is not free, and no gate covers it today.
 
+### R4 — One app, one agent — for MEMBER apps only
+
+**Ruled**: *"let's just make one app = one agent rule of thumb specific to these apps (not the kernel ones)."*
+
+⭐⭐⭐ **This closes the last blocker — the coherence question — and it closes it by scoping.**
+
+> **A member app has exactly one agent, and that agent serves exactly one app. Kernel apps keep many-to-one.**
+
+**Why the scoping is the answer rather than a dodge.** The question was stuck because the obvious rule had a live counter-example: Editor resides both Slides and Text, for a reason ADR-602 D1 recorded (*"a member asking 'who is responsible for my writing?' gets one answer across decks and documents"*). That reason is real and is about **kernel** apps, where the agent is a registered row that predates every app it serves.
+
+R2 already made the two cases structurally different: a member's app agent is a **constituent** of its app; a kernel agent is a **registered row** that apps point at. R4 names the consequence rather than forcing one rule across both:
+
+| | **Member app** | **Kernel app** |
+|---|---|---|
+| The agent is | a constituent of the app | a registered row (`AGENTS`) |
+| Declared in | `apps/{slug}/_app.yaml` | code (`agents_registry.py`) |
+| Cardinality | **1:1, both directions** | 1 resident per app; an agent may reside several |
+| Deleting the app | deletes the agent and its memory (R1) | n/a — kernel apps are code |
+| `kernel` field | `False` | `True` |
+
+**So `kernel: bool` is not merely descriptive provenance any more — it now predicts the cardinality rule.** That is worth stating carefully, because ADR-600 was emphatic that `kernel` *"says who wrote the row, never what the agent may do."* R4 does not violate that: **cardinality is not authority.** A member agent is not less capable than a kernel one; it simply belongs to one app because it was declared as part of one. The cliff (ADR-460 D3.a) is untouched — no field here gates what anyone may do.
+
+**What R4 gives the design, concretely:**
+
+1. **An app coheres because one agent minds it.** The frame's *"would it be strange for two different people to handle these?"* becomes a real constraint rather than an intuition.
+2. **The Dock ruling (R3) is now sound rather than assumed.** One app = one door = one conversation = one agent. No icon competes with another.
+3. **Apps are few, by design, and the product may say so.** The crowding risk (§9.5) is bounded by the member's own sense of how many concerns they have, not by a cap we invent.
+4. **A gate can assert it.** "Exactly one agent per member app, and that agent named by no other app" is checkable; "the work feels like one thing" was not.
+
+⚠️ **Two implementation consequences, named:**
+- **Slug uniqueness is now workspace-scoped and enforceable.** Two member apps may not name the same agent; the refusal is a real check rather than an open question (blockers §2.4(3) resolves to *refuse the collision*).
+- **A member wanting one agent across two concerns must make one app.** That is the rule working as intended, and the builder should say so plainly rather than silently merging or silently forking.
+
 ---
 
 ## 9. What is open — named, not hidden
 
-**Closed by the §8a rulings**: memory orphaning (R1), what an app's chat is (R3), whether the Dock shows apps or agents (R3). **Opened by them**: the memory-home mechanism (R1) and the app binding kind (R3).
+**Closed by the §8a rulings**: the coherence question (R4), memory orphaning (R1), the shared-agent case (R2), what an app's chat is (R3), whether the Dock shows apps or agents (R3), slug collision (R4). **Opened by them**: the memory-home mechanism (R1) and the app binding kind (R3), both named in §8a and both in the gate list.
 
-1. ⭐⭐⭐ **What makes two pieces of work one app rather than two?** If boundaries are emergent (D4), something must make an app cohere or "app" means nothing. Working intuition: **the who** — one app is one agent's remit. ⚠️ **It is not injective in the kernel today**: Editor resides both Slides and Text (`register_app("slides", resident="editor")` · `register_app("text", resident="editor")`), and ADR-602 D1's reason was that *"a member asking 'who is responsible for my writing?' gets one answer across decks and documents."* The resolvable version: **one app has exactly one resident; one agent may reside several apps** — coherence without injectivity. ⭐ **R2 sharpens this**: if the agent is a CONSTITUENT of the app (not a reference to something beside it), then a member's app agent belongs to exactly one app by construction, and the kernel's many-to-one is the exception rather than the rule. **Still the operator's call, and now the LAST blocker.**
-2. ⭐⭐ **Accumulation does not exist.** The frame promises an agent that *"accumulates judgment about this specific work."* `agents/{slug}/memory/` has **no writer and no reader** (§1.5). Either the promise is deferred or this ADR grows a memory mechanism. **The "derived" origin depends on it**, and R1 now depends on knowing where it lives.
-3. **The component vocabulary** (D3.b) — the riskiest single decision; the first cut is argued in `APP-BUILDER-UX.md` §5 (`files` · `recent` · `needs-you` · `note`), and **R2 makes the builder itself its first test**.
-4. **The quiet discipline.** A standing watcher's failure mode is surfacing noise to prove it is alive. *"Most of the time it says nothing"* must be a design goal. Judgment, not mechanism — unscaffoldable, and the reason this is a bigger build than it looks.
-5. **Residents compound.** Six apps is six agents entitled to speak. Staffed or surveilled is not obvious; it may argue for few apps, or for pooled raising.
-6. **Property extraction is a bounded kernel cost.** Properties a model can judge by looking are unlimited; those needing an extractor (EXIF, PDF fields, media duration) are finite. Apps declare freely and are told what is unavailable — which makes the roadmap **demand-measured** rather than guessed. Same logic for a missing verb.
-7. **The word writes a check.** "App" imports expectations about installing, opening and closing that are wrong here. Probably right anyway — it is the only word that gets someone to try it — but deliberate, not backed into.
-8. **Generic apps are worse than none.** A first app that is a folder structure and a prompt is something a member can already do in Finder.
+**No open item blocks ratification.** What remains is either honestly deferred (1), a build-time judgment (2), or a thing only use can settle (3, 4).
+
+1. ⭐⭐ **Accumulation does not exist.** The frame promises an agent that *"accumulates judgment about this specific work."* `agents/{slug}/memory/` has **no writer and no reader** (§1.5). Either the promise is deferred or this ADR grows a memory mechanism. **The "derived" origin depends on it**, and R1 now depends on knowing where it lives.
+2. **The component vocabulary** (D3.b) — the riskiest single decision; the first cut is argued in `APP-BUILDER-UX.md` §5 (`files` · `recent` · `needs-you` · `note`), and **R2 makes the builder itself its first test**.
+3. **The quiet discipline.** A standing watcher's failure mode is surfacing noise to prove it is alive. *"Most of the time it says nothing"* must be a design goal. Judgment, not mechanism — unscaffoldable, and the reason this is a bigger build than it looks.
+4. **Residents compound.** Six apps is six agents entitled to speak (and under R4 that count is exact). Staffed or surveilled is not obvious. ⭐ R4 bounds it the right way — apps are few because concerns are few, not because we capped anything — but whether six reads as a staff or a crowd is a thing only use can answer.
+5. **Property extraction is a bounded kernel cost.** Properties a model can judge by looking are unlimited; those needing an extractor (EXIF, PDF fields, media duration) are finite. Apps declare freely and are told what is unavailable — which makes the roadmap **demand-measured** rather than guessed. Same logic for a missing verb.
+6. **The word writes a check.** "App" imports expectations about installing, opening and closing that are wrong here. Probably right anyway — it is the only word that gets someone to try it — but deliberate, not backed into.
+7. **Generic apps are worse than none.** A first app that is a folder structure and a prompt is something a member can already do in Finder.
 
 ---
 
@@ -314,6 +348,7 @@ Found during the audit. Each is real, each predates this work, and **none is cau
 6. An app's standing declaration resolves its executor through the app, never an agent slug (D5).
 6a. **(R3)** A lane bound to an app alone — no `artifact_path`, no `skill` — is CREATED rather than refused, and resolves the app's resident; and an `app` with no binding of any kind is still refused. Falsify by asserting the current `:976` refusal fires for the app-bound case.
 6b. **(R1)** Deleting an app deletes its agent's memory, and deletes nothing outside `apps/{slug}/` and that agent's home. Falsify by seeding a file outside both and asserting it survives.
+6c. **(R4)** A member app declares exactly ONE agent, and no two member apps name the same agent — refused, not merged. Falsify in both directions: a declaration with two agents → red; a second app naming the first's agent → red. **The kernel's many-to-one is asserted STILL LEGAL in the same check** (`editor` resides both `slides` and `text`), so a future session cannot "fix" the asymmetry into a single rule and silently break ADR-602 D1.
 7. The `AGENT_ROW_KEYS` whitelist is unchanged and no authority key appears on any member row (§6, the D3.a ratchet).
 
 ⚠️ **Preconditions**: §10.1 must be green first. A gate that crashes reports nothing (the ADR-648 lesson), and a script-shaped gate reports a count, not an exit code.

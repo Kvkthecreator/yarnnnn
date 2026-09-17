@@ -10,15 +10,17 @@
 
 ---
 
-> ## ⚠️ Superseded in part — operator rulings 2026-09-17
+> ## ✅ SUPERSEDED — ADR-653 is ACCEPTED (2026-09-17)
 >
-> Three rulings closed items this document carried as open. They are recorded in **[ADR-653 §8a](../adr/ADR-653-an-app-is-an-ai-native-program.md)**; read them before acting on the sections below.
+> **Every blocker this document named is closed.** It is kept as the record of HOW they were closed, not as a live list. The four rulings are in **[ADR-653 §8a](../adr/ADR-653-an-app-is-an-ai-native-program.md)**; §3's coherence question — the last blocker — is closed by **R4: one app, one agent, for member apps only.**
+>
+> The four rulings, in the order they were taken:
 >
 > - **R1 — memory is deleted with the app.** Closes §2.4(1). Opens one small mechanism question: the memory home is keyed by slug (`agents/{slug}/memory/`), so the delete must derive the pairing.
 > - **R2 — the app-builder is itself an app, and the agent is a CONSTITUENT of the app, not a reference beside it.** This sharpens §3 (see the note there) and makes the builder the design's own falsification test.
 > - **R3 — an app has a bound lane.** Closes the two design questions in `APP-BUILDER-UX.md` §9. Opens the largest mechanism consequence: a third binding kind, since `create_lane` derives boundness from an artifact an app-level lane does not have.
 >
-> **§3 — what makes two pieces of work one app — remains open and is now the LAST blocker.**
+> - **R4 — one app = one agent, for MEMBER apps only; kernel apps keep many-to-one.** Closes §3 by SCOPING rather than by forcing one rule across both cases. Also closes §2.4(3): a slug collision between two member apps is refused.
 
 ## 0. The headline, before the detail
 

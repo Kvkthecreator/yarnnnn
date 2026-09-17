@@ -2,7 +2,7 @@
 
 *What she sees, what she does, and how someone minding her work is made visible without becoming noise.*
 
-> **Status**: Design spec, first cut 2026-09-17. **Proposed alongside [ADR-653](../adr/ADR-653-an-app-is-an-ai-native-program.md), not ratified.** Nothing here is built.
+> **Status**: Design spec, first cut 2026-09-17. **ADR-653 is ACCEPTED (2026-09-17); this document is its design half and is ratified with it.** Nothing here is built yet — §8 is the sequence, and its step 1 ships no UI.
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Why a dedicated document**: ADR-653 carries exactly ONE frontend decision (D3.c — widen the Launcher's slug gate, mount a generic app surface), and that is a routing fix, not a design. The frame's whole argument is a UX argument — *an app is a **visible claim**… not capability, but legibility of capability* — so an ADR that argues for visibility and specifies none of it is half an ADR. This is the other half.
 > **Binding constraints**: [VOICE-AND-TONE.md](VOICE-AND-TONE.md) §2 slot budgets and §3 word map are LAW here, guarded by `api/test_voice_no_kernel_nouns_in_copy.py`. Every string in this document is written to a measured budget, and no kernel noun appears in any of them.
@@ -292,6 +292,8 @@ Ordered by *what teaches the most per unit of build*, not by completeness.
 ---
 
 ## 9. Open — design questions, not mechanism
+
+0. ✅ **One app, one agent** — **RULED (ADR-653 R4)**, for member apps only; kernel apps keep many-to-one. Every design decision below that assumed it is now sound rather than assumed: the Dock shows one door per concern, band 2 names one agent, and "would two different people handle these?" is a real constraint the builder can apply when a member describes two things at once.
 
 1. ✅ **Does the Dock show apps, or agents?** **RULED (ADR-653 R3): apps.** An app is one door opening one pane with one conversation in it. Agents are met where they work — ADR-600 D2's `offered: False` posture — and do not need a second row of icons.
 2. ✅ **What does the app's own chat look like?** **RULED (ADR-653 R3): a bound lane**, consistent with every existing app. ⚠️ This is the largest mechanism consequence of the rulings: `create_lane` derives boundness from an ARTIFACT (`api/routes/lanes.py:971`) and an app-level lane has none, so the request is refused at `:976` today. **A third binding kind — the app itself — is required**, and the job overlay signature (`posture(client, user_id, artifact_path, artifact)`) widens with it.
