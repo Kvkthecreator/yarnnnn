@@ -173,7 +173,12 @@ Receipts, driven over the real routes: month spend **$74.36**; `yarnnn workspace
 Named, not silently skipped:
 
 - **No new table, no new column.** The rebuild is a read-shape change over ledgers that already hold
-  what it needs; migration 257 only **drops** `owner_email`.
+  what it needs; migration 257 only **drops** `owner_email`. **APPLIED 2026-09-17** — verified on the
+  LIVE object, not the runner's exit code: `information_schema.columns` returns **0 rows** for
+  `workspaces.owner_email` (30 → 29 columns), all **21** live workspaces intact, and 0 functions / 0
+  views name it post-drop. The console then served all 21 rows with **21/21 owner labels resolved**
+  through `resolve_member_names`, which is the proof that D3's resolver fully replaced the column
+  rather than merely surviving its absence. Gate **23/23, zero skipped**.
 - **The allowlist model is unchanged.** `ADMIN_ALLOWED_EMAILS` + `NEXT_PUBLIC_ADMIN_EMAILS`, checked
   in `api/services/admin_auth.py` and `web/lib/supabase/middleware.ts`. Moving operator access onto
   `principal_grants` is a real question and a different ADR; this one does not touch authorization.
