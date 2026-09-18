@@ -740,15 +740,25 @@ export function ChatSurface() {
       <div className="h-full flex items-center justify-center p-8">
         <div className="max-w-sm text-center space-y-2 text-sm text-muted-foreground">
           <MessageCircle className="w-6 h-6 mx-auto text-muted-foreground/50" />
-          <p className="font-medium text-foreground/80">Chat is not enabled</p>
+          <p className="font-medium text-foreground/80">Chat isn&apos;t available yet</p>
           {/* §6.10b — this used to name the routing module by its internal
               name and report that it wasn't live: a module name shown to a
-              member, asking them to care about an engine. */}
-          <p>
-            Chat colleagues aren&apos;t available on this deployment yet. Your
-            conversation with Freddie is unaffected — summon it from the chat
-            button.
-          </p>
+              member, asking them to care about an engine.
+
+              2026-09-18 — and the replacement still said "on this deployment"
+              (VOICE §3 bans it) and pointed at Freddie, a seat ADR-632 retired:
+              an empty state sending a member to summon someone who no longer
+              exists. The word map's own line for this state is "Chat isn't
+              available here yet"; the second sentence names what puts something
+              here (VOICE §1.6) instead of an absent colleague.
+
+              The wording tracks the two inline versions of this same state
+              (StudioSurface, TextEditor): "X isn't available here yet." plus
+              what still works. VOICE §1.10 — one word per concept, product-wide.
+              This pane has a TITLE slot those two lack, so the title carries
+              the "isn't available" half and the body carries only the
+              reassurance, rather than saying it twice. */}
+          <p>Your files and agents are unaffected.</p>
         </div>
       </div>
     );

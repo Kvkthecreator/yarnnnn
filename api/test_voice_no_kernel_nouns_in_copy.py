@@ -98,6 +98,30 @@ BANNED_PHASE3 = [
     (re.compile(r"\baperture\b", re.I), "kernel noun 'aperture' → 'what it can reach' / 'which tools'"),
 ]
 
+# -----------------------------------------------------------------------------
+# Phase 4 (2026-09-18) — the RETIRED SEAT, and the machine a member stands on.
+#
+# Receipt: the Chat pane's not-enabled empty state read "Chat colleagues aren't
+# available on this deployment yet. Your conversation with Freddie is unaffected
+# — summon it from the chat button." Both halves were wrong to a member: it
+# named the machine ("this deployment", VOICE §3 row 21 bans it) and sent them
+# to summon Freddie — a seat ADR-632 RETIRED. The To do queue shipped the same
+# ghost: `verdictGiverLabel` returned the literal 'Freddie' for every non-human
+# reviewer, so "Freddie approved" rendered on /reach and /notifications.
+#
+# Phases 1-3 could not catch either. They ban kernel NOUNS; these are a dead
+# PERSON and an infrastructure word. A name outlives its deletion in copy
+# precisely because no gate reads copy for names — the ADR deletes the seat, the
+# sentence keeps the colleague. What CLAUDE.md's retirement list names is banned
+# here the moment it is retired. The `freddie:` ATTRIBUTION PREFIX is untouched:
+# it is a historical signature, resolved at display, and lives in comments and
+# slug comparisons that this guard's rendered-context filter already rejects.
+BANNED_PHASE4 = [
+    (re.compile(r"\bfreddie\b", re.I), "retired seat 'Freddie' (ADR-632) → 'your agent' / name the live agent"),
+    (re.compile(r"\bsteward\b", re.I), "retired seat 'steward' (ADR-632) → 'your agent'"),
+    (re.compile(r"\bdeployment\b", re.I), "'deployment' → never shown; say 'here' / 'for your workspace' (VOICE §3)"),
+]
+
 # =============================================================================
 # What counts as "rendered operator-facing string" in a web file
 # =============================================================================
@@ -108,6 +132,65 @@ BANNED_PHASE3 = [
 # `// ADR-207` and `import … // ADR-347` comment lines (the 650+ false positives).
 
 _COMMENT_LINE = re.compile(r"^\s*(//|\*|/\*|\*/)")
+
+# Shapes used by the returned-label rule below.
+_TAILWINDISH = re.compile(
+    r"\b(text-|bg-|border-|flex|px-|py-|rounded|gap-|w-|h-|grid|items-|justify-)"
+)
+# A single Capitalized word counts: a retired seat's NAME is one word, and
+# 'Freddie' alone was the whole defect. Loosening it costs nothing — this rule
+# only ADMITS a line for matching; a violation still needs a banned token, and
+# no banned token is an identifier like 'FencedCode'.
+_SENTENCE_LABEL = re.compile(r"^[A-Z][A-Za-z]+(\s+[A-Za-z][A-Za-z'’,.!—-]*)*[.!]?$")
+
+# 2026-09-18 — MULTI-LINE JSX TEXT. The rules below are line-local: they match
+# `>text<` on ONE line, or a copy-bearing prop. Prettier wraps any sentence
+# longer than the print width, so a two-line <p> put its words on lines that
+# contain NO angle bracket and NO quote — invisible to every phase. That is how
+# "Your conversation with Freddie is unaffected" survived the 2026-09-15 sweep
+# of the very pane it shipped in, and the falsification of Phase 4 came back
+# green on all three arms until this was added.
+#
+# Deliberately narrow: state opens ONLY on a PROSE element whose tag closes at
+# end-of-line, and shuts on the next line containing any `<`. A TS generic or an
+# arrow type also ends a line with `>`, so an unscoped state machine runs away
+# into plain code (measured: 5,985 lines, almost all identifiers). Scoped to
+# these tags it is 892 lines, all genuine copy.
+_PROSE_OPEN = re.compile(
+    r"<(p|h[1-6]|span|li|dd|dt|label|strong|em|button|figcaption|blockquote)"
+    r"(\s[^<>]*)?>\s*$"
+)
+
+
+def _jsx_text_line_numbers(text: str) -> set[int]:
+    """1-indexed lines that are continuation text inside a prose element."""
+    out: set[int] = set()
+    open_state = False
+    in_block_comment = False
+    for lineno, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        # A `{/* … */}` block inside a prose element is COMMENT, and its inner
+        # lines start with neither `<` nor `{` — without this they read as text
+        # (measured: WorkspaceDeleteCard's ADR-578 note inside an <li>).
+        if in_block_comment:
+            if "*/" in stripped:
+                in_block_comment = False
+            continue
+        if "{/*" in stripped or stripped.startswith("/*"):
+            if "*/" not in stripped:
+                in_block_comment = True
+            continue
+        if _COMMENT_LINE.match(line):
+            continue
+        if open_state:
+            if stripped and not stripped.startswith("<") and not stripped.startswith("{"):
+                out.add(lineno)
+            if "<" in stripped:
+                open_state = False
+            continue
+        if _PROSE_OPEN.search(stripped):
+            open_state = True
+    return out
 
 # A line is CODE (not copy) if it's a path/constant assignment or a config call —
 # these legitimately reference YAML paths the operator never sees. The token
@@ -175,6 +258,22 @@ def _is_rendered_string_context(line: str, token: str) -> bool:
     # copy-bearing prop / throw / toast carrying a string on this line
     if _COPY_PROP.search(line):
         return True
+    # 2026-09-18 — a RETURNED LABEL. A helper that maps an id to the words on
+    # screen (`verdictGiverLabel`, `runStatusLine`, PROBLEM_COPY lookups) puts
+    # member-facing copy in a `return`, which is neither JSX text nor a
+    # copy-bearing prop. That is how the To do queue returned the literal
+    # 'Freddie' for every non-human reviewer while this guard stayed green.
+    # Kept precise: a Sentence-shaped literal (leading capital, 2+ words) on a
+    # return line, minus class-name shapes — 13 hits product-wide, all copy.
+    if "return" in line:
+        for m2 in re.finditer(r"['\"]([^'\"]{3,80})['\"]", line):
+            value = m2.group(1)
+            if _TAILWINDISH.search(value):
+                continue
+            if not _SENTENCE_LABEL.match(value.strip()):
+                continue
+            if re.search(tok, value, re.I):
+                return True
     return False
 
 
@@ -239,6 +338,17 @@ def _web_files():
 # a rendered string.
 ALLOWLIST: list[str] = [
     "api/services/kernel_surfaces.py::\"/workspace/_program.yaml\",",
+
+    # --- 2026-09-18 baseline: exposed by the MULTI-LINE JSX TEXT fix ---------
+    # These shipped before the guard could see wrapped prose (see
+    # _jsx_text_line_numbers). They are PRE-EXISTING copy, not new: the ratchet
+    # convention of §5 is that a detector improvement lands with its baseline
+    # allowlisted and each later pass deletes entries. Highest-value first when
+    # swept: the marketing pages (/invest is the bulk), then Studio's "artifact"
+    # → the medium, then the three dormant-pane strings.
+    "web/components/authoring/StudioDesignTab.tsx::? // ADR-546 D3 — the span NAMES itself. A h",
+    "web/components/authoring/StudioDesignTab.tsx::: // ADR-546 D5 — the registry's word or not",
+    "web/components/authoring/StudioShareExport.tsx::: 'A deck prints one slide per page. Markdow",
 ]
 
 # Phase 2 baseline — the kernel-noun leaks present when Phase 2 was introduced.
@@ -249,6 +359,22 @@ ALLOWLIST_PHASE2: list[str] = [
     # to one voice (operator decision: same standard everywhere). The guard now
     # enforces a zero-baseline: ANY kernel-noun leak in operator-or-marketing copy
     # turns CI red. Both phases ship with an empty allowlist.
+
+    # --- 2026-09-18 baseline: exposed by the MULTI-LINE JSX TEXT fix ---------
+    # These shipped before the guard could see wrapped prose (see
+    # _jsx_text_line_numbers). They are PRE-EXISTING copy, not new: the ratchet
+    # convention of §5 is that a detector improvement lands with its baseline
+    # allowlisted and each later pass deletes entries. Highest-value first when
+    # swept: the marketing pages (/invest is the bulk), then Studio's "artifact"
+    # → the medium, then the three dormant-pane strings.
+    "web/app/invest/page.tsx::walled; the agent category is exploding but ",
+    "web/app/invest/page.tsx::delegation dial, and the attributed substrat",
+    "web/app/invest/page.tsx::Memory startups have the opposite problem: s",
+    "web/app/invest/page.tsx::Authored substrate with attribution enforced",
+    "web/app/invest/page.tsx::calibration flow back into the substrate. Li",
+    "web/app/invest/page.tsx::Supabase), platform integrations, the author",
+    "web/components/queue/QueueBody.tsx::Decided by <span className=\"font-medium\">{oc",
+    "web/components/workspace-concepts/SourcesCard.tsx::every wake — it shapes what your agent notic",
 ]
 
 
@@ -275,6 +401,64 @@ ALLOWLIST_PHASE3: list[str] = [
     "web/app/invest/page.tsx::The loop closes against groun",
     "web/app/developers/page.tsx::Build on <span className=",
     "web/components/landing/AppShowcase.tsx::Every app comes with its own col",
+
+    # --- 2026-09-18 baseline: exposed by the MULTI-LINE JSX TEXT fix ---------
+    # These shipped before the guard could see wrapped prose (see
+    # _jsx_text_line_numbers). They are PRE-EXISTING copy, not new: the ratchet
+    # convention of §5 is that a detector improvement lands with its baseline
+    # allowlisted and each later pass deletes entries. Highest-value first when
+    # swept: the marketing pages (/invest is the bulk), then Studio's "artifact"
+    # → the medium, then the three dormant-pane strings.
+    "web/app/page.tsx::ever sees itself. A shared workspace where e",
+    "web/app/s/[token]/page.tsx::A shared, attributed workspace — every chang",
+    "web/app/privacy-architecture/page.tsx::what kind of principal is asking. Connected ",
+    "web/app/invest/page.tsx::agent reads and writes, and every change is ",
+    "web/app/invest/page.tsx::cross-principal, version-controlled memory —",
+    "web/app/invest/page.tsx::to every room. Accountable judgment over tha",
+    "web/app/invest/page.tsx::The composition is unoccupied: the memory ca",
+    "web/app/invest/page.tsx::delegation dial, and the attributed substrat",
+    "web/app/invest/page.tsx::read; actions with no attributed trail; impr",
+    "web/app/invest/page.tsx::stays episodic — every artifact generated fr",
+    "web/app/invest/page.tsx::An owned workspace where every change is att",
+    "web/app/invest/page.tsx::The owned, attributed workspace is the syste",
+    "web/app/developers/page.tsx::revision chain you can walk. A connection is",
+    "web/app/developers/page.tsx::and every write lands attributed. Documented",
+    "web/components/settings/ManageConnectionSubsurface.tsx::Snapshots land as attributed observation fil",
+    "web/components/subscription/ByokSection.tsx::Run your team&rsquo;s chat lanes on your org",
+    "web/components/authoring/StudioDesignTab.tsx::and every artifact can wear it.",
+    "web/components/authoring/StudioSurface.tsx::Couldn’t load {relPath(artifactPath)}. The a",
+    "web/components/authoring/StudioSurface.tsx::: `Worn by ${wornBy[s.manifest_path]} ${worn",
+    "web/components/authoring/StudioSurface.tsx::No artifacts wear this yet. Apply it from an",
+    "web/components/authoring/NewDesignSystemModal.tsx::A design system is the look your artifacts w",
+    "web/components/notifications/ActivityLedger.tsx::every attributed act across the workspace (f",
+    "web/components/workspace-concepts/WorkspaceCreatePane.tsx::A separate commons with its own files, membe",
+    "web/components/workspace-concepts/SourcesCard.tsx::No sources declared — this watch is a delibe",
+]
+
+# Phase 4 ships at ZERO. The two sites its receipt names are fixed in the same
+# commit, so there is no baseline to allowlist — an entry added here is a
+# retired name that reached a member's screen, and needs the same argument as
+# raising any other ceiling.
+ALLOWLIST_PHASE4: list[str] = [
+    # narrative.py — NOT copy. `freddie` here is the session_messages.role
+    # slug (migration 167's CHECK constraint) and the docstring describing the
+    # ADR-209 authored_by taxonomy. CLAUDE.md keeps `freddie:` alive precisely
+    # as a display-resolved ATTRIBUTION PREFIX on historical revisions: the
+    # stored signature on a 2026-06 row cannot be rewritten, and the FE maps it
+    # to a label. A data value, not a sentence shown to a member.
+    'api/services/narrative.py::"user", "assistant", "system", "freddie"',
+    'api/services/narrative.py::{"user", "assistant", "system", "freddie"',
+    'api/services/narrative.py::"ChatGPT (via MCP)" / "Claude" / "Freddie" / "You" distinctly',
+    # The two HISTORICAL-ATTRIBUTION labelers. CLAUDE.md keeps `freddie:` alive
+    # as "a display-resolved attribution prefix on historical revisions": both
+    # of these are keyed on that PREFIX, so they name who actually signed a
+    # 2026-06 revision. Relabelling them would misattribute real history, which
+    # is the opposite of what the substrate is for. This is the line: a label
+    # for a PAST signature stays; a label for a LIVE actor does not (the queue's
+    # `verdictGiverLabel` mapped a live `ai:` identity and was fixed, and
+    # decisions.ts::identityLabel did the same with no callers and was deleted).
+    "web/components/workspace-concepts/RevisionFootnote.tsx::if (authoredBy.startsWith('freddie:')) return 'Freddie';",
+    "web/lib/workspace/attribution.ts::      return 'Freddie';",
 ]
 
 
@@ -295,6 +479,7 @@ def find_violations(include_phase2: bool = True) -> list[tuple[str, int, str, st
     if include_phase2:
         pattern_sets.append((BANNED_PHASE2, ALLOWLIST_PHASE2))
         pattern_sets.append((BANNED_PHASE3, ALLOWLIST_PHASE3))
+        pattern_sets.append((BANNED_PHASE4, ALLOWLIST_PHASE4))
     targets = list(_web_files()) + [f for f in BACKEND_COPY_FILES if f.exists()]
     for path in targets:
         try:
@@ -303,6 +488,7 @@ def find_violations(include_phase2: bool = True) -> list[tuple[str, int, str, st
             continue
         rel = str(path.relative_to(REPO_ROOT))
         is_py = path.suffix == ".py"
+        jsx_text = set() if is_py else _jsx_text_line_numbers(text)
         for lineno, line in enumerate(text.splitlines(), 1):
             # python comment-line skip
             if is_py and line.lstrip().startswith("#"):
@@ -330,7 +516,7 @@ def find_violations(include_phase2: bool = True) -> list[tuple[str, int, str, st
                         if re.search(r'["\']' + re.escape(token) + r'["\']\s*:', line):
                             continue
                     else:
-                        if not _is_rendered_string_context(line, token):
+                        if lineno not in jsx_text and not _is_rendered_string_context(line, token):
                             continue
                     if _allowlisted(rel, line, allow):
                         continue

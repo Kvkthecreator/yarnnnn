@@ -386,18 +386,22 @@ function cleanReasoning(reasoning: string): string {
 interface ProposalChipProps {
   proposal: ProposalData;
   agentPosture: AgentPosture;
-  personaName: string | null;
+  personaName: string;
   terminalStatus: LocalStatus | null;
   onClick: () => void;
 }
 
+// 2026-09-18 — this returned the literal 'Freddie' for every non-human
+// reviewer, so the To do queue credited a seat ADR-632 retired. The stored
+// value is `human:<id>` or `ai:<slug>`: the second is an agent, and VOICE §3
+// calls an agent "your agent". Never null, so the `?? 'Freddie'` guards that
+// rode on every call site were dead code and are gone.
 function verdictGiverLabel(identity?: string | null): string {
-  if (!identity) return 'Freddie';
-  return identity.startsWith('human:') ? 'You' : 'Freddie';
+  return identity?.startsWith('human:') ? 'You' : 'Your agent';
 }
 
 function ProposalChip({ proposal, agentPosture, personaName, terminalStatus, onClick }: ProposalChipProps) {
-  const name = personaName ?? 'Freddie';
+  const name = personaName;
 
   const reviewerLine =
     agentPosture === 'approve_advisory' ? `${name} approved` :
@@ -575,19 +579,19 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
           {agentPosture === 'approve_advisory' && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
               <ShieldCheck className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName ?? 'Freddie'} approved</span>
+              <span className="font-medium">{personaName} approved</span>
             </div>
           )}
           {agentPosture === 'defer' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldQuestion className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName ?? 'Freddie'} deferred — your judgment needed</span>
+              <span className="font-medium">{personaName} deferred — your judgment needed</span>
             </div>
           )}
           {agentPosture === 'rejected' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldX className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName ?? 'Freddie'} rejected</span>
+              <span className="font-medium">{personaName} rejected</span>
             </div>
           )}
           <p className="text-xs text-muted-foreground leading-relaxed pl-4">

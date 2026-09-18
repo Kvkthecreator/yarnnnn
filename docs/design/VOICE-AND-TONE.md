@@ -171,3 +171,44 @@ the ADR-585 D5 disclosure (*engine · you picked · pasting*).
 6. `AgentsSurface` "Runs on" renders a raw model id; use the engine label.
 7. The Reach sidebar group label *The boundary*; the Notifications group *Operate*. Small, but a
    member reads them.
+
+### 2026-09-18 — the retired seat, and the three shapes the guard could not see
+
+Trigger: the operator's screenshot of the Chat pane's not-enabled state — *"Chat colleagues aren't
+available on this deployment yet. Your conversation with Freddie is unaffected — summon it from the
+chat button."* Two defects in one sentence: it named the machine (§3 row 21 bans "deployment") and
+sent a member to summon **Freddie**, a seat ADR-632 retired. An empty state pointing at someone who
+no longer exists reads as a broken product.
+
+Fixed, all rendered copy: the Chat empty state (now *"Chat isn't available yet"* + what turns it on,
+per §1.6); the To do queue's `verdictGiverLabel`, which returned the literal `'Freddie'` for **every**
+non-human reviewer, so *"Freddie approved"* shipped on `/reach` and `/notifications` (now *"Your
+agent"*, the §3 word, and the three dead `?? 'Freddie'` guards that rode on it are gone);
+`decisions.ts::identityLabel`, which mapped a live `ai:` identity to "Freddie" and had **zero
+callers** — deleted, not relabelled.
+
+**The line on `freddie:`** — CLAUDE.md keeps it as a display-resolved attribution prefix on
+historical revisions, and that stands: `RevisionFootnote` and `attribution.ts` name who actually
+signed a past revision, and rewriting them would misattribute real history. A label for a PAST
+signature stays; a label for a LIVE actor does not.
+
+**Phase 4** (`freddie` · `steward` · `deployment`) ships at zero: a retired seat's NAME is not a
+kernel noun, so phases 1–3 structurally could not catch it. What the retirement list names is banned
+here the moment it is retired.
+
+**Three detector holes found while falsifying it** — the first falsification came back green on all
+three arms, which is the finding, not the fix:
+1. **Multi-line JSX text.** The rules were line-local (`>text<` on ONE line, or a copy-bearing prop).
+   Prettier wraps any sentence past the print width, so a two-line `<p>` put its words on lines with
+   no bracket and no quote — invisible to *every phase*. This is how "Freddie" survived the
+   2026-09-15 sweep **of the very pane it shipped in**. Fixed with a state machine scoped to prose
+   elements (an unscoped one runs away into TS generics: 5,985 lines vs 892, all copy).
+2. **A returned label.** A helper mapping an id to words (`verdictGiverLabel`) is copy in a `return`
+   — neither JSX text nor a prop. Note the near-miss: the first version required 2+ words and so
+   could not see `'Freddie'`, a one-word name, which was the entire defect.
+3. **A `{/* … */}` block inside a prose element** read as text (3 false positives).
+
+The multi-line fix exposed **35 pre-existing violations** the guard had never been able to see —
+24 Phase-3, 8 Phase-2, 3 Phase-1, concentrated in `/invest` and Studio. Baselined per §5 so the
+detector improvement lands without a 35-site copy rewrite; they are now **owed item 0**, ahead of
+the marketing line above, because they are the same marketing pages with a bigger true count.

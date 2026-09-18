@@ -122,17 +122,12 @@ function capitalize(s: string): string {
   return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-// ADR-381/251 relabel-keep-slug: the occupant slugs (ai:/reviewer-layer:) stay
-// internal; the operator-facing label is "Freddie" (the "AI Reviewer" prefix is
-// redundant now that the seat occupant IS Freddie).
-export function identityLabel(identity: string | null | undefined): string {
-  if (!identity) return 'Freddie';
-  if (identity.startsWith('human:')) return 'You';
-  if (identity.startsWith('ai:')) return 'Freddie';
-  if (identity.startsWith('impersonated:')) return 'Admin (impersonated)';
-  if (identity === 'reviewer-layer:observed') return 'Freddie (observing)';
-  return identity;
-}
+// identityLabel DELETED 2026-09-18. It mapped a LIVE `ai:` identity to the
+// literal "Freddie" — a seat ADR-632 retired — and had zero callers (only META
+// is imported from this module). Unlike the `freddie:` prefix on a historical
+// revision, which is a real signature resolved at display, this one would have
+// put a dead colleague's name on a live decision. Deleted rather than
+// relabelled: no caller means no behavior to preserve.
 
 export function formatRelativeTimestamp(iso: string | null | undefined): string {
   if (!iso) return '—';
