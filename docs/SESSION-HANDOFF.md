@@ -6,6 +6,13 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## Responsive gate stops at the marketing surfaces (2026-09-18)
+- `api/test_library_responsive.py` rule 3 (a flex child holding a `max-w-*` block wider than a phone
+  viewport must carry `min-w-0`) is scoped to `web/components/landing/` — the surfaces where the bug
+  class was found (`98615c6`). The **authenticated app was not audited** for the same pattern. Owed:
+  one sweep of `web/components/` beyond `landing/` + `library/`, then widen the gate's scope rather
+  than copying the rule (the README says so).
+
 ## GitBook screenshots — one GitHub GC request remains
 - **Ask GitHub Support to GC the orphaned objects.** `main` was force-pushed (`b17ca34` → `c574f31`,
   2026-09-18) to drop a consent screenshot carrying the operator's personal email. A fresh clone is
