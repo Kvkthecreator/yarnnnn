@@ -585,3 +585,64 @@ Three of §8's open items close or shrink on vocabulary alone, with no code writ
 
 ⭐⭐⭐ **The pattern worth carrying**: the operator asked a naming question and it dissolved three mechanism questions. **Where a thing is called what it already is, the mechanism is usually already there.** Every answer above reuses a field, a folder or a resolver that shipped for another reason.
 
+
+---
+
+## 15. The scope, stated back — ONE app, ONE agent, and the builder is gone
+
+> **Operator ruling, 2026-09-18**: *"we're aiming to create one app, one agent (supervisor and its supervisor app). and thus, while using the existing architecture surrounding work handling and orchestration, app-builder is no more (or postponed indefinitely)."*
+>
+> **Recorded so a later session cannot read the shipped app machinery as an invitation to build a second one.**
+
+### 15.1 What is in scope
+
+**One app: the supervisor app. One agent: its supervisor.** Not a class of member-authored apps — *this* app.
+
+**The app-builder is postponed INDEFINITELY**, which is stronger than demoted. No member authors an app; there is no catalog, no derived-app proposal, no builder conversation. ADR-653 D6's three origins (chosen · derived · authored) have **no subjects**.
+
+**The surrounding architecture is REUSED, not rebuilt** — lanes, the stamp (§14.4), the multi-party room (ADR-626/495), standing work, the workspace-as-shared-memory (§14.2).
+
+### 15.2 The fork this forced, and the ruling
+
+⚠️ **"One app, one agent" plus "no member authors an app" is not consistent with a MEMBER app**, and the inconsistency is not cosmetic. It was raised before recording and ruled:
+
+> **The supervisor app is a KERNEL app — code, like Slides and Text.** `services/apps/supervisor.py` with `register_app`, a registered `AGENTS` row, `kernel: True`. The supervisor is fixed, as Editor and Designer are.
+
+**What the ruling buys**: ADR-464's line holds unbent — *the member's copy is a folder; the kernel's is code* — and the ADR-460 D3.a cliff is at its strongest, because a member cannot author the being at all.
+
+**What it costs, stated plainly**: a member cannot shape their supervisor's character by talking to it. ADR-653 D6's *"editing is chat"* does not apply to a kernel app. ⚠️ **That was a real property of the app frame and it is being given up deliberately, not overlooked.**
+
+### 15.3 What this means for ADR-653's shipped code
+
+⭐⭐⭐ **The surface layer SURVIVES the re-scope; the member-authored layer does not.** The division is exact, and it turns on one structural fact driven 2026-09-18:
+
+> **`is_composition()` reads the REGISTER FIELD, not the app's provenance.** A KERNEL surface row may declare `register: "composition"` — `REGISTERS` admits it and nothing keys on who authored the app. So the composed surface, the kind vocabulary and the generic renderer work for a kernel app unchanged.
+
+| Shipped in ADR-653 | Under the new scope |
+|---|---|
+| D3.a — `composition` as a validated register + `is_composition` | ✅ **SURVIVES** — the supervisor app declares it |
+| D3.b — the kind dispatch (`AppSection`, the honest miss) | ✅ **SURVIVES** — it renders declared sections whoever declared them |
+| D3.c — the generic `AppSurface`, `/apps/{slug}`, the openable-slug predicate | 🟡 **survives in SHAPE**, but a kernel app has a kernel slug and a `/{slug}` route, so the two-segment route and the roster-derived predicate may have no tenant |
+| The `/apps/*` middleware protection | ✅ **survives** if the route does; ⚠️ **delete WITH the route if it does not** — an unprotected-namespace fix for a namespace nobody uses is dead weight, and the auth list must not grow fossils |
+| `surfaces[]` typing at the client boundary (§10.3 fix) | ✅ **SURVIVES** — unrelated to apps; it typed the endpoint's most load-bearing field |
+| D1/D2 — the `_app.yaml` parser, `agent_row`, `kernel: False`, `read_member_app(s)` | 🔴 **NO TENANT** — nobody authors a declaration |
+| R1 — `app_delete_roots` (delete an app, take its agent's memory) | 🔴 **NO TENANT** — a kernel app is not deleted by a member |
+| R4 — one member app, one agent | 🔴 **VACUOUS** — it was scoped to member apps and there are none |
+| The member-agent resolution in `create_lane` / `build_lane_conventions` | 🔴 **NO TENANT** — a kernel resident resolves through `resolve_app` as it always did |
+| `default_agent_engine()` | 🟡 **survives narrowly** — it exists because a MEMBER agent carries no engine; a kernel row does, so its last-resort arm goes unused. Harmless, and honest as a fallback. |
+
+⚠️ **This is a large stranding and it should not be left dormant.** This repo's standing discipline is explicit — *delete legacy code when replacing it; no compatibility shims* — and its own standing example is the **8 primitives marked "registered, no live surface"**, which cost a handler and a payload line each, forever. **The cleanup is sequenced after this ruling, not skipped**, and it must be a measured census (callers first) rather than a guess.
+
+### 15.4 What the supervisor app needs that does NOT exist yet
+
+Named so the re-scope is not mistaken for "it's all already built":
+
+1. **The module** — `services/apps/supervisor.py` with `register_app(slug, resident=...)`, plus a kernel surface row declaring `register: "composition"` and its sections.
+2. **The agent row** — a new `AGENTS` entry, `kernel: True`, `offered: False` (met where it works, ADR-600 D2). ⚠️ **ADR-603 D3's naming warning applies to a KERNEL row with full force** — a manager-word in the kernel register names a role over others, and §13.3's answer (the frame makes it safe) must be re-argued for a row the member cannot rename.
+3. **Memory with a writer and a reader** — still the empty shelf (§3.3, §14.3). A kernel supervisor needs it exactly as a member one would.
+4. **Routing** — the act is *"stamp this lane with my app"* (§14.4), and §10 ruled it happens **as the member's hands**, inside a turn they began. Direct-open vs propose-and-click stays a demand question (§10.5).
+
+### 15.5 The one thing to re-check before building
+
+⚠️ **ADR-653 is ACCEPTED and its D1/D2/R1/R4 now have no subjects.** An ADR whose decisions have no tenant is not automatically wrong — but it must not be left reading as live guidance. **Owed: an ADR-653 amendment recording that the member-authored half is postponed indefinitely, what survives as infrastructure, and what was deleted.** That amendment should cite this section and follow the deletion census, so it records what actually happened rather than what was intended.
+
