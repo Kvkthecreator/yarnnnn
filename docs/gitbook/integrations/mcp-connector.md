@@ -1,104 +1,45 @@
 # MCP Connector — ChatGPT, Claude & More
 
-You don't have to be in YARNNN to use YARNNN. Connect it to the AI you already work in, and that AI can read from and write to the same workspace.
+You don't have to be in YARNNN to use YARNNN. Connect it to the AI you already work in, and that AI reads from and writes to the same workspace.
 
-**Server URL:** `https://mcp.yarnnn.com`
+**Server URL:** `https://mcp.yarnnn.com` — the same everywhere. Works with **ChatGPT**, **Claude** (claude.ai, Desktop, Code) and any MCP-capable client. Included on every plan, including Free; an AI connection is never a billed seat.
 
-This works today with **ChatGPT**, **Claude** (claude.ai, Claude Desktop, Claude Code), and any MCP-capable client. It's included on every plan, including Free — an AI connection is never a billed seat.
-
-## What it's for
-
-Your context stops being trapped in whichever app you happened to use.
-
-- Tell ChatGPT something worth keeping, and ask Claude about it tomorrow
-- Start a conversation somewhere else and have it grounded in your actual work
-- Ask any connected AI how a fact in your workspace got there, and who changed it
-
-## The verbs
-
-A connected AI gets these. They're file-native — the same files you see in YARNNN, not a separate memory store.
-
-| Verb | What it does |
-|---|---|
-| `whoami` | Names where it's standing — which workspace it's bound to, who its writes will be signed as, and which of these verbs it's actually allowed. A good client calls this before writing somewhere you assumed. |
-| `open` | Reads one exact file — content, who last changed it, and its recent revisions. |
-| `list` | Shows what exists — every file under a folder (or the whole workspace), with who last touched each. It also answers **what changed since a moment you name**, so a returning AI can pick up where it left off instead of re-reading everything. |
-| `search` | Finds files by meaning. Returns the material plus a confidence signal; the AI you're talking to explains it in its own voice. |
-| `history` | Shows how a file changed over time — who changed it, when, and what the change was. This is the one a plain storage connector can't do. |
-| `save` | Writes a whole file as an attributed revision — including anything worth keeping from the conversation itself. |
-| `edit` | Changes part of a file — only the change travels, so a partial read can't destroy the rest. |
-| `delete` / `move` | Tidy the workspace — remove or rename with an attributed, restorable tombstone. |
-| `request_upload` | Takes in something that arrives as bytes rather than text — an image, a PDF, an export — and lands it as an attributed file like any other. |
-| `share` | Mints a member or read-only link for a file (or the workspace), right from the conversation. |
-
-Full parameter-level detail is in the [MCP tool reference](../api-reference/mcp-tools.md).
-
-Every write from a connected AI is attributed to it by name. You'll see `claude.ai` or `chatgpt` on the revision, and the connection appears as a revocable row in your members roster.
-
-## What a connection is allowed to do
-
-A connection doesn't get all-or-nothing access. Each verb sits in one of three tiers, and a client is granted only the tiers it asks for:
-
-| Tier | What it allows |
-|---|---|
-| `files:read` | Read your files — open, list, search, and view their history. |
-| `files:write` | Create, edit, move, and delete files. Every change is signed and revertible. |
-| `files:share` | Create share links, which can give whoever opens them full member access. |
-
-The tiers are additive — write includes read, share includes both. A client that asks for nothing gets read-only, which is the safe floor.
-
-This is enforced on every call, not just displayed at sign-up: a token holding `files:read` is refused when it tries to save. You see the specific tiers a connection asked for on the approval screen before you authorise it, and again on its row in **Workspace Settings → Access**.
-
-{% hint style="info" %}
-Connections made before this was introduced carry an older full-access grant, so they keep working. You can narrow or revoke any of them at any time.
-{% endhint %}
-
----
-
-## Setup
-
-Pick the client you use. The server URL is the same everywhere: `https://mcp.yarnnn.com`
+## Set it up
 
 {% tabs %}
 {% tab title="Claude.ai" %}
-1. **Settings** → **Connectors**
-2. **Add custom connector**
-3. Name: `yarnnn` · URL: `https://mcp.yarnnn.com`
-4. **Add**, then complete the authorisation
-
-Try: *"Use YARNNN to find what I have on the Q1 roadmap."*
+1. **Settings** → **Connectors** → **Add custom connector**
+2. Name: `yarnnn` · URL: `https://mcp.yarnnn.com`
+3. **Add**, then complete the authorisation
 
 ![Adding YARNNN as a custom connector in Claude.ai](../.gitbook/assets/claude-add-custom-connector.png)
+
+Try: *"Use YARNNN to find what I have on the Q1 roadmap."*
 {% endtab %}
 
 {% tab title="ChatGPT" %}
-ChatGPT connects MCP servers as **plugins**. You'll need Developer mode on first: **Settings** → **Apps** → **Advanced settings** → toggle **Developer mode**.
+ChatGPT connects MCP servers as **plugins**. Turn on Developer mode first: **Settings** → **Apps** → **Advanced settings** → **Developer mode**.
 
-**Step 1 — Open the plugin directory**
-
-**Settings** → **Plugins**, then the **+** button at the top right.
+**1. Open the plugin directory** — **Settings** → **Plugins**, then the **+** at the top right.
 
 ![The Plugins directory in ChatGPT, with the + button top right](../.gitbook/assets/chatgpt-plugins-add.png)
 
-**Step 2 — Fill in the New Plugin form**
+**2. Fill in the New Plugin form**
 
 | Field | Value |
 |---|---|
 | Name | `yarnnn` |
-| Description | optional — something like *AI workspace to save files* |
 | Connection | leave on **Server URL** (not Tunnel) |
 | Server URL | `https://mcp.yarnnn.com` |
 | Authentication | **OAuth** |
 
-Leave **Advanced OAuth settings** alone — YARNNN publishes its own OAuth metadata, so ChatGPT discovers the client setup and scopes itself.
+Leave **Advanced OAuth settings** alone — YARNNN publishes its own metadata, so ChatGPT discovers the client setup and scopes itself.
 
 ![The New Plugin form filled in for YARNNN](../.gitbook/assets/chatgpt-new-plugin-yarnnn.png)
 
-Tick **I understand and want to continue** — this warning appears for every custom MCP server, not just YARNNN — then **Create** and complete the authorisation. You'll land on YARNNN's consent screen, where you pick which workspace the connection binds to.
+**3. Tick the acknowledgment, then Create.** The risk warning appears for every custom MCP server, not just YARNNN. Complete the authorisation that follows.
 
 Try: *"Use YARNNN to find what I have on the Q1 roadmap."*
-
-ChatGPT also renders YARNNN's results as inline cards — a history timeline, search-result cards, a save receipt — rather than plain text.
 {% endtab %}
 
 {% tab title="Claude Desktop" %}
@@ -136,23 +77,68 @@ Tools are available in your next session.
 {% endtab %}
 {% endtabs %}
 
+### Approving the connection
+
+Claude.ai and ChatGPT both send you to YARNNN's own consent screen. Two things to read there:
+
+- **Which workspace** the connection binds to. If you can reach more than one, it only ever sees the one you pick.
+- **What it may do** — the tiers below. Every write is signed as that AI and is revertible.
+
+{% hint style="success" %}
+Once it's connected, tell ChatGPT something worth keeping and ask Claude about it tomorrow. Same workspace, both directions.
+{% endhint %}
+
 ---
 
-## Tips
+## What a connection is allowed to do
 
-- **Be explicit at first** — "use YARNNN to…" so the client reaches for the connector rather than guessing. Once it's used a few times, most clients pick it up on their own.
-- **Exact when you know the file, fuzzy when you don't.** `open` and `history` take a path or reference; `search` takes a topic; `list` shows what exists when you're not sure of either.
-- **Confidence is a real signal.** When `search` comes back ambiguous, several things matched and none dominated — a good client will ask you which you meant rather than picking the first.
+A connection isn't all-or-nothing. Each verb sits in one of three tiers, and a client is granted only the tiers it asks for:
+
+| Tier | What it allows |
+|---|---|
+| `files:read` | Read your files — open, list, search, and view their history. |
+| `files:write` | Create, edit, move, and delete files. Every change is signed and revertible. |
+| `files:share` | Create share links, which can give whoever opens them full member access. |
+
+The tiers are additive — write includes read, share includes both. A client that asks for nothing gets read-only, which is the safe floor.
+
+This is enforced on every call, not just displayed at sign-up: a token holding `files:read` is refused when it tries to save. You see the tiers a connection asked for on the approval screen, and again at **Workspace Settings → Access**.
+
+{% hint style="info" %}
+Connections made before tiers were introduced carry an older full-access grant, so they keep working. You can narrow or revoke any of them at any time.
+{% endhint %}
+
+## The verbs
+
+File-native — the same files you see in YARNNN, not a separate memory store.
+
+| Verb | What it does |
+|---|---|
+| `whoami` | Names where it's standing — which workspace, who its writes are signed as, and which verbs it holds. A good client calls this before writing somewhere you assumed. |
+| `open` | Reads one exact file — content, who last changed it, and its recent revisions. |
+| `list` | Shows what exists under a folder, with who last touched each. Also answers **what changed since a moment you name**, so a returning AI picks up where it left off. |
+| `search` | Finds files by meaning. Returns the material plus a confidence signal. |
+| `history` | How a file changed over time — who changed it, when, and what the change was. The one a plain storage connector can't do. |
+| `save` | Writes a whole file as an attributed revision. |
+| `edit` | Changes part of a file — only the change travels, so a partial read can't destroy the rest. |
+| `delete` / `move` | Remove or rename, with an attributed, restorable tombstone. |
+| `request_upload` | Lands something that arrives as bytes rather than text — an image, a PDF, an export — as an attributed file. |
+| `share` | Mints a member or read-only link for a file or the workspace, right from the conversation. |
+
+Parameter-level detail is in the [MCP tool reference](../api-reference/mcp-tools.md).
+
+Every write is attributed by name: you'll see `claude.ai` or `chatgpt` on the revision, and the connection appears as a revocable row in your members roster.
+
+## Getting good results
+
+- **Be explicit at first** — "use YARNNN to…" so the client reaches for the connector rather than guessing. Most pick it up on their own after a few uses.
+- **Exact when you know the file, fuzzy when you don't.** `open` and `history` take a path or reference; `search` takes a topic; `list` shows what exists when you're sure of neither.
+- **Confidence is a real signal.** When `search` comes back ambiguous, several things matched and none dominated — a good client asks which you meant rather than picking the first.
 - **It's the same workspace.** Anything you save from ChatGPT is in Files when you next open YARNNN, and vice versa.
 
 ## Managing connections
 
-Every connected AI appears at **Workspace Settings → Access** as a named row under **AI connections**, showing which provider it is and who connected it.
-
-From there you can:
-
-- **Narrow** what region of the workspace it may write to
-- **Revoke** it — which ends the grant and deletes its tokens; it would have to reconnect
+Every connected AI appears at **Workspace Settings → Access** as a named row under **AI connections**, showing which provider it is and who connected it. From there you can **narrow** what region of the workspace it may write to, or **revoke** it — which ends the grant and deletes its tokens, so it would have to reconnect.
 
 In a team workspace, each person's connections are their own. Revoking yours doesn't touch a teammate's.
 
@@ -160,8 +146,6 @@ In a team workspace, each person's connections are their own. Revoking yours doe
 
 **Does it cost extra?** No. MCP access is included on every plan, and an AI connection is never a seat.
 
-**Can a connected AI change my whole workspace?** It can write what you ask it to remember. Its write access is a grant you can narrow or revoke at any time, and everything it writes is attributed to it — so you can always see what came from where.
+**Can a connected AI change my whole workspace?** It writes what you ask it to. Its write access is a grant you can narrow or revoke at any time, and everything it writes is attributed to it — so you can always see what came from where.
 
 **Do I need to keep YARNNN open?** No.
-
-**Which clients work?** Anything that speaks MCP. ChatGPT, Claude.ai, Claude Desktop, Claude Code, Cursor, and others are recognised by name; a spec-compliant client that isn't gets the standard text experience.
