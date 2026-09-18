@@ -43,12 +43,16 @@ web/components/library/
 
 > **Why this exists**: Home renders in a narrow phone viewport (~390px) as well as on desktop. A fixed multi-column grid that fits a wide card overflows its cells on a phone — the `TraderMoneyTruth` `grid-cols-3` collision (operator screenshot, 2026-06-12) was exactly this. There is no render-at-width test in the suite, so responsive bugs are invisible to gates unless a convention is enforced statically.
 
-Two rules, enforced by `api/test_library_responsive.py` (a grep gate — it does not render; it pins the at-rest source):
+Three rules, enforced by `api/test_library_responsive.py` (a grep gate — it does not render; it pins the at-rest source):
 
 1. **Metric/column grids are mobile-first.** Any `grid-cols-N` (N ≥ 2) MUST pair with a phone fallback: write `grid-cols-1 sm:grid-cols-N` (stack on phones, N-up from `sm:`). A bare `grid-cols-3` is a gate failure. Single-column grids and grids that already declare a `sm:`/`md:`/`lg:` breakpoint pass.
 2. **Rows with right-aligned metadata wrap.** A `flex … justify-between` row whose right cluster carries metrics/timestamps (the headline-plus-tape shape, e.g. `TraderRegime`) MUST use `flex-wrap` so the cluster drops below the headline on narrow widths instead of colliding. (Advisory in the gate — `flex-wrap` is recommended, not hard-failed, because not every justify-between row has overflow risk.)
 
-The convention is scoped to `components/library/` (the kernel + program component library this README owns). Components elsewhere in `web/components/` are not gated here; if a future finding shows the same class of bug outside the library, widen the gate's scope rather than copying the rule.
+3. **A flex child that holds a wide block can shrink.** A flex item defaults to `min-width: auto` and REFUSES to shrink below its content's intrinsic width. So a bare `<div>` child of a `flex` row that contains a `max-w-xl` (or wider) block pushes the row past the viewport — and because the marketing pages all carry `overflow-x-hidden`, the excess is CLIPPED rather than scrolled, which is why nothing looked broken to the page itself. Such a child MUST carry `min-w-0` (or `truncate`/`overflow-hidden`/`basis-0`). Rows that stack on phones (`flex-col … lg:flex-row`) are exempt — they are not rows at phone width.
+
+> **Rule 3's trigger** (2026-09-18): an operator's contact screenshotted `/how-it-works` on a phone with the step-03 replica sliced mid-word. `StepFlow`'s step content column was `<div className="pt-2">` inside `<li className="flex gap-6">`, holding product replicas at `max-w-xl`. Measured on the deployed page at 390px: every step column ran 301–379px wide and **77 elements** sat past the right edge — while `document.scrollWidth === clientWidth`, because `overflow-x-hidden` ate the evidence. Adding `min-w-0` took it to 1.
+
+Rules 1–2 are scoped to `components/library/` (the kernel + program component library this README owns); rule 3 also covers `components/landing/` (the marketing surfaces, where the bug class was found). If a future finding shows a bug class outside these, widen the gate's scope rather than copying the rule.
 
 ## Current set (alpha-trader, post-ADR-273 Phase 5)
 

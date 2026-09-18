@@ -13,6 +13,21 @@
  * (Name · Author · When, uppercase text-[11px] headers); accent-dot +
  * RESOLVED attribution labels; the revision panel's r{N} grammar with the
  * "current" pill and revert/diff affordances.
+ *
+ * Narrow widths (2026-09-18): the row grid's author column was `auto`, so a
+ * long resolved label ("ChatGPT (via MCP)", "Claude (via MCP)") took the width
+ * it wanted and starved the NAME column — the only flexible track. Measured at
+ * 320px: the filename cells collapsed to 7px and 17px beside 77-84px siblings,
+ * inside the viewport and so invisible to an overflow sweep; only a screenshot
+ * showed it. `minmax(0,auto)` does NOT fix this — `auto` as a MAXIMUM still
+ * resolves to max-content. Giving the name a floor then starved the author
+ * instead ("C…", "Cl…"): at 320px three columns cannot all be legible. So the
+ * author column — the widest, with its resolved "(via MCP)" labels — appears
+ * from min-[380px] up, as the shipped Finder does. (Tailwind's sm: is 640px,
+ * far above phone width, and left the column hidden at 390px where the name
+ * cell had 196px to spare.) Below that it is Name + When; the
+ * accent dot stays in the name cell, so attribution is still SIGNALLED at
+ * every width, just not spelled out.
  */
 
 import {
@@ -71,15 +86,15 @@ export function FilesReplica({ className = "" }: { className?: string }) {
         {/* List + revision panel */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Column headers */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_44px] gap-3 border-b border-border px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="grid grid-cols-[minmax(0,1fr)_44px] min-[380px]:grid-cols-[minmax(0,1fr)_minmax(0,auto)_44px] gap-3 border-b border-border px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <span>Name</span>
-            <span>Author</span>
+            <span className="hidden min-[380px]:block">Author</span>
             <span className="text-right">When</span>
           </div>
 
           {/* The landing MCP row */}
           <div
-            className={`grid grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-3 border-b border-border/50 bg-amber-50/40 px-3 py-2 transition-all duration-500 ${
+            className={`grid grid-cols-[minmax(0,1fr)_44px] min-[380px]:grid-cols-[minmax(0,1fr)_minmax(0,auto)_44px] items-center gap-3 border-b border-border/50 bg-amber-50/40 px-3 py-2 transition-all duration-500 ${
               landed ? "opacity-100 max-h-10" : "opacity-0 max-h-0 overflow-hidden py-0 border-b-0"
             }`}
           >
@@ -88,10 +103,11 @@ export function FilesReplica({ className = "" }: { className?: string }) {
               <span className="truncate font-mono text-xs text-foreground/80">
                 q3-pricing-note.md
               </span>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 min-[380px]:hidden" />
             </span>
-            <span className="flex items-center gap-1.5 text-[10px] font-medium text-foreground/70">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              ChatGPT (via MCP)
+            <span className="hidden min-[380px]:flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-foreground/70">
+              <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-amber-400" />
+              <span className="truncate">ChatGPT (via MCP)</span>
             </span>
             <span className="text-right font-mono text-[10px] text-muted-foreground/70">now</span>
           </div>
@@ -99,15 +115,16 @@ export function FilesReplica({ className = "" }: { className?: string }) {
           {BASE_ROWS.map((r) => (
             <div
               key={r.name}
-              className="grid grid-cols-[minmax(0,1fr)_auto_44px] items-center gap-3 border-b border-border/50 px-3 py-2"
+              className="grid grid-cols-[minmax(0,1fr)_44px] min-[380px]:grid-cols-[minmax(0,1fr)_minmax(0,auto)_44px] items-center gap-3 border-b border-border/50 px-3 py-2"
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
                 <span className="truncate font-mono text-xs text-foreground/80">{r.name}</span>
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full min-[380px]:hidden ${r.dot}`} />
               </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-medium text-foreground/70">
-                <span className={`h-1.5 w-1.5 rounded-full ${r.dot}`} />
-                {r.author}
+              <span className="hidden min-[380px]:flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-foreground/70">
+                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${r.dot}`} />
+                <span className="truncate">{r.author}</span>
               </span>
               <span className="text-right font-mono text-[10px] text-muted-foreground/70">
                 {r.when}

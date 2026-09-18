@@ -21,6 +21,16 @@ import { useEffect, useRef, useState } from "react";
  *  - under prefers-reduced-motion: the line renders fully filled and the ring doesn't pulse
  *    (the global CSS guard neutralizes the keyframe; the JS also skips the scroll listener).
  *  - one passive scroll listener, rAF-throttled; no per-step observers.
+ *
+ * Phone width (2026-09-18): the content column carries min-w-0 because it is a
+ * FLEX CHILD, whose default min-width:auto refuses to shrink below its content's
+ * intrinsic width. The step `extra` slot holds the product replicas (max-w-xl),
+ * so each step column measured 301-379px inside a 390px viewport and the page's
+ * own overflow-x-hidden CLIPPED the excess instead of scrolling it — 77 elements
+ * over the edge, reported by the document as scrollWidth === clientWidth. Nothing
+ * above the flex item can fix this; the shrink has to be permitted here.
+ * The node is also 40px on phones (52px from md), which returns ~20px to the
+ * column; the spine's left offset is pl-2 (8px) + nodeW/2 - railW/2 at each size.
  */
 
 interface Step {
@@ -79,7 +89,7 @@ export function StepFlow({ steps }: StepFlowProps) {
     <ol ref={containerRef} className="relative max-w-3xl mx-auto pl-2">
       {/* The spine: a faint static rail with a bright fill that tracks scroll progress. */}
       <div
-        className="absolute left-[27px] top-3 bottom-3 w-[2px] bg-white/10"
+        className="absolute left-[27px] md:left-[33px] top-3 bottom-3 w-[2px] bg-white/10"
         aria-hidden="true"
       >
         <div
@@ -92,11 +102,11 @@ export function StepFlow({ steps }: StepFlowProps) {
         const reached = i <= activeIndex;
         const isActive = i === activeIndex;
         return (
-          <li key={step.number} className="relative flex gap-6 pb-14 last:pb-0">
+          <li key={step.number} className="relative flex gap-4 md:gap-6 pb-14 last:pb-0">
             {/* Node */}
             <div className="relative z-10 shrink-0">
               <div
-                className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border-2 transition-colors duration-500 ${
+                className={`flex h-10 w-10 md:h-[52px] md:w-[52px] items-center justify-center rounded-full border-2 transition-colors duration-500 ${
                   reached
                     ? "border-indigo-400/50 bg-indigo-500/[0.12] text-white"
                     : "border-white/15 bg-[#0f1419] text-white/40"
@@ -114,7 +124,7 @@ export function StepFlow({ steps }: StepFlowProps) {
             </div>
 
             {/* Content */}
-            <div className="pt-2">
+            <div className="min-w-0 pt-2">
               <h2
                 className={`text-2xl md:text-3xl font-medium mb-3 transition-colors duration-500 ${
                   reached ? "text-white" : "text-white/70"

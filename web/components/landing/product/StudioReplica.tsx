@@ -35,9 +35,9 @@ export function StudioReplica({ className = "" }: { className?: string }) {
         <PanelLeft className="h-3.5 w-3.5 text-muted-foreground/60" />
         <span className="text-xs text-muted-foreground">Studio</span>
         <span className="text-xs text-muted-foreground/40">/</span>
-        <span className="text-xs font-medium text-foreground">investor-update</span>
-        <div className="ml-auto flex items-center gap-1">
-          <span className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-foreground/70">
+        <span className="truncate text-xs font-medium text-foreground">investor-update</span>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <span className="hidden sm:flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-foreground/70">
             <LayoutGrid className="h-3 w-3" /> New slide <Plus className="h-2.5 w-2.5" />
           </span>
           <span className="hidden md:flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-foreground/70">

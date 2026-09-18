@@ -8,13 +8,20 @@
  * The ledger row mirrors the shipped ActivityLedger sentence grammar
  * ("{who} updated {basename}") and the resolved attribution label
  * ("ChatGPT (via MCP)", amber accent) — never raw substrate strings.
+ *
+ * 2026-09-18: the chips named Gemini as an attachable connector. Step 04's
+ * PROSE was corrected on 2026-09-18 for exactly this reason — Gemini has no
+ * MCP connector, and the docs have always said "ChatGPT, Claude, or any
+ * MCP-capable client" — but the replica beside that paragraph was not. The
+ * third chip now carries the open-ended claim the prose makes, not a vendor
+ * name we cannot honour.
  */
 
 import { Check, FileText } from "lucide-react";
 import { ProductWindow } from "./ProductWindow";
 import { useStagedLoop, reveal } from "./useStagedLoop";
 
-const CONNECTORS = ["ChatGPT", "Claude", "Gemini"];
+const CONNECTORS = ["ChatGPT", "Claude", "Any MCP client"];
 
 export function ConnectReplica({ className = "" }: { className?: string }) {
   const step = useStagedLoop(3, 2000);
