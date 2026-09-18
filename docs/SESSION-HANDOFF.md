@@ -6,17 +6,12 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## GitBook connector screenshots — one GC request, two stale URLs
+## GitBook screenshots — one GitHub GC request remains
 - **Ask GitHub Support to GC the orphaned objects.** `main` was force-pushed (`b17ca34` → `c574f31`,
   2026-09-18) to drop a consent screenshot carrying the operator's personal email. A fresh clone is
   clean, but commit `f576492` and blob `5e80a06c8a3cf42af9ff1e85b7ee410e427782e2` still return 200
   from the GitHub API by direct SHA — unreferenced objects survive until GitHub garbage-collects,
   which only happens on a support request. Until then a direct SHA link still serves the address.
-- **Two ChatGPT screenshots show a dead server URL.** `.gitbook/assets/mcp connect - openai3.png`
-  and `mcp connect - claud.png` both show `https://yarnnn-mcp-server.onrender.com/mcp`, while every
-  page tells members to use `https://mcp.yarnnn.com`. The operator has fresh replacements in the
-  workspace (`marketing/assets/screenshots/image-3.png` and `image-4.png`) showing the current
-  plugin flow — the `+` button and the MCP form with the right URL. Swap them in.
 - The publishable consent screenshot is `marketing/assets/screenshots/yarnnn-oauth-consent-claude-scrubbed.png`
   (the un-suffixed name is permanently blocked by its own tombstone — see the defect below).
 
