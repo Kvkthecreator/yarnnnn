@@ -77,6 +77,9 @@ import NotificationsPage from '@/app/(authenticated)/notifications/page';
 // is deleted with its parent window; /activity redirects into Notifications.
 import AgentsPage from '@/app/(authenticated)/agents/page';
 import FilesPage from '@/app/(authenticated)/files/page';
+// ADR-656 — the Supervisor app: the first COMPOSED surface (its sections are
+// declared and dispatched, not a bespoke component over one concern).
+import SupervisorPage from '@/app/(authenticated)/supervisor/page';
 // ADR-437 (2026-07-10): the `setup` guided first-boot Sequence surface is
 // DELETED (genesis is empty, ADR-414; activation reframes to cold-landing +
 // the shared-artifact wedge). No import, no registry entry; /setup → /chat stub.
@@ -117,6 +120,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   notifications: NotificationsPage,  // ADR-346/349 — the operating-work composition (was 'operation')
   agents: AgentsPage,
   files: FilesPage,
+  supervisor: SupervisorPage,  // ADR-656 — declared sections, dispatched by kind
   // ADR-437 (2026-07-10) — `setup` deleted (dormant registry row backend-side).
   settings: SettingsPage,  // ADR-347 — the account window (UserMenu-reached: billing/usage/account)
   'workspace-settings': WorkspaceSettingsPage,  // ADR-347 — the ONE Settings door (the operation)

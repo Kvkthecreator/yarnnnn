@@ -1,9 +1,9 @@
 # ADR-656 — The Supervisor app: one app, one agent, and the first composed kernel surface
 
-> **Status**: **Accepted + Phase 1 Implemented** (2026-09-18). Phase 1 is the AGENT and the APP —
-> the row, the module, the registration, the job overlay, the surface row. The SURFACE (its
-> sections), MEMORY and ROUTING are named here and not built; the app is `stage: internal` with no
-> route and no launcher tier until they are.
+> **Status**: **Accepted + Phases 1–2 Implemented** (2026-09-18). Phase 1 = the AGENT and the APP
+> (row · module · registration · job overlay · surface row). **Phase 2 = the SURFACE** — three
+> declared sections, dispatched by kind, and the app UNVEILED (`stage: primary`, pinned, routed).
+> **MEMORY and ROUTING remain named and not built** (§8.2, §8.4).
 > **Date**: 2026-09-18
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Identity** (Axiom 2 — a fourth agent) + **Channel**
@@ -210,10 +210,9 @@ shipped.
 
 ## 8. What is open
 
-1. ⭐⭐ **The sections.** The surface renders what its declaration says, and nothing declares yet.
-   The four-kind first cut (`files` · `recent` · `needs-you` · `note`) stays argued in
-   `APP-BUILDER-UX.md` §5; the dispatch component was deleted with its member-app consumer rather
-   than left orphaned, and should be rebuilt against the supervisor's REAL sections.
+1. ✅ **The sections — SHIPPED 2026-09-18 (§11).** Re-derived rather than inherited:
+   `needs-you` · `threads` · `note`. ADR-653's `files` and `recent` were deliberately NOT carried,
+   and `threads` is the one new kind — the reason this app is not a redirect.
 2. ⭐⭐ **Memory's writer and reader** (§5). Nothing accumulates until they exist.
 3. ⭐ **Who may read the judgment file.** It is protected today (`_is_foreign_agent_home`). Whether
    the member reads it by default, the supervisor surfaces it, or it stays background is undecided.
@@ -254,3 +253,85 @@ in its own home while the workspace stays the shared memory, and renders the fir
 YARNNN whose shape is declared rather than mirrored — because a container with no one minding it is
 a folder, and someone minding work with nowhere to stand is a chatbot with opinions about your
 other chats.**
+
+
+---
+
+## 11. Phase 2 — the surface, and the vocabulary it actually needed (2026-09-18)
+
+### 11.1 The sections were DERIVED, not inherited
+
+ADR-653's first cut (`files` · `recent` · `needs-you` · `note`) was designed for a **member app over
+a folder**. The supervisor's material is **work in flight**, so the cut was re-derived from what the
+app must answer rather than carried over:
+
+| The band-3 question | kind | Source — all of it already built |
+|---|---|---|
+| *what is waiting on me?* | `needs-you` | `mentions.list_mentions` — the ADR-605/637 attention derivation, one cursor |
+| *what is underway?* | **`threads`** | the member's conversations (`chat_sessions` + cast), resident DERIVED per row |
+| *what did we decide?* | `note` | one rendered `.md` (`supervisor/DECISIONS.md`) |
+
+**Deliberately NOT carried, and the growth rule is why** (*a kind is added when a real app needs it
+and cannot be served*):
+
+- **`files`** — the supervisor owns no folder of work. Its own folder holds notes *about* the work;
+  a file list of that answers nothing a member asks.
+- **`recent`** — *"what moved"* is the timeline's job (Notifications). ⭐ Duplicating it here is
+  **exactly the "glorified redirect" ADR-435 deleted the last composition for being.**
+
+⭐ **`threads` is the one NEW kind, and it is why this app is not a redirect.** No other surface
+shows work in flight: Files shows files, Chat shows one conversation, Notifications shows what
+already happened. Its demand is this app — the growth rule satisfied, not bypassed.
+
+### 11.2 Nothing here is a new source of truth
+
+Each band is a **reading** of a ledger other surfaces already read. `needs-you` reuses
+`list_mentions` rather than re-deriving "unresolved": ADR-637 gives attention ONE cursor, and a
+second reader with its own opinion would make the badge and the band disagree — the two-authorities
+defect ADR-495 D3 records for the cast.
+
+⚠️ **Every band degrades CLOSED and INDEPENDENTLY.** Driven with a dead client: all three return
+their own empty rather than raising. A pane that goes dark because a mention query timed out has
+told the member their work vanished.
+
+### 11.3 The unveil is a PAIRING, and the registry makes it structural
+
+`stage` · `launcher_tier` · `route` moved together, in this commit, with the surface. They had to:
+ADR-297's required-field check exempts `route` only for a **dormant** row — one carrying neither —
+so **half a door is not expressible**. That is the registry enforcing the pairing rather than a
+session remembering it.
+
+⭐ **Three gates caught three real defects in the first draft**, and each was a contradiction rather
+than a typo:
+
+1. `test_adr592_app_stage` — the row claimed a route and a tier with no page behind either (the
+   `connectors` empty-window class, ADR-653 §10.1).
+2. `test_adr297_phase1` + the stage gate — `default_pinned: False` **argued with its own stage**.
+   The pin is DERIVED (`is_default_pinned` reads the stage: `primary` ⇒ pinned), so a declared
+   `False` was the hand-kept drift the derivation exists to end. A row does not get to disagree with
+   itself.
+3. The same pair — `DEFAULT_KEPT_SURFACES` (the Dock's hand-kept default) was stale against the
+   derivation, and the gate named which of the two was wrong.
+
+### 11.4 What the surface does, and the one thing it does not
+
+Its only act is **opening a thread** — a navigation (`navigateToSurface('chat', { lane })`), never a
+mutation. The supervisor does the work of no thread, and the surface is built so that is the only
+thing it *can* do.
+
+⚠️ **An unfiled thread says so**: a thread whose `app` is empty renders *"not filed yet"* rather
+than hiding. That empty string is the routing gap (§4) made visible — a member who can see what is
+unplaced can place it, and the supervisor can propose where.
+
+### 11.5 Click-passed
+
+Driven in a browser against the rig workspace: all three bands render, `needs-you` shows its resting
+copy (*"Nothing is waiting on you"* — a complete sentence, not *"No items"*), `threads` lists 19
+conversations with app · agent derived per row and three reading *"not filed yet"*, and `note` shows
+its honest empty. Clicking a thread navigates to `/chat?chat.lane={id}`.
+
+⚠️ **One thing the pass could NOT confirm**: the chat destination rendered *"Chat is not enabled"*
+because **another session's API server held port 8000** with lanes off. The navigation itself is
+verified (the URL carries the lane id) and the backend was driven directly instead — 19 threads,
+correct derivation, and degrade-closed proven with a dead client.
+

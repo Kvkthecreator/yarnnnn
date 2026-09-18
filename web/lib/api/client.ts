@@ -1594,6 +1594,17 @@ export const api = {
   // envelope as `agents` and rendered by components/agents/AgentsSurface.tsx.
 
 
+  // ADR-656 — the Supervisor app's read door. The surfaces payload says the
+  // app exists; this says what it SHOWS when opened.
+  supervisor: {
+    state: () =>
+      request<{
+        needs_you: Array<{ lane_id: string; title: string; excerpt: string; at?: string | null }>;
+        threads: Array<{ lane_id: string; title: string; app: string; agent: string; at?: string | null }>;
+        note: { path: string; content: string } | null;
+      }>("/api/supervisor/state"),
+  },
+
   // ADR-225 + ADR-240: Programs — composition surfaces (ADR-225) +
   // activation lifecycle (ADR-240 FE consumption of ADR-226 backend).
   programs: {

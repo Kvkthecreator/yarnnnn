@@ -235,6 +235,76 @@ check("every registered agent is kernel-authored",
       str({s: r.get("kernel") for s, r in AGENTS.items()}))
 
 
+
+# =============================================================================
+print("\n[4] ADR-656 — the composed surface has its FIRST TENANT, and it is drawn")
+# =============================================================================
+
+from services.kernel_surfaces import KERNEL_SURFACES  # noqa: E402
+
+_sup = next((e for e in KERNEL_SURFACES if e["slug"] == "supervisor"), None)
+check("the supervisor surface row exists", _sup is not None)
+check("it declares the composition register", is_composition(_sup or {}))
+check("...and it is the register's first live tenant",
+      [e["slug"] for e in KERNEL_SURFACES if is_composition(e)] == ["supervisor"])
+
+# ⚠️ THE THREE KEYS MOVE TOGETHER (stage · tier · route). Half a door is the
+# empty-window class: a slug the client foregrounds and then cannot draw
+# (`connectors`, ADR-653 §10.1). The stage gate caught exactly this on the
+# first draft, so it is asserted here as a pairing rather than three facts.
+_door = [bool(_sup.get(k)) for k in ("launcher_tier", "route")] if _sup else []
+check("stage · tier · route agree — a whole door or none",
+      (_sup or {}).get("stage") == "primary" and all(_door),
+      str({k: (_sup or {}).get(k) for k in ("stage", "launcher_tier", "route")}))
+
+# ⭐ The pin is DERIVED from the stage, never declared beside it — a row that
+# disagreed with its own stage is the hand-kept drift the derivation ends.
+from services.app_stage import is_default_pinned  # noqa: E402
+
+check("the declared pin agrees with the derivation",
+      bool((_sup or {}).get("default_pinned")) == is_default_pinned(_sup or {}))
+
+# The FE half: the surface, its dispatch, and the honest miss.
+_sec = _strip_comments_ts(_read(_WEB, "components/supervisor/SupervisorSection.tsx"))
+check("the section dispatch exists", bool(_sec))
+check("dispatch is by KIND", "switch (kind)" in _sec)
+for _kind in ("needs-you", "threads", "note"):
+    check(f"the client draws {_kind!r}", f"case '{_kind}':" in _sec)
+
+# ⚠️ An unknown kind renders the HONEST MISS, never a blank. Silence is the
+# failure mode: a blank band reads as "this app has nothing" and a member
+# cannot tell a limit from an emptiness.
+_default = _sec[_sec.index("default:"):] if "default:" in _sec else ""
+_default = _default[: _default.index("}")] if "}" in _default else _default
+check("an unknown kind renders the honest miss",
+      "<SectionMiss" in _default and "return null" not in _default)
+
+# ⭐ THE GROWTH RULE, asserted rather than trusted: the vocabulary is what this
+# app needs, NOT ADR-653's folder-shaped first cut carried over. `files` and
+# `recent` are deliberately absent — the supervisor owns no folder of work, and
+# "what moved" is the timeline's job (duplicating it is the "glorified
+# redirect" ADR-435 deleted the last composition for being).
+for _notcarried in ("case 'files':", "case 'recent':"):
+    check(f"the folder-shaped kind {_notcarried[5:-1]} is NOT carried over",
+          _notcarried not in _sec)
+
+_surf = _strip_comments_ts(_read(_WEB, "components/supervisor/SupervisorSurface.tsx"))
+check("the surface renders DECLARED sections", "SECTIONS.map" in _surf)
+check("band 2 names who is minding it", "looks after this." in _surf)
+# ⭐ Resting is not an empty state. "Nothing is waiting on you" is a complete,
+# reassuring sentence; "No items" says the same and reads like a failure.
+check("the resting copy reassures rather than reporting absence",
+      "Nothing is waiting on you." in _sec and "No items" not in _sec)
+
+# The supervisor does the work of no thread: its one act is a NAVIGATION.
+check("the surface's only act is opening a thread",
+      "navigateToSurface('chat'" in _surf)
+
+_sup_ts = _strip_comments_ts(_read(_WEB, "types/surface.ts"))
+check("the slug joined the FE union", "'supervisor'" in _sup_ts)
+_client_ts = _strip_comments_ts(_read(_WEB, "lib/api/client.ts"))
+check("the api client reads the app's state", "/api/supervisor/state" in _client_ts)
+
 # =============================================================================
 print("\n" + "=" * 70)
 print(f"  {_passed} passed, {_failed} failed")

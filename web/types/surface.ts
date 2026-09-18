@@ -86,6 +86,7 @@ export type KernelSurfaceSlug =
   // quoted names from this union up to the first semicolon.
   | 'reach'  // ADR-642 — the boundary's door: connected · leaving · crossed
   | 'notifications'  // ADR-346/349 — the operating-work composition (was 'operation')
+  | 'supervisor'  // ADR-656 — the first COMPOSED surface (declared, not mirrored)
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
   | 'notification-settings';  // ADR-593 D5 — the account door's Notifications pane (pane_of: settings)
@@ -139,6 +140,8 @@ export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   // ADR-593 D5: `notification-settings` joins — the account door's
   // Notifications pane (pane-grade, search-only; /notification-settings stub).
   // ADR-645 D3: `connectors` LEFT (retired to Reach; redirect-stub only).
+  // ADR-656: `supervisor` joins — the first surface whose shape is DECLARED.
+  'supervisor',
   'settings', 'workspace-settings', 'notification-settings',
 ] as const;
 

@@ -371,9 +371,12 @@ _check("promotion never gates resolution (the being still answers)",
 # The payload is what the pane reads: an unpromoted being must not be served.
 import routes.lanes as _L  # noqa: E402
 _served = {b["slug"] for b in _L._agents_payload()}
-_check("the payload serves every promoted agent (all three since ADR-639)",
-       {"blogger", "designer", "editor"} <= _served
-       and "supervisor" not in _served)
+# ADR-656 — Supervisor JOINS the served set: its app is `primary`, so the being
+# is promoted and the pane must be able to render it. `is_promoted` is DERIVED
+# from whether any pane it serves reaches a member (ADR-602 D3), so this needed
+# no second edit when the app was unveiled — the promotion followed the stage.
+_check("the payload serves every promoted agent (all four since ADR-656)",
+       {"blogger", "designer", "editor", "supervisor"} <= _served)
 # Fail CLOSED on the unhoused (ADR-602 D3 as amended 2026-08-24): a NON-offered
 # being with no desk is unreachable everywhere — a deleted app REGISTRATION
 # must withhold its orphaned resident, never leak it onto the pane. An OFFERED
@@ -409,8 +412,13 @@ finally:
 # which is what this now asserts.
 _check("no `strings` app survives to serve (ADR-604 D3 · ADR-639 D4)",
        "strings" not in {a["slug"] for a in _L._apps_payload()})
-_check("the internal `supervisor` app serves NO door until its surface ships",
-       "supervisor" not in {a["slug"] for a in _L._apps_payload()})
+# ADR-656 — the app is UNVEILED (stage `primary`), so it now serves a door.
+# This check was written while it was internal and is EDITED rather than
+# deleted: the invariant it guards is that an app serves a door if and only if
+# its surface is exposed, which is exactly what makes the two halves move
+# together (stage · tier · route).
+_check("the unveiled `supervisor` app serves its door",
+       "supervisor" in {a["slug"] for a in _L._apps_payload()})
 
 print("8b. a deleted agent serves nothing and nobody serves a deleted app (ADR-639 D4)")
 # ⚠️ This check read `_homes("supervisor") == []` while the slug was RETIRED.

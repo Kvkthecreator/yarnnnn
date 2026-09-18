@@ -72,7 +72,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, standing_work, mentions, attached_connectors
+from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, standing_work, mentions, attached_connectors, supervisor
 from routes import agent_connectors
 from routes import publish  # ADR-628 phase (a) — the member-clicked outbound door
 
@@ -250,6 +250,9 @@ app.include_router(attached_connectors.router, prefix="/api", tags=["connectors"
 
 # ADR-225: program composition surfaces (compositor's API-side resolver)
 app.include_router(programs.router, prefix="/api/programs", tags=["programs"])
+# ADR-656 — the Supervisor app's read door. Its OWN prefix: the app is not a
+# bundle and shares no resolver with programs beyond the surfaces payload.
+app.include_router(supervisor.router, prefix="/api/supervisor", tags=["supervisor"])
 
 # ADR-312 D9: alpha-trader program data (live brokerage + trading substrate).
 # Renamed from /api/cockpit/* — trader data is program-scoped. Mounted at the

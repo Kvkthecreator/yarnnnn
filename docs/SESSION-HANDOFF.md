@@ -60,39 +60,38 @@ Decide: delete both modules and their re-exports, or keep with a tombstone.
   confirmed by running the ratchet at `e15ae7f` with the §8 diff stashed. Classify the two,
   drop the seven.
 
-## ADR-656 — the Supervisor app (Phase 1 SHIPPED 2026-09-18; surface + memory + routing next)
-- **Scope**: one app, one agent. The supervisor app is a **KERNEL app** (code); a member authors no
-  app. ADR-653's member-authored layer is DELETED (its §13 carries the census). `APP-BUILDER-UX.md`
-  is UNSCOPED — a record of an argued design, never a queue.
-- **DONE (Phase 1)**: the `supervisor` AGENTS row (kernel, offered:False, icon `compass`) ·
-  `api/services/apps/supervisor.py` with `register_app` + the pane's job overlay · a kernel surface
-  row declaring **`register: "composition"`** — the FIRST one, and the tenant that makes ADR-653
-  D3.a load-bearing. Driven live: the app-bound lane creates, seats Supervisor, and answers in the
-  declared character. Gates: registry 145/145 · stage 46/46 · 297 160/160 · 338 17/0 · 653 75/75.
-- ⚠️**The app is `stage: internal` with NO route and NO launcher tier** — both keys land in the
-  commit that ships the sections. `test_adr592_app_stage` caught the first draft claiming a route
-  with no page behind it (the `connectors` empty-window class); that is why they are absent.
+## ADR-656 — the Supervisor app (Phases 1–2 SHIPPED 2026-09-18; memory + routing next)
+- **Scope**: one app, one agent. KERNEL app (code); a member authors no app. ADR-653's
+  member-authored layer is DELETED (its §13 has the census); `APP-BUILDER-UX.md` is UNSCOPED.
+- **DONE**: the `supervisor` AGENTS row · `services/apps/supervisor.py` · a kernel surface row with
+  **`register: "composition"`** (the FIRST tenant) · **the surface** — three declared sections
+  (`needs-you` · `threads` · `note`) dispatched by kind with the honest amber miss · the app
+  UNVEILED (`primary`, pinned, `/supervisor`). Click-passed: all three bands render, 19 threads with
+  app·agent derived, three reading "not filed yet", and a click opens `/chat?chat.lane={id}`.
+- ⭐**The sections were RE-DERIVED, not inherited.** ADR-653's `files` and `recent` are deliberately
+  NOT carried — the supervisor owns no folder, and "what moved" is the timeline's job (duplicating
+  it is the "glorified redirect" ADR-435 killed the last composition for). `threads` is the one new
+  kind and the reason this app is not a redirect.
 - **NEXT, in order**:
-  1. **The sections** — the surface renders what its declaration says and nothing declares yet. The
-     four-kind first cut stays argued in `APP-BUILDER-UX.md` §5; the dispatch component was deleted
-     with its member-app consumer, so **rebuild it against the supervisor's REAL sections**, not
-     against the old guess. Flip `stage` + add route/tier + click-pass in that same commit.
-  2. **Memory's writer and reader** — `agents/supervisor/memory/` still has ZERO of each. RULED: it
+  1. **Memory's writer and reader** — `agents/supervisor/memory/` still has ZERO of each. RULED: it
      holds **private judgment only** (corrections, preferences, patterns), never context — the
      workspace IS the shared memory (ADR-411), so there is no store to build. Small by construction;
      ADR-624 preserved. Open: who may READ it.
-  3. **Routing** — the act is *"stamp this lane with its app"* (`context_metadata.lane.app`, one
-     existing field). RULED: as the member's hands, inside a turn they began. An agent CANNOT open a
-     lane (one writer behind a human JWT; RLS says *"AI principals are not members"*).
-     **Propose-and-click ships BEFORE any verb** — 8 primitives are already dead-on-arrival and the
-     demand for a conversational verb is one analysis document.
-- ⚠️**Do not reason from live chat statistics** — they are the operator's own workspace and YARNNN is
-  pre-user. They diagnose a defect; they never establish demand (the analysis §13.1 retracts two
-  opposite conclusions drawn from the same numbers).
+  2. **Routing** — the act is *"stamp this lane with its app"* (`context_metadata.lane.app`, one
+     existing field; the surface already SHOWS the gap as "not filed yet"). RULED: as the member's
+     hands, inside a turn they began. An agent CANNOT open a lane (one writer behind a human JWT;
+     RLS says *"AI principals are not members"*). **Propose-and-click ships BEFORE any verb.**
+  3. `supervisor/DECISIONS.md` has no writer — the note band renders its honest empty until the
+     supervisor (or the member) writes one. That is correct, not a gap to rush.
+- ⚠️**Do not reason from live chat statistics** — the operator's own workspace; YARNNN is pre-user.
+  They diagnose a defect, never demand (analysis §13.1 retracts two opposite conclusions from the
+  same numbers).
+- ⚠️**Another session held port 8000 during the click-pass** with lanes disabled, so the chat
+  destination showed "Chat is not enabled". The navigation is verified (the URL carries the lane id)
+  and the backend was driven directly instead. Check `ps` for a foreign uvicorn before blaming code.
 - **Separate, still open**: (a) the CHAT layer — artifact-bound lanes are created eagerly, before
-  anyone speaks; whether that is a defect needs a dependency walk, not a count. (b) the UNATTENDED
-  half — 0 live standing declarations, and the source predicate structurally cannot name a workspace
-  region, so standing work can only watch the outside world.
+  anyone speaks; a dependency walk, not a count. (b) the UNATTENDED half — 0 live standing
+  declarations, and the source predicate cannot name a workspace region.
 
 ## Genesis / the shared service client
 - **`[Errno 11] Resource temporarily unavailable` on the shared HTTP/2 service client is UNFIXED** (first seen

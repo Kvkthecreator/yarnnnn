@@ -101,6 +101,10 @@ export const DEFAULT_KEPT_SURFACES: string[] = [
   'files',
   'agents',
   'reach', // ADR-642 — the boundary's door (connected · leaving · crossed); primary → pinned by derivation
+  // ADR-656 — the Supervisor app: what is underway, and what needs you. Primary
+  // at birth, so `is_default_pinned` derives a pin and this hand-kept list must
+  // agree — the gate compares the two as sets and says which one is stale.
+  'supervisor',
 ];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
