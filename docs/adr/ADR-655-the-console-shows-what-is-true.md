@@ -229,14 +229,27 @@ Writers, each verified in code: `chat_sessions` inserts at `routes/lanes.py::cre
 **7** new checks falsified RED (including an arm that reinstates the raw-file-count defect, and one
 that leaves a value undrawn). `tsc` exit 0, `next build` exit 0.
 
-⚠️ **Not click-passed in a browser, and it is not skipped silently.** `/admin` is gated by both the
-server middleware and the client layout; driving it needs a real session, and minting a login
-credential for the operator's own account was refused by this environment's safety controls. What was
-driven instead: the real `get_overview_stats` / `list_workspaces` handlers with a real `AdminClient`
-against production (the served shape, which is what can drift), and the shipped page's own funnel-band
-definitions parsed out of `page.tsx` and evaluated against that payload. **Owed: one browser click-pass
-by the operator**, who has the session — specifically the funnel card's band arithmetic and the
-red/amber/green column tones.
+**Click-passed in a browser 2026-09-18, at 1440px.** `/admin` itself is gated by both the server
+middleware and the client layout (prod serves `307 -> /auth/login?next=/admin` without a session), and
+minting a login credential was refused by this environment's safety controls — so the pass rendered the
+funnel and table blocks **extracted verbatim from the shipped `page.tsx`** under React + Tailwind,
+fed the real payload captured from the live route handlers. No session, no tokens, no auth defeated;
+what it verifies is the presentation, which is the half the handler drive could not reach.
+
+Observed: the funnel card lays out four columns — **12** (red) / **1** (amber) / **9** / **11**
+(green) over `/22`, the three disjoint bands summing to 22. Column tones fire as designed: red `0`
+in Lanes on all twelve who never started, green in Authored, and the amber `0`-Msgs case is real and
+present (`testacct`: 1 lane, 0 messages, 1 authored) — the band is not hypothetical. `SK Personal`
+renders `Left` in red at −$0.15.
+
+⚠️ **Two things the pass caught, both worth naming.** First, the harness's initial Tailwind CDN did
+not attach (`tailwindLoaded: false`), so the grid rendered as `display:block` and every tone rendered
+as default ink — a screenshot alone would have read as a layout defect in shipped code. The computed
+style is what distinguished harness from product (`feedback_a_plausible_dom_mechanism_is_not_an_observed_one`);
+after the swap, `display:grid`, `rgb(220,38,38)`, `rgb(5,150,105)`. Second, and in SHIPPED code: a
+negative balance renders **`$-0.15`** rather than `-$0.15`, because the template is `${value.toFixed(2)}`
+(`page.tsx` L455/462/465). It is pre-existing from am.1, cosmetic, and NOT fixed here — named so it is
+not rediscovered as new.
 
 ## 3. What this does not do
 

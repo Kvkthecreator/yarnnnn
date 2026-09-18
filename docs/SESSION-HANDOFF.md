@@ -20,15 +20,14 @@ its own gate. The live compose path is `compose_task_output_html` →
 Decide: delete both modules and their re-exports, or keep with a tombstone.
 
 
-## ADR-655 am.2 — the console's engagement columns owe a browser click-pass
-- Shipped `ecfd37a`: three engagement columns + a four-band funnel on `/admin`. Gate 31/31, all 7 new
-  checks falsified RED, `next build` 0. **Not driven in a browser**: `/admin` is gated by the server
-  middleware AND the client layout, and minting a login credential was refused by the environment's
-  safety controls. Verified instead by driving the real route handlers against prod and evaluating the
-  shipped page's own band definitions against that payload. **Owed: one operator click-pass** of the
-  funnel card's band arithmetic and the red/amber/green column tones.
-- ⚠️ `ADMIN_ALLOWED_EMAILS` is absent from `api/.env`, so a local `/admin` boot 403s until it is set.
-  `INTEGRATION_ENCRYPTION_KEY` is also absent locally (a Render var) and `main.py` fails closed on it.
+## `/admin` renders a negative balance as `$-0.15`, not `-$0.15`
+- `page.tsx` L455/462/465 use `${value.toFixed(2)}`, so a negative lands as `$-0.15`. Pre-existing from
+  ADR-655 am.1, cosmetic (the NUMBER is right), found during the am.2 click-pass. One live row shows it
+  today (`SK Personal`). Fix is an Intl.NumberFormat currency helper, not a sign swap at three sites.
+- ⚠️ Local `/admin` boot needs two env vars absent from `api/.env`: `ADMIN_ALLOWED_EMAILS` (else 403)
+  and `INTEGRATION_ENCRYPTION_KEY` (a Render var; `main.py` fails closed on it). The client gate also
+  reads build-time `NEXT_PUBLIC_ADMIN_EMAILS`. Driving `/admin` in a browser needs a real session —
+  prod serves `307 -> /auth/login?next=/admin` without one.
 
 ## Responsive gate stops at the marketing surfaces (2026-09-18)
 - `api/test_library_responsive.py` rule 3 (a flex child holding a `max-w-*` block wider than a phone
