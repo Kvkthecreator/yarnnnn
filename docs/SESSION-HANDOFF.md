@@ -147,8 +147,6 @@ Row deleted after the pass.
   the default). The deliberate-commit chooser (`234cd83`) also driven: picking writes NOTHING (0 rows
   mid-pick), Cancel discards, Confirm writes `anthropic/claude-opus-5`, reopen re-seeds clean. Rig row
   deleted; ADR-654 is CLOSED.
-- ⚠️`api/test_agent_registry.py` is RED at baseline — it hardcodes `services/apps/images/decompose.py`, deleted
-  in `0b9920f`; the gate crashes at import and reports nothing. Pre-existing, untouched by ADR-654.
 - ⚠️`api/test_adr412_chat_surface.py` is RED at baseline (7 failed, 1 passed at HEAD) — it reads
   `web/components/shell/chrome/ChatDrawer.tsx` and `web/components/agents/AgentContentView.tsx`, both long
   deleted, so it crashes on `FileNotFoundError` and reports nothing. Same family as the two above: a gate

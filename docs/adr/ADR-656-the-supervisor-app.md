@@ -1,6 +1,12 @@
 # ADR-656 — The Supervisor app: one app, one agent, and the first composed kernel surface
 
-> **Status**: **Accepted + Phases 1–2 Implemented** (2026-09-18). Phase 1 = the AGENT and the APP
+> **Status**: **SUPERSEDED by [ADR-658](ADR-658-the-supervisor-manages-standing-work.md)**
+> (2026-09-18). Phases 1–2 shipped and most of their machinery is KEPT (ADR-658 §8 is the
+> keep/delete census); the SECTION VOCABULARY is replaced and `threads` is deleted, because it was
+> derived from what the system has rather than what a member does. **D5 is reversed**: this app now
+> surfaces standing work. D3 (routing/authority) and D4 (memory) are PRESERVED and load-bearing.
+>
+> Original status: **Accepted + Phases 1–2 Implemented** (2026-09-18). Phase 1 = the AGENT and the APP
 > (row · module · registration · job overlay · surface row). **Phase 2 = the SURFACE** — three
 > declared sections, dispatched by kind, and the app UNVEILED (`stage: primary`, pinned, routed).
 > **MEMORY and ROUTING remain named and not built** (§8.2, §8.4).
