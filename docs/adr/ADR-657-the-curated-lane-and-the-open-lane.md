@@ -1,8 +1,8 @@
 # ADR-657 — Two lanes to a connection: the curated lane and the open lane
 
 > **Status**: **Accepted + Implemented** (2026-09-18) — the curated lane, the URL shape, the
-> differentiated open lane and the gate ship together. Gate: `api/test_adr657_two_lanes.py` (48/48,
-> 16 arms falsified RED).
+> differentiated open lane and the gate ship together. Gate: `api/test_adr657_two_lanes.py` (49/49,
+> 20 arms falsified RED).
 > **Date**: 2026-09-18
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Where** (the boundary's door — ADR-642's dimension).
@@ -241,8 +241,17 @@ am.1's ruling that their `direct` tick is sovereign).
 
 ## 10. Verification
 
-Gate: `api/test_adr657_two_lanes.py` — **48 checks, 0 failed; 16 arms falsified RED** by editing
+Gate: `api/test_adr657_two_lanes.py` — **49 checks, 0 failed; 20 arms falsified RED** by editing
 the shipped file in place and restoring it in a `finally` with an equality assert.
+
+Check **5d-ii** was added after 5d was caught passing against a paste box a member could not use:
+a falsification that set `type="hidden"` and blanked the placeholder left `setPasteUrl`,
+`pastedEntry` and every other symbol 5d reads intact, so the box was untypeable and the gate stayed
+green. 5d-ii asserts the *rendered* input — bound to `pasteUrl`, `type="url"`, carrying an
+`onChange`, and not hidden by attribute or class — and is RED on all four of those arms. The same
+pass found and fixed a dead guard inside the check itself: `<input\b[^>]*>` stops at the `>` of the
+inline arrow function `(e) =>`, truncating the tag before `className` is ever seen, so a
+`className="hidden"` arm could never have failed. The tag is now sliced to its `/>`.
 
 Where the implementation lives:
 
