@@ -83,6 +83,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { MentionMenu, type MentionCandidate } from './MentionMenu';
 import { ArtifactCard } from './ArtifactCard';
+import { ImagePreviewModal } from './ImagePreviewModal';
 import { toolLabelLine } from './toolLabels';
 import { StreamSteps, type StreamStep } from './StreamSteps';
 import { Working } from '@/components/shared/Working';
@@ -313,6 +314,11 @@ interface PendingAttachment {
   path?: string;
   uploading: boolean;
   error?: boolean;
+  /** An object URL over the LOCAL file, for an image's composer thumbnail
+   *  (2026-09-18). The bytes are already in the browser, so the preview is
+   *  instant and costs no fetch — and it is the only source that exists while
+   *  the upload is still in flight. Revoked when the chip goes. */
+  previewUrl?: string;
 }
 
 /** Metadata `artifacts` is a bare path list on the wire; the verb rides the
@@ -524,6 +530,10 @@ export function LanePanel({
   // artifact's path (no upload, no copy); the turn references the one
   // attributed file, exactly like a lane-produced ArtifactCard in reverse.
   const [workspacePickOpen, setWorkspacePickOpen] = useState(false);
+  // A composer image opened full-size. Local-only: an attachment that has not
+  // landed in the workspace has no path for `FileOpenModal` to load, and the
+  // member's question before sending is just "is this the right image?".
+  const [viewingImage, setViewingImage] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // THE scroll policy (2026-08-18, see header) — shared with ConversationPanel.
   const { containerRef, contentRef, pinned, scrollToBottom } = useStickToBottom();
@@ -605,9 +615,15 @@ export function LanePanel({
           continue;
         }
         const key = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        // The image's own bytes are already here — preview from them rather
+        // than waiting for the upload to return a path. Revoked on removal and
+        // on send (`revokeAttachmentPreviews`), so a long composing session
+        // cannot accumulate object URLs.
+        const previewUrl =
+          kind === 'image' ? URL.createObjectURL(file) : undefined;
         setAttachments((prev) => [
           ...prev,
-          { key, name: file.name, kind, uploading: true },
+          { key, name: file.name, kind, uploading: true, previewUrl },
         ]);
         api.documents
           .upload(file, CHAT_ATTACHMENT_DESTINATION)
@@ -1136,6 +1152,9 @@ export function LanePanel({
       .filter((a) => a.path && !a.error)
       .map((a) => ({ path: a.path!, kind: a.kind, name: a.name }));
     setInput('');
+    // The chips are going; their object URLs must go with them or the page
+    // holds the image bytes for as long as it lives.
+    attachments.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
     setAttachments([]);
     const replaceFromMessageId = editing?.id;
     setEditing(null);
@@ -1497,7 +1516,23 @@ export function LanePanel({
                   (Studio) = suppressed, because the mount already owns the view
                   (the canvas), so a transcript render would duplicate it. */}
               {m.role === 'assistant' && m.artifacts?.length && artifactWrite !== 'none' ? (
-                <div className="mt-2 space-y-2">
+                // ⭐ THE CARD SITS IN THE SPEAKER'S COLUMN (2026-09-18).
+                //
+                // It kept full ROW width — starting at the transcript's left
+                // edge, while the bubble above it began one avatar-gutter in.
+                // The two never shared a left edge, so the card read as a
+                // separate thing that had floated into the conversation rather
+                // than as this turn's output (operator-observed).
+                //
+                // The gutter indent is the whole fix, and it is the SAME
+                // `pl-[1.875rem]` the author name and the stepped thread
+                // already take on an attributed row. Card, steps and name now
+                // share one left edge under the bubble.
+                //
+                // Width is deliberately NOT capped to the bubble's 85%: an
+                // artifact is not speech (see ArtifactCard's header), and a
+                // rendered document needs the room. Aligned, not absorbed.
+                <div className={cn('mt-2 space-y-2', attributed && 'pl-[1.875rem]')}>
                   {m.artifacts.map((a) =>
                     artifactWrite === 'link' ? (
                       <div
@@ -1673,20 +1708,44 @@ export function LanePanel({
             )}
           </div>
         )}
-        {/* Phase-A attachments: composer chips (uploading → ready | failed). */}
+        {/* Phase-A attachments: composer chips (uploading → ready | failed).
+            An IMAGE shows its own thumbnail and opens full-size on click
+            (2026-09-18) — the member could name what they attached but never
+            SEE it, so a wrong screenshot was only discoverable after sending.
+            The preview is an object URL over the local bytes, so it is instant
+            and works while the upload is still in flight. */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1 px-1 pb-1.5">
             {attachments.map((a) => (
               <span
                 key={a.key}
                 className={cn(
-                  'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]',
+                  'inline-flex items-center gap-1 rounded border py-0.5 text-[11px]',
+                  // A thumbnail sits flush to the chip's left edge; a glyph
+                  // chip keeps the original padding.
+                  a.previewUrl && !a.error ? 'pl-0.5 pr-1.5' : 'px-1.5',
                   a.error
                     ? 'border-destructive/50 text-destructive'
                     : 'border-border text-muted-foreground',
                 )}
               >
-                {a.uploading ? (
+                {a.previewUrl && !a.error ? (
+                  <button
+                    type="button"
+                    onClick={() => setViewingImage({ url: a.previewUrl!, name: a.name })}
+                    className="relative block h-6 w-6 shrink-0 overflow-hidden rounded-sm border border-border/60 hover:opacity-80"
+                    aria-label={`View ${a.name}`}
+                    title={`View ${a.name}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.previewUrl} alt="" className="h-full w-full object-cover" />
+                    {a.uploading && (
+                      <span className="absolute inset-0 flex items-center justify-center bg-background/60">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      </span>
+                    )}
+                  </button>
+                ) : a.uploading ? (
                   <Loader2 className="w-3 h-3 animate-spin" />
                 ) : a.kind === 'image' ? (
                   <ImageIcon className="w-3 h-3" />
@@ -1698,7 +1757,11 @@ export function LanePanel({
                 <button
                   type="button"
                   onClick={() =>
-                    setAttachments((prev) => prev.filter((p) => p.key !== a.key))
+                    setAttachments((prev) => {
+                      const gone = prev.find((p) => p.key === a.key);
+                      if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
+                      return prev.filter((p) => p.key !== a.key);
+                    })
                   }
                   className="p-0.5 rounded hover:text-foreground"
                   aria-label={`Remove ${a.name}`}
@@ -1923,6 +1986,13 @@ export function LanePanel({
         </div>
         </div>
       </div>
+      {/* A composer image at full size. Mounted at the panel root, outside the
+          composer's stacking context, so the backdrop covers the transcript. */}
+      <ImagePreviewModal
+        url={viewingImage?.url ?? null}
+        name={viewingImage?.name}
+        onClose={() => setViewingImage(null)}
+      />
     </div>
   );
 }
