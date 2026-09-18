@@ -6,6 +6,20 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## Compose's dead brief-builders (found 2026-09-18, ADR-635 am.2 cleanup)
+
+`services/compose/assembly.py` and `services/compose/revision.py` are re-exported
+by `compose/__init__.py` and called by **nothing outside tests** —
+`build_generation_brief`, `build_post_generation_manifest`,
+`parse_draft_into_sections`, `classify_revision_scope`, `build_revision_brief`,
+`get_prior_section_content` all have 0 non-test callers (censused). Their stale
+"it will be auto-rendered" prompt strings were corrected in f9008fd rather than
+deleted, because removing two live-looking compose modules is its own pass with
+its own gate. The live compose path is `compose_task_output_html` →
+`task_html.py` → `engine.py:compose_html` (2 route callers), untouched.
+Decide: delete both modules and their re-exports, or keep with a tombstone.
+
+
 ## Responsive gate stops at the marketing surfaces (2026-09-18)
 - `api/test_library_responsive.py` rule 3 (a flex child holding a `max-w-*` block wider than a phone
   viewport must carry `min-w-0`) is scoped to `web/components/landing/` — the surfaces where the bug
