@@ -77,12 +77,30 @@ LANE_MODELS: dict[str, dict[str, Any]] = {
     # with no Opus tier at all, so a member wanting Anthropic's frontier model
     # could not pick one. Sonnet 5 supersedes 4.6 at the SAME list price
     # ($3/$15); Opus 5 adds the frontier tier the roster never had.
+    # ADR-559 D1 refresh (2026-09-18): Fable 5.1 is Anthropic's most capable
+    # widely released model and adds a tier ABOVE Opus 5 that the roster never
+    # had ($10/$50 vs $5/$25). Its API surface is narrower than the Opus
+    # family's — thinking is always on, and forced `tool_choice`, assistant
+    # prefill, `budget_tokens` and the sampling knobs all 400 — which is safe
+    # here because the router sends NONE of them: `temperature` is the only one
+    # `route_completion` can emit and no caller in services/ or routes/ passes
+    # it (verified 2026-09-18).
+    "anthropic/claude-fable-5-1": {"label": "Claude Fable 5.1", "vision": True},
     "anthropic/claude-opus-5": {"label": "Claude Opus 5", "vision": True},
     "anthropic/claude-sonnet-5": {"label": "Claude Sonnet 5", "vision": True},
     "anthropic/claude-haiku-4-5": {"label": "Claude Haiku 4.5", "vision": True},
     # ── OpenAI ───────────────────────────────────────────────────────────
-    "openai/gpt-5": {"label": "GPT-5", "vision": True},                        # frontier OpenAI
-    "openai/gpt-4o-mini": {"label": "GPT-4o mini", "vision": True},            # cheap OpenAI
+    # The OpenAI lane had gone SIX releases stale — `gpt-5` shipped before
+    # 5.1/5.2/5.3/5.4/5.5/5.6 and GPT-6 Astra (2026-09-03), and OpenAI's own
+    # gpt-5 page now points the reader at Astra. Three tiers, one price point
+    # each: frontier, mid, cheap.
+    #
+    # NOT offered: `gpt-5.6-sol`. Its $4/$20 is PROMOTIONAL through 2026-11-21
+    # (standing $5/$30) and `_BILLING_RATES` takes standing prices only; Terra
+    # and Astra already bracket it.
+    "openai/gpt-6-astra": {"label": "GPT-6 Astra", "vision": True},            # frontier OpenAI
+    "openai/gpt-5.6-terra": {"label": "GPT-5.6 Terra", "vision": True},        # mid OpenAI
+    "openai/gpt-5.6-luna": {"label": "GPT-5.6 Luna", "vision": True},          # cheap OpenAI
     # ── Google ───────────────────────────────────────────────────────────
     "gemini/gemini-2.5-pro": {"label": "Gemini 2.5 Pro", "vision": True},  # frontier Google reasoning
     "gemini/gemini-3.5-flash-lite": {"label": "Gemini 3.5 Flash Lite", "vision": True},  # the Google lane (fast/cheap)
@@ -107,6 +125,14 @@ LANE_MODELS: dict[str, dict[str, Any]] = {
     # refuse the very lanes this state exists to protect.
     "anthropic/claude-sonnet-4-6": {
         "label": "Claude Sonnet 4.6", "vision": True, "retired": True,
+    },
+    # Superseded by the GPT-5.6/GPT-6 ladder above. RETIRED rather than deleted:
+    # these are the TURN-TIME whitelist for every lane already pinned to them,
+    # and a lane's engine is what ACTUALLY ran (ADR-559 D2). Their
+    # `_BILLING_RATES` rows stay for the same reason.
+    "openai/gpt-5": {"label": "GPT-5", "vision": True, "retired": True},
+    "openai/gpt-4o-mini": {
+        "label": "GPT-4o mini", "vision": True, "retired": True,
     },
     # The dated Haiku spelling. `claude-haiku-4-5` is the same model — the
     # suffix-free id is the current form (a date-suffixed alias is not a

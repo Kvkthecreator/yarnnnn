@@ -43,6 +43,14 @@ logger = logging.getLogger(__name__)
 
 _BILLING_RATES: dict[str, dict[str, float]] = {
     # ── Anthropic (ADR-559 D1, list prices verified 2026-08-12) ──────────
+    # Fable 5.1 is Anthropic's most capable widely released model and sits a
+    # full tier ABOVE Opus 5 ($10/$50 vs $5/$25). ⚠️ Its cache-read rate is
+    # $0.25/MTok = 2.5% of base, NOT the 10% Anthropic shape every other row
+    # here inherits by default — hence the explicit `cache_read_mult`. Verified
+    # against the installed litellm registry (cache_read 2.5e-07 on 1e-05 base)
+    # and Anthropic's published $0.25/MTok cache-read price, 2026-09-18.
+    "claude-fable-5-1":           {"input_per_mtok": 10.00, "output_per_mtok": 50.00,
+                                   "cache_read_mult": 0.025},
     "claude-opus-5":              {"input_per_mtok": 5.00, "output_per_mtok": 25.00},
     # ⚠️ THE RULE (operator ruling, 2026-08-12): THIS TABLE CARRIES STANDING
     # LIST PRICE. Never an introductory, promotional, or otherwise time-boxed
@@ -83,6 +91,33 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
     # BARE model names (ledger_model_name strips the LiteLLM provider prefix).
     # Cache multipliers per provider invoice shape; absent → Anthropic default
     # (10% read / 125% write). OpenAI/Gemini/DeepSeek have no cache-WRITE premium.
+    # ── OpenAI current generation (verified against the official pricing page
+    # and the installed litellm registry, 2026-09-18) ────────────────────────
+    # `gpt-5` had gone SIX releases stale (5 → 5.1 → 5.2 → 5.3 → 5.4 → 5.5 →
+    # 5.6 → GPT-6 Astra, released 2026-09-03); OpenAI's own gpt-5 page points
+    # the reader at Astra. These three rows are the live ladder.
+    #
+    # ⚠️ Cached input on this generation is 10% of base, NOT the 50% the older
+    # `gpt-5`/`gpt-4o-mini` rows carry — OpenAI changed the discount with the
+    # 5.x family. Each row therefore states its own `cache_read_mult`.
+    #
+    # ⚠️ NOT ENTERED: `gpt-5.6-sol`. It lists at a PROMOTIONAL $4/$20 through
+    # 2026-11-21 (standing rate $5/$30, pre-promo). Per the standing-list-price
+    # rule above, a promo rate is never entered here — and Terra/Astra already
+    # bracket its price point, so the roster loses nothing by omitting it.
+    #
+    # ⚠️ Prompts above 272k tokens reprice the FULL request (2x input, 1.5x
+    # output) and this table is flat. Unlike grok-4.6 — where the ≥200k tier is
+    # entered deliberately — these rows carry the BASE tier, because the
+    # surcharge starts at 272k while `_clamp_history_chars` (ADR-648) holds a
+    # lane's history far below that. Revisit if that ceiling ever rises.
+    "gpt-6-astra":                {"input_per_mtok": 10.00, "output_per_mtok": 50.00,
+                                   "cache_read_mult": 0.10, "cache_create_mult": 0.0},
+    "gpt-5.6-terra":              {"input_per_mtok": 2.00, "output_per_mtok": 12.00,
+                                   "cache_read_mult": 0.10, "cache_create_mult": 0.0},
+    "gpt-5.6-luna":               {"input_per_mtok": 0.20, "output_per_mtok": 1.20,
+                                   "cache_read_mult": 0.10, "cache_create_mult": 0.0},
+    # RETIRED from the door, still routable for lanes pinned to them (ADR-559 D2).
     "gpt-5":                      {"input_per_mtok": 1.25, "output_per_mtok": 10.00,
                                    "cache_read_mult": 0.50, "cache_create_mult": 0.0},
     # Gemini 3.5 Flash-Lite supersedes 2.5 Flash at the SAME list price

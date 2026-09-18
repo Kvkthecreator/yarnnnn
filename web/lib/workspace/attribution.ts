@@ -80,17 +80,21 @@ export function mcpHostId(authored_by: string | null | undefined): string | null
 // Retired engines stay listed: old revisions are attributed to what actually
 // ran, and that attribution must keep rendering a name (ADR-559 D2).
 const LANE_MODEL_NAMES: Record<string, string> = {
+  'anthropic/claude-fable-5-1': 'Claude Fable 5.1',
   'anthropic/claude-opus-5': 'Claude Opus 5',
   'anthropic/claude-sonnet-5': 'Claude Sonnet 5',
   'anthropic/claude-haiku-4-5': 'Claude Haiku 4.5',
-  'openai/gpt-5': 'GPT-5',
-  'openai/gpt-4o-mini': 'GPT-4o mini',
+  'openai/gpt-6-astra': 'GPT-6 Astra',
+  'openai/gpt-5.6-terra': 'GPT-5.6 Terra',
+  'openai/gpt-5.6-luna': 'GPT-5.6 Luna',
   'gemini/gemini-2.5-pro': 'Gemini 2.5 Pro',
   'gemini/gemini-3.5-flash-lite': 'Gemini 3.5 Flash Lite',
   'deepseek/deepseek-chat': 'DeepSeek V4 Flash',
   'xai/grok-4.6': 'Grok 4.6',
   // Retired — still the honest name on every revision they authored.
   'anthropic/claude-sonnet-4-6': 'Claude Sonnet 4.6',
+  'openai/gpt-5': 'GPT-5',
+  'openai/gpt-4o-mini': 'GPT-4o mini',
   // Was 'Claude Haiku' here while the server said 'Claude Haiku (4.5)' — the
   // same id rendering two different names depending on which path drew it.
   // Both now match lane_runner.py verbatim.

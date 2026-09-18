@@ -15,6 +15,42 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.18.4] - The engine roster catches up to both frontiers
+### Changed
+- api/services/lane_runner.py (`LANE_MODELS`): +`anthropic/claude-fable-5-1` ("Claude Fable 5.1"),
+  +`openai/gpt-6-astra` ("GPT-6 Astra"), +`openai/gpt-5.6-terra`, +`openai/gpt-5.6-luna`.
+  `openai/gpt-5` and `openai/gpt-4o-mini` move to `retired` — offered no longer, routable still.
+- api/services/telemetry.py (`_BILLING_RATES`): a standing-list-price row for each new engine.
+- web/lib/workspace/attribution.ts: the four new labels, verbatim from `LANE_MODELS`.
+- Expected behavior: the chooser offers 11 engines instead of 9, with a real frontier tier on
+  BOTH providers. Every label reaches the model through `_CONVENTIONS_FRAME`
+  ("You are {model_label}") and every revision's attribution string, so a member reading their
+  own history can tell Fable 5.1 from Opus 5, and Astra from the GPT-5 that authored last month.
+  No existing conversation changes engine: a lane's engine is what ACTUALLY ran.
+### Why
+The OpenAI lane had gone SIX releases stale — `gpt-5` shipped before 5.1/5.2/5.3/5.4/5.5/5.6 and
+GPT-6 Astra (2026-09-03), and OpenAI's own `gpt-5` page now points the reader at Astra. The
+Anthropic lane topped out at Opus 5 with nothing above it. Receipt (`execution_events`, last 60d):
+`gpt-5` 4 turns, `claude-sonnet-4-6` 169, `gemini-2.5-flash` 24 — superseded engines still carry
+live traffic, which is why the two OpenAI rows are RETIRED rather than deleted (ADR-559 D2);
+deleting them would refuse the turns those rows exist to protect.
+Two rows were deliberately NOT entered: `gpt-5.6-sol`, whose $4/$20 is promotional through
+2026-11-21 (standing $5/$30) — the standing-list-price rule — and no kernel engine change;
+`SYSTEM_CALLS` and `AGENTS` keep Sonnet 5 / Haiku 4.5, since what machinery runs on is a
+separate decision from what the door offers.
+Fable 5.1's narrower API surface (forced `tool_choice`, prefill, `budget_tokens` and the sampling
+knobs all 400) is safe here because the router emits none of them: `temperature` is the only one
+`route_completion` can send and no caller in `services/` or `routes/` passes it (verified).
+Its cache-read is $0.25/MTok = 2.5% of base, NOT the 10% Anthropic default every other row
+inherits — stated explicitly, or the rate would have been 4x wrong and silent.
+### Gate
+`test_adr559_engine_registry.py` 73/73 (was 63/63), falsified RED four ways: an unpriced new
+engine, a deleted-instead-of-retired `gpt-5`, an attribution map missing Astra, and a phantom
+rate row. `test_adr654_agent_engine_choice.py` 62/62 — its "an offered engine resolves" fixture
+hardcoded `openai/gpt-5` and went red when that engine left the door; it now DERIVES the fixture
+from `offered_lane_models()`, because a gate testing the resolver must not decay when the roster
+moves. `cd web && pnpm build` clean.
+
 ## [2026.09.18.3] - Media generation is rented through a connector, and `needs` stops being decorative
 ### Changed
 - api/services/skills/generating-media/SKILL.md (new): the craft for generating video,

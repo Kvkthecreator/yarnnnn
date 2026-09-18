@@ -122,7 +122,14 @@ check("agent_engine_key spells the scoped key",
       agent_engine_key("designer") == "agent_engine:designer",
       agent_engine_key("designer"))
 
-_c = _Client([{"value": "openai/gpt-5"}])
+# DERIVED, never a hardcoded id. This fixture used to spell `openai/gpt-5`;
+# when that engine retired from the door (2026-09-18 roster refresh) these
+# checks went red on a gate that was testing the RESOLVER, not the roster. An
+# "offered engine" fixture must come from the roster itself or it decays every
+# time the roster moves.
+_OFFERED = sorted(offered_lane_models())[0]
+
+_c = _Client([{"value": _OFFERED}])
 resolve_agent_engine(_c, "ws-1", "p-1", "designer")
 check("the read is scoped to THIS agent's key",
       _c.seen.get("key") == "agent_engine:designer", str(_c.seen))
@@ -130,13 +137,13 @@ check("the read is scoped to the workspace and the principal",
       _c.seen.get("workspace_id") == "ws-1" and _c.seen.get("principal_id") == "p-1",
       str(_c.seen))
 
-check("an offered engine resolves", _override("openai/gpt-5") == "openai/gpt-5")
+check("an offered engine resolves", _override(_OFFERED) == _OFFERED)
 check("the dict shape resolves too",
-      _override({"model": "openai/gpt-5"}) == "openai/gpt-5")
+      _override({"model": _OFFERED}) == _OFFERED)
 check("no row resolves to None",
       resolve_agent_engine(_Client([]), "ws-1", "p-1", "designer") is None)
 check("no agent slug resolves to None",
-      resolve_agent_engine(_Client([{"value": "openai/gpt-5"}]), "ws-1", "p-1", "")
+      resolve_agent_engine(_Client([{"value": _OFFERED}]), "ws-1", "p-1", "")
       is None)
 check("a DB failure resolves to None (the declared engine stands)",
       resolve_agent_engine(_Boom(), "ws-1", "p-1", "designer") is None)
