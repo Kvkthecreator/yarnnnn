@@ -430,6 +430,29 @@ _check("8m ...nor a match against an unrelated category",
 # is a skill nothing can ever light up.
 _gm = sk._load_kernel().get("generating-media")
 _check("8n the kernel media skill declares needs", bool(_gm and _gm["needs"]), str(_gm and _gm["needs"]))
+# The category has to be SETTABLE, or a needs-scoped skill can only ever light
+# up for a server the upstream seed happens to carry — and no seeded category
+# is a media one (checked below). Found by a click-pass 2026-09-18: the attach
+# modal displayed `picked.category` and sent it, but offered the member no way
+# to name one, and `/connectors/categories` had a client method with ZERO call
+# sites — a vocabulary endpoint serving a field that did not exist.
+_modal = _read("web/components/settings/FindConnectorModal.tsx")
+# Anchor on the RENDERED input, not on `setCategory(` — which is satisfied by
+# the reset() call alone (falsified 2026-09-18: removing the input's id left
+# this green).
+_check("8p the attach modal RENDERS an input bound to the category state",
+       'id="connector-category"' in _modal
+       and "onChange={(e) => setCategory(e.target.value)}" in _modal
+       and "value={category}" in _modal)
+_check("8q ...sent on the attach when the directory supplied none",
+       "picked.category ?? (category.trim() || null)" in _modal)
+# `api.connectors` is true from the import; `datalist` must be the BOUND one.
+_check("8r ...with the seed's vocabulary as SUGGESTIONS, not a closed list",
+       'list="connector-category-options"' in _modal
+       and '<datalist id="connector-category-options">' in _modal
+       and "setCategoryOptions(" in _modal)
+_check("8s the vocabulary endpoint carries no media category yet (so free text is required, not optional)",
+       not [c for c in _cats() if "media" in c.casefold() or "generation" in c.casefold()])
 _check("8o ...and is withheld with no reach, offered with a media category",
        not sk._applies_to(_gm, None, set()) and sk._applies_to(_gm, None, {"Media generation"}))
 

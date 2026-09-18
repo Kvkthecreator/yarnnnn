@@ -84,6 +84,13 @@ export function FindConnectorModal({
 
   // Only shown when the member opens "Advanced" — the common case is empty.
   const [advanced, setAdvanced] = useState(false);
+  // ADR-635 D7 — the CATEGORY is what scopes a skill to this connector
+  // (`metadata.needs`). The directory supplies one for a seeded server; a
+  // pasted server has none, and without it a needs-scoped skill can never
+  // be offered for it. So the member names it, with the seed's own
+  // vocabulary as suggestions (never a closed list).
+  const [category, setCategory] = useState('');
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const [headerName, setHeaderName] = useState('');
   const [headerValue, setHeaderValue] = useState('');
   const [clientId, setClientId] = useState('');
@@ -100,6 +107,7 @@ export function FindConnectorModal({
     setPickError(null);
     setListError(null);
     setAdvanced(false);
+    setCategory('');
     setHeaderName('');
     setHeaderValue('');
     setClientId('');
@@ -113,6 +121,25 @@ export function FindConnectorModal({
       requestAnimationFrame(() => searchRef.current?.focus());
     }
   }, [open, reset]);
+
+  // The seed's category vocabulary — SUGGESTIONS for the field below, never a
+  // closed list (`connector_directory.categories()` says so). Best-effort: the
+  // field is free text, so a failed fetch costs the member nothing.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    api.connectors
+      .categories()
+      .then((r) => {
+        if (alive) setCategoryOptions(r.categories ?? []);
+      })
+      .catch(() => {
+        /* suggestions are a convenience; the field still works */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open]);
 
   // Escape closes — but from the confirm step it goes BACK first, so a member
   // one keystroke from attaching does not lose the modal by reflex.
@@ -177,7 +204,7 @@ export function FindConnectorModal({
             url: picked.url,
             key: picked.key ?? null,
             title: picked.title ?? null,
-            category: picked.category ?? null,
+            category: picked.category ?? (category.trim() || null),
             header_name: headerName.trim() || null,
             header_value: headerValue.trim() || null,
             client_id: clientId.trim() || null,
@@ -379,6 +406,35 @@ export function FindConnectorModal({
                   <div className="text-xs text-muted-foreground">{picked.category}</div>
                 )}
               </div>
+
+              {/* A seeded server already carries its category; a pasted one does
+                  not, and the category is what lets a needs-scoped skill be
+                  offered for it (ADR-635 D7). Optional, so it never blocks an
+                  attach — an unnamed connector simply scopes no skill. */}
+              {!picked?.category && (
+                <div className="mt-3 space-y-1">
+                  <label
+                    htmlFor="connector-category"
+                    className="text-[11px] font-medium text-muted-foreground"
+                  >
+                    What kind of server is this? (optional — lets skills written
+                    for this kind of work be offered in chat)
+                  </label>
+                  <input
+                    id="connector-category"
+                    list="connector-category-options"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Media generation"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  />
+                  <datalist id="connector-category-options">
+                    {categoryOptions.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </div>
+              )}
 
               <p className="mt-3 text-xs text-muted-foreground">
                 You&apos;ll sign in at {picked?.title} if it asks. yarnnn keeps the
