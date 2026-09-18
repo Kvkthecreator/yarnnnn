@@ -286,6 +286,37 @@ export interface DirectoryEntry {
 }
 
 /**
+ * ADR-657 D1/D2 — one entry of the CURATED lane. It carries what a pasted URL
+ * cannot: a real name, the URL shape the member fills one field of, the
+ * credential step in the vendor's own words, the category pre-filled, and the
+ * moat-leak verdict (`accumulates`) with the reason it was admitted.
+ * `url` is null for a shaped entry until the member fills `shape_field`.
+ */
+export interface CuratedEntry {
+  name: string;
+  key: string;
+  title: string;
+  description: string;
+  url: string | null;
+  category: string;
+  source: "curated";
+  accumulates: boolean;
+  rationale: string;
+  credential_note: string;
+  credential_steps: string[];
+  credential_url: string | null;
+  header_name: string | null;
+  url_shape: string | null;
+  shape_field: string | null;
+  shape_label: string | null;
+  shape_placeholder: string | null;
+  shape_help: string | null;
+  admitted_at: string;
+  admitted_by: string;
+  reviewed_at: string;
+}
+
+/**
  * ADR-635 D4 am.1 — what the last tool refresh found moved on the server.
  * The aperture is keyed on tool NAMES, so a rename or a withdrawal silently
  * revokes the member's consent for that tool (it becomes unlisted → denied).
@@ -2585,8 +2616,14 @@ export const api = {
         `/api/connectors/directory?q=${encodeURIComponent(q)}&limit=${limit}`,
       ),
     categories: () => request<{ categories: string[] }>("/api/connectors/categories"),
+    /** ADR-657 D1 — the curated lane, authored and admitted by the moat-leak test. */
+    curated: () => request<{ results: CuratedEntry[] }>("/api/connectors/curated"),
     attach: (body: {
-      url: string;
+      url?: string | null;
+      // ADR-657 — a curated attach names the entry and, for a shaped URL, the
+      // one field the member filled; the server resolves url/title/slug/category.
+      curated_key?: string | null;
+      shape_value?: string | null;
       title?: string | null;
       key?: string | null;
       category?: string | null;

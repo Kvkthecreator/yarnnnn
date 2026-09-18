@@ -26,13 +26,25 @@
  * The aperture stays where it is — on the connection's own page — because it is
  * a standing decision the member revisits, not a step in adding something. This
  * modal ends the moment a credential exists.
+ *
+ * TWO LANES, VISIBLY TWO (ADR-657). The browse step now shows the CURATED lane
+ * first — a short authored list whose admission criterion is ADR-420 §10's
+ * moat-leak test, each entry carrying its real name, its URL shape, its
+ * credential step and its category. Below it, the consumed directory, unchanged.
+ * At the foot, the OPEN lane — paste a URL — kept (ADR-635 am.2's media path
+ * depends on it) but demoted and differentiated: it now SAYS that yarnnn has not
+ * examined the server and cannot say where the member's work will accumulate.
+ * That sentence is the whole reason the open lane is not silent any more.
+ *
+ * Both lanes converge: one POST /connectors/attach, one `mcp:{slug}` row, one
+ * per-tool aperture. Curation is a discovery act, never an authority one.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Search, ArrowLeft, X } from 'lucide-react';
+import { Loader2, Search, ArrowLeft, X, ExternalLink, ShieldQuestion } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
-import { api, APIError, type DirectoryEntry } from '@/lib/api/client';
+import { api, APIError, type CuratedEntry, type DirectoryEntry } from '@/lib/api/client';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 
@@ -47,7 +59,14 @@ interface FindConnectorModalProps {
   onAttached: (slug: string) => void;
 }
 
-type Step = 'browse' | 'confirm';
+type Step = 'browse' | 'confirm' | 'curated';
+
+/** ADR-657 D4 — the sentence the open lane owes the member before an attach.
+ *  It is the one thing the paste box could never say, and its absence is what
+ *  made the box "way too generic": the same keystroke served a dumb peripheral
+ *  and a competing commons, with nothing between them. */
+const OPEN_LANE_CAVEAT =
+  'yarnnn has not examined this server. We cannot tell you what it does with what you send it, or whether your work will accumulate on its side instead of here.';
 
 /** A pasted URL is the same act as a directory pick, minus the search. */
 const pastedEntry = (url: string): DirectoryEntry => ({
@@ -97,6 +116,14 @@ export function FindConnectorModal({
   const [clientSecret, setClientSecret] = useState('');
   const [pasteUrl, setPasteUrl] = useState('');
 
+  // ADR-657 — the curated lane. Separate state from `results` on purpose: it is
+  // a different source with a different shape and a different act, and merging
+  // them into one list is exactly the undifferentiation this ADR removes.
+  const [curated, setCurated] = useState<CuratedEntry[]>([]);
+  const [pickedCurated, setPickedCurated] = useState<CuratedEntry | null>(null);
+  /** The one field a shaped URL leaves to the member (e.g. the store name). */
+  const [shapeValue, setShapeValue] = useState('');
+
   const searchRef = useRef<HTMLInputElement>(null);
   const { runAction } = useFeedback();
 
@@ -113,6 +140,8 @@ export function FindConnectorModal({
     setClientId('');
     setClientSecret('');
     setPasteUrl('');
+    setPickedCurated(null);
+    setShapeValue('');
   }, []);
 
   useEffect(() => {
@@ -136,6 +165,17 @@ export function FindConnectorModal({
       .catch(() => {
         /* suggestions are a convenience; the field still works */
       });
+    // ADR-657 — the curated lane is small and unsearched: one fetch, rendered
+    // whole above the directory. A failure costs the member the lane, never the
+    // modal, so the directory and the open lane still answer.
+    api.connectors
+      .curated()
+      .then((r) => {
+        if (alive) setCurated(r.results ?? []);
+      })
+      .catch(() => {
+        /* the other two lanes still work */
+      });
     return () => {
       alive = false;
     };
@@ -148,7 +188,7 @@ export function FindConnectorModal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.stopPropagation();
-      if (step === 'confirm') {
+      if (step === 'confirm' || step === 'curated') {
         setStep('browse');
         setPickError(null);
       } else {
@@ -187,6 +227,55 @@ export function FindConnectorModal({
     setPickError(null);
     setAdvanced(false);
     setStep('confirm');
+  };
+
+  const pickCurated = (entry: CuratedEntry) => {
+    setPickedCurated(entry);
+    setPickError(null);
+    setShapeValue('');
+    setHeaderName(entry.header_name ?? '');
+    setHeaderValue('');
+    setStep('curated');
+  };
+
+  /** ADR-657 — the curated attach. It names the ENTRY and the one field the
+   *  member filled; the server resolves the URL, the title, the slug and the
+   *  category. From `begin_attach` on it is the same act as a pasted URL. */
+  const attachCurated = async () => {
+    const entry = pickedCurated;
+    if (!entry) return;
+    setAttaching(true);
+    setPickError(null);
+    try {
+      const res = await runAction(
+        () =>
+          api.connectors.attach({
+            curated_key: entry.key,
+            shape_value: shapeValue.trim() || null,
+            header_name: headerName.trim() || null,
+            header_value: headerValue.trim() || null,
+            redirect_to: redirectTo,
+          }),
+        {
+          pending: `Connecting to ${entry.title}…`,
+          success: (r) => (r.authorization_url ? '' : `Connected to ${entry.title}`),
+          error: (e) =>
+            e instanceof APIError
+              ? (e.data as { detail?: string })?.detail || `Couldn't connect to ${entry.title}`
+              : `Couldn't connect to ${entry.title}`,
+        },
+      );
+      if (res.authorization_url) {
+        window.location.href = res.authorization_url;
+        return;
+      }
+      onAttached(res.slug);
+      onClose();
+    } catch (e) {
+      setPickError(e instanceof Error ? e.message : 'Could not attach that server.');
+    } finally {
+      setAttaching(false);
+    }
   };
 
   const attach = async () => {
@@ -259,7 +348,7 @@ export function FindConnectorModal({
         >
           {/* ── header ─────────────────────────────────────────────────── */}
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-            {step === 'confirm' && (
+            {step !== 'browse' && (
               <button
                 type="button"
                 onClick={() => {
@@ -273,7 +362,11 @@ export function FindConnectorModal({
               </button>
             )}
             <h2 className="flex-1 text-sm font-semibold text-card-foreground">
-              {step === 'browse' ? 'Find a connector' : (picked?.title ?? 'Connect')}
+              {step === 'browse'
+                ? 'Find a connector'
+                : step === 'curated'
+                  ? (pickedCurated?.title ?? 'Connect')
+                  : (picked?.title ?? 'Connect')}
             </h2>
             <button
               type="button"
@@ -289,9 +382,9 @@ export function FindConnectorModal({
             <>
               <div className="space-y-3 border-b border-border px-4 py-3">
                 <p className="text-xs text-muted-foreground">
-                  Any MCP server, from the public directory or one you know. You sign in
-                  to it yourself, and nothing is used in a chat until you choose which of
-                  its tools may run.
+                  A few yarnnn has set up, the public directory, or any server you know.
+                  You sign in to it yourself, and nothing is used in a chat until you
+                  choose which of its tools may run.
                 </p>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -312,6 +405,43 @@ export function FindConnectorModal({
               </div>
 
               <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-4 py-3">
+                {/* ── the curated lane (ADR-657 D1) ───────────────────────────
+                    First, because these are the connections yarnnn has
+                    deliberately made work: a real name, a setup step, a
+                    pre-filled category, and a recorded verdict on where the
+                    member's work accumulates. Not a ranking and not a store —
+                    the list is one entry long by construction (D3). */}
+                {curated.length > 0 && !query.trim() && (
+                  <div className="mb-3 space-y-1">
+                    <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Set up by yarnnn
+                    </p>
+                    {curated.map((entry) => (
+                      <button
+                        key={entry.key}
+                        type="button"
+                        onClick={() => pickCurated(entry)}
+                        className="flex w-full items-center gap-3 rounded-md border border-border px-3 py-2 text-left hover:bg-muted"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{entry.title}</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {entry.category}
+                            </span>
+                          </div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {entry.description}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">Set up</span>
+                      </button>
+                    ))}
+                    <p className="px-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      From the public directory
+                    </p>
+                  </div>
+                )}
                 {loading && results.length === 0 ? (
                   <Working label="Searching…" className="py-2 text-xs" />
                 ) : (
@@ -362,7 +492,25 @@ export function FindConnectorModal({
                 )}
               </div>
 
-              <div className="border-t border-border px-4 py-3">
+              {/* ── the open lane (ADR-657 D4) ─────────────────────────────
+                  It stays: ADR-635 am.2 rents media generation through a
+                  member's own attach of a vendor the seed does not carry, and
+                  deleting this box makes that unreachable. It is demoted (last,
+                  quiet) and DIFFERENTIATED — it names itself as attaching a
+                  server yarnnn has not examined, which is the sentence ADR-420
+                  §10 requires of the act and the box has never said. */}
+              <div className="space-y-2 border-t border-border bg-muted/20 px-4 py-3">
+                <div className="flex items-start gap-2">
+                  <ShieldQuestion className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-foreground/80">
+                      Or attach any other server
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      {OPEN_LANE_CAVEAT} You still choose, tool by tool, what may run.
+                    </p>
+                  </div>
+                </div>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -374,7 +522,7 @@ export function FindConnectorModal({
                     type="url"
                     value={pasteUrl}
                     onChange={(e) => setPasteUrl(e.target.value)}
-                    placeholder="…or paste a server URL (https://…)"
+                    placeholder="https://…"
                     className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                   />
                   <button
@@ -387,6 +535,129 @@ export function FindConnectorModal({
                 </form>
               </div>
             </>
+          ) : step === 'curated' && pickedCurated ? (
+            /* ── curated set-up (ADR-657 D2) ─────────────────────────────
+               The step that exists because a URL cannot carry any of this: the
+               shape with one hole for the member to fill, the credential step
+               in the vendor's own words, and the bounded endorsement — what the
+               connection IS with, who holds the token, and where the member
+               decides what runs. The verdict and its reason are shown as data,
+               not as a claim that the far side is safe. */
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {pickedCurated.rationale}
+              </p>
+
+              {pickedCurated.url_shape && pickedCurated.shape_field && (
+                <div className="mt-4 space-y-1">
+                  <label
+                    htmlFor="curated-shape"
+                    className="text-[11px] font-medium text-muted-foreground"
+                  >
+                    {pickedCurated.shape_label ?? pickedCurated.shape_field}
+                  </label>
+                  <input
+                    id="curated-shape"
+                    value={shapeValue}
+                    onChange={(e) => setShapeValue(e.target.value)}
+                    placeholder={pickedCurated.shape_placeholder ?? ''}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  />
+                  {pickedCurated.shape_help && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {pickedCurated.shape_help}
+                    </p>
+                  )}
+                  <p className="truncate text-[11px] text-muted-foreground/80">
+                    {pickedCurated.url_shape.replace(
+                      `{${pickedCurated.shape_field}}`,
+                      shapeValue.trim() || `{${pickedCurated.shape_field}}`,
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {pickedCurated.credential_steps.length > 0 && (
+                <div className="mt-4 space-y-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Where the key comes from
+                  </p>
+                  <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-relaxed text-muted-foreground">
+                    {pickedCurated.credential_steps.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ol>
+                  {pickedCurated.credential_url && (
+                    <a
+                      href={pickedCurated.credential_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                    >
+                      {pickedCurated.title}&apos;s own instructions
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {pickedCurated.header_name && (
+                <div className="mt-4 space-y-1">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    {pickedCurated.header_name}
+                  </label>
+                  <input
+                    value={headerValue}
+                    onChange={(e) => setHeaderValue(e.target.value)}
+                    placeholder="Paste the token"
+                    type="password"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+
+              {/* The honest cost, stated rather than slipped (ADR-657 §3.a/§8). */}
+              {pickedCurated.credential_note && (
+                <p className="mt-4 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                  {pickedCurated.credential_note}
+                </p>
+              )}
+
+              {pickError && (
+                <p
+                  role="alert"
+                  className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                >
+                  {pickError}
+                </p>
+              )}
+
+              <p className="mt-3 text-[11px] text-muted-foreground/70">
+                Last checked by yarnnn on {pickedCurated.reviewed_at}.
+              </p>
+
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('browse');
+                    setPickError(null);
+                  }}
+                  className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void attachCurated()}
+                  disabled={attaching}
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-foreground px-3 py-1.5 text-xs text-background hover:opacity-90 disabled:opacity-50"
+                >
+                  {attaching && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Continue
+                </button>
+              </div>
+            </div>
           ) : (
             /* ── confirm ─────────────────────────────────────────────────
                One screen naming the server, what attaching does, and what it
