@@ -60,6 +60,24 @@ Decide: delete both modules and their re-exports, or keep with a tombstone.
   confirmed by running the ratchet at `e15ae7f` with the §8 diff stashed. Classify the two,
   drop the seven.
 
+## ADR-657 click-pass DONE (2026-09-18) — one copy finding open
+
+Driven in a real browser (own API :8010 + web :3000, isolated from a foreign uvicorn on :8000).
+Both lanes render visibly two; the curated set-up step renders every field a URL cannot carry;
+the shape resolved live to `https://acme-supply.myshopify.com/api/mcp`; the attach landed
+`mcp:shopify` with `aperture {}`, `category Commerce`, no verdict/rationale on the row, and the
+credential envelope decrypted back to `X-Shopify-Access-Token` + the exact token. The open lane's
+paste box is `type="url"`, visible, 396x38, not readOnly — the browser agrees with gate check 5d-ii.
+Row deleted after the pass.
+
+- **OPEN — the curated `rationale` is written for the canon, not the member.** It renders verbatim
+  as the first paragraph of the set-up step and says "the member's own commercial records",
+  "derived_from naming the source", and "the opposite of the Higgsfield case" — a vendor a real
+  operator has never heard of, in an ADR-internal comparison. The field is member-facing copy doing
+  double duty as the admission argument. Decide: split `rationale` (the record, gate-checked) from a
+  member-facing `why_line`, or rewrite this one in VOICE-AND-TONE register. No gate covers it —
+  `test_adr657_two_lanes.py` §2e asserts the rationale is PRESENT, never that it is legible.
+
 ## ADR-656 — the Supervisor app (Phases 1–2 SHIPPED 2026-09-18; memory + routing next)
 - **Scope**: one app, one agent. KERNEL app (code); a member authors no app. ADR-653's
   member-authored layer is DELETED (its §13 has the census); `APP-BUILDER-UX.md` is UNSCOPED.
