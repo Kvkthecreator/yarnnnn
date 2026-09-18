@@ -52,7 +52,7 @@ Add `https://mcp.yarnnn.com` as a connector:
 {% endtab %}
 
 {% tab title="ChatGPT" %}
-**Settings** → **Apps** → **Advanced settings** → **Developer mode** on, then **Create app** with MCP Server URL `https://mcp.yarnnn.com` and Authentication **OAuth**.
+Turn on **Developer mode** (**Settings** → **Apps** → **Advanced settings**), then **Settings** → **Plugins** → **+** and create one with Server URL `https://mcp.yarnnn.com` and Authentication **OAuth**.
 {% endtab %}
 {% endtabs %}
 

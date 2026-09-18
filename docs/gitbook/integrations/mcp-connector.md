@@ -68,26 +68,35 @@ Pick the client you use. The server URL is the same everywhere: `https://mcp.yar
 
 Try: *"Use YARNNN to find what I have on the Q1 roadmap."*
 
-![Adding YARNNN as a custom connector in Claude.ai](../.gitbook/assets/mcp%20connect%20-%20claud.png)
+![Adding YARNNN as a custom connector in Claude.ai](../.gitbook/assets/claude-add-custom-connector.png)
 {% endtab %}
 
 {% tab title="ChatGPT" %}
-ChatGPT connects MCP servers through Developer mode.
+ChatGPT connects MCP servers as **plugins**. You'll need Developer mode on first: **Settings** → **Apps** → **Advanced settings** → toggle **Developer mode**.
 
-**Step 1 — Enable Developer mode**
+**Step 1 — Open the plugin directory**
 
-**Settings** → **Apps** → **Advanced settings** → toggle **Developer mode** on.
+**Settings** → **Plugins**, then the **+** button at the top right.
 
-![Enabling Developer mode in ChatGPT settings](../.gitbook/assets/mcp%20connect%20-%20openai2.png)
+![The Plugins directory in ChatGPT, with the + button top right](../.gitbook/assets/chatgpt-plugins-add.png)
 
-**Step 2 — Create the app**
+**Step 2 — Fill in the New Plugin form**
 
-1. **Create app**
-2. Name: `yarnnn` · MCP Server URL: `https://mcp.yarnnn.com` · Authentication: **OAuth**
-3. Leave the OAuth Client ID and Secret empty
-4. Check the acknowledgment, click **Create**, and complete the authorisation
+| Field | Value |
+|---|---|
+| Name | `yarnnn` |
+| Description | optional — something like *AI workspace to save files* |
+| Connection | leave on **Server URL** (not Tunnel) |
+| Server URL | `https://mcp.yarnnn.com` |
+| Authentication | **OAuth** |
 
-![Creating the YARNNN app in ChatGPT](../.gitbook/assets/mcp%20connect%20-%20openai3.png)
+Leave **Advanced OAuth settings** alone — YARNNN publishes its own OAuth metadata, so ChatGPT discovers the client setup and scopes itself.
+
+![The New Plugin form filled in for YARNNN](../.gitbook/assets/chatgpt-new-plugin-yarnnn.png)
+
+Tick **I understand and want to continue** — this warning appears for every custom MCP server, not just YARNNN — then **Create** and complete the authorisation. You'll land on YARNNN's consent screen, where you pick which workspace the connection binds to.
+
+Try: *"Use YARNNN to find what I have on the Q1 roadmap."*
 
 ChatGPT also renders YARNNN's results as inline cards — a history timeline, search-result cards, a save receipt — rather than plain text.
 {% endtab %}

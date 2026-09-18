@@ -44,6 +44,7 @@ Run: python3 -B test_gitbook_docs_current.py   (script-shaped — read the count
 from __future__ import annotations
 
 import re
+from urllib.parse import quote
 import sys
 from pathlib import Path
 
@@ -498,6 +499,55 @@ check(
     f"every endpoint group in overview.md has a router ({len(_claimed)} claimed)"
     + (f" — unserved: {_unserved}" if _unserved else ""),
     not _unserved,
+)
+
+
+# The connector URL the docs tell members to paste must be the one the product
+# serves. 2026-09-18: two setup screenshots showed `yarnnn-mcp-server.onrender.com`
+# — the retired origin — for weeks, and this gate was 52/52 green with EVERY
+# server URL on the connector page replaced by it. It could not fail on the
+# defect that shipped. The canonical value is DERIVED from the code that serves
+# it, never spelled here, so a future rename moves both together.
+_mcp_url = re.search(
+    r'const MCP_URL = "([^"]+)"', (REPO / "web" / "lib" / "openapi.ts").read_text()
+).group(1)
+_host = _mcp_url.split("//", 1)[1].rstrip("/")
+check(f"read the canonical connector URL from openapi.ts ({_mcp_url})", bool(_host))
+
+# No member-facing page may name a NON-canonical yarnnn MCP origin. Matching on
+# the retired host alone would be a stale literal; this matches any yarnnn-ish
+# MCP origin that is not the canonical one, so the next wrong origin is caught
+# without editing this check.
+# Only the ORIGIN is judged, never the path: `https://yarnnn.com/.well-known/
+# mcp.json` is the discovery document and legitimately lives on the apex.
+# A host is suspect when it is an MCP SERVER host — 'mcp' in the hostname —
+# that is not the canonical one.
+_stale_url_pages = []
+for _md in sorted(GITBOOK.rglob("*.md")):
+    for _m in re.findall(r"https?://[\w.-]+\.[\w.-]+[^\s)\]`'\"]*", _md.read_text()):
+        _o = _m.split("//", 1)[1].split("/", 1)[0]
+        if "mcp" in _o and _o != _host:
+            _stale_url_pages.append(f"{_md.relative_to(GITBOOK)}: {_m}")
+check(
+    f"no page names a non-canonical MCP origin (canonical: {_host})"
+    + (f" — found: {_stale_url_pages[:4]}" if _stale_url_pages else ""),
+    not _stale_url_pages,
+)
+
+# A screenshot cannot be read, so it rots invisibly: every asset under
+# .gitbook/assets must be REFERENCED by some page. An orphan is either a stale
+# image someone forgot to delete or a live one whose reference broke.
+_assets = {
+    p.name
+    for p in (GITBOOK / ".gitbook" / "assets").iterdir()
+    if p.is_file() and not p.name.startswith(".")
+}
+_all_md = "\n".join(p.read_text() for p in GITBOOK.rglob("*.md"))
+_orphans = sorted(a for a in _assets if a not in _all_md and quote(a) not in _all_md)
+check(
+    f"every .gitbook asset is referenced by a page ({len(_assets)} assets)"
+    + (f" — orphaned: {_orphans}" if _orphans else ""),
+    not _orphans,
 )
 
 
