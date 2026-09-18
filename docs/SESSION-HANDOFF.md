@@ -37,41 +37,38 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   confirmed by running the ratchet at `e15ae7f` with the §8 diff stashed. Classify the two,
   drop the seven.
 
-## ADR-653 → the SUPERVISOR app (re-scoped 2026-09-18; member-app layer DELETED)
-- **The direction**: one app, one agent — the supervisor and its app — and the **app-builder is
-  postponed indefinitely**. That app is a **KERNEL app** (code, like Slides and Text), so a member
-  authors no app. Frame: `docs/analysis/the-supervisor-and-the-room-2026-09-18.md`; deletion record:
-  ADR-653 §13; `APP-BUILDER-UX.md` is **UNSCOPED** (a record, not a queue).
-- **DONE**: the member-authored layer is deleted in full (both `member_apps` modules, the `/api/apps`
-  route, the FE app surface + two-segment route + openable predicate + `/apps` auth prefix,
-  `default_agent_engine`, `build_agent_posture(row=)`). Census-first: every symbol counted for true
-  invocation sites, and two (`appRoute`, `AppSurfaceSlug`) had **zero consumers from the day they
-  shipped**. Gate `test_adr653_the_member_app_layer_is_gone.py` 66/66, falsified in 11 arms BOTH
-  directions. Kernel paths driven green (4 apps resolve resident+model+character; unknown app → None).
-- **NOT BUILT — the supervisor app itself**, in this order:
-  1. `services/apps/supervisor.py` (`register_app`) + a kernel surface row declaring
-     `register: "composition"`. ⭐The register survives precisely because `is_composition()` reads the
-     FIELD, not provenance — driven: a kernel row declaring it validates, classifies and is exposed.
-  2. An `AGENTS` row. ⚠️**ADR-603 D3's naming warning applies to a KERNEL row with full force** — a
-     manager-word in the kernel register names a role over others, and the "the frame makes it safe"
-     answer was argued for an agent a MEMBER names. It needs re-arguing for a row nobody can rename.
-  3. **Memory with a writer and a reader** — still zero of each (`agents/{slug}/memory/`). RULED
-     2026-09-18: it holds **private judgment only**, never shared context (the workspace IS the shared
-     memory, ADR-411). It stays small by construction; ADR-624 preserved.
-  4. **Routing** — mechanically *"stamp this lane with my app"* (`context_metadata.lane.app`). RULED:
-     the supervisor routes **as the member's hands**, inside a turn they began — never on its own
-     initiative, never holding a grant. An agent CANNOT open a lane (refused at the route, at
-     `is_agent_caller`, and at RLS whose own comment says *"AI principals are not members"*).
-     Direct-open vs propose-and-click is a DEMAND question; the click version ships first.
-- **The section dispatch was deleted with its only consumer** rather than left orphaned. The RULING
-  survives (a kind is added when a real app needs it and cannot be served) and the four-kind first cut
-  stays argued in `APP-BUILDER-UX.md` §5 — rebuild it against the supervisor's REAL sections.
-- ⚠️**Do not reason from live chat statistics.** They are the operator's own workspace; YARNNN is
-  pre-user. They can diagnose a defect, never establish demand (the analysis §13.1 retracts two
+## ADR-656 — the Supervisor app (Phase 1 SHIPPED 2026-09-18; surface + memory + routing next)
+- **Scope**: one app, one agent. The supervisor app is a **KERNEL app** (code); a member authors no
+  app. ADR-653's member-authored layer is DELETED (its §13 carries the census). `APP-BUILDER-UX.md`
+  is UNSCOPED — a record of an argued design, never a queue.
+- **DONE (Phase 1)**: the `supervisor` AGENTS row (kernel, offered:False, icon `compass`) ·
+  `api/services/apps/supervisor.py` with `register_app` + the pane's job overlay · a kernel surface
+  row declaring **`register: "composition"`** — the FIRST one, and the tenant that makes ADR-653
+  D3.a load-bearing. Driven live: the app-bound lane creates, seats Supervisor, and answers in the
+  declared character. Gates: registry 145/145 · stage 46/46 · 297 160/160 · 338 17/0 · 653 75/75.
+- ⚠️**The app is `stage: internal` with NO route and NO launcher tier** — both keys land in the
+  commit that ships the sections. `test_adr592_app_stage` caught the first draft claiming a route
+  with no page behind it (the `connectors` empty-window class); that is why they are absent.
+- **NEXT, in order**:
+  1. **The sections** — the surface renders what its declaration says and nothing declares yet. The
+     four-kind first cut stays argued in `APP-BUILDER-UX.md` §5; the dispatch component was deleted
+     with its member-app consumer, so **rebuild it against the supervisor's REAL sections**, not
+     against the old guess. Flip `stage` + add route/tier + click-pass in that same commit.
+  2. **Memory's writer and reader** — `agents/supervisor/memory/` still has ZERO of each. RULED: it
+     holds **private judgment only** (corrections, preferences, patterns), never context — the
+     workspace IS the shared memory (ADR-411), so there is no store to build. Small by construction;
+     ADR-624 preserved. Open: who may READ it.
+  3. **Routing** — the act is *"stamp this lane with its app"* (`context_metadata.lane.app`, one
+     existing field). RULED: as the member's hands, inside a turn they began. An agent CANNOT open a
+     lane (one writer behind a human JWT; RLS says *"AI principals are not members"*).
+     **Propose-and-click ships BEFORE any verb** — 8 primitives are already dead-on-arrival and the
+     demand for a conversational verb is one analysis document.
+- ⚠️**Do not reason from live chat statistics** — they are the operator's own workspace and YARNNN is
+  pre-user. They diagnose a defect; they never establish demand (the analysis §13.1 retracts two
   opposite conclusions drawn from the same numbers).
-- **Open, and separate**: (a) the CHAT layer — artifact-bound lanes are created eagerly, before anyone
-  speaks; whether that is a defect needs a dependency walk, not a count. (b) the UNATTENDED half —
-  zero live standing declarations, and the source predicate structurally cannot name a workspace
+- **Separate, still open**: (a) the CHAT layer — artifact-bound lanes are created eagerly, before
+  anyone speaks; whether that is a defect needs a dependency walk, not a count. (b) the UNATTENDED
+  half — 0 live standing declarations, and the source predicate structurally cannot name a workspace
   region, so standing work can only watch the outside world.
 
 ## Genesis / the shared service client

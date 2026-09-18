@@ -21,14 +21,18 @@
  * Add the row when the registry does.
  */
 
-import { Bot, Feather, Palette, PenTool } from 'lucide-react';
+import { Bot, Compass, Feather, Palette, PenTool } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const BEING_ICONS: Record<string, React.ElementType> = {
   'pen-tool': PenTool,             // authoring — decks and prose (ADR-602 D4)
   palette: Palette,                // generation — the metered pipeline
-  // 'clipboard-list' — Supervisor's glyph, DELETED with the agent (ADR-639).
   feather: Feather,                // published prose — Blogger's pane (ADR-627)
+  // ADR-656 — Supervisor RETURNS with a different subject (the member's work in
+  // flight, not one desk's declarations). Its ADR-639 glyph `clipboard-list` is
+  // NOT restored: a clipboard is a task list, and this one's material is
+  // orientation — what is underway and where it belongs.
+  compass: Compass,                // oversight of work — Supervisor's pane
 };
 
 /**

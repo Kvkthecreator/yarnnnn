@@ -138,16 +138,52 @@ for r in AGENTS.values():
            model_for_agent(r["slug"]) == r["model"])
 # ADR-627 — Blogger joins (the publish medium's voice). ADR-639 — Supervisor
 # LEAVES with the strings app (standing work is a kernel lane, not an app).
+# ADR-656 — Supervisor RETURNS, and the difference is the whole ruling (below).
 # The set is pinned deliberately (a new agent is an ADR decision, not a
 # drive-by), and it is EDITED here when one lands or leaves — which is the
 # point: this line is where the roster's movement gets noticed.
-_check("the expected agents are exactly {blogger, designer, editor}",
-       set(AGENTS) == {"blogger", "designer", "editor"})
-# ADR-610 — `keeper` is DELETED; ADR-639 — `supervisor` is DELETED. Neither
-# may return: standing work's judgment is a skill, its mechanics a daemon, and
-# an agent for it would be authority on an agent, the ADR-460 D3.a cliff.
+_check("the expected agents are exactly {blogger, designer, editor, supervisor}",
+       set(AGENTS) == {"blogger", "designer", "editor", "supervisor"})
+# ADR-610 — `keeper` is DELETED and may not return: maintenance is a seat and a
+# daemon, never a being.
 _check("the dissolved `keeper` agent is not resurrected", "keeper" not in AGENTS)
-_check("the dissolved `supervisor` agent is not resurrected", "supervisor" not in AGENTS)
+
+# ⭐⭐⭐ `supervisor` RETURNS UNDER ADR-656, and this block is why that is not a
+# reversal of ADR-639. What ADR-639 deleted was a supervisor whose material was
+# STANDING DECLARATIONS on one desk — and its finding stands verbatim: it "was a
+# posture string; no code branched on its slug", and standing work's judgment is
+# a skill while its mechanics are a daemon. An agent for THAT is authority on an
+# agent, the ADR-460 D3.a cliff.
+#
+# ADR-656's supervisor has a DIFFERENT subject: the member's own work in flight
+# — which threads are moving, what is waiting, what was decided. That is a craft
+# (oversight of declared work), which is the test ADR-603 D3 set for the name and
+# the reason it passes. The cliff is unmoved and asserted here rather than
+# assumed: the row carries no authority key, and no verb it can reach names a
+# being.
+_sup = AGENTS.get("supervisor") or {}
+_check("supervisor holds NO authority key (the ADR-460 D3.a cliff)",
+       not ({"tools", "reach", "scope", "grant", "permissions", "mandate",
+             "autonomy", "authority"} & set(_sup)))
+_check("supervisor is met where it works, never invited (ADR-600 D2)",
+       _sup.get("offered") is False)
+_check("supervisor is kernel-authored", _sup.get("kernel") is True)
+# ⚠️ THE ONE SENTENCE THAT WOULD BREAK IT. A posture that can say "assign this
+# to Editor" has put authority on a being; one that says "this belongs to the
+# place that owns it" has not. Asserted on the TEXT because that is where the
+# distinction lives — there is no field to check.
+_sup_posture = (_sup.get("posture") or "").lower()
+for _other in ("editor", "designer", "blogger"):
+    _check(f"supervisor's character names no other agent ({_other!r})",
+           _other not in _sup_posture)
+for _verb in ("assign", "delegate to", "instruct", "direct "):
+    _check(f"supervisor's character does not {_verb.strip()!r} anyone",
+           _verb not in _sup_posture)
+# ⭐ And the POSITIVE half — the quiet discipline is a design goal, not an
+# embarrassment (the standing-watcher failure mode: surfacing noise to prove it
+# is alive, which teaches the member to stop reading).
+_check("supervisor's character carries the quiet discipline",
+       "nothing to raise" in _sup_posture)
 from services.agents_registry import historical_agent_name  # noqa: E402
 _check("a retired slug still resolves the name it signed as (display only)",
        historical_agent_name("supervisor") == "Supervisor"
@@ -366,11 +402,24 @@ try:
            and {"slides", "text", "images"} <= _served_apps)
 finally:
     _authoring._APP_REGISTRY.pop("_probe-internal", None)
-_check("no `supervisor` or `strings` app survives to serve (ADR-604 D3 · ADR-639 D4)",
-       not ({"supervisor", "strings"} & {a["slug"] for a in _L._apps_payload()}))
+# ADR-639 D4 deleted the STRINGS app and, with it, a supervisor whose material
+# was one desk's standing declarations. `strings` may never return. ADR-656's
+# supervisor app is a different app with a different subject (the member's work
+# in flight), and it is INTERNAL at birth — so it must not serve a door yet,
+# which is what this now asserts.
+_check("no `strings` app survives to serve (ADR-604 D3 · ADR-639 D4)",
+       "strings" not in {a["slug"] for a in _L._apps_payload()})
+_check("the internal `supervisor` app serves NO door until its surface ships",
+       "supervisor" not in {a["slug"] for a in _L._apps_payload()})
 
 print("8b. a deleted agent serves nothing and nobody serves a deleted app (ADR-639 D4)")
-_check("a retired slug serves no app (no fallback)", _homes("supervisor") == [])
+# ⚠️ This check read `_homes("supervisor") == []` while the slug was RETIRED.
+# ADR-656 revives the slug with a different subject, so the assertion moves to
+# what is actually true and still load-bearing: the agent's home is its OWN app
+# and nothing else. A resident that served a second desk it never declared
+# would be the ADR-562 second-home drift.
+_check(f"supervisor's homes are exactly its own app ({_homes('supervisor')})",
+       _homes("supervisor") == ["supervisor"])
 _check("no live agent serves the deleted strings app",
        not any("strings" in _homes(s) for s in AGENTS))
 
@@ -378,9 +427,19 @@ _check("no live agent serves the deleted strings app",
 # the Dock renders. Derived from the surface rows: assert the icon_key and
 # route actually RESOLVE, because a chip whose icon_key is empty silently
 # degrades to a text label and looks like a styling choice, not a break.
+# ⚠️ A DORMANT desk carries no `route` BY DESIGN (ADR-592 / ADR-297: an
+# internal app that has never been exposed has nothing to stub, and a row
+# claiming a launcher tier or a route is claiming a door to an unbuilt
+# surface). So the route requirement binds NAVIGABLE desks only — and the
+# icon + title requirement binds every desk, because the pane renders a mark
+# whether or not the surface is reachable.
 _desks = {slug: apps_for_agent(slug) for slug in AGENTS}
 _thin = {
-    slug: [d for d in ds if not (d.get("icon_key") and d.get("route") and d.get("title"))]
+    slug: [
+        d for d in ds
+        if not (d.get("icon_key") and d.get("title"))
+        or (d.get("route") is not None and d.get("route") == "" and d.get("launcher_tier"))
+    ]
     for slug, ds in _desks.items()
 }
 _thin = {k: v for k, v in _thin.items() if v}

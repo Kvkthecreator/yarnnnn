@@ -71,6 +71,9 @@ from services.apps import images as images  # noqa: F401,E402  (registration sid
 # (the Docs shape), because `services/apps/text.py` also holds the lane's job
 # overlay and already imports `services.authoring` for the registration.
 from services.apps import text as text  # noqa: F401,E402  (registration side-effect)
+# ADR-656 — the Supervisor app: the first COMPOSED kernel app (its surface's
+# shape is declared, not mirrored). Registered here like any other.
+from services.apps import supervisor as supervisor  # noqa: F401,E402  (registration side-effect)
 
 # ADR-592 — the radar row is DELETED with the app, and ADR-599 deleted its
 # being (scout) with the colleague roster. `system:radar` attribution on the

@@ -13,16 +13,17 @@ import type { ComponentType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
-  Bot,
   ArrowLeftRight,
   BarChart3,
   Bell,
+  Bot,
   Box,
   Building2,
+  Cable,
   Clock,
+  Compass,
   CreditCard,
   FileText,
-  Cable,
   FolderKanban,
   FolderOpen,
   Home,
@@ -81,6 +82,13 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // registered with the surface so Launcher, Dock, and page header wear the
   // same object from day one (the Images icon lesson).
   'file-text': FileText,
+  // ADR-656: the SUPERVISOR app glyph. Registered WITH the surface row, in the
+  // same commit — the Images lesson three lines down (an app shipped a tier and
+  // an icon_key with no entry here, so resolveSurfaceIcon fell through to `Box`
+  // and the app wore a generic square in the Launcher, the Dock and its own
+  // header). A compass, not a clipboard: the material is orientation — what is
+  // underway and where it belongs — not a task list.
+  compass: Compass,
   // 2026-06-03: home glyph for the Home surface (post ADR-312
   // cockpit→home rename). Replaces square-activity, which no longer
   // matched the surface name.

@@ -15,6 +15,43 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.18.2] - Supervisor returns, with a different subject
+### Changed
+- api/services/agents_registry.py: a `supervisor` row joins AGENTS — `kernel: True`,
+  `offered: False`, icon `compass`. Character only: who it is, never what any pane is for.
+- api/services/apps/supervisor.py (new): `register_app("supervisor", resident="supervisor",
+  posture=supervisor_pane_posture)` + the JOB overlay for its bound pane.
+- Expected behavior: a lane bound to `app: supervisor` opens with Supervisor seated,
+  running `anthropic/claude-sonnet-5`. NOTHING ELSE CHANGES — the app is `stage: internal`
+  with no route and no launcher tier, so no member can reach it yet.
+
+### Why
+ADR-656, on the operator's re-scope: one app, one agent. ⚠️ This REVIVES a slug ADR-639
+deleted, and the difference is the whole ruling rather than a reversal. ADR-639's supervisor
+had STANDING DECLARATIONS on one desk as its material — and its finding stands verbatim: it
+"was a posture string; no code branched on its slug", standing work's judgment is a skill and
+its mechanics a daemon, and an agent for that is authority on an agent. This one's material
+is the member's own work IN FLIGHT: which threads are moving, what waits on them, what was
+decided. That is oversight of declared work, which is a CRAFT — the test ADR-603 D3 set for
+this exact name and the reason it passes.
+
+The character/job split follows agent-composition §3.3's diagnostic ("which file would a
+reader open to check this?"): who Supervisor IS rides the row (907 chars); what the PANE is
+for rides the app module (1,332 chars). Neither restates the other.
+
+⭐ The posture is written so only one sentence is sayable. "Supervisor assigns this to Editor"
+is authority over a being; "this belongs to the place that owns it" is not. The gate asserts
+the TEXT — no other agent's name, no assign/delegate/instruct/direct verb — because there is
+no field to check.
+
+### Gate
+`api/test_agent_registry.py` 145/145 (the roster-movement line EDITED, not bypassed; the
+anti-resurrection check replaced with the four assertions that make the revival safe).
+`test_adr592_app_stage` 46/46 — it CAUGHT the row claiming a route and a launcher tier with
+no page behind either; both keys removed until the surface ships. `test_adr297_phase1` 160/160,
+`test_adr653_the_member_app_layer_is_gone` 75/75. Driven live: the lane creates, the cast seats
+Supervisor, and the turn answers in the declared character.
+
 ## [2026.09.18.1] - The lane frame stops resolving a member agent
 ### Changed
 - api/services/lane_runner.py: `build_lane_conventions` no longer reads a member

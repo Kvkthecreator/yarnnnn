@@ -482,6 +482,57 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/text",
         "summary": "Write notes, briefs, and documents",
     },
+    {
+        # ⭐⭐⭐ ADR-656 — the SUPERVISOR app: the FIRST kernel surface whose
+        # shape is DECLARED rather than mirrored, and therefore the first
+        # tenant of the `composition` register.
+        #
+        # ADR-435 deleted the last composition (Home) for being "in practice a
+        # glorified redirect" — its slots each deep-linked to a mirror that
+        # already owned the concept — and named two resolutions: promote
+        # `composition` to a validated register, or remove the surface. It took
+        # removal. ADR-653 D3.a took the other option; this row is what makes
+        # that promotion load-bearing rather than decorative.
+        #
+        # It redirects to nothing: no other surface shows the member's work IN
+        # FLIGHT — which threads are moving, what waits on them, what was
+        # decided. Files shows files, Chat shows conversations, Notifications
+        # shows what happened. None of them answers "what is underway".
+        "slug": "supervisor",
+        # ⚠️ Born INTERNAL (ADR-592). The surface renders declared sections and
+        # the member-facing half is not built; an app with a door and nothing
+        # behind it is the empty-window class (`connectors`, ADR-653 §10.1).
+        # Flip to `primary` in the commit that ships the sections, with the
+        # click-pass in the same breath.
+        "stage": "internal",
+        # ⚠️ NO `launcher_tier` EITHER, and the pairing is the rule rather than
+        # two separate omissions: ADR-297's required-field check exempts
+        # `route` only for a DORMANT row — one carrying neither a tier nor a
+        # route. A row that claims a launcher tier is claiming a door, and a
+        # door to an unbuilt surface is the empty-window class. Both keys land
+        # together in the commit that ships the sections.
+        # THE POINT OF THIS ROW (ADR-653 D3.a). `is_composition()` reads this
+        # field and nothing else — never the app's provenance — which is why a
+        # KERNEL app may be a composition at all.
+        "register": "composition",
+        "title": "Supervisor",
+        "archetype": "dashboard",
+        # The app owns no namespace: the work lives where it belongs in the
+        # workspace (ADR-384, directory is meaning). `supervisor/` holds this
+        # app's OWN notes about the work as a whole, never a copy of the work.
+        "substrate_paths": [],
+        "icon_key": "compass",
+        "default_pinned": False,
+        # ⚠️ NO `route` KEY, DELIBERATELY — the ADR-603 rule this registry
+        # already carries: an internal app that has never been exposed has
+        # NOTHING TO STUB, and inventing a redirect to a page nobody can reach
+        # is worse than the absence. Declaring a route here without both halves
+        # (a stub page AND a hand-listed middleware entry) is precisely what
+        # `test_adr592_app_stage` catches — and it caught it, which is why this
+        # key is absent rather than pointed at a page that does not exist.
+        # The route lands in the commit that ships the surface.
+        "summary": "What is underway, and what needs you",
+    },
     # ADR-415 (2026-07-08): the `channels` surface is DISSOLVED. It was a fossil
     # of the Feed → Context → Channels lineage, scoped by boundary (edge vs
     # interior) — an axis operators don't hold, producing two "what happened"
