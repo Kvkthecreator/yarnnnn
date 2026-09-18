@@ -223,11 +223,11 @@ The supervisor adds **memory** and **routing**. Neither is authority:
 Named so a later session does not mistake an open question for a settled one.
 
 1. ✅ **Can an agent open a lane? — ANSWERED 2026-09-18, driven. NO, and it should not. See §10.**
-2. ⭐⭐ **Whose memory is it?** §5.3 notes that per-being and per-concern coincide under R4. They diverge the moment a kernel agent (Editor, serving two apps) needs memory, and ADR-624 **already ruled for flat per-being** on a scaling argument. Whether that ruling survives contact with a *shared* memory that threads write is unexamined.
-3. ⭐⭐ **What is a thread's relationship to its container?** A lane carries an `app` stamp today. Is a thread's membership in a concern the same edge, or a new one? (⚠️ An earlier draft motivated this with a count of unbound conversations; §13.1 retires that. The question stands on its own — a thread with no concern is unroutable whether there are three of them or three hundred — and it includes the retroactive case.)
+2. 🟡 **Whose memory is it? — REFRAMED AND HALF-RULED, §14.2/§14.3.** The question was malformed: the concern's memory and the agent's are **two objects**, not one location to choose. The concern's is `apps/{slug}/` and already exists (ADR-411: *the workspace is the shared memory*); the agent's is **private judgment** in its own home, ADR-624 preserved. **What remains open is who may READ the judgment file.**
+3. ✅ **What is a thread's relationship to its container? — RULED 2026-09-18, §14.4.** The existing stamp (`context_metadata.lane.app`), resolved by `app_for_lane`. The retroactive case was already solved by ADR-602 D7's artifact derivation — no migration. The located gap: an **unbound** lane resolves to `''`, and that one field is what routing writes.
 4. ⭐ **Will members want a multi-party room?** ADR-626 shipped it and it is, by inspection, reached for rarely. ⚠️ How rarely is not knowable here (§13.1) — and it does not need to be: the mechanism is built either way, and the frame's bet is that the supervisor supplies a *reason* to enter a room with two parties in it. **That bet is unproven and only a member can settle it.**
 5. ✅ **The name — CLOSED 2026-09-18 (§13.3).** The concept is **supervisor**, by operator ruling. ADR-603 D3's warning is answered by the FRAME (§5.4, §7.3 — routing is over declarations and lanes, no verb takes an agent slug), not by avoiding the word. A MEMBER's own agent is still named by them (R4), and the kernel ships no row called Supervisor: the concept has a name; a being does not inherit it.
-6. **How does the supervisor know what the threads did?** Routing out is easy; knowing what came back is the harder half, and it is what makes memory *shared* rather than one-directional. The benchmark asserts it and does not say how.
+6. 🟡 **How does the supervisor know what the threads did? — SHRUNK, §14.5.** If the workspace is the shared memory, a thread reports by WRITING A FILE, which every lane already does under attribution, and the supervisor reads the app's folder. What remains is a design question: is that enough to be useful, or does a thread owe an explicit summary?
 7. **Does this leave the standing/unattended half behind?** Measured 2026-09-17: **zero live standing declarations**, and a source predicate that structurally cannot name a workspace region — unattended work can only watch the outside world. That is a real gap and it is **a different one**: the supervisor routes *attended* work. Naming it here so the two are not merged by accident.
 
 ---
@@ -502,4 +502,86 @@ Every instance of "coordinator" in this document is replaced. The operator's wor
 3. **A second word for one concept is the drift this repo spends ADRs deleting.** "Supervisor" and "coordinator" naming one thing would be the vocabulary split ADR-610 and ADR-639 each had to clean up.
 
 ⚠️ **§8.5 (the name) is therefore CLOSED for this document's purposes**: internally the concept is **supervisor**. What a MEMBER's own agent is called stays theirs under ADR-653 R4 — a member names the being that lives in their app — and the kernel still ships no row called Supervisor. **The concept has a name; a being does not inherit it.**
+
+
+---
+
+## 14. The vocabulary, and what it already decides — 2026-09-18
+
+> **Operator question**: *"what is our container terminology called? is it like claude projects? and thus, projects and thread? why i'm mentioning this is, that naming should than influence if we handle these multi layered tasks within one folder, or they are just threads or tasks within a project, and thus, we do need to explicitly manage memory (or is there a dedicated folder, file for it, etc.)"*
+>
+> ⭐⭐⭐ **The instinct is exactly right — the naming DOES decide the mechanism, and in this case the canon had already decided it.** Driven against GLOSSARY, SCHEMA-NOTES and code.
+
+### 14.1 The container is an APP. There is no "project."
+
+| Claude Projects | YARNNN | Receipt |
+|---|---|---|
+| project | **app** — `apps/{slug}/` | ADR-653 D1; `member_apps.APPS_ROOT` |
+| thread | **lane** | ADR-411, canonical in GLOSSARY |
+| project library | **the workspace filesystem** | `workspace_files`, ADR-209 |
+| shared memory | **the workspace** (see §14.2) | ADR-411, canonical |
+
+**`project` is not a YARNNN word.** It is absent from GLOSSARY, absent from SCHEMA-NOTES, and `project_id` columns were dropped (the only surviving hits in the tree are vendored Sentry code). Re-introducing it would be a synonym for `app`, which is the vocabulary split §13.3 just closed for `supervisor`/`coordinator`.
+
+⚠️ **So the benchmark's shape maps, and its WORDS do not.** The screenshot's *Threads · Library · Routines* reads, in YARNNN vocabulary, as **lanes · the app's folder · standing work** — three views over one app, and all three over things that already exist.
+
+### 14.2 The memory question was already ruled, and differently
+
+The GLOSSARY's Lane entry (ADR-411, canonical) states it outright:
+
+> **"Lanes are isolated conversations; the workspace is the shared memory** — models collaborate through the filesystem with attribution, never through each other's transcripts."
+
+⭐⭐⭐ **YARNNN already made the ruling Claude Projects makes, and made it the other way — arguably better.** Projects gives threads a *memory store the product manages*: a feature of the container. YARNNN gives them *the filesystem*: memory is not a separate thing to manage, it is **the work itself**, attributed and versioned.
+
+**So the operator's question — "do we need to explicitly manage memory, or is there a dedicated folder" — has a sharper answer than §8.2 implied: the dedicated folder is the APP'S OWN FOLDER.** `apps/photos/` is both the container and the shared memory, because every file in it is already versioned, attributed and revertible.
+
+**This corrects §8.2's framing, which was mine.** I posed it as per-being vs per-concern, as if one location had to win. They are **two different objects** and conflating them was the error:
+
+| | What it is | Where | Benchmark analogue |
+|---|---|---|---|
+| **the concern's memory** | the work — files, notes, decisions | `apps/{slug}/` | Projects' shared memory + library, merged |
+| **the supervisor's memory** | what it LEARNED about doing this work well | `agents/{slug}/memory/` | **none — this is YARNNN's own** |
+
+The first **exists and needs no mechanism**. The second is the empty shelf (§3.3) — and it is not "shared memory" at all. It is the accumulated judgment ADR-653's frame promised: *"an agent that accumulates judgment about this specific work."*
+
+### 14.3 Ruled — the agent's memory is PRIVATE JUDGMENT, never shared context
+
+**Operator call, 2026-09-18.** `agents/{slug}/memory/` holds only what the supervisor learned about doing this work well: corrections, preferences, patterns it should not need told twice. It does **not** hold the work, the context, or anything a thread produced.
+
+Three consequences, each load-bearing:
+
+1. ⭐ **It stays small by construction.** A memory that holds *judgment* is bounded by how much a member has corrected; a memory that held *context* would grow with the work and re-open the context-budget problem ADR-648 closed. The boundary is the reason the shelf can be filled safely.
+2. **ADR-624 is PRESERVED, not reopened.** Memory stays flat, in the being's home, keyed by slug — exactly as ruled. Under ADR-653 R4 (one member app, one agent) the being's home and the concern coincide, so nothing needs re-homing. ⚠️ They diverge for a KERNEL agent serving two apps (Editor), and ADR-624's flat-per-being ruling already answers that case: one agent, one memory, whatever it serves.
+3. **It is legible.** It is a workspace file like any other — the member can read what their supervisor believes about their work, and correct it. That is the property no benchmark's managed memory store has.
+
+⚠️ **Still open: who may READ it.** A private judgment file is protected today (`_is_foreign_agent_home`), and whether the member reads it by default, or the supervisor surfaces it, or it stays background, is undecided. **Open, and narrower than §8.2 was.**
+
+### 14.4 Ruled — a thread belongs to its app by the EXISTING STAMP
+
+**Operator call, 2026-09-18.** The edge is `context_metadata.lane.app` — what a lane already carries — and the resolver is `app_for_lane`, which already exists.
+
+**Driven, 2026-09-18:**
+
+```
+stamped {app: photos}                    -> 'photos'      (authoritative)
+artifact-bound, no stamp, deck content   -> 'slides'      (derived — ADR-602 D7)
+UNBOUND {}                               -> ''            (belongs nowhere)
+unbound but named {name: 'Q3 planning'}  -> ''            (a name is not a concern)
+```
+
+⭐ **The retroactive case is already solved and was solved for another reason.** ADR-602 D7 taught `app_for_lane` to derive an app from the artifact's own `data-template` when no stamp exists, because 56 live bound lanes carried none. So a thread created before any of this still resolves to its app — **no migration, no backfill.**
+
+⚠️ **And the gap is exactly located**: an UNBOUND lane resolves to `''`. It belongs to nothing, and nothing in the product can put it anywhere. **That is the one edge routing would write** — and it is a single existing field, not a new mechanism. The supervisor's routing act is, mechanically, *"stamp this lane with my app"*.
+
+**Why the alternative was refused**: binding by PATH (a thread belongs where its files land, ADR-384's *directory is meaning*) is purer and fails at the only moment that matters — **a thread that has written nothing belongs nowhere**, and that is every thread at the moment it is created, which is exactly when routing must decide.
+
+### 14.5 What this collapses
+
+Three of §8's open items close or shrink on vocabulary alone, with no code written:
+
+- **§8.2 (whose memory)** → **reframed and half-ruled** (§14.2, §14.3). The concern's memory is the app folder and already exists; the agent's is private judgment. What remains is *who may read it*.
+- **§8.3 (thread ↔ container edge)** → **RULED** (§14.4): the existing stamp, with ADR-602 D7's derivation covering history.
+- **§8.6 (how does the supervisor know what threads did)** → **shrinks.** If the workspace is the shared memory, a thread reports by *writing a file*, which every lane already does under attribution. The supervisor reads the app's folder. ⚠️ What remains is whether that is enough to be useful, or whether a thread owes an explicit summary — a design question, not a mechanism one.
+
+⭐⭐⭐ **The pattern worth carrying**: the operator asked a naming question and it dissolved three mechanism questions. **Where a thing is called what it already is, the mechanism is usually already there.** Every answer above reuses a field, a folder or a resolver that shipped for another reason.
 
