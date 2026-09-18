@@ -1,48 +1,42 @@
-# The Desk: Think and Make
+# The Apps
 
-YARNNN is a desk with two verbs, over a workspace that remembers.
+There's more than one app because there's more than one shape of work. You think in dialogue; you build in the thing itself.
 
-- **Think — Chat.** Research, ideation, weighing options, deciding. Divergent work has no stable visual shape, so its medium is dialogue.
-- **Make — Text, Slides, Blogger, Images.** Composition, shaping, polish. Convergent work *does* have a shape, so its medium is the artifact itself — direct manipulation, not conversation about it. Four apps, because four shapes: a document flows, a deck is a sequence of pages, a post is written for a stranger, an image is layers on a fixed canvas.
+## Which one to open
+
+| You want to… | Open | |
+|---|---|---|
+| Work something out, research, decide | [Chat](../apps/chat.md) | Conversation with the engine you pick, grounded in your workspace |
+| Write a document — notes, a draft, a brief | [Text](../apps/text.md) | The internal writing |
+| Build a deck | [Slides](../apps/slides.md) | One idea per slide, made to be presented |
+| Publish for someone outside the workspace | [Blogger](../apps/blogger.md) | Posts and pages written for a stranger |
+| Make a picture | [Images](../apps/images.md) | Cards, ads, banners, diagrams |
+| Find something, or see how it changed | [Files](../apps/files.md) | Every file, with revision history |
+| See who works with you | [Agents](../apps/agents.md) | Who they are, and where you meet them |
+| Connect something outside | [Reach](../apps/reach.md) | Your connections, and what comes in or goes out |
+
+## Think and make
+
+The apps fall into two groups, and the difference is why there are several rather than one.
+
+**Chat is for thinking.** Research, weighing options, deciding. This kind of work has no stable visual shape — it's a moving argument — so the medium is dialogue.
+
+**Text, Slides, Blogger and Images are for making.** Composition and polish. This work *does* have a shape, so the medium is the artifact itself: you manipulate it directly rather than describing changes to it. Four apps because four shapes — a document flows, a deck is a sequence of pages, a post is written for a stranger, an image is layers on a fixed canvas.
 
 *Words for exploring, hands for shaping.*
 
-## The pipeline: think → settle → make
+Each making app has a chat lane bound to what you're editing, so you're never far from the other mode. Use it to draft, then take over: the lane is faster at the first 60%, you're better at the last 40%.
 
-The two verbs aren't siblings; they're a sequence.
+## The Dock
 
-1. **Think.** You work a question out in a chat lane — pulling from your workspace, searching the web, pressure-testing the idea.
-2. **Settle.** You keep what's worth keeping. The insight lands in your workspace as an attributed file that cites the conversation it came from. This is the moment episodic becomes cumulative.
-3. **Make.** In the app that fits the shape, you build the artifact — and it learns from what you settled.
+The apps sit in the Dock at the edge of the screen. Right-click any open app's icon to keep it there or remove it.
 
-The same principle scales to a team: **diverge privately, settle publicly.** Your chat lanes are yours alone; what lands in Files is shared.
+The **Launcher** — the grid button — finds everything else: settings surfaces, Billing, Usage. **Notifications** isn't in the Launcher; it's the bell in the top bar.
 
-## The eight apps
+## Underneath
 
-Your Dock holds eight apps:
+Every app writes to the same place: an attributed, versioned filesystem. You don't open it to work — you open apps, and it keeps what they produce.
 
-| Band | App | What it's for |
-|---|---|---|
-| **Think** | [Chat](../apps/chat.md) | Conversations with an engine of your choosing, grounded in your workspace |
-| **Make** | [Text](../apps/text.md) | Documents — notes, drafts, PRDs, the internal writing |
-| **Make** | [Slides](../apps/slides.md) | Decks — one idea per slide, made to be presented |
-| **Make** | [Blogger](../apps/blogger.md) | Posts and pages for a reader outside the workspace |
-| **Make** | [Images](../apps/images.md) | Pictures — cards, ads, banners, diagrams |
-| **Record** | [Files](../apps/files.md) | Every file in the workspace, with revision history |
-| **Record** | [Agents](../apps/agents.md) | Who works with you, and where you meet them |
-| **Boundary** | [Reach](../apps/reach.md) | Your connections, and what comes in or goes out |
-
-Right-click any open app icon to keep it in the Dock or remove it. The Launcher (the grid button) finds everything else — the settings surfaces, Billing and Usage. **Notifications** isn't in the Launcher: it's fronted by the bell in the top bar.
-
-## Where the record fits
-
-Underneath the desk is the part you mostly don't look at: an attributed, versioned filesystem. That's deliberate. You don't open a filesystem to work — you open apps, and the filesystem keeps what they produce.
-
-It becomes visible at four moments:
-
-- **"Why is this here?"** — `history` walks the revision chain and shows you who wrote it and what changed.
-- **"Fix it once."** — correct a source file and everything made from it afterwards inherits the correction.
-- **"Take it with you."** — your workspace is reachable from any AI, and exportable.
-- **"Keep this."** — settling a conversation into a file.
+That's why a deck can be built from a decision note, why correcting a source file fixes everything made from it afterwards, and why a connected ChatGPT sees what you made in Slides.
 
 See [How your work is recorded](how-your-work-is-recorded.md).

@@ -5,11 +5,11 @@
 ## Getting Started
 
 * [Quickstart](getting-started/quickstart.md)
-* [Your first week](getting-started/your-first-week.md)
+* [How to use YARNNN](getting-started/how-to-use-yarnnn.md)
 
 ## The Apps
 
-* [The desk: Think and Make](concepts/the-desk.md)
+* [The apps](concepts/the-desk.md)
 * [Chat](apps/chat.md)
 * [Text](apps/text.md)
 * [Slides](apps/slides.md)

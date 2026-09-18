@@ -77,4 +77,4 @@ Using **Claude Desktop** or **Claude Code** instead? Those need a config file �
 - Upload the documents you already have — Files → right-click → Add Files
 - Meet the agents — who works with you, and in which app — [Agents](../apps/agents.md)
 - Invite a teammate — [Working with a team](../concepts/working-with-a-team.md)
-- Read [Your first week](your-first-week.md)
+- Read [How to use YARNNN](how-to-use-yarnnn.md) — the loop, and what people actually use it for

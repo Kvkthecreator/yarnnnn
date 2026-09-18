@@ -32,6 +32,7 @@ Think in Chat. Make in Text, Slides, Blogger or Images. Everything lands in File
 ## Where to start
 
 - [Quickstart](getting-started/quickstart.md) — your first ten minutes
-- [The desk: Think and Make](concepts/the-desk.md) — the two verbs the product is built around
+- [How to use YARNNN](getting-started/how-to-use-yarnnn.md) — the loop, and what people actually use it for
+- [The apps](concepts/the-desk.md) — which one to open, and when
 - [How your work is recorded](concepts/how-your-work-is-recorded.md) — attribution, revisions, and `history`
 - [Connect YARNNN to your AI](integrations/mcp-connector.md) — ChatGPT, Claude, and others
