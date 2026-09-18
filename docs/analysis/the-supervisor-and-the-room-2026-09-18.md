@@ -83,9 +83,11 @@ Every number below is from live production data, 2026-09-18.
 text 71 · (unbound) 96 · images 5 · radar 3 · slides 2 · blogger 1
 ```
 
-⭐⭐⭐ **96 of 178 are bound to nothing at all** — more than half. A conversation with no binding is a thread with no concern: it cannot be grouped, cannot be routed to, and is findable only by scrolling a list that is 139 long in the workspace that uses the product most.
+⭐⭐⭐ **96 of 178 carry no app stamp.** ⚠️ **§12.5 CORRECTS THIS: the query counted the STAMP, not the BINDING.** By binding the split is **138 artifact-bound / 41 unbound** product-wide — an artifact-bound lane can legitimately carry no `app` stamp (ADR-602 D7). The sentence below survives for the 41, not for 96.
 
 **This is the benchmark's problem statement, arrived at independently by usage.** Projects' answer is that each request opens a thread *under a project*, and the project is what you brief. YARNNN has the threads and no container above them.
+
+⚠️ **§11.1 CORRECTS THIS READING.** Driven further, over half of these conversations hold **zero messages** and the median live one is **four**. They are not 96 orphaned concerns awaiting a container — a large share are not concerns at all, and that difference is what splits this into two projects rather than one.
 
 ### 3.2 The room is already multi-party, and nobody is using it
 
@@ -301,4 +303,146 @@ The machinery for that shape is built and live: `ProposeAction`/`ExecuteProposal
 ### 10.6 One correction to §3 this investigation forced
 
 §3 lists routing as simply "missing". That is true of the verb and **false of the mechanism**: a lane turn already writes to the substrate as the member's hands, and the MCP surface already creates conversation rows that way. What is missing is narrower than "routing" — it is **one primitive, or one proposal shape, inside a capability that already exists.**
+
+
+---
+
+## 11. The split — chat handling is a SEPARATE project, and the measurement is why
+
+> **Operator call, 2026-09-18**: *"i think i may be over-reaching in my request and scope to try and evolve the chat associated handling alongside or within the supervisor and orchestration premise… should we just clear gate and thus scaffold this separately."* **Agreed, and the data argues it harder than the instinct did.**
+
+### 11.1 The measurement that forced it
+
+§3.1 read *178 conversations, 96 unbound* as evidence of parallel work needing coordination. **Driven further, it is not that.** In the busiest workspace (`d5b9029b`, 139 conversations), of the first 100 sampled:
+
+| | |
+|---|---|
+| conversations with **zero** messages | **55** |
+| conversations with any messages | 45 |
+| median messages among the live ones | **4** |
+| longest | 53 |
+
+⭐⭐⭐ **Over half of all conversations are empty, and the median live one is four messages long.** That is not a set of durable work units awaiting a dispatcher. It is a **list accumulating abandoned rows** — something opens a conversation, it gets four messages or none, and nothing ever reclaims it.
+
+**This corrects §3.1's reading of its own number.** The 96 unbound conversations are not 96 orphaned concerns; a large share are not concerns at all.
+
+### 11.2 Why that makes them two projects
+
+> **The chat layer has its own defect, and it is UPSTREAM of the coordinator rather than a component of it.**
+
+Routing presumes threads are durable units worth dispatching to. Here, over half are not units of anything. Building routing on this list would put a dispatcher on top of destinations that are mostly empty, and the coordinator would read as useless for a reason that has nothing to do with coordination.
+
+Three further reasons the separation is right, in ascending weight:
+
+1. **Different evidence.** The chat question is answerable from data that exists (55% empty, median 4). The coordinator question waits on shared memory, which has zero writers and zero readers — there is nothing to measure yet.
+2. **Different risk.** Chat handling is a contained surface concern. The coordinator reopens two deletions and sits against the ADR-460 D3.a cliff. Bundling makes the cheap, safe work wait on the expensive, contested work.
+3. ⭐ **The separation is itself a test of the frame.** If the coordinator turns out to *require* the chat layer rebuilt first, that is evidence the frame is weaker than §5 claims — it would mean the coordinator only works on a chat model that does not exist. Better found by building them independently than by assuming they are one thing.
+
+### 11.3 What Project A inherits — a clean SCOPE, not a clean slate
+
+The chat work is separate; it is **not** unconstrained. Three findings bind it:
+
+- **A lane is created only by a member's act** (§10). That is now a ruled position rather than an accident of the route, and any chat rework inherits it.
+- **The room is already multi-party** (ADR-626 / ADR-495, ratified, 2 of 164 conversations using it). A chat rework that introduces a second multi-party mechanism is the ADR-562 second-home drift, and must argue against this one explicitly.
+- **The container edge must stay NAMEABLE.** Whatever a conversation comes to belong to, the coordinator would later route *into* that edge. Project A need not build routing, but it must not foreclose the edge.
+
+### 11.4 The two projects, and their next gates
+
+| | **Project A — the chat layer** | **Project B — the coordinator** |
+|---|---|---|
+| The question | *Why do 55% of conversations die empty, and what should a conversation belong to?* | *Can an app's resident hold a concern's memory and route work into threads?* |
+| State | audit not yet run | frame derived (§§1–10); §8.1 answered |
+| Next gate | **the audit**: which gesture creates a conversation · is an empty one a defect or a draft · do the 96 unbound want a container or a reaper | **§8.2 — whose memory is it?** Accumulation has no mechanism, and the coordinator is not worth designing until it does. |
+| Blocked on | nothing | Project A's answer to *what does a conversation belong to* — **possibly**; see §11.5 |
+
+### 11.5 What stays undecided, deliberately
+
+⚠️ **ADR-653's disposition is HELD until the audit reports** (operator call, same conversation). Steps 1–3 stay shipped and green; step 4 (the builder as an app) stays demoted. The reason for holding rather than amending now is exact: **what a conversation belongs to may change what an app IS.** Amending ADR-653 to describe its surface layer as coordinator infrastructure, before knowing whether the container is the app or something the chat audit names, would be deciding the load-bearing question in a status line.
+
+⚠️ **Do not re-merge these two projects without new evidence.** The merge is intuitive — both are "conversations" — and §11.1 is the receipt for why the intuition is wrong at this moment. If the audit finds the empty conversations are a *routing* artifact after all, that is exactly the new evidence that would justify re-merging, and it should be recorded as such.
+
+
+---
+
+## 12. Project A, first pass — what the empty conversations actually are
+
+> **Driven 2026-09-18, immediately after the split. It corrects §11.1's own reading, which corrected §3.1's.** Three passes over one number, each narrowing it; the third is the one to build on.
+
+### 12.1 The census
+
+One workspace (`d5b9029b`, the busiest), all 139 conversations, joined against `session_messages`:
+
+| | count |
+|---|---|
+| conversations | 139 |
+| **never spoken to (zero messages)** | **69** |
+| live (≥1 message) | 70 |
+
+And the empties, decomposed — this is the finding:
+
+| empties by BINDING | | empties by STATUS | |
+|---|---|---|---|
+| **artifact-bound** | **65** | active | 53 |
+| unbound | 4 | archived | 16 |
+
+All 69 carry a `model` and **none carries a summary** — created at the door, never named, never spoken to.
+
+### 12.2 What that means, and it is not what §3.1 or §11.1 guessed
+
+⭐⭐⭐ **The empties are not abandoned chats. They are authoring lanes nobody talked in.**
+
+**65 of 69 are artifact-bound.** An artifact-bound lane is created *with* its artifact — the Studio/Text shape, a conversation beside a canvas (`StudioSurface.tsx:4965`, `:4986`, `:5023`). The member opened a deck or a document, worked **on the canvas**, and never used the chat beside it. The conversation row is a **fixture of the authoring surface**, not a thing the member chose to start.
+
+Compare the live half: 45 of 70 live conversations are *also* artifact-bound. So the canvas-side chat is used about **41% of the time** (45 of 110 artifact-bound lanes), and the other 59% are the residue of simply having opened an artifact.
+
+**The 4 unbound empties are the only ones that match the "abandoned chat" story**, and four is noise.
+
+### 12.3 The harm, measured rather than assumed
+
+⚠️ **My first inference here was WRONG and is corrected in place.** Seeing 24 unbound active lanes against `_MAX_ACTIVE_LANES = 20`, I inferred the empties were consuming the cap and blocking new chats. Driven:
+
+| | |
+|---|---|
+| cap (`_MAX_ACTIVE_LANES`, unbound only) | 20 |
+| unbound ACTIVE lanes in this workspace | **24 — already over** |
+| of those 24, **empty** | **2** |
+| of those 24, real conversations | 22 |
+
+**The cap pressure is real conversations, not the empties** — the cap counts unbound lanes only, and the empties are overwhelmingly bound. Two separate problems wearing one number:
+
+1. **A cap that a real member has already exceeded** (24 > 20) — the 409 in `ChatSurface.tsx`'s own comment is live for this workspace. That is a UX bound (ADR-408 D6) meeting a member who outgrew it.
+2. **65 empty artifact-bound rows** — which cost nothing against the cap and instead cost *legibility*: they pad any list, count, or future routing surface that reads conversations without asking whether anyone spoke.
+
+### 12.4 The question this reframes
+
+§11.4 set Project A's question as *"why do 55% of conversations die empty, and what should a conversation belong to?"* The first half is now answered and the second half is unchanged:
+
+> **They die empty because a conversation is CREATED BY OPENING AN ARTIFACT, not by deciding to talk.** The gesture that makes the row is not a gesture about conversing.
+
+So the live design question is narrower and better:
+
+⭐ **Should an artifact-bound conversation exist before its first message?**
+
+Three shapes, none yet argued:
+- **eager** (today) — the row exists when the canvas opens; 59% are never used.
+- **lazy** — the row is created on the first message; the canvas holds an intent until then.
+- **eager but not counted** — the row exists, and every consumer that lists or counts conversations asks "has anyone spoken?" first.
+
+⚠️ **This is not obviously a defect.** An eagerly-created lane may be load-bearing for the authoring surface's own wiring (the pane needs a lane id to mount against), and lazy creation would move that work to the first keystroke. **Which it is must be driven before it is changed** — `_lane_agent`, the cast seeding, and the pane's mount path all read a lane id. The audit's next step is that dependency walk, not a fix.
+
+### 12.5 What this does to the coordinator (Project B)
+
+It **strengthens the split** and removes one of Project B's assumed inputs:
+
+- §3.1's *"96 unbound conversations = 96 orphaned concerns"* is now doubly corrected, and the cause is a **query that answered a different question**. It counted `lane.app` — rows with no APP STAMP — not rows with no BINDING. Driven across every workspace:
+
+  | by `lane.app` (§3.1's query) | | by actual BINDING |  |
+  |---|---|---|---|
+  | `text` | 71 | **artifact-bound** | **138** |
+  | *(none)* | **97** | **unbound** | **41** |
+  | `images` · `radar` · `slides` · `blogger` | 11 | | |
+
+  ⚠️ **An artifact-bound lane can carry no `app` stamp** — ADR-602 D7 records exactly this (56 bound `.html` lanes with no stamp, derived at read time). So §3.1's 96 was ~97 *unstamped* lanes, most of them bound, and the true unbound population product-wide is **41**.
+- ⚠️ **So the "flat list of orphaned threads" problem the coordinator was partly motivated by is smaller than stated.** 25 live unbound conversations in the busiest workspace is a list a person can read. It is not nothing, and it is not the crisis §3.1 implied.
+- **The routing motivation therefore rests on the OTHER two legs** — shared memory (no mechanism at all) and the container (what an app frame already builds) — not on thread sprawl. §5's frame survives; one of its supports does not.
 
