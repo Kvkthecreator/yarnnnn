@@ -14,3 +14,9 @@ root: ./
 structure:
   readme: README.md
   summary: SUMMARY.md
+
+# A published URL outlives the page behind it. `your-first-week` was live and
+# linkable; it merged into how-to-use-yarnnn (2026-09-18), so the old path is
+# redirected rather than left to 404 for anyone who bookmarked or linked it.
+redirects:
+  getting-started/your-first-week: getting-started/how-to-use-yarnnn.md
