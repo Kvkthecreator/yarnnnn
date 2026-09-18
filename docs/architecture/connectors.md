@@ -243,6 +243,27 @@ ADR amendment, with its own narrow non-agent identity. Receipts alone are not
 the bar: the first real publish produced a perfectly honest receipt for a
 post whose body was 39KB of stylesheet.
 
+## 6b. Generative media is a connector, not a capability yarnnn builds
+
+ADR-417 §2a retired asset generation with the render service and named the
+return path: *"when generative capability returns to the product, it returns
+rented — a member-attached connector, never an in-house engine."* ADR-635 am.2
+takes that door for video, audio and imagery, and the answer is that **there is
+nothing to build**. The directory is consumed (D1), the generic attach flow
+already registers any MCP server, the credential is the member's under
+ADR-577, and the async problem a minute-long render creates stays on the
+vendor's side of the boundary — which is what keeps ADR-413's anti-goal
+("never force an async-job engine through the tool-loop protocol") trivially
+satisfied. A generation engine is the most fungible engine there is; renting
+the most fungible layer is the whole of ADR-417's argument.
+
+What yarnnn owns is the part a vendor structurally cannot: the asset lands as
+an attributed, parent-pointered revision beside the brief it was made from,
+with `derived_from` naming that brief. An asset that stays at the vendor is a
+link that rots. That is the craft in `skills/generating-media/SKILL.md`, which
+names no vendor and is scoped by `metadata.needs` (D7) so it is offered only
+to a member who actually holds a media connector.
+
 ## 7. Gates
 
 `test_adr582_connectors.py` (the writer's contract + the narrowing, driven) ·

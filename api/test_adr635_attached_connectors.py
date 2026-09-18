@@ -409,6 +409,29 @@ idx_off = sk.skills_index_section([m], app=None, reach=set())
 idx_on = sk.skills_index_section([m], app=None, reach={"Project tracker"})
 _check("8h the index withholds a needs-skill without reach and lists it with", "roadmap-update" not in idx_off and "roadmap-update" in idx_on)
 _check("8i creating-skills teaches `needs`", "metadata.needs" in _read("api/services/skills/creating-skills/SKILL.md"))
+# ADR-635 D7 amendment (2026-09-18) — the CASE of a category is not a contract.
+# `reach` is seeded from the ecosystem's own `~~category` words ("Project
+# tracker", "Design"); a skill author types `needs` by hand. Comparing them
+# exactly made the whole gate decorative: the example creating-skills TEACHES
+# — `needs: [project tracker]` — could never match a real attached Asana, so
+# the skill was withheld forever and nothing said why. Assert on the taught
+# example, not on a fixture that agrees with itself.
+from services.connector_directory import categories as _cats  # noqa: E402
+_taught = sk.parse_skill("---\nname: t\ndescription: d\nmetadata:\n  needs: [project tracker]\n---\n# t\n")
+_real = next((c for c in _cats() if c.casefold() == "project tracker"), None)
+_check("8j the seed really carries that category (else 8k is vacuous)", _real == "Project tracker", str(_real))
+_check("8k the example creating-skills TEACHES matches a real attached connector",
+       sk._applies_to({"needs": _taught["needs"], "apps": ()}, None, {_real}))
+_check("8l ...and the fold does not become a substring match",
+       not sk._applies_to({"needs": ("design",), "apps": ()}, None, {"Design tool"}))
+_check("8m ...nor a match against an unrelated category",
+       not sk._applies_to({"needs": ("project tracker",), "apps": ()}, None, {"Design"}))
+# The kernel's own needs-skill must name categories that EXIST upstream, or it
+# is a skill nothing can ever light up.
+_gm = sk._load_kernel().get("generating-media")
+_check("8n the kernel media skill declares needs", bool(_gm and _gm["needs"]), str(_gm and _gm["needs"]))
+_check("8o ...and is withheld with no reach, offered with a media category",
+       not sk._applies_to(_gm, None, set()) and sk._applies_to(_gm, None, {"Media generation"}))
 
 # ═══════════════════════════════════════════════════════════════════════════
 print("§9 the dead binding is gone; the client accepts header or no auth")

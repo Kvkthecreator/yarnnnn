@@ -314,7 +314,8 @@ async def _build_section_brief(
             render = asset_spec.get("render", "chart")
             lines.append(
                 f"**Include a {render} asset:** Produce structured data "
-                f"(markdown table or ```mermaid block) — it will be auto-rendered."
+                f"(markdown table, or a ```mermaid block the reader's browser "
+                f"draws). Nothing is rendered server-side (ADR-417)."
             )
 
     # Staleness signal
@@ -438,13 +439,16 @@ def _kind_output_contract(kind: str) -> str:
             "Markdown table. Entities as columns, attributes as rows. "
             "Use ✓/✗ or RAG (🟢/🟡/🔴) for status cells."
         ),
+        # ADR-417 retired chart GENERATION; engine.py composes both of these
+        # as a native data table. Promising an image taught the model to write
+        # a caption for a picture that never arrives.
         "trend-chart": (
             "Markdown table with time-series data (date column + metric column). "
-            "Platform will render as line chart."
+            "Composed as a data table — no chart image is generated."
         ),
         "distribution-chart": (
             "Markdown table with categories + values. "
-            "Platform will render as bar or pie chart."
+            "Composed as a data table — no chart image is generated."
         ),
         "timeline": (
             "Chronological list. Format each: `**YYYY-MM-DD** — Description (source).`"

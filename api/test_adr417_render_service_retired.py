@@ -23,7 +23,12 @@ from pathlib import Path
 import pytest
 
 API = Path(__file__).resolve().parent
-LIVE_DIRS = [API / "services", API / "routes", API / "agents", API / "jobs"]
+# `scripts/` is LIVE for this gate's purpose: an operator runs those files,
+# and two of them carried retired-machinery PROMPT STRINGS through an
+# "enforced" teardown precisely because this list could not see them
+# (found 2026-09-18). A directory a human executes is not a scratch dir.
+LIVE_DIRS = [API / "services", API / "routes", API / "agents", API / "jobs",
+             API / "scripts"]
 
 
 def _live_py_files():

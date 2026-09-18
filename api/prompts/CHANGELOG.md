@@ -15,6 +15,56 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.18.3] - Media generation is rented through a connector, and `needs` stops being decorative
+### Changed
+- api/services/skills/generating-media/SKILL.md (new): the craft for generating video,
+  audio or imagery through a connector the MEMBER attached. Vendor-neutral by
+  construction — no vendor is named, `metadata.needs` names four category words
+  (`media generation`, `video generation`, `image generation`, `design`), so it lights
+  up for whichever media connector exists and stays withheld otherwise.
+- api/services/skills/__init__.py: `_applies_to` CASEFOLDS the `needs` ↔ `reach`
+  comparison.
+- api/services/compose/assembly.py: two prompt strings stopped promising a picture.
+  "it will be auto-rendered" → "Nothing is rendered server-side (ADR-417)"; the
+  `trend-chart` / `distribution-chart` briefs said "Platform will render as line chart"
+  and now say "Composed as a data table — no chart image is generated", which is what
+  `engine.py:1230` has actually done since ADR-417.
+- Expected behavior: a member who attaches a media connector is offered generating-media
+  and told to land the asset in the commons with `derived_from` naming its brief, rather
+  than pasting a vendor link that rots. A member with no such connector never sees it.
+  A model asked for a chart section stops writing captions for an image that never arrives.
+
+### Why
+Two observed failures, one receipt each.
+
+**(1) `metadata.needs` could never fire.** ADR-635 D7 shipped the mechanism and
+`creating-skills` teaches it with `metadata.needs: [project tracker]`. The comparison was
+an exact set intersection, and `reach` is seeded from the ecosystem's own `~~category`
+words — `Project tracker`, title-cased (`connector_directory_seed.json`, derived from
+anthropics/knowledge-work-plugins@f30dc63). So the example we TEACH produced a skill that
+is withheld forever, silently: `_applies_to({'needs':('project tracker',)}, None,
+{'Project tracker'})` returned False. No kernel skill declared `needs`, so the path had
+never been driven by a real skill, and §8 of the ADR-635 gate passed because its fixture
+said `[Project tracker]` — a gate agreeing with itself. Unlike `apps`, whose both sides are
+lowercase slugs by construction, neither side of `needs` is normalised anywhere; the fold
+belongs at the one comparison. Falsified: reverting the fold turns §8 8k and 8o RED while
+the substring controls 8l/8m stay green.
+
+**(2) The compose briefs described a retired engine.** ADR-417 retired chart generation in
+July 2026; `engine.py` composes `trend-chart` and `distribution-chart` as data tables. The
+briefs kept promising an image for ~2 months. Found by an ADR-417 teardown audit whose
+wider finding was that `api/scripts/` was outside the gate's `LIVE_DIRS`, which is how a
+stale `render_usage` comment survived an "enforced" retirement.
+
+### Gate
+`test_adr635_attached_connectors.py` 131 passed (was 124; §8 gains 8j–8o, which assert
+against the seed's real vocabulary rather than a self-agreeing fixture).
+`test_adr630_skills.py` 153 passed — the index ratchets hold with a 13th skill and the
+rank table still lists every measured skill; the budget drops measured-null skills first,
+by evidence, never the alphabet (no ceiling was raised).
+`test_adr632_the_seat_retires.py` §5 73 passed. `test_adr417_render_service_retired.py`
+8 passed with `LIVE_DIRS` widened to include `api/scripts/` — proven RED first.
+
 ## [2026.09.18.2] - Supervisor returns, with a different subject
 ### Changed
 - api/services/agents_registry.py: a `supervisor` row joins AGENTS — `kernel: True`,

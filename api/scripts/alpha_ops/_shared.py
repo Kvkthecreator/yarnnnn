@@ -293,10 +293,11 @@ def pg_connect():
 # Anything else that needs cost-truth (cockpit element, future endpoint) reads
 # this. Singular implementation: don't reimplement the SQL anywhere.
 #
-# Note: this is LLM cost only. Render service usage (ADR-118) is currently
-# tracked via the `render_usage` RPC counter, not a queryable table — it's a
-# smaller cost contributor in practice, but a follow-up should add it to the
-# same rollup for full cost-truth honesty per SCOPE.md.
+# This is the WHOLE of cost, not a part of it: ADR-417 retired the render
+# service and its parallel meter (migration 207 dropped both the counter and
+# its table), so `execution_events` is the one ledger and the follow-up this
+# note used to promise has no subject. Generation is rented now — a rented
+# call's cost arrives through the same events, never a second table (ADR-396).
 
 
 def fetch_cost_rollup(

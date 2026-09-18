@@ -395,8 +395,19 @@ def _applies_to(skill: dict, app: Optional[str], reach: Optional[set] = None) ->
     if apps and app and app not in apps:
         return False
     needs = skill.get("needs") or ()
-    if needs and reach is not None and not (set(needs) & set(reach)):
-        return False
+    # ADR-635 D7 amendment — CASEFOLDED. A category is free text a member types
+    # at attach time, seeded from the ecosystem's own `~~category` placeholders
+    # ("Project tracker", "Design"); a skill's `needs` is free text an author
+    # types in frontmatter. Comparing them exactly made this gate decorative:
+    # the example `creating-skills` teaches (`needs: [project tracker]`) could
+    # NEVER match a real attached Asana (category `Project tracker`), so the
+    # skill was withheld forever and nothing said why. Unlike `apps` — whose
+    # both sides are lowercase slugs by construction — neither side of `needs`
+    # is normalised anywhere, so the fold belongs HERE, at the one comparison.
+    if needs and reach is not None:
+        have = {str(c).strip().casefold() for c in reach}
+        if not ({n.strip().casefold() for n in needs} & have):
+            return False
     return True
 
 

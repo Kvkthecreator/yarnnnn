@@ -37,8 +37,6 @@ const PRIMITIVE_LABELS: Record<string, string> = {
   Schedule: 'Change a schedule',
   ManageRecurrence: 'Change a schedule',
   FireInvocation: 'Run a task now',
-  RuntimeDispatch: 'Generate an asset',
-  InferContext: 'Update your context',
   // Capital platform tools — the highest-consequence rows get explicit
   // verb phrases rather than de-jargoned fallbacks.
   platform_trading_submit_order: 'Submit a trade order',
