@@ -119,6 +119,12 @@ class IntegrationResponse(BaseModel):
     server_url: Optional[str] = None
     category: Optional[str] = None
     tools_exposed: Optional[int] = None
+    # ADR-635 D4 am.1 — what the last tool refresh found moved on the server:
+    # {withdrawn: [names the member had consented to and that are gone],
+    #  appeared: [names newly advertised], at}. The aperture is keyed on tool
+    # NAMES, so a rename silently revokes consent; this is that fact, derived
+    # from the row, cleared the moment the member saves an aperture.
+    drift: Optional[dict] = None
     # ADR-642 D2 / ADR-644 — what this connection DOES: the ONE structure
     # (`reach` — `services/reach_status.py`) and its member-face rendering
     # (`does`: reads · writes · chat · agents, `describe(reach)`). The lane
@@ -196,6 +202,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                     sum(1 for m in aperture.values() if m in ("direct", "propose"))
                     if attached else None
                 ),
+                drift=(metadata.get("drift") or None) if attached else None,
                 # ADR-642 D2 / ADR-644 — the roster says what each row reads and
                 # writes, rendered from the one structure.
                 reach=(None if attached else facts_by.get(str(platform).lower())),

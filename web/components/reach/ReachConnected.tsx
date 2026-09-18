@@ -381,6 +381,27 @@ export function ReachConnected() {
                         text={`${i.tools_exposed ?? 0} tool${i.tools_exposed === 1 ? '' : 's'} available in chat${i.category ? ` · ${i.category}` : ''}`}
                       />
                     )}
+                    {/* ADR-635 D4 am.1 — the server moved under the member's
+                        consent. A withdrawn tool they had ALLOWED is the
+                        load-bearing half: it now refuses, and without this
+                        line it refuses silently. Named here because this is
+                        where they already look; the fix is one click away. */}
+                    {attached && (i.drift?.withdrawn.length || i.drift?.appeared.length) ? (
+                      <Fact
+                        label="Changed"
+                        tone={i.drift.withdrawn.length > 0 ? 'warn' : 'muted'}
+                        text={[
+                          i.drift.withdrawn.length > 0
+                            ? `${i.drift.withdrawn.length} tool${i.drift.withdrawn.length === 1 ? '' : 's'} you allowed ${i.drift.withdrawn.length === 1 ? 'is' : 'are'} gone from this server (${i.drift.withdrawn.join(', ')})`
+                            : null,
+                          i.drift.appeared.length > 0
+                            ? `${i.drift.appeared.length} new tool${i.drift.appeared.length === 1 ? '' : 's'} offered, none allowed yet`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      />
+                    ) : null}
                     {/* A connector that never captures (WordPress) has no
                         "last read" — saying "not reading yet" there implies a
                         read that is coming. Shown only where a capture exists. */}

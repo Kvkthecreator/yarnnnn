@@ -285,6 +285,22 @@ export interface DirectoryEntry {
   plugins?: string[];
 }
 
+/**
+ * ADR-635 D4 am.1 — what the last tool refresh found moved on the server.
+ * The aperture is keyed on tool NAMES, so a rename or a withdrawal silently
+ * revokes the member's consent for that tool (it becomes unlisted → denied).
+ * Failing closed is right; failing closed in silence is not. Null when the
+ * last refresh found nothing moved, or once the member has saved an aperture
+ * since — their save IS the acknowledgement.
+ */
+export interface ApertureDrift {
+  /** Tools the member had allowed that the server no longer advertises. */
+  withdrawn: string[];
+  /** Tools newly advertised. Nothing is exposed by this — they are unlisted. */
+  appeared: string[];
+  at: string;
+}
+
 export interface AttachedConnector {
   slug: string;
   provider: string;
@@ -302,6 +318,7 @@ export interface AttachedConnector {
   }>;
   aperture: Record<string, string>;
   exposed: number;
+  drift: ApertureDrift | null;
   connected_at: string | null;
   last_updated: string | null;
 }
@@ -2610,6 +2627,8 @@ export const api = {
           server_url?: string | null;
           category?: string | null;
           tools_exposed?: number | null;
+          // ADR-635 D4 am.1 — the last refresh's drift, or null.
+          drift?: ApertureDrift | null;
           // ADR-642 D2 / ADR-644 — what this connection DOES: the ONE
           // structure (`reach`) and its member-face rendering (`does`). The
           // lane frame and the agent's `list_integrations` result render the

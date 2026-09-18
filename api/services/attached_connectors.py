@@ -460,6 +460,10 @@ def public_view(row: dict) -> dict:
         ],
         "aperture": aperture,
         "exposed": sum(1 for m in aperture.values() if m in APERTURE_MODES),
+        # ADR-635 D4 am.1 — what the last refresh found moved, or None. The
+        # member's own surface is where this is read; it is not an event and
+        # not a notification, it is the row saying what it knows.
+        "drift": md.get("drift") or None,
         "connected_at": row.get("created_at"),
         "last_updated": row.get("updated_at"),
     }
@@ -789,7 +793,19 @@ async def envelope_for(auth: Any, slug: str) -> Optional[tuple[dict, dict]]:
 
 async def refresh_tools(auth: Any, slug: str) -> list[dict]:
     """Re-list the server's tools onto the row. The aperture keeps only the
-    tools that still exist, so a renamed tool cannot stay silently exposed."""
+    tools that still exist, so a renamed tool cannot stay silently exposed.
+
+    ADR-635 D4 am.1 — the pruning is RECORDED, not silent. `metadata.tools` is
+    a snapshot and the aperture is keyed on tool NAMES: when a server renames
+    or withdraws a tool, the member's consent for it evaporates and the tool
+    becomes unlisted → DENY. Failing closed is right; failing closed in
+    silence is the defect — the member reads a working connection while an
+    agent is refused a tool they believe they granted. This writes ONE derived
+    fact onto the row (`metadata.drift`: the apertured names that vanished,
+    the names that newly appeared, and when), which `public_view` serves and
+    `set_aperture` clears — the member's next save IS the acknowledgement, so
+    there is no notification system and nothing to dismiss.
+    """
     got = await envelope_for(auth, slug)
     if not got:
         raise ValueError("not connected")
@@ -797,9 +813,26 @@ async def refresh_tools(auth: Any, slug: str) -> list[dict]:
     md = dict(row.get("metadata") or {})
     tools = await _list_server_tools(md.get("server_url") or "", envelope)
     names = {t["name"] for t in tools}
-    aperture = {k: v for k, v in (md.get("aperture") or {}).items() if k in names}
+    known_before = {t.get("name") for t in (md.get("tools") or []) if t.get("name")}
+    aperture_before = {k: v for k, v in (md.get("aperture") or {}).items()
+                       if v in APERTURE_MODES}
+    aperture = {k: v for k, v in aperture_before.items() if k in names}
+    # `withdrawn` is the load-bearing half: these are tools the member had
+    # consented to and can no longer be called. `appeared` is the quieter
+    # half — nothing is exposed by it (a new tool is unlisted like any other),
+    # but a member deciding an aperture wants to know the shape moved.
+    withdrawn = sorted(set(aperture_before) - names)
+    appeared = sorted(names - known_before) if known_before else []
     md["tools"] = tools
     md["aperture"] = aperture
+    if withdrawn or appeared:
+        md["drift"] = {
+            "withdrawn": withdrawn,
+            "appeared": appeared,
+            "at": _now().isoformat(),
+        }
+    else:
+        md.pop("drift", None)
     _upsert_row(auth.client, auth.user_id, slug, {"metadata": md})
     return tools
 
@@ -824,6 +857,10 @@ def set_aperture(auth: Any, slug: str, aperture: dict) -> dict:
             raise ValueError(f"unknown mode for {tool}: {mode}")
         cleaned[tool] = mode
     md["aperture"] = cleaned
+    # ADR-635 D4 am.1 — the save IS the acknowledgement of any drift the last
+    # refresh recorded: the member has now looked at the list as it stands and
+    # said what they allow. Nothing to dismiss, nothing that outlives the act.
+    md.pop("drift", None)
     _upsert_row(auth.client, auth.user_id, slug, {"metadata": md})
     return cleaned
 

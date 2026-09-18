@@ -224,6 +224,7 @@ async def _fake_list(server_url, envelope):
     ]
 
 
+_REAL_LIST_SERVER_TOOLS = ac._list_server_tools
 ac._list_server_tools = _fake_list  # type: ignore[assignment]
 done = _run(ac.complete_attach(client, "code-1", state))
 row = ac.load_row(client, "u1", "notion")
@@ -316,6 +317,7 @@ async def _fake_run(auth_, name, input_):
 
 
 reg._enqueue_platform_write_proposal = _fake_enqueue  # type: ignore[assignment]
+_REAL_RUN_ATTACHED_TOOL = ac.run_attached_tool
 ac.run_attached_tool = _fake_run  # type: ignore[assignment]
 res = _run(reg.execute_primitive(auth, "mcp__notion__notion-delete", {}))
 _check("5a DENY returns a refusal the model can read", res.get("error") == "attached_tool_denied" and "Settings" in res.get("message", ""))
@@ -534,6 +536,254 @@ _check("12h a server that merely needs sign-in is still listed (slack, gong)",
        any("slack" in u for u in _listed) and any("gong" in u for u in _listed))
 _check("12i the opt-out is keyed by HOST, so a renamed seed key cannot re-list it",
        _cd._opted_out("https://mcp.figma.com/anything") and not _cd._opted_out("https://mcp.linear.app/mcp"))
+
+# ═══════════════════════════════════════════════════════════════════════════
+print("§13 a 31-tool write-heavy server, driven end to end (ADR-635 am.1, 2026-09-18)")
+# ═══════════════════════════════════════════════════════════════════════════
+# The generic path was only ever exercised against Notion's handful. A commerce
+# server (Shopify's shape) advertises ~31 tools, most of them WRITES, and
+# attaches by header rather than OAuth. Driven here — attach, list, aperture,
+# gate, dispatch — because reading it cannot prove it.
+#
+# The operator ruling this gate holds: THE APERTURE IS SOVEREIGN. An
+# irreversible foreign write the member marked `direct` APPLIES. yarnnn does
+# not classify tools it does not author, so there is no irreversible-write
+# floor here and §13g asserts its ABSENCE, not its presence.
+
+_READS_31 = ["get_shop", "list_products", "get_product", "list_orders", "get_order",
+             "list_customers", "get_customer", "list_collections", "get_collection",
+             "list_inventory_levels", "get_inventory_item", "list_fulfillments",
+             "get_fulfillment", "list_discounts", "get_discount", "list_draft_orders",
+             "get_draft_order", "search_products"]
+_WRITES_31 = ["create_product", "update_product", "delete_product", "create_order",
+              "cancel_order", "create_refund", "adjust_inventory", "create_discount",
+              "delete_discount", "create_draft_order", "complete_draft_order",
+              "create_fulfillment", "update_customer"]
+_TOOLS_31 = (
+    [{"name": n, "description": f"{n} on the shop.",
+      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}},
+      "annotations": {"readOnlyHint": True}} for n in _READS_31]
+    + [{"name": n, "description": f"{n} on the shop.",
+        "input_schema": {"type": "object", "properties": {"id": {"type": "string"}}},
+        "annotations": {"readOnlyHint": False}} for n in _WRITES_31]
+)
+_check("13a the fixture is a real 31-tool write-heavy server", len(_TOOLS_31) == 31)
+
+_SEEN_HEADERS: list = []
+_TOOL_CALLS: list = []
+
+
+class _MCPResult:
+    def __init__(self, text, is_error=False):
+        self.text, self.structured, self.is_error = text, None, is_error
+
+    def source_ref(self):
+        return "mcp://shop"
+
+
+class _FakeMCPClient:
+    def __init__(self):
+        self.tools = list(_TOOLS_31)
+
+    async def list_tools(self, url, headers=None):
+        _SEEN_HEADERS.append(dict(headers or {}))
+        return list(self.tools)
+
+    async def call_tool(self, url, headers=None, tool_name=None, arguments=None):
+        _TOOL_CALLS.append((tool_name, dict(arguments or {}), dict(headers or {})))
+        return _MCPResult(f"{tool_name} ok")
+
+
+_FAKE_MCP = _FakeMCPClient()
+# The MCP SDK is py3.10+ and absent under the 3.9 api venv (the §9c precedent).
+# Standing the module in is what lets `refresh_tools` / `run_attached_tool` —
+# which import `get_mcp_client` at call time — be DRIVEN rather than read.
+import types as _types  # noqa: E402
+
+_mcp_mod = _types.ModuleType("integrations.core.mcp_client")
+_mcp_mod.get_mcp_client = lambda: _FAKE_MCP
+sys.modules["integrations.core.mcp_client"] = _mcp_mod
+# §2 swapped `_list_server_tools` wholesale for the Notion pair; from here on
+# the REAL one runs, so the auth headers it builds are driven, not assumed.
+ac._list_server_tools = _REAL_LIST_SERVER_TOOLS  # type: ignore[assignment]
+# Likewise §5 swapped `run_attached_tool` for a recorder; §13 DRIVES the real
+# dispatch, so a green here cannot be a fake answering its own question.
+ac.run_attached_tool = _REAL_RUN_ATTACHED_TOOL  # type: ignore[assignment]
+
+
+class _ShopHTTP(_FakeHTTP):
+    """A header-authenticated server (401 bare, 200 with the key) and an
+    anonymous one. Neither publishes OAuth metadata."""
+
+    async def post(self, url, **k):
+        hdrs = k.get("headers") or {}
+        if url == "https://shopify.example/mcp":
+            return _Resp(200, {"result": {}}) if hdrs.get("X-Shopify-Access-Token") else _Resp(401, headers={})
+        if url == "https://anon-shop.example/mcp":
+            return _Resp(200, {"result": {}})
+        return await super().post(url, **k)
+
+    async def get(self, url, **k):
+        if "shopify.example" in url or "anon-shop.example" in url:
+            return _Resp(404)
+        return await super().get(url, **k)
+
+
+ac.httpx.AsyncClient = _ShopHTTP  # type: ignore[attr-defined]
+
+_c13 = _Client()
+_a13 = _Auth(_c13)
+_att = _run(ac.begin_attach(_a13, "https://shopify.example/mcp", title="Shopify",
+                            category="Commerce", header_name="X-Shopify-Access-Token",
+                            header_value="shpat_secret"))
+_check("13b a header-authenticated server attaches with NO redirect",
+       _att["attached"] is True and _att["authorization_url"] is None and _att["slug"] == "shopify", str(_att))
+_pv13 = ac.public_view(ac.load_row(_c13, "u1", "shopify"))
+_check("13c all 31 tools land on the row", len(_pv13["tools"]) == 31, str(len(_pv13["tools"])))
+_check("13d a fresh attach at 31 tools still exposes NOTHING",
+       _pv13["exposed"] == 0 and _pv13["aperture"] == {}, str(_pv13["aperture"]))
+_check("13e the member's header rode the tools/list call, and never reaches a surface",
+       _SEEN_HEADERS[-1].get("X-Shopify-Access-Token") == "shpat_secret" and "shpat_secret" not in str(_pv13))
+_check("13f 31 distinct provider-legal lane names",
+       len({t["lane_name"] for t in _pv13["tools"]}) == 31
+       and all(re.fullmatch(r"[A-Za-z0-9_-]{1,64}", t["lane_name"]) for t in _pv13["tools"]))
+_check("13g the read-only HINT round-trips per tool and groups nothing else",
+       sum(1 for t in _pv13["tools"] if t["read_only_hint"]) == 18)
+
+from services.primitives.permission import (  # noqa: E402
+    resolve_permission as _rp, PermissionDecision as _PD,
+)
+
+ac.set_aperture(_a13, "shopify", {"create_refund": "direct", "get_order": "direct",
+                                  "cancel_order": "propose"})
+_d, _r = _run(_rp(_a13, "mcp__shopify__create_refund", {"id": "o1"}))
+_check("13h OPERATOR RULING — an IRREVERSIBLE foreign write marked `direct` APPLIES; "
+       "there is no irreversible-write floor for an attached connector",
+       _d == _PD.APPLY and _r == "attached_direct", f"{_d} {_r}")
+_d, _r = _run(_rp(_a13, "mcp__shopify__cancel_order", {"id": "o1"}))
+_check("13i `propose` QUEUES", _d == _PD.QUEUE and _r == "attached_propose", f"{_d} {_r}")
+_d, _r = _run(_rp(_a13, "mcp__shopify__delete_product", {"id": "p1"}))
+_check("13j one of the other 28 — unlisted — DENIES",
+       _d == _PD.DENY and _r == "attached_tool_outside_aperture", f"{_d} {_r}")
+_check("13k the surface carries ONLY the 3 chosen of 31",
+       len(ac.attached_surface(_c13, "u1")[0]["tools"]) == 3)
+_out13 = _run(ac.run_attached_tool(_a13, "mcp__shopify__create_refund", {"id": "o1", "_proposal_id": "p"}))
+_check("13l dispatch reaches the server under the member's header, `_`-args stripped",
+       _out13["success"] and _TOOL_CALLS[-1][0] == "create_refund"
+       and _TOOL_CALLS[-1][1] == {"id": "o1"}
+       and _TOOL_CALLS[-1][2].get("X-Shopify-Access-Token") == "shpat_secret", str(_TOOL_CALLS[-1:]))
+
+# The anonymous arm of the same server shape.
+_c13b = _Client()
+_a13b = _Auth(_c13b)
+_att2 = _run(ac.begin_attach(_a13b, "https://anon-shop.example/mcp", title="AnonShop"))
+_check("13m an anonymous 31-tool server attaches the same way",
+       _att2["attached"] is True and _att2["auth"] == "none", str(_att2))
+_check("13n and its tools/list carried NO auth header at all", _SEEN_HEADERS[-1] == {}, str(_SEEN_HEADERS[-1]))
+ac.set_aperture(_a13b, "anon-shop", {"list_products": "direct"})
+_check("13o anonymous dispatch works",
+       _run(ac.run_attached_tool(_a13b, ac.lane_tool_name("anon-shop", "list_products"), {}))["success"])
+
+# ═══════════════════════════════════════════════════════════════════════════
+print("§14 the aperture drifts when the server renames a tool — and SAYS SO (am.1)")
+# ═══════════════════════════════════════════════════════════════════════════
+# `metadata.tools` is a snapshot and the aperture is keyed on tool NAMES. When
+# a server renames or withdraws a tool the member's consent for it evaporates
+# and the tool starts refusing. Failing closed is right; failing closed in
+# SILENCE is the defect — the member reads a working connection while an agent
+# is refused a tool they believe they granted.
+_FAKE_MCP.tools = [t for t in _TOOLS_31 if t["name"] != "create_refund"] + [
+    {"name": "refund_create", "description": "renamed", "input_schema": {"type": "object"},
+     "annotations": {"readOnlyHint": False}}]
+_run(ac.refresh_tools(_a13, "shopify"))
+_pv14 = ac.public_view(ac.load_row(_c13, "u1", "shopify"))
+_check("14a the withdrawn tool is still PRUNED from the aperture (fail closed, unchanged)",
+       "create_refund" not in _pv14["aperture"])
+_d, _r = _run(_rp(_a13, "mcp__shopify__create_refund", {"id": "o1"}))
+_check("14b ...and it now DENIES where it used to apply", _d == _PD.DENY, f"{_d} {_r}")
+_check("14c the drop is NAMED, not silent: drift.withdrawn",
+       (_pv14["drift"] or {}).get("withdrawn") == ["create_refund"], str(_pv14["drift"]))
+_check("14d the new name is reported as appeared and is NOT allowed by it",
+       "refund_create" in (_pv14["drift"] or {}).get("appeared", [])
+       and _pv14["aperture"].get("refund_create") is None)
+_check("14e the fact is DERIVED onto the row, not an event and not a notification",
+       "drift" in (ac.load_row(_c13, "u1", "shopify")["metadata"] or {}))
+# `"drift" in src` is true from a type import, a comment, or a dead binding
+# (the class this repo keeps re-finding). Anchor on the CONDITION each surface
+# renders under, in comment-stripped source, and require it once.
+def _strip_ts(src):
+    src = re.sub(r"/\*[\s\S]*?\*/", "", src)
+    return re.sub(r"^\s*//.*$", "", src, flags=re.M)
+
+
+_sub_src = _strip_ts(_read("web/components/settings/AttachedConnectorSubsurface.tsx"))
+_reach_src = _strip_ts(_read("web/components/reach/ReachConnected.tsx"))
+_check("14f the connection's own page RENDERS the withdrawal under a live condition "
+       "(the whole JSX guard, so a `{false &&` short-circuit reds)",
+       _sub_src.count("{row.drift && (row.drift.withdrawn.length > 0") == 1
+       and "row.drift.withdrawn.join" in _sub_src)
+_check("14f-2 and Reach → Connected names it on the row the member already reads",
+       _reach_src.count("{attached && (i.drift?.withdrawn.length || i.drift?.appeared.length) ? (") == 1
+       and "i.drift.withdrawn.join" in _reach_src)
+_check("14g the LIST route serves it on attached rows only",
+       'drift=(metadata.get("drift") or None) if attached else None' in _read("api/routes/integrations.py"))
+ac.set_aperture(_a13, "shopify", {"get_order": "direct"})
+_check("14h the member's SAVE is the acknowledgement — nothing to dismiss",
+       ac.public_view(ac.load_row(_c13, "u1", "shopify"))["drift"] is None)
+# 14i must not be vacuous: PLANT a drift record, then refresh against a server
+# that moved nothing, and require the stale record GONE. Refreshing over an
+# already-clear row would pass whether or not the clearing branch exists.
+# json round-trip, not dict(): the in-memory client hands back a LIVE reference
+# and a shallow copy would plant the record by aliasing rather than by the
+# write — a fixture artifact that would make 14i-pre unfalsifiable.
+_md14 = json.loads(json.dumps(ac.load_row(_c13, "u1", "shopify")["metadata"] or {}))
+_md14["drift"] = {"withdrawn": ["stale"], "appeared": [], "at": "2026-01-01T00:00:00+00:00"}
+ac._upsert_row(_c13, "u1", "shopify", {"metadata": _md14})
+_check("14i-pre the stale record is planted", ac.public_view(ac.load_row(_c13, "u1", "shopify"))["drift"] is not None)
+_run(ac.refresh_tools(_a13, "shopify"))
+_check("14i a refresh that finds nothing moved CLEARS a stale record",
+       ac.public_view(ac.load_row(_c13, "u1", "shopify"))["drift"] is None)
+
+# ═══════════════════════════════════════════════════════════════════════════
+print("§15 the aperture editor is tolerable at 31 tools WITHOUT weakening consent")
+# ═══════════════════════════════════════════════════════════════════════════
+_ed_raw = _read("web/components/settings/AttachedConnectorSubsurface.tsx")
+# Strip comments before any substring check: the file's own doc block NAMES
+# the shortcuts it refuses ("no 'allow all writes'"), and a check that reads
+# the prose passes on the documentation rather than on the code (the recurring
+# class this repo has been bitten by). Comments out, JSX text kept — the copy
+# a member reads IS shipped behavior.
+_ed = re.sub(r"/\*[\s\S]*?\*/", "", _ed_raw)
+_ed = re.sub(r"^\s*//.*$", "", _ed, flags=re.M)
+_check("15z the comment strip actually removed the doc block (else 15d is vacuous)",
+       'allow all writes' in _ed_raw and 'allow all writes' not in _ed)
+_check("15a a filter exists for finding one tool among many", 'type="search"' in _ed and "setFilter" in _ed)
+# Counted at the DECIDING site: a mention of `read_only_hint` is also true of
+# the per-row badge, and `groups` is also true of an unused binding. The split
+# is the two complementary filters plus the render that walks them.
+_check("15b the list is SPLIT by the server's read-only hint, and the split is RENDERED",
+       "shown.filter((t) => t.read_only_hint)" in _ed
+       and "shown.filter((t) => !t.read_only_hint)" in _ed
+       and re.search(r"groups\.map\(\(g\)", _ed) is not None)
+_check("15c a bulk set exists and is scoped to what is on screen", "setGroup(names" in _ed)
+_check("15d ...and it is a member GESTURE per mode, never a 'select all writes' shortcut",
+       "Select all" not in _ed and "allow all" not in _ed.lower())
+# The three deciding rules, each falsifiable by a single edit:
+_check("15e NO mode is preselected: the draft still reads the SERVED mode, defaulting off",
+       'next[t.name] = (t.mode ?? "off") as Mode' in _ed)
+_check("15f the row default in the list is likewise off", 'draft[t.name] ?? "off"' in _ed)
+_check("15g the hint is shown BESIDE the choice and decides nothing — no branch reads it "
+       "to pick a mode (ADR-635 D4: readOnlyHint is a hint)",
+       not re.search(r'read_only_hint\s*\?\s*"(direct|propose)"', _ed)
+       and not re.search(r'read_only_hint\s*&&\s*set(Draft|Group)', _ed))
+_check("15y the refresh toast says WHAT it found, from the same drift record — "
+       "'Tool list updated' was true whether or not a tool the member allowed vanished",
+       _ed.count("success: (res) => {") == 1
+       and "const d = res?.connector?.drift;" in _ed
+       and "Tool list updated" not in _ed
+       and "Nothing changed on this server" in _ed)
+_check("15h a bulk gesture is still a DRAFT — only Save writes",
+       "api.connectors.setAperture" in _ed and _ed.count("api.connectors.setAperture") == 1)
 
 print(f"\n{_p} passed, {_f} failed")
 sys.exit(1 if _f else 0)
