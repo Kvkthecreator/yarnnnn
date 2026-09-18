@@ -1,6 +1,8 @@
 # ADR-657 — Two lanes to a connection: the curated lane and the open lane
 
-> **Status**: **Proposed** (2026-09-18) — doc-first, no code rides this ADR yet.
+> **Status**: **Accepted + Implemented** (2026-09-18) — the curated lane, the URL shape, the
+> differentiated open lane and the gate ship together. Gate: `api/test_adr657_two_lanes.py` (48/48,
+> 16 arms falsified RED).
 > **Date**: 2026-09-18
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Where** (the boundary's door — ADR-642's dimension).
@@ -239,7 +241,21 @@ am.1's ruling that their `direct` tick is sovereign).
 
 ## 10. Verification
 
-Gate: `api/test_adr657_two_lanes.py` (to be written with the implementation).
+Gate: `api/test_adr657_two_lanes.py` — **48 checks, 0 failed; 16 arms falsified RED** by editing
+the shipped file in place and restoring it in a `finally` with an equality assert.
+
+Where the implementation lives:
+
+| The decision | The code |
+|---|---|
+| D1 — the curated source, authored, admission by the moat-leak test | `api/services/connector_curated.json` + `load_curated()` in `api/services/connector_curated.py` (refuses an entry with no `rationale`, no `accumulates`, no `reviewed_at`; refuses `accumulates: true` outright) |
+| D2 — the URL shape, one hole | `resolve_url()` — one `{field}`, one value, no template language |
+| D2/D5 — the category pre-filled (b21c060's debt) | `POST /connectors/attach` resolves `curated_key` → url · title · slug · **category** before the one `begin_attach` both lanes call |
+| D4 — the open lane, demoted and differentiated | `OPEN_LANE_CAVEAT` in `web/components/settings/FindConnectorModal.tsx`, rendered above the paste box |
+| D3 — `reviewed_at` and staleness | `stale_entries()`; the gate reports a stale entry as a finding |
+
+The consumed seed is untouched: `connector_directory.py` does not import the curated lane, and the
+gate asserts it (§4d), so the derived-and-stamped file stays derived.
 
 - An entry with no `rationale` or no moat-leak verdict is **refused by the loader** (the ADR-635 D1
   provenance discipline, carried over) — driven, not read.
