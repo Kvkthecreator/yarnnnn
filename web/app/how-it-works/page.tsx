@@ -17,23 +17,31 @@ import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 /**
  * How it works — product mechanics (re-cut 2026-07-31).
  *
- * This page sells the system itself: a real file system, agents out of the
- * box, documents you build and own — and portability as the consequence.
- * The "why it's different" thesis argument moved to /about; connection
- * concepts are one step here, not the frame.
+ * This page sells the system itself: a real file system, agents that come
+ * with the apps, documents you build and own — and portability as the
+ * consequence. The "why it's different" thesis argument moved to /about;
+ * connection concepts are one step here, not the frame.
+ *
+ * 2026-09-18: step 02 promised "a thinker, a researcher, a designer" you
+ * could talk to "from the first minute" — a cast ADR-599 deleted, and whose
+ * slugs now resolve to None. AgentsReplica was rewritten for exactly this
+ * reason on 2026-08-24; the prose beside it was not. The served roster is
+ * Editor / Designer / Blogger, resident in apps, offered=False for all three.
+ * Step 04 named Gemini as attachable; it has no MCP connector, and the docs
+ * have always said "ChatGPT, Claude, or any MCP-capable client".
  */
 
 export const metadata: Metadata = getMarketingMetadata({
   title: "How yarnnn works — a real file system for work made with AI",
   description:
-    "A shared file system, agents ready out of the box, documents you build and own — every change signed, human or not. And because the work is real files you own, it goes wherever you go.",
+    "A shared file system, agents that come with the apps, documents you build and own — every change signed, human or not. And because the work is real files you own, it goes wherever you go.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
     "ai workspace",
     "ai file system",
     "co-work with ai",
-    "ai agents out of the box",
+    "ai agents in your workspace",
     "documents you own",
     "shared workspace for ai and humans",
   ],
@@ -52,8 +60,8 @@ const STEPS = [
   },
   {
     number: "02",
-    title: "Agents are ready out of the box",
-    body: "From the first minute you can talk to named agents — a thinker, a researcher, a designer. They read your files, answer grounded in what's actually there, and write their work back into the same file system. The best engine for the job rides behind each name, and you can swap it any time.",
+    title: "Agents come with the apps",
+    body: "You don't hire or configure anyone. Editor works with you in Text and Slides, Designer in Images, Blogger in Blogger — each one reads your files, answers from what's actually there, and writes back into the same file system. You pick the engine behind them per conversation: Claude, GPT, Gemini, Grok or DeepSeek.",
     extra: (
       <div className="mt-6 max-w-xl">
         <AgentsReplica className="shadow-xl" />
@@ -73,7 +81,7 @@ const STEPS = [
   {
     number: "04",
     title: "Connect the AI you already use",
-    body: "Attach ChatGPT, Claude, or Gemini and it works in the same file system, under its own name. The thinking you're already doing in a chat window finally has somewhere to land — no more ferrying it out by hand.",
+    body: "Connect ChatGPT, Claude, or any AI that speaks MCP, and it works in the same file system under its own name. The thinking you're already doing in a chat window finally has somewhere to land — no more ferrying it out by hand.",
     extra: (
       <div className="mt-6 max-w-xl">
         <ConnectReplica className="shadow-xl" />
@@ -89,19 +97,19 @@ const STEPS = [
 
 const GUARANTEES = [
   {
-    tag: "Real files",
-    title: "A workspace, not a chat log",
-    desc: "Everything made here lands as a file you can open, organize, and build on. Nothing evaporates in a scroll.",
+    tag: "Nothing is lost",
+    title: "Delete is reversible, history is walkable",
+    desc: "Right-click any file for its full history: every version, who wrote it, and what changed. Deleted files go to Trash, not away.",
   },
   {
     tag: "Every change signed",
     title: "A name on every write",
-    desc: "You, your teammates, your agents, every connected AI — each change carries the name of whoever made it, human or not.",
+    desc: "You, your teammates, and every connected AI write into the same place — and each change carries the name of whoever made it, human or not.",
   },
   {
     tag: "Yours to take",
-    title: "Owned, not rented",
-    desc: "Files, documents, history — yours. Share them, hand them off, take them with you. No one's app is holding your work hostage.",
+    title: "Export the whole workspace, any time",
+    desc: "Files, documents, history — yours. Share with a link, hand off to a teammate, or export the lot. No one's app is holding your work hostage.",
   },
 ];
 
@@ -134,7 +142,7 @@ export default function HowItWorksPage() {
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
               yarnnn is a workspace built the way AI-first work actually happens: a shared
-              file system at the center, agents you can talk to from the first minute, and
+              file system at the center, agents that come with the apps you work in, and
               documents that stay yours — every change signed by whoever made it, human or
               not. Here&apos;s the system, top to bottom.
             </p>
@@ -180,6 +188,16 @@ export default function HowItWorksPage() {
                     See pricing
                   </Link>
                 </div>
+                <p className="mt-8 text-sm text-white/35">
+                  Want the detail first?{" "}
+                  <a
+                    href="https://yarnnn.gitbook.io/docs/getting-started/how-to-use-yarnnn"
+                    className="text-white/60 underline underline-offset-4 hover:text-white transition-colors"
+                  >
+                    Read how people actually use it
+                  </a>
+                  .
+                </p>
               </div>
             </ScrollReveal>
           </section>

@@ -61,7 +61,7 @@ const BELIEFS = [
   },
   {
     title: "Receipts, not claims",
-    body: "Nearly four hundred numbered architecture decisions written down in the open. Every change in every workspace tracked at the source. Built for real use, and run daily on our own work.",
+    body: "Over five hundred numbered architecture decisions written down in the open. Every change in every workspace tracked at the source. Built for real use, and run daily on our own work.",
     sub: "The record is the proof.",
   },
 ];
@@ -145,7 +145,7 @@ export default function AboutPage() {
               </p>
               <p>
                 So we built it: a real workspace — a shared file system, documents you build
-                with AI, agents ready out of the box — where everything lands as a signed,
+                with AI, agents that come with the apps — where everything lands as a signed,
                 versioned file you own, whoever made it.
               </p>
               <p className="text-white font-medium">
