@@ -2,8 +2,10 @@
 (ADR-635). Mounted at /api/connectors.
 
     GET  /connectors/directory?q=        search the consumed directory
+    GET  /connectors/curated             the curated lane (ADR-657 D1)
     GET  /connectors/categories          the seed's category vocabulary
     POST /connectors/attach              {url, title?, key?, category?,
+                                          curated_key?, shape_value?,
                                           header_name?, header_value?,
                                           redirect_to?} → {slug, attached,
                                           authorization_url}
@@ -34,7 +36,13 @@ router = APIRouter()
 
 
 class AttachRequest(BaseModel):
-    url: str
+    # ADR-657 — a curated attach sends `curated_key` (+ `shape_value` when the
+    # entry carries a URL shape) and the server resolves the URL, title, slug
+    # and CATEGORY from the entry. `url` stays optional for exactly that case;
+    # the open lane still sends a bare URL and nothing else.
+    url: Optional[str] = None
+    curated_key: Optional[str] = None
+    shape_value: Optional[str] = None
     title: Optional[str] = None
     key: Optional[str] = None
     category: Optional[str] = None
@@ -59,6 +67,16 @@ async def directory(q: str = Query("", max_length=120), limit: int = Query(30, g
     return {"query": q, "results": search(q, limit=limit)}
 
 
+@router.get("/connectors/curated")
+async def curated_lane() -> dict:
+    """The curated lane — small, authored, and admitted by the moat-leak test
+    (ADR-657 D1). Separate from the consumed directory above, deliberately: the
+    two lanes are two different acts and the member sees them as two."""
+    from services.connector_curated import curated_entries
+
+    return {"results": curated_entries()}
+
+
 @router.get("/connectors/categories")
 async def category_vocabulary() -> dict:
     from services.connector_directory import categories
@@ -69,15 +87,34 @@ async def category_vocabulary() -> dict:
 @router.post("/connectors/attach")
 async def attach(req: AttachRequest, auth: UserClient) -> dict:
     from services import attached_connectors as ac
+    from services.connector_curated import curated_entry, resolve_url
     from services.connector_directory import seed_entry_for_url
 
-    seed = seed_entry_for_url(req.url)
+    # ADR-657 D2/D5 — the curated entry supplies the URL (shape filled), the
+    # name, the slug and the CATEGORY, so a curated attach never lands with
+    # `category: null` and a `needs`-scoped skill can light up (b21c060's debt).
+    # Curation is a DISCOVERY act: from here the call is the same `begin_attach`
+    # the open lane makes, onto the same `mcp:{slug}` row.
+    curated = None
+    url = (req.url or "").strip()
+    if req.curated_key:
+        curated = curated_entry(req.curated_key)
+        if not curated:
+            raise HTTPException(status_code=404, detail=f"no curated connector named {req.curated_key}")
+        try:
+            url = resolve_url(req.curated_key, req.shape_value or "")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+    if not url:
+        raise HTTPException(status_code=422, detail="a connector URL is required")
+
+    seed = seed_entry_for_url(url)
     try:
         return await ac.begin_attach(
-            auth, req.url,
-            title=req.title or (seed or {}).get("title"),
-            slug=req.key or (seed or {}).get("key"),
-            category=req.category or (seed or {}).get("category"),
+            auth, url,
+            title=req.title or (curated or {}).get("title") or (seed or {}).get("title"),
+            slug=req.key or (curated or {}).get("key") or (seed or {}).get("key"),
+            category=req.category or (curated or {}).get("category") or (seed or {}).get("category"),
             header_name=req.header_name, header_value=req.header_value,
             client_id=req.client_id, client_secret=req.client_secret,
             redirect_to=req.redirect_to,
@@ -87,7 +124,7 @@ async def attach(req: AttachRequest, auth: UserClient) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
-        logger.warning("[ATTACH] begin failed for %s: %s", req.url, exc)
+        logger.warning("[ATTACH] begin failed for %s: %s", url, exc)
         raise HTTPException(status_code=502, detail=f"could not reach the server: {exc}")
 
 

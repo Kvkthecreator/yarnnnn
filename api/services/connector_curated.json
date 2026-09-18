@@ -1,0 +1,33 @@
+{
+  "curated_by": "ADR-657",
+  "curated_at": "2026-09-18",
+  "admission_criterion": "ADR-420 §10 Amendment — the moat-leak test: \"Does the connector accumulate the user's work on its own side?\" No → a true peripheral, admissible. Yes → a competing commons, NOT admissible here; it stays reachable through the open lane as a deliberate, eyes-open act.",
+  "note": "AUTHORED, and that is the point (ADR-657 D1). It is NOT the consumed directory and never merges into connector_directory_seed.json, which stays derived and provenance-stamped. This list is small by construction (ADR-657 D3): it grows only when a member's demonstrated need names the next entry, and every entry carries the date it was last examined by hand.",
+  "entries": [
+    {
+      "key": "shopify",
+      "title": "Shopify",
+      "category": "Commerce",
+      "url_shape": "https://{store}.myshopify.com/api/mcp",
+      "shape_field": "store",
+      "shape_label": "Your store's myshopify.com name",
+      "shape_placeholder": "acme-supply",
+      "shape_help": "The name in your admin URL: admin.shopify.com/store/<name>, or <name>.myshopify.com.",
+      "description": "Your store's orders, products, customers and inventory, read into the commons and cited.",
+      "accumulates": false,
+      "rationale": "Orders, products and customers are the member's own commercial records, and Shopify is the system of record for a business they already run. Reading them into the commons — attributed, cited, derived_from naming the source — moves accumulation toward yarnnn. Nothing the member authors in yarnnn is deposited into Shopify by connecting it. This is the opposite of the Higgsfield case, where the versioned asset and the prompt history accumulate on the vendor's side and yarnnn gets back a URL.",
+      "credential_note": "Shopify's own MCP servers are buyer-side or docs-side. The merchant-admin capability — products, orders, fulfilment, refunds, inventory — comes from a COMMUNITY server wrapping the Admin API, and that server will hold your merchant token. yarnnn does not operate it and cannot vouch for it. The aperture is where you decide what may run: no tool is offered until you pick it, tool by tool.",
+      "credential_steps": [
+        "In Shopify admin, open Settings → Apps and sales channels → Develop apps, and create an app.",
+        "Give it only the Admin API scopes you want reachable (for example read_orders, read_products).",
+        "Install the app and copy its Admin API access token.",
+        "Paste it below as the header value; the header name is X-Shopify-Access-Token."
+      ],
+      "credential_url": "https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens",
+      "header_name": "X-Shopify-Access-Token",
+      "admitted_at": "2026-09-18",
+      "admitted_by": "ADR-657",
+      "reviewed_at": "2026-09-18"
+    }
+  ]
+}
