@@ -82,8 +82,7 @@ def resolve_workspace_composition(user_id: str, client: Any) -> dict[str, Any]:
     # Each row carries `register: "composition"` — its shape is DECLARED, not
     # mirrored — and one shared `tier: "app"`, so the Launcher groups them
     # under one heading rather than one heading per app.
-    surfaces.extend(_resolve_member_app_surfaces(user_id, client))
-
+ 
     if not bundles:
         return {
             "schema_version": 1,
@@ -289,40 +288,6 @@ def _merge_list_or_detail_block(
 # =============================================================================
 # ADR-297 Phase 1 — surfaces[] registry
 # =============================================================================
-
-
-def _resolve_member_app_surfaces(user_id: str, client: Any) -> list[dict[str, Any]]:
-    """The workspace's own declared apps, as surfaces[] rows (ADR-653 D3.c).
-
-    One bounded read of ``apps/{slug}/_app.yaml``, one row per app that can
-    actually render. Never raises: the surfaces payload drives the Dock, the
-    Launcher and route sync, so a broken declaration must not be able to blank
-    the shell.
-
-    ⚠️ A declaration with a ``problem`` is READ but not SERVED. It parsed, so
-    the member can be told what is wrong with it at the authoring door — but a
-    surface whose sections name an unknown kind, or whose agent has no name,
-    would render a window with nothing in it. That is the empty-window class
-    the `connectors` phantom just cost us (ADR-653 §10.1): a slug the client
-    will foreground and then fail to draw. Withheld here, named there.
-    """
-    try:
-        from services.member_apps import read_member_apps, surface_row
-
-        rows: list[dict[str, Any]] = []
-        for decl in read_member_apps(client, user_id):
-            if decl.problem:
-                logger.info(
-                    "[COMPOSITION_RESOLVER] app %r withheld — %s",
-                    decl.slug, decl.problem,
-                )
-                continue
-            rows.append(surface_row(decl))
-        return rows
-    except Exception as exc:  # noqa: BLE001 — the shell must still render
-        logger.warning("[COMPOSITION_RESOLVER] member apps unavailable: %s", exc)
-        return []
-
 
 def _resolve_program_surfaces(bundles: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Build the program-tier portion of the surfaces[] registry.

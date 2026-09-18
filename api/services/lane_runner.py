@@ -1474,21 +1474,7 @@ def build_lane_conventions(
         # ADR-599: kernel characters only — the member-agent machinery
         # (manifests, tone, skills) is deleted; a resident's character is
         # self-contained.
-        from services.agents_registry import build_agent_posture, resolve_agent
-
-        # ADR-653 D2 — a MEMBER app's agent, whose character lives in a
-        # workspace file rather than in `AGENTS`. Resolved ONLY when the kernel
-        # register answers None, so the kernel path is byte-identical and a
-        # member declaration can never shadow a kernel character. R4 is what
-        # makes this a derivation rather than a second lookup: the agent's slug
-        # IS its app's, so `agent` already names the app to read.
-        _member_row = None
-        if resolve_agent(agent) is None and app and agent == app:
-            from services.member_apps import agent_row, read_member_app
-
-            _decl = read_member_app(client, user_id, app)
-            if _decl:
-                _member_row = agent_row(_decl)
+        from services.agents_registry import build_agent_posture
         # ADR-562 D6 — the APP's name for its resident. DERIVED from the
         # artifact's own `data-template`, never stored on the lane: the app is
         # a fact about the DOCUMENT, so deriving it means a lane can never
@@ -1505,8 +1491,7 @@ def build_lane_conventions(
 
             _app = app_for_layout(extract_template(artifact))
             _as_name = (resolve_app(_app) or {}).get("name") or ""
-        posture_section += build_agent_posture(
-            agent, as_name=_as_name, row=_member_row)
+        posture_section += build_agent_posture(agent, as_name=_as_name)
     if artifact_path or app:
         # ADR-653 R3 — `or app`: an APP-BOUND lane (no artifact) gets its job
         # overlay too. Before this the overlay hung off the artifact, because

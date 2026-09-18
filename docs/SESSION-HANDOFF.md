@@ -37,30 +37,42 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
   confirmed by running the ratchet at `e15ae7f` with the §8 diff stashed. Classify the two,
   drop the seven.
 
-## ADR-653 — the app-builder (ACCEPTED; UX §8 steps 1–3 DONE, step 4 next)
-- Sequence is `docs/design/APP-BUILDER-UX.md` §8. **Steps 1, 2 and 3 are DONE and click-passed**
-  (`6bcb234` the parser · `0096569` the phantom-slug precondition · `b71b716` the app binding kind ·
-  `b2b6972` + `f81aac4` the backend surface · this commit the FE half + member-agent resolution).
-  Gate `test_adr653_app_is_a_program.py` 185/185, checks 4 and 5 now implemented and falsified in
-  23 arms. ADR §11.1 carries the receipts; UX §8.1 carries what the steps taught.
-- **Next is step 4 — the builder AS an app (R2), the design's own falsification.** It needs
-  `needs-you` over `apps/`, which is the FIRST kind the growth rule must admit on evidence. The
-  evidence now exists: a declaration naming `needs-you` today renders the honest amber miss, so the
-  refusal is real and counted rather than hypothetical.
-- **Owed, small and named**: band 2 renders the RESTING state only. Working and raising (UX §4) wait
-  for step 5 and the resident read; §4.2's rules (one raise at a time, discharged by visiting,
-  decaying if unacted) are entirely unexercised.
-- ⚠️**`recent` is declared server-side and undrawn**, deliberately — `SECTION_KINDS` admits four, the
-  client draws two, and the gate asserts the gap is NON-EMPTY so the miss branch stays reachable and
-  tested. Drawing all four would make that check vacuous.
-- ⚠️**Three-bands is proven on ONE app.** Untested at the shapes that would strain it: many sections,
-  an `about` over the 48-char launcher budget (the parser WARNS, nothing surfaces the warning yet),
-  a narrow viewport.
-- ⚠️**The app-detail route has no write door and should not grow one** (`api/routes/member_apps.py`).
-  Editing an app is chat (UX §3.4) — a declaration is an ordinary file, and a bespoke PATCH would be
-  a second authoring face whose body could carry keys `write_revision` never sees.
-- ~~`app_delete_roots` unwired~~ still true and still by design: R1's delete blast radius is pure and
-  gate-asserted (6b), with no caller until a delete affordance exists (UX §3.4, not yet built).
+## ADR-653 → the SUPERVISOR app (re-scoped 2026-09-18; member-app layer DELETED)
+- **The direction**: one app, one agent — the supervisor and its app — and the **app-builder is
+  postponed indefinitely**. That app is a **KERNEL app** (code, like Slides and Text), so a member
+  authors no app. Frame: `docs/analysis/the-supervisor-and-the-room-2026-09-18.md`; deletion record:
+  ADR-653 §13; `APP-BUILDER-UX.md` is **UNSCOPED** (a record, not a queue).
+- **DONE**: the member-authored layer is deleted in full (both `member_apps` modules, the `/api/apps`
+  route, the FE app surface + two-segment route + openable predicate + `/apps` auth prefix,
+  `default_agent_engine`, `build_agent_posture(row=)`). Census-first: every symbol counted for true
+  invocation sites, and two (`appRoute`, `AppSurfaceSlug`) had **zero consumers from the day they
+  shipped**. Gate `test_adr653_the_member_app_layer_is_gone.py` 66/66, falsified in 11 arms BOTH
+  directions. Kernel paths driven green (4 apps resolve resident+model+character; unknown app → None).
+- **NOT BUILT — the supervisor app itself**, in this order:
+  1. `services/apps/supervisor.py` (`register_app`) + a kernel surface row declaring
+     `register: "composition"`. ⭐The register survives precisely because `is_composition()` reads the
+     FIELD, not provenance — driven: a kernel row declaring it validates, classifies and is exposed.
+  2. An `AGENTS` row. ⚠️**ADR-603 D3's naming warning applies to a KERNEL row with full force** — a
+     manager-word in the kernel register names a role over others, and the "the frame makes it safe"
+     answer was argued for an agent a MEMBER names. It needs re-arguing for a row nobody can rename.
+  3. **Memory with a writer and a reader** — still zero of each (`agents/{slug}/memory/`). RULED
+     2026-09-18: it holds **private judgment only**, never shared context (the workspace IS the shared
+     memory, ADR-411). It stays small by construction; ADR-624 preserved.
+  4. **Routing** — mechanically *"stamp this lane with my app"* (`context_metadata.lane.app`). RULED:
+     the supervisor routes **as the member's hands**, inside a turn they began — never on its own
+     initiative, never holding a grant. An agent CANNOT open a lane (refused at the route, at
+     `is_agent_caller`, and at RLS whose own comment says *"AI principals are not members"*).
+     Direct-open vs propose-and-click is a DEMAND question; the click version ships first.
+- **The section dispatch was deleted with its only consumer** rather than left orphaned. The RULING
+  survives (a kind is added when a real app needs it and cannot be served) and the four-kind first cut
+  stays argued in `APP-BUILDER-UX.md` §5 — rebuild it against the supervisor's REAL sections.
+- ⚠️**Do not reason from live chat statistics.** They are the operator's own workspace; YARNNN is
+  pre-user. They can diagnose a defect, never establish demand (the analysis §13.1 retracts two
+  opposite conclusions drawn from the same numbers).
+- **Open, and separate**: (a) the CHAT layer — artifact-bound lanes are created eagerly, before anyone
+  speaks; whether that is a defect needs a dependency walk, not a count. (b) the UNATTENDED half —
+  zero live standing declarations, and the source predicate structurally cannot name a workspace
+  region, so standing work can only watch the outside world.
 
 ## Genesis / the shared service client
 - **`[Errno 11] Resource temporarily unavailable` on the shared HTTP/2 service client is UNFIXED** (first seen

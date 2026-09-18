@@ -20,10 +20,6 @@
 
 import type { ComponentType } from 'react';
 import type { KernelSurfaceSlug } from '@/types/surface';
-import { isKernelSurfaceSlug } from '@/types/surface';
-// ADR-653 D3.c — the ONE generic every member app mounts through. A single
-// static import for ALL member apps, not one per app.
-import { AppSurface } from '@/components/apps/AppSurface';
 
 // ADR-415 (2026-07-08) — the Channels surface is DISSOLVED. Its content
 // re-homed by act: Out (emissions) → the Activity Out lens; In → retired; AI
@@ -131,27 +127,3 @@ export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType 
   return KERNEL_SURFACE_REGISTRY[slug];
 }
 
-/**
- * The component for ANY openable surface — a kernel one, or a member app
- * (ADR-653 D3.c).
- *
- * ⭐ THE ASYMMETRY IS THE DESIGN. A kernel surface resolves through the closed
- * union above, whose three-way lockstep with the backend roster and the FE
- * allowlist is what `test_adr338_surface_registry_parity.py` enforces. A
- * member app resolves to ONE generic component parameterized by its slug —
- * so an app adds no row here, no static import, and no way to drift the
- * parity. Widening the registry to take arbitrary strings would have made
- * that gate vacuously green (ADR-653 §10.2's lesson, one level up).
- *
- * `appSlugs` is the served roster. A slug not on it resolves to undefined
- * rather than to an AppSurface that would 404 its own declaration — the
- * roster is the authority, and the client never invents one.
- */
-export function resolveOpenableComponent(
-  slug: string,
-  appSlugs: ReadonlySet<string>,
-): ComponentType | undefined {
-  if (isKernelSurfaceSlug(slug)) return KERNEL_SURFACE_REGISTRY[slug];
-  if (appSlugs.has(slug)) return () => <AppSurface slug={slug} />;
-  return undefined;
-}

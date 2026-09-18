@@ -1579,23 +1579,6 @@ export const api = {
 
   // ADR-225 + ADR-240: Programs — composition surfaces (ADR-225) +
   // activation lifecycle (ADR-240 FE consumption of ADR-226 backend).
-  // ADR-653 D3.c — a MEMBER app's declaration, read by its own surface. The
-  // surfaces roster says an app exists and how to reach it; this says what it
-  // looks like when opened. Separate because the roster rides every shell load
-  // and deliberately carries no `agent` and no sections.
-  apps: {
-    get: (slug: string) =>
-      request<{
-        slug: string;
-        name: string;
-        about: string;
-        /** Band 2 — who is minding this work. The NAME only, never a character. */
-        agent_name: string;
-        sections: Array<{ kind: string; source?: string; title?: string }>;
-        declaration_path: string;
-      }>(`/api/apps/${encodeURIComponent(slug)}`),
-  },
-
   programs: {
     getSurfaces: () => request<{
       schema_version: 1;

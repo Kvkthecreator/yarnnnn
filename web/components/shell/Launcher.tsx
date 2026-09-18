@@ -52,7 +52,7 @@ import { FileText, Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
 import { Z_LAUNCHER_OVERLAY } from '@/lib/shell/z-tiers';
-import { appSurfaceSlugs, isOpenableSurfaceSlug } from '@/types/surface';
+import { isKernelSurfaceSlug } from '@/types/surface';
 import { parseFileReference, toWorkspacePath } from '@/lib/interop/fileHandle';
 import { cn } from '@/lib/utils';
 
@@ -80,9 +80,6 @@ interface SurfaceGroup {
 // class. `search-only` surfaces never appear at rest. Kernel surfaces
 // missing a tier (a registry omission) fall to Utilities — never
 // silently drop a surface from the index.
-// ADR-653 D3.c — the one group key every member app lands in.
-const APP_GROUP_KEY = 'apps';
-
 const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   // ADR-349 (2026-06-19) — the launcher IA re-sort (closes ADR-340 §9). At
   // rest = the standing loop + two settings doors. The mirrors (Feed/Queue/
@@ -130,13 +127,6 @@ function groupSurfaces(
       if (!g) return; // search-only: hidden at rest (found via flat search)
       groupKey = g.key;
       groupLabel = g.label;
-    } else if (s.tier === 'app') {
-      // ADR-653 D3.c — ONE group for every member app, not one per app.
-      // "Your apps" (APP-BUILDER-UX §6): two words, possessive, and it says
-      // whose they are. This branch must precede the `program:` one below,
-      // which would otherwise slice a prefix this tier does not carry.
-      groupKey = APP_GROUP_KEY;
-      groupLabel = 'Your apps';
     } else if (s.tier === 'composed') {
       groupKey = 'composed';
       groupLabel = 'Custom';
@@ -156,28 +146,12 @@ function groupSurfaces(
   // → System Settings, ADR-349) first, then program groups (compositor
   // insertion order), then composed. Empty kernel groups are skipped.
   const ordered: SurfaceGroup[] = [];
-  // ADR-653 D3.c — "Your apps" sits directly under the Workspace tier and
-  // ABOVE both settings doors: an app is work, not configuration, and the
-  // ordering here is visit-frequency (ADR-349). A member with apps goes to
-  // them far more often than to a settings door.
-  const kernelPrimary = KERNEL_TIER_GROUPS[0];
   for (const g of KERNEL_TIER_GROUPS) {
     if (groups.has(g.key)) ordered.push(groups.get(g.key)!);
-    if (g.key === kernelPrimary.key && groups.has(APP_GROUP_KEY)) {
-      ordered.push(groups.get(APP_GROUP_KEY)!);
-    }
-  }
-  // The apps group still lands if the Workspace tier is somehow absent —
-  // a surface must never be dropped from the index by a grouping accident
-  // (the ADR-349 rule this file already states for un-tiered kernel rows).
-  if (groups.has(APP_GROUP_KEY) && !ordered.includes(groups.get(APP_GROUP_KEY)!)) {
-    ordered.push(groups.get(APP_GROUP_KEY)!);
   }
   const kernelKeys = new Set(KERNEL_TIER_GROUPS.map((g) => g.key));
   Array.from(groups.entries()).forEach(([key, group]) => {
-    if (!kernelKeys.has(key) && key !== 'composed' && key !== APP_GROUP_KEY) {
-      ordered.push(group);
-    }
+    if (!kernelKeys.has(key) && key !== 'composed') ordered.push(group);
   });
   if (groups.has('composed')) ordered.push(groups.get('composed')!);
   return ordered;
@@ -281,12 +255,6 @@ export function Launcher({
     [filtered, bundleTitleBySlug]
   );
 
-  // ADR-653 D3.c — which slugs may be foregrounded, derived from the SERVED
-  // roster (not `filtered`: a search narrows what is shown, never what may be
-  // opened). The server has already withheld any declaration it could not
-  // draw, so this set is the authority the click gate reads.
-  const appSlugs = useMemo(() => appSurfaceSlugs(surfaces), [surfaces]);
-
   const navigate = (surface: Surface) => {
     // D19.2 (2026-05-22): foregroundSurface is the SINGULAR action.
     // Pre-D19.2 we also called setSurface({type:'atomic', slug}) which
@@ -297,11 +265,7 @@ export function Launcher({
     // foregrounded window. The Dock indicator is the canonical
     // "what's foregrounded" signal. URL stays on /desktop (or whatever
     // the cold-load was) after first paint.
-    // ADR-653 D3.c — THE LINE the ADR named, widened to *kernel slug OR a
-    // served app slug*. A member app is not a kernel slug and never will be
-    // (its union stays closed for the ADR-338 lockstep), so the roster it was
-    // served on is what authorizes the click.
-    if (isOpenableSurfaceSlug(surface.slug, appSlugs)) {
+    if (isKernelSurfaceSlug(surface.slug)) {
       onForeground(surface.slug);
     }
     onClose();

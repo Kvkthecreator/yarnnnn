@@ -1,6 +1,6 @@
 # ADR-653 — An app is an AI-native program: the member scaffolds an agent, its skills, and a surface
 
-> **Status**: **Accepted** (2026-09-17), **UX §8 steps 1–3 IMPLEMENTED** (2026-09-17 — see §11.1, operator-ratified through the four rulings in §8a — *"let's just make one app = one agent rule of thumb specific to these apps (not the kernel ones). thus we can now proceed in full"*). Implementation sequence in [APP-BUILDER-UX.md](../design/APP-BUILDER-UX.md) §8; **steps 1–3 have landed** — a member can declare an app, open its surface, and talk to its agent. Step 4 (the builder as an app) is next.
+> **Status**: **SUPERSEDED IN SCOPE 2026-09-18 — see §13.** Accepted 2026-09-17 and steps 1–3 implemented; the operator then re-scoped to **one app, one agent (the supervisor and its app), with the app-builder postponed indefinitely**, and ruled that app a KERNEL app. The member-authored half (D1 · D2 · R1 · R4 and the D3.c member-app surface) therefore has **no subjects and was DELETED**; **D3.a and D3.b SURVIVE** as the composed-surface layer the supervisor app inherits. Original status line follows: Accepted (2026-09-17), UX §8 steps 1–3 implemented (2026-09-17 — see §11.1, operator-ratified through the four rulings in §8a — *"let's just make one app = one agent rule of thumb specific to these apps (not the kernel ones). thus we can now proceed in full"*). ⚠️ That sequence is **unscoped, not queued** (§13.5): [APP-BUILDER-UX.md](../design/APP-BUILDER-UX.md) describes a product where members author apps.
 > **Date**: 2026-09-16 (proposed) · 2026-09-17 (accepted)
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Identity** (Axiom 2 — a member may author an agent again) + **Channel** (Axiom 6 — a surface may be composed, not only mirrored) + **Mechanism** (Axiom 5 — where an app declaration LIVES and who may assert it). **No authority change**: every reach decision stays on grants and gates, and nothing here widens what any principal may do.
@@ -421,3 +421,62 @@ work. An empty 200 is indistinguishable from an empty folder at every layer abov
 ## 12. The one-line statement
 
 **An app is an AI-native program a member scaffolds — a versioned declaration file naming an agent, the skills it works by, and a surface that shows its state — reintroducing member agents as the app pairing ADR-599 D2 held them for, and promoting composition to the validated register ADR-435 declined to name, on the ground that an app surface composes what no mirror shows; the declaration carries rhythm and region and never reach, the agent stays identity ⊕ character ⊕ engine, and the member remains the only thing that pins what any of it may touch.**
+
+
+---
+
+## 13. Amendment — the member-authored half is DELETED (2026-09-18)
+
+> **Operator ruling**: *"we're aiming to create one app, one agent (supervisor and its supervisor app)… while using the existing architecture surrounding work handling and orchestration, app-builder is no more (or postponed indefinitely)"*, and — on the fork that ruling forced — **the supervisor app is a KERNEL app**, code like Slides and Text.
+>
+> Frame: [the-supervisor-and-the-room](../analysis/the-supervisor-and-the-room-2026-09-18.md) §15. This section records what was **actually deleted**, written after the census rather than before it.
+
+### 13.1 Why the member-authored half has no subjects
+
+D1 makes an app a **member-authored declaration**; D2 makes its agent a member-authored row; R1 governs a member **deleting** their app; R4 scopes one-app-one-agent **to member apps only**. Every one of those presumes a member authors an app. Under the re-scope **no member authors an app**, so all four are vacuous — and ADR-464's line decides which way the remaining app goes: *the member's copy is a folder; the kernel's is code.* One kernel app is a Python module.
+
+⚠️ **The cost, recorded rather than glossed**: a member can no longer shape their app's agent by talking to it (D6's *"editing is chat"*). That was a real property and it is given up deliberately.
+
+### 13.2 What was DELETED, with the census behind it
+
+Every symbol below was counted for true invocation sites before removal (names in docstrings are not callers — the ADR-653 §10 lesson about import lines, one level out):
+
+| Deleted | True call sites before deletion |
+|---|---|
+| `api/services/member_apps.py` (entire file) | — |
+| `api/routes/member_apps.py` + the `/api/apps` mount | — |
+| `parse_app_yaml` · `app_delete_roots` · `is_app_owned_path` · `declaration_problem_message` · `app_slug_from_path` · `app_declaration_path` · `app_home` | **0** |
+| `read_member_apps` · `surface_row` (→ `_resolve_member_app_surfaces`) | 1 each, both in the deleted branch |
+| `agent_row` · `read_member_app` | 2 + 3, all in the member-agent path |
+| `is_member_app_slug` | 1, in `_lane_agent` |
+| `build_agent_posture(row=)` | the injected-row parameter |
+| `default_agent_engine()` | existed ONLY because a member row carries no engine; every kernel row has one |
+| FE: `AppSurface` · `AppSection` · `/apps/[slug]` route | the member-app renderer |
+| FE: `isOpenableSurfaceSlug` · `appSurfaceSlugs` · `appSlugFromPath` · `isAppSurface` · `APP_ROUTE_PREFIX` | the roster-derived openable predicate |
+| FE: `appRoute` · `AppSurfaceSlug` | ⚠️ **ZERO consumers — dead the day they shipped** |
+| FE: `SurfaceTier` `'app'`, the Launcher's "Your apps" group, `resolveOpenableComponent` | the member-app tier |
+| `APP_NAMESPACE_PREFIX` in the auth gate | **deleted WITH its route** — a protected prefix for a namespace with no page is a fossil, and that file's own history is a list that grew them |
+
+⭐ **Why delete rather than leave dormant**: this repo's standing example is the **8 primitives marked "none — registered, no live surface"**, each costing a handler and a line in every tool payload, forever. The discipline is delete-on-replace; dormancy is how that list got to eight.
+
+### 13.3 What SURVIVES, and the fact that makes it separable
+
+⭐⭐⭐ **`is_composition()` reads the REGISTER FIELD, never the app's provenance.** Driven 2026-09-18: a KERNEL surface row declaring `register: "composition"` validates, classifies as a composition, takes an ordinary single-segment route and passes `is_exposed`. So the composed-surface layer is **not** member-app machinery and did not go with it:
+
+- **D3.a — `composition` as a validated register + `is_composition`.** The supervisor app declares it. This is the option ADR-435 declined, and it stands.
+- **D3.b — the vocabulary discipline.** ⚠️ The *dispatch component* (`AppSection`) was deleted with its only consumer rather than left orphaned; **the RULING survives** — a kind is added when a real app needs it and cannot be served, never speculatively — and the four-kind first cut stays argued in `APP-BUILDER-UX.md` §5 for whoever rebuilds it against the supervisor's real sections.
+- **§10.3's `surfaces[]` typing repair.** Unrelated to apps: it typed the endpoint's single most load-bearing field, which had no compile-time checking at all.
+- **The kernel's three-way lockstep.** `KernelSurfaceSlug` stayed a closed union through both the addition and the deletion — which is why `test_adr338` still means something (§10.2's lesson, honoured in both directions).
+
+### 13.4 The gate
+
+`api/test_adr653_app_is_a_program.py` (185 checks) is **deleted with the feature it asserted**; a gate that crashes at import reports nothing, and this repo has been bitten by exactly that four months running.
+
+Its successor is **`api/test_adr653_the_member_app_layer_is_gone.py` — a RATCHET IN BOTH DIRECTIONS, 66/66**, falsified in 11 arms: it goes red if the member-authored layer returns (a module, a declaration read, a softened refusal, an authority key on a row, the FE predicate, the auth fossil, the `'app'` tier, a widened shell gate) **and** red if the composed-surface layer is deleted as unused (the register removed, the `surfaces[]` typing swept out, the kernel union opened).
+
+⭐ **The gate caught a real flaw in itself before it shipped.** Its TS comment-stripper ran the block-comment regex first, and a literal `/*.md)` inside `client.ts` opened a fake span that swallowed **37,491 characters** — a third of the file — so every TS check was scanning a hole and passing for the wrong reason. Line comments are now stripped first. **A check that went red against correct code is what surfaced it.**
+
+### 13.5 What this ADR no longer claims
+
+`APP-BUILDER-UX.md` §8 steps 4–7 (the builder as an app, band-2 raising, the chosen origin, the derived origin) are **not deferred — they are unscoped.** They describe a product where members author apps, and that product is postponed indefinitely. The design doc is kept as the record of an argued design, not as a queue.
+

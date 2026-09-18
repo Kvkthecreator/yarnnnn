@@ -15,6 +15,38 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.18.1] - The lane frame stops resolving a member agent
+### Changed
+- api/services/lane_runner.py: `build_lane_conventions` no longer reads a member
+  app's declaration to compose a character. The branch and its `read_member_app`
+  call are DELETED; `build_agent_posture(agent, as_name=)` is the one door again.
+- api/services/agents_registry.py: `build_agent_posture` loses the injected `row=`
+  parameter. It resolves from `AGENTS` only, as it did before 2026-09-17.
+- Expected behavior: **byte-identical for every live lane.** The deleted branch
+  was guarded by `resolve_agent(agent) is None and app and agent == app`, which
+  is false for every kernel resident — so no turn that runs today composed
+  through it. What changes is that a workspace file can no longer supply a
+  character, because nothing writes one.
+
+### Why
+Not a failure — a SCOPE RULING (2026-09-18). The operator re-scoped to one app,
+one agent (the supervisor and its app), with the app-builder postponed
+indefinitely, and ruled that app a KERNEL app. A member authors no app, so the
+member-agent path had ZERO tenants one day after it shipped. Left in place it
+would be dormant machinery on the turn's hot path — the shape this repo's own
+census counts eight of ("registered, no live surface").
+
+Receipt for "no behavior change": every registered agent is `kernel: True`
+(gate-asserted), so `resolve_agent(agent)` never returned None for a resident,
+so the branch never fired in production. It fired exactly once, in the
+2026-09-17 click-pass, against a declaration seeded by hand and since deleted.
+
+### Gate
+`api/test_adr653_the_member_app_layer_is_gone.py` 66/66 — a ratchet in BOTH
+directions, falsified in 11 arms (it goes red if the member layer returns AND
+red if the composed-surface layer is deleted as unused). Size ratchets:
+`test_adr632_the_seat_retires.py` 73/73, `test_adr630_skills.py` 147/147.
+
 ## [2026.09.17.3] - A chat attachment tells the lane WHERE it already is
 ### Changed
 - api/routes/lanes.py: new `_attachment_note(path, name, kind)` — the one spelling of an

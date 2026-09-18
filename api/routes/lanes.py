@@ -433,22 +433,6 @@ def _lane_agent(lane_meta: dict, artifact_content: Optional[str] = None) -> Opti
         derived = resident_for_app(app)
         if derived:
             return derived
-        # ADR-653 D2/R4 — a MEMBER app's resident, and it costs no read: R4
-        # makes the agent's slug the app's, both directions. Kernel-first is
-        # preserved by asking `resident_for_app` above; reaching here means no
-        # kernel app owns this slug, so a member app is the only thing it can
-        # name. Staying PURE matters — this runs once per lane on a list of
-        # fifty, and a read here would be fifty reads per serve.
-        #
-        # ⚠️ The stamp is what is trusted, exactly as for a kernel app whose
-        # registration has since left the roster. A lane stamped with an app
-        # that no longer exists derives a resident nothing resolves, and the
-        # display path falls back to the slug — honest, and the same behavior
-        # a deleted kernel app already produces.
-        from services.member_apps import is_member_app_slug
-
-        if is_member_app_slug(app):
-            return app
     # ADR-630 — a SKILL never names an agent (it is craft, not identity —
     # ADR-596 D2's housing test). A skill-bound lane with no app takes no
     # resident of its own; the cast answers (ADR-495). ADR-562 D4's
@@ -963,7 +947,7 @@ async def list_lanes(auth: UserClient, include_bound: bool = False) -> dict:
 
 @router.post("/lanes")
 async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
-    from services.agents_registry import default_agent_engine, resolve_agent
+    from services.agents_registry import resolve_agent
     from services.lane_runner import (
         LANE_MODELS,
         lane_model_availability,
@@ -1032,10 +1016,6 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     # beats a plausible default — ADR-548's lesson, that a fallback degrading to
     # a plausible value is worse than one that fails.
     agent_slug = chat_agent
-    # ADR-653 D2 — a MEMBER app's agent, resolved beside the kernel's. It is
-    # None for every kernel app and for every chat lane, so the kernel path
-    # below is unchanged by its presence.
-    member_agent: Optional[dict] = None
     if app_slug:
         # The package import IS the registration (services/apps/__init__.py) —
         # load-bearing, never prune it as unused. Without it this resolution
@@ -1044,34 +1024,18 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
         import services.apps  # noqa: F401  (registration side-effect)
         from services.authoring import resident_for_app
 
-        # ⭐ KERNEL FIRST, and the order is the ADR-460 D3.a cliff (ADR-653 D2).
-        # A member declaration that names a kernel app's slug must never be
-        # able to re-point that app's resident, so the kernel registry is
-        # asked first and a member app is only consulted when it answers None.
-        # `parse_app_yaml` ALSO refuses a kernel slug at write time
-        # (`_classify_slug` → `kernel_slug`), so the collision is closed at
-        # both ends: it cannot be declared, and it would not be read if it were.
         agent_slug = resident_for_app(app_slug) or ""
-        if not agent_slug:
-            from services.member_apps import agent_row, read_member_app
-
-            decl = read_member_app(auth.client, auth.user_id, app_slug)
-            if decl:
-                member_agent = agent_row(decl)
-                agent_slug = member_agent["slug"]
         if not agent_slug:
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"Unknown app: {app_slug}. A built-in app declares its "
-                    "resident in its own module (services/apps/*, ADR-562); a "
-                    "member app declares one in apps/{slug}/_app.yaml "
-                    "(ADR-653 D1)."
+                    f"Unknown app: {app_slug}. An app declares its resident in "
+                    "its own module (services/apps/*, ADR-562)."
                 ),
             )
     if agent_slug:
         # Member-first: their named colleagues, then the kernel set.
-        agent = member_agent or resolve_agent(agent_slug)
+        agent = resolve_agent(agent_slug)
         if not agent:
             # The ADR-450 precedent: an unknown skill is a caller bug, not a lane.
             raise HTTPException(status_code=422, detail=f"Unknown agent: {agent_slug}")
@@ -1110,20 +1074,8 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
             _svc = get_service_client()
             model = (
                 resolve_agent_engine(_svc, _ws, _principal, agent_slug)
-                # ⚠️ `.get`, not `["model"]` (ADR-653 D2). A MEMBER app's agent
-                # row carries NO engine — deliberately absent rather than
-                # defaulted, because the engine is the member's choice
-                # (ADR-647 D4) and a declaration that pinned one would out-rank
-                # the member's own pick. Subscripting assumed every row is a
-                # kernel row and 500'd on the first app-bound lane; driving the
-                # path found it, reading it did not.
                 or resolve_member_engine(_svc, _ws, _principal)
-                or agent.get("model")
-                # ADR-653 D2 — the last resort for a MEMBER app's agent, which
-                # carries no engine of its own. Derived from the kernel rows
-                # rather than spelled here, and the SAME engine they run: a
-                # member's agent is not a lesser agent.
-                or default_agent_engine()
+                or agent["model"]
             )
     if not model:
         raise HTTPException(status_code=422, detail="model is required")

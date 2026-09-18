@@ -201,34 +201,6 @@ AGENTS: dict[str, dict[str, Any]] = {
     # (ADR-596 D2).
 }
 
-def default_agent_engine() -> Optional[str]:
-    """The engine an agent runs on when nothing more specific was chosen.
-
-    DERIVED from the rows, never a second literal beside them: the engine every
-    kernel agent already runs, or None if they ever disagree. A hardcoded
-    constant here would be a second spelling of a fact the registry already
-    holds, and the two would drift the first time a row moved (the ADR-636 D3
-    lesson — a hand-spelled expectation beside a generated truth).
-
-    ADR-653 D2 is why this exists. A MEMBER app's agent carries NO `model`:
-    the engine is the member's choice (ADR-647 D4), and a declaration that
-    pinned one would out-rank that choice. So the lane door's engine
-    precedence — the member's per-agent override, then their workspace
-    preference — has no last-resort row to fall back to the way a kernel agent
-    does. This is that last resort, and it is deliberately the SAME engine the
-    kernel residents run rather than a cheaper or a special one: a member's
-    agent is not a lesser agent (R4's cardinality is not authority).
-
-    ⚠️ Returns None rather than guessing when the rows disagree. The caller
-    then refuses honestly ("model is required") instead of silently seating a
-    member's agent on whichever row happened to sort first.
-    """
-    engines = {
-        row.get("model") for row in AGENTS.values() if row.get("model")
-    }
-    return next(iter(engines)) if len(engines) == 1 else None
-
-
 #: The keys a row may carry — identity + character + engine + reach. No
 #: `tools` (reach is uniform, ADR-467 D4) and no authority-shaped key, ever:
 #: the ADR-460 D3.a cliff, enforced as a whitelist rather than as prose.
@@ -403,11 +375,7 @@ def model_for_agent(slug: str) -> Optional[str]:
     return agent["model"] if agent else None
 
 
-def build_agent_posture(
-    slug: str,
-    as_name: Optional[str] = None,
-    row: Optional[dict] = None,
-) -> str:
+def build_agent_posture(slug: str, as_name: Optional[str] = None) -> str:
     """The Agent's turn-time posture overlay, or "" when there is no Agent.
 
     Composed at turn time from the slug, never stored (the ADR-411 D6
@@ -419,20 +387,8 @@ def build_agent_posture(
     deleted with the member-agent machinery. `as_name` (ADR-562 D6) survives:
     an app may rename its resident, and the override must be stated as an
     override because the character text opens with its own name.
-
-    ADR-653 D2 — ``row`` is an ALREADY-RESOLVED agent row, for the one case
-    this module cannot resolve on its own: a MEMBER app's agent, which lives
-    in a workspace file rather than in `AGENTS`. It is not a second code path
-    — the row is `AGENTS`-shaped (`member_apps.agent_row`), so everything
-    below reads it identically, and the composition a member agent gets is
-    byte-for-byte the one a kernel agent gets.
-
-    ⚠️ Kept as a PARAMETER rather than making this function client-aware. A
-    posture builder that could read the database would put I/O on the turn's
-    hot path and give this pure module a reason to import the workspace; the
-    caller already holds the row it read at the lane door.
     """
-    agent = row or resolve_agent(slug)
+    agent = resolve_agent(slug)
     if not agent:
         return ""
     character = agent.get("posture") or ""

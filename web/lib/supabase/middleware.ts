@@ -55,20 +55,6 @@ import { KERNEL_SURFACE_SLUGS } from "@/types/surface";
 // slug of their own: redirect stubs and retired paths.
 const SURFACE_PREFIXES = KERNEL_SURFACE_SLUGS.map((slug) => `/${slug}`);
 
-// ADR-653 D3.c — the member-app namespace. EVERY other surface route in this
-// app is one segment, so the derivation above (one prefix per kernel slug) is
-// exhaustive for them. A member app is the first two-segment surface route
-// (`/apps/{slug}`), and its slug is AUTHORED — there is no compile-time roster
-// to derive it from, ever. So the namespace is protected as a whole: one
-// prefix that covers every app a member will ever declare, including ones that
-// do not exist yet.
-//
-// ⚠️ This is the 2026-08-20 defect's shape, not its instance. That repair
-// derived the gate from the roster so a new surface is protected by
-// construction; a two-segment route slips under a single-segment derivation
-// no matter how current the roster is. Protecting the PREFIX is what makes
-// "declare an app, it is authenticated" true by construction here too.
-const APP_NAMESPACE_PREFIX = "/apps";
 
 const LEGACY_AND_STUB_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
@@ -130,7 +116,7 @@ const LEGACY_AND_STUB_PREFIXES = [
 // The gate reads this. Derived ∪ hand-kept, deduped — a surface is protected
 // because it is a surface, not because someone remembered to list it.
 const PROTECTED_PREFIXES = Array.from(
-  new Set([...SURFACE_PREFIXES, APP_NAMESPACE_PREFIX, ...LEGACY_AND_STUB_PREFIXES]),
+  new Set([...SURFACE_PREFIXES, ...LEGACY_AND_STUB_PREFIXES]),
 );
 
 function redirectToLogin(request: NextRequest) {
