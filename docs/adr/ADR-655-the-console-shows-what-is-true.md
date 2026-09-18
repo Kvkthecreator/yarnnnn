@@ -168,6 +168,76 @@ Receipts, driven over the real routes: month spend **$74.36**; `yarnnn workspace
 (was $4.11), Left **$17.84** (was $124.21), Granted $124.21; `SK Personal` Left **−$0.15**. Gate
 **22/23** (⑯ is migration 257, still unapplied), `next build` exit 0.
 
+## 2b. Amendment 2 — did they get anywhere (2026-09-18)
+
+**Status: Implemented.** Prompted by the operator inviting real people to try the product: *"I just
+asked some friends to try yarnnn — any way I can see some information by expanding the admin page
+scope."*
+
+This amendment **builds the one thing am.1 named and declined.** am.1 §2a closed with the activation
+split under "Considered and not built (operator-declined)", calling it "the sharpest operator fact
+the probe turned up" while noting "the console is still silent on it". With real members in the
+product that silence became the console's most expensive gap, so the declination is reversed here
+rather than re-argued.
+
+**am.2 D1 — the console could not tell a bounced member from a working one, and this is structural.**
+Every activity figure on the console derives from `execution_events` — the **cost** ledger. A member
+who opens a lane, types three messages and never triggers a billable scheduled run records **no
+execution event at all**, so their row read `0 events / $0.00 spend / last active "—"`: byte-identical
+to a member who signed up and closed the tab. Volume and money are the wrong instrument for the
+question "did this person get anywhere", because the substrate charges for scheduled work, not for
+showing up. Three engagement columns (`lane_count`, `message_count`, `authored_file_count`) and a
+four-band funnel now answer it from the *authoring* and *conversation* substrates instead.
+
+**am.2 D2 — ONE counting rule, folded two ways.** `_engagement_rollup` is called by exactly two
+sites: the funnel in `/stats` and the row list in `/workspaces`. am.1 D2 exists because two
+implementations of one money fact disagreed on screen ($124.21 vs $17.84); the same failure was
+available here (a funnel saying 9 beside a table showing 10 green rows), so the rule has one home and
+the gate counts its callers. Verified against live data: the table's own red/amber/green tallies
+(12/1/11) equal the funnel card's bands exactly.
+
+**am.2 D3 — a raw file count is FURNITURE, and this was falsified before it shipped.** The first cut
+of `authored_file_count` counted `workspace_files` outright and read **17–18 for every workspace**,
+including the twelve with zero lanes and zero messages — because every workspace is minted with the
+mirrored kernel substrate under `system/` (398 rows, present in **22/22** workspaces; non-system files
+in only **11**). It would have been a column that looks populated and cannot discriminate, which is
+D2's defect in a new spelling, and it is the same fact migration 256 relied on when it deleted nine
+duplicate workspaces as holding "0 authored files — all 17 paths per row were mirrored kernel
+artifacts". `_is_authored_path` excludes the mirror in **both** path spellings (bare and
+`/workspace/`-prefixed), because the substrate stores both. Excluding it, the figure separates real
+work (11, 14, 287) from a first touch (1) from nothing (0).
+
+**am.2 D4 — the funnel's first three bands are disjoint; authoring deliberately is not.** A member
+either never opened a lane, opened one without speaking, or spoke — so those three sum to the live
+workspace count (a gate check, not a comment). `ws_authored` is a *deeper stage of the same journey*
+and overlaps them: live it is **11** against **9** who sent a message, because two workspaces hold
+authored files with no surviving message. A disjoint fourth band would have hidden exactly that.
+
+**am.2 D5 — D4's constant-query-count discipline is preserved.** Three added fetches total
+(`chat_sessions`, `session_messages`, `workspace_files`), bucketed in memory; the lane→workspace hop
+the message count needs comes from the lanes fetch already made, because `session_messages` carries no
+`workspace_id`. Nothing is per-workspace. `_FILE_CAP` (10,000 against 764 live rows) logs loudly on a
+hit rather than modelling truncation, matching `_EVENT_CAP`'s standing note — a truncated count reads
+as a quieter member.
+
+**Receipts**, probed live 2026-09-18 over **22** live workspaces, and reproduced identically by
+independent SQL and by driving the real route handlers: **12** never opened a lane · **1** opened one
+and never spoke · **9** sent a message · **11** authored a file. The three disjoint bands sum to 22.
+Writers, each verified in code: `chat_sessions` inserts at `routes/lanes.py::create_lane`;
+`session_messages` through its single write path `services/narrative.py`; `workspace_files` at
+`services/authored_substrate.py::write_revision`. Gate `test_adr655_console.py` **31/31**, with all
+**7** new checks falsified RED (including an arm that reinstates the raw-file-count defect, and one
+that leaves a value undrawn). `tsc` exit 0, `next build` exit 0.
+
+⚠️ **Not click-passed in a browser, and it is not skipped silently.** `/admin` is gated by both the
+server middleware and the client layout; driving it needs a real session, and minting a login
+credential for the operator's own account was refused by this environment's safety controls. What was
+driven instead: the real `get_overview_stats` / `list_workspaces` handlers with a real `AdminClient`
+against production (the served shape, which is what can drift), and the shipped page's own funnel-band
+definitions parsed out of `page.tsx` and evaluated against that payload. **Owed: one browser click-pass
+by the operator**, who has the session — specifically the funnel card's band arithmetic and the
+red/amber/green column tones.
+
 ## 3. What this does not do
 
 Named, not silently skipped:

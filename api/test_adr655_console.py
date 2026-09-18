@@ -351,6 +351,180 @@ else:
 
 
 # ---------------------------------------------------------------------------
+# ⑰ am.2 — DID THEY GET ANYWHERE: the engagement columns and the funnel
+#
+# The bug class this section exists for is NOT a missing column: it is a column
+# that LOOKS populated and cannot discriminate. The first cut of
+# `authored_file_count` counted `workspace_files` outright and read 17-18 for
+# EVERY workspace, including the 12 with zero lanes and zero messages, because
+# every workspace is minted with the mirrored kernel substrate under `system/`.
+# A gate asserting only "the field exists and is non-zero" would have been GREEN
+# on that. So ⑰d drives the real function over live data and requires the figure
+# to DISCRIMINATE — to differ across workspaces, and to be zero where nothing
+# was authored.
+# ---------------------------------------------------------------------------
+ENGAGEMENT_FIELDS = ("lane_count", "message_count", "authored_file_count")
+FUNNEL_FIELDS = (
+    "ws_never_opened_lane",
+    "ws_lane_no_message",
+    "ws_sent_message",
+    "ws_authored",
+)
+
+# ⑰a the fields are modelled on both sides (the types check ⑩ derives the row
+# fields, so this only has to cover the funnel on the stats model).
+try:
+    from routes.admin import AdminOverviewStats, AdminWorkspaceRow  # noqa: E402
+
+    row_fields = set(AdminWorkspaceRow.model_fields) if hasattr(
+        AdminWorkspaceRow, "model_fields"
+    ) else set(AdminWorkspaceRow.__fields__)
+    ov_fields = set(AdminOverviewStats.model_fields) if hasattr(
+        AdminOverviewStats, "model_fields"
+    ) else set(AdminOverviewStats.__fields__)
+    missing_row = [f for f in ENGAGEMENT_FIELDS if f not in row_fields]
+    missing_ov = [f for f in FUNNEL_FIELDS if f not in ov_fields]
+    check(
+        "⑰a am.2 — the engagement fields are on the row and the funnel on the stats model",
+        not missing_row and not missing_ov,
+        f"missing on row: {missing_row}; missing on stats: {missing_ov}",
+    )
+except Exception as exc:  # noqa: BLE001
+    check("⑰a am.2 — the engagement fields are modelled", False, str(exc)[:160])
+
+# ⑰b the funnel and the table share ONE counting rule. Two copies is how the
+# granted/effective balance pair came to disagree about one fact (am.1).
+_rollup_callers = [
+    n.func.id
+    for n in ast.walk(ADMIN_AST)
+    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    and n.func.id == "_engagement_rollup"
+]
+check(
+    "⑰b am.2 — one counting rule, called by both the funnel and the workspace list",
+    len(_rollup_callers) == 2,
+    f"_engagement_rollup called {len(_rollup_callers)}x — expected exactly 2 "
+    "(the funnel folds it, the list renders it); a third caller or a second "
+    "implementation means two surfaces can disagree about one fact",
+)
+
+# ⑰c the frontend DRAWS every engagement field it models — checked at the
+# DECIDING SITE, never by substring over the whole file.
+#
+# The first cut of this check was `field not in page_source` and it was BLIND:
+# replacing `{w.authored_file_count}` with a literal 0 left the gate GREEN,
+# because the field name still appeared in the column's own `title=` tooltip
+# prose. A name can be mentioned by a comment, a tooltip or an import and drawn
+# nowhere (the `a_gate_check_satisfied_by_an_import_line` class). So strip the
+# prose first, then require a real JSX interpolation of the value.
+_page_raw = (WEB / "app" / "admin" / "page.tsx").read_text()
+# Drop /* */ and // comments and every double-quoted attribute string (which is
+# where the tooltips live), so only code survives.
+_page_code = re.sub(r"/\*.*?\*/", "", _page_raw, flags=re.S)
+_page_code = re.sub(r"//[^\n]*", "", _page_code)
+_page_code = re.sub(r'"(?:[^"\\]|\\.)*"', '""', _page_code)
+
+_undrawn = []
+# A value is DRAWN only if it reaches rendered output: `>{expr}<` in JSX, or a
+# `value:`/`{...}` position whose content is the field. Merely NAMING the field
+# in a `className={...}` conditional is not drawing it -- the cell then colours
+# itself by the number while displaying something else, which is precisely the
+# arm that defeated the previous two versions of this check.
+for f in ENGAGEMENT_FIELDS:
+    drawn = re.search(r">\s*\{\s*w\." + re.escape(f) + r"\s*\}", _page_code) or re.search(
+        r"value:\s*w\." + re.escape(f) + r"\b", _page_code
+    )
+    if not drawn:
+        _undrawn.append(f)
+for f in FUNNEL_FIELDS:
+    drawn = re.search(r">\s*\{\s*overview\." + re.escape(f), _page_code) or re.search(
+        r"value:\s*overview\." + re.escape(f) + r"\b", _page_code
+    )
+    if not drawn:
+        _undrawn.append(f)
+check(
+    "⑰c am.2 — every engagement field reaches RENDERED output, not just a className",
+    not _undrawn,
+    f"served and never drawn as a value: {_undrawn} — a field named only in a "
+    "className conditional colours a cell by a number it does not display",
+)
+
+# ⑰d LIVE — the columns DISCRIMINATE. This is the check that would have caught
+# the kernel-mirror defect, which a mere non-zero assertion could not.
+if client is None:
+    skip(
+        "⑰d am.2 — the engagement figures discriminate between workspaces on live",
+        "no SUPABASE_URL / SUPABASE_SERVICE_KEY in env",
+    )
+else:
+    try:
+        from routes.admin import (  # noqa: E402
+            _engagement_funnel,
+            _engagement_rollup,
+            _is_authored_path,
+        )
+
+        # The kernel mirror is excluded by path, both spellings.
+        mirror_ok = (
+            not _is_authored_path("system/skills/x/SKILL.md")
+            and not _is_authored_path("/workspace/system/a.md")
+            and _is_authored_path("Documents/notes.md")
+        )
+        check(
+            "⑰d-i am.2 — the kernel mirror is excluded in BOTH path spellings",
+            mirror_ok,
+            "a bare-vs-/workspace/ spelling leaks mirrored kernel files in as authored work",
+        )
+
+        live_ws = [
+            r["id"]
+            for r in (
+                client.table("workspaces")
+                .select("id")
+                .is_("deleted_at", "null")
+                .limit(500)
+                .execute()
+                .data
+                or []
+            )
+        ]
+        roll = _engagement_rollup(client)
+        authored_vals = {
+            roll.get(w, {}).get("authored", 0) for w in live_ws
+        }
+        # The defect signature: one value for everybody (17-18 across the board).
+        check(
+            "⑰d-ii am.2 — `authored` DISCRIMINATES across live workspaces",
+            len(authored_vals) > 1 and 0 in authored_vals,
+            f"authored takes values {sorted(authored_vals)[:8]} over {len(live_ws)} live "
+            "workspaces — a single value, or no zero, means the count is furniture "
+            "(the kernel mirror gives every workspace 17-18 files)",
+        )
+
+        funnel = _engagement_funnel(client)
+        three = (
+            funnel["never_opened_lane"]
+            + funnel["lane_no_message"]
+            + funnel["sent_message"]
+        )
+        check(
+            "⑰d-iii am.2 — the three disjoint bands sum to the live workspace count",
+            three == len(live_ws),
+            f"{three} != {len(live_ws)} live workspaces — the bands overlap or leak",
+        )
+        # Every band non-empty is what makes the funnel worth drawing; if a band
+        # is empty the card shows a zero that cannot become non-zero (D2).
+        empty = [k for k, v in funnel.items() if v == 0]
+        check(
+            "⑰d-iv am.2 — every funnel band is non-empty on live",
+            not empty,
+            f"bands reading 0: {empty} — a band that cannot become non-zero is furniture (D2)",
+        )
+    except Exception as exc:  # noqa: BLE001
+        check("⑰d am.2 — the engagement figures discriminate on live", False, str(exc)[:200])
+
+
+# ---------------------------------------------------------------------------
 print()
 print(f"ADR-655 console gate: {len(passed)} passed, {len(failed)} failed, {len(skipped)} skipped")
 if skipped:

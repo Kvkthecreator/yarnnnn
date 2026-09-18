@@ -2,10 +2,38 @@
 Admin routes — the operator console (ADR-655).
 
 Endpoints:
-- GET  /stats            — platform totals: workspaces, grants, sessions, messages
+- GET  /stats            — platform totals + the engagement funnel
 - GET  /execution-stats  — spend this month / today, the daily ceiling, scheduler health
-- GET  /workspaces       — the workspace list: tier, balance, grants, 7d events, 7d spend
+- GET  /workspaces       — the workspace list: tier, balance, grants, engagement, 7d events/spend
 - POST /workspace/{id}/billing-exempt — the comp toggle (ADR-429 §12.3a)
+
+AM.2 (2026-09-18) — DID THEY GET ANYWHERE. The console answered "what is the
+platform doing and what does it cost" and could not answer "did this member get
+anywhere", because EVERY activity figure on it derives from `execution_events` —
+the COST ledger. A member who opened a lane, typed three messages and never
+triggered a billable scheduled run reads 0 events / $0.00 spend / last-active
+"—": byte-identical to a member who signed up and closed the tab. With real
+people trying the product that is the one question the console owes, so three
+engagement columns and a four-band funnel were added, each verified non-empty
+against prod before it was drawn (D2's rule: a figure with no live source is
+deleted, not carried at zero).
+
+Receipts, probed live 2026-09-18 over 22 live workspaces: 12 never opened a
+lane · 1 opened one and never spoke · 9 sent a message · 11 authored a file.
+Writers: `chat_sessions` inserts at `routes/lanes.py::create_lane`;
+`session_messages` through its SINGLE write path `services/narrative.py`;
+`workspace_files` at `services/authored_substrate.py::write_revision`.
+
+⚠️ A RAW FILE COUNT IS FURNITURE, AND WAS FALSIFIED BEFORE IT SHIPPED. The
+first cut of `authored_file_count` counted `workspace_files` outright and read
+17–18 for EVERY workspace including the 12 with zero lanes and zero messages —
+the mirrored kernel substrate under `system/` (398 rows, present in 22/22
+workspaces). It could not have distinguished a bounced member from a working
+one, which is exactly the defect D2 exists to prevent, and it is the same fact
+migration 256 relied on when it deleted 9 duplicate workspaces as holding "0
+authored files — all 17 paths per row were mirrored kernel artifacts". Excluding
+`system/` (`_is_authored_path`) the figure separates real work (11, 14) from a
+first touch (1) from nothing (0). Non-system files live in 11 workspaces, not 22.
 
 ADR-655 keys this console on the WORKSPACE, because the workspace is the
 substrate's binding unit (ADR-373/378). What it deleted, and why, so the shapes
@@ -74,6 +102,17 @@ class AdminOverviewStats(BaseModel):
     # Growth (7d)
     workspaces_7d: int
     sessions_7d: int
+    #: The engagement funnel over LIVE workspaces (ADR-655 am.2). Volume and
+    #: money cannot tell a member who bounced from one who is working: every
+    #: activity figure on this console derives from `execution_events`, the COST
+    #: ledger, so a member who opened a lane and typed three messages without
+    #: triggering a billable run reads 0 events / $0.00 / last-active "-" --
+    #: identical to someone who closed the tab. These four bands are disjoint
+    #: stages of the same 22 workspaces, each verified non-empty against prod.
+    ws_never_opened_lane: int = 0
+    ws_lane_no_message: int = 0
+    ws_sent_message: int = 0
+    ws_authored: int = 0
 
 
 class AdminEngineRow(BaseModel):
@@ -132,6 +171,20 @@ class AdminWorkspaceRow(BaseModel):
     #: so read $124.21 where the member's UI said "$17.84 left".
     effective_balance_usd: float = 0.0
     grant_count: int = 0
+    #: Lanes ever opened in this workspace (`chat_sessions`, written at
+    #: `routes/lanes.py::create_lane`). Zero is the honest "never started".
+    lane_count: int = 0
+    #: Messages ever sent, both roles (`session_messages`, whose SINGLE write
+    #: path is `services/narrative.py`). A lane with 0 messages is a member who
+    #: opened the door and did not speak -- a real, observed state (1 of 22).
+    message_count: int = 0
+    #: Files authored, EXCLUDING the mirrored kernel substrate under `system/`.
+    #: The raw count is furniture: every workspace carries 17-18 mirrored kernel
+    #: artifacts, so an untouched workspace and a working one both read ~17 --
+    #: the same fact migration 256 relied on when it deleted 9 duplicates as
+    #: holding "0 authored files". Excluding `system/` the figure separates real
+    #: work (11, 14) from a first touch (1) from nothing (0).
+    authored_file_count: int = 0
     events_7d: int = 0
     spend_7d: float = 0.0
     last_activity: Optional[str] = None
@@ -162,6 +215,36 @@ def _get_date_threshold(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
 
+#: Row cap on the windowed `workspace_files` path fetch. 764 active rows platform
+#: wide at ADR-655 am.2, so this is ~13x headroom; like `_EVENT_CAP` a hit is
+#: logged loudly rather than modelled, because a truncated count reads as a
+#: quieter member.
+_FILE_CAP = 10000
+
+#: The mirrored kernel substrate. `system/` holds the skills mirror and the
+#: kernel artifacts every workspace is minted with -- 398 rows across all 22 live
+#: workspaces, 17-18 per workspace, authored by nobody in that workspace. A file
+#: count that includes them cannot distinguish a member who bounced from one who
+#: is working (both read ~17), which is why `authored_file_count` excludes them.
+#: Probed live: `system/` is present in 22/22 workspaces, everything else in 11.
+_KERNEL_FILE_PREFIXES = ("system/", "/workspace/system/")
+
+
+def _is_authored_path(path: Optional[str]) -> bool:
+    """Is this path a member's authored work, rather than mirrored kernel substrate?
+
+    Both spellings are tested because the substrate stores paths in both forms
+    (`workspace_files.path` carries the bare and the `/workspace/`-prefixed
+    shape depending on the write door -- the same normalization hazard
+    `_normalize_workspace_rel` exists for at the write side). Matching only one
+    spelling would silently count kernel files as authored work for whichever
+    door wrote them.
+    """
+    if not path:
+        return False
+    return not path.startswith(_KERNEL_FILE_PREFIXES)
+
+
 def _billed_draw(event: dict) -> float:
     """What an execution event actually DREW from the workspace's balance.
 
@@ -182,6 +265,120 @@ def _billed_draw(event: dict) -> float:
     if billed is not None:
         return float(billed)
     return float(event.get("cost_usd") or 0)
+
+
+def _engagement_rollup(client) -> dict[str, dict[str, int]]:
+    """Per-workspace engagement: lanes, messages, authored files.
+
+    ONE implementation, called by both `/stats` (which folds it into the funnel)
+    and `/workspaces` (which renders it per row) -- never two copies of the same
+    counting rule, or the funnel and the table disagree about one fact the way
+    the granted/effective balance pair did (am.1).
+
+    THREE fetches total, constant in the number of workspaces (ADR-655 D4). The
+    message count needs a lane -> workspace hop because `session_messages` has no
+    `workspace_id`; that map comes from the same lanes fetch, in memory, rather
+    than a per-row join.
+
+    Returns `{workspace_id: {"lanes": n, "messages": n, "authored": n}}`,
+    defaulting missing keys to 0 -- a workspace absent from a fetch has none of
+    that thing, which is the honest zero, not a missing row.
+    """
+    lanes: dict[str, int] = defaultdict(int)
+    messages: dict[str, int] = defaultdict(int)
+    authored: dict[str, int] = defaultdict(int)
+
+    # --- lanes, and the lane -> workspace map the messages need --------------
+    lane_ws: dict[str, str] = {}
+    try:
+        for row in (client.table("chat_sessions")
+                    .select("id, workspace_id")
+                    .limit(_EVENT_CAP).execute().data or []):
+            wid = row.get("workspace_id")
+            if not wid:
+                continue
+            lane_ws[row["id"]] = wid
+            lanes[wid] += 1
+    except Exception as exc:  # noqa: BLE001 — engagement is best-effort
+        logger.warning("[ADMIN] lane rollup failed: %s", exc)
+
+    # --- messages, bucketed through that map --------------------------------
+    # Counted for BOTH roles deliberately: the question this answers is "did
+    # anything happen in here", and a lane where the member spoke and the agent
+    # answered is the same engagement fact from either side.
+    try:
+        for row in (client.table("session_messages")
+                    .select("session_id")
+                    .limit(_EVENT_CAP).execute().data or []):
+            wid = lane_ws.get(row.get("session_id") or "")
+            if wid:
+                messages[wid] += 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[ADMIN] message rollup failed: %s", exc)
+
+    # --- authored files, kernel mirror excluded ------------------------------
+    try:
+        file_rows = (client.table("workspace_files")
+                     .select("workspace_id, path")
+                     .eq("lifecycle", "active")
+                     .limit(_FILE_CAP).execute().data or [])
+        if len(file_rows) >= _FILE_CAP:
+            logger.warning(
+                "[ADMIN] file rollup hit the %d-row cap — counts are a FLOOR, raise the cap",
+                _FILE_CAP,
+            )
+        for row in file_rows:
+            wid = row.get("workspace_id")
+            if wid and _is_authored_path(row.get("path")):
+                authored[wid] += 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[ADMIN] authored file rollup failed: %s", exc)
+
+    out: dict[str, dict[str, int]] = {}
+    for wid in set(lanes) | set(messages) | set(authored):
+        out[wid] = {
+            "lanes": lanes.get(wid, 0),
+            "messages": messages.get(wid, 0),
+            "authored": authored.get(wid, 0),
+        }
+    return out
+
+
+def _engagement_funnel(client) -> dict[str, int]:
+    """The funnel over LIVE workspaces — four disjoint bands, not four filters.
+
+    Each workspace lands in exactly one of the first three bands (a member either
+    never opened a lane, opened one without speaking, or spoke), so those three
+    sum to the live workspace count. `authored` is deliberately NOT disjoint from
+    `sent_message`: authoring is a deeper stage of the same journey, and against
+    prod it is 11 while `sent_message` is 9 -- two workspaces authored files
+    without a surviving message, which a disjoint band would have hidden.
+
+    The denominator is live workspaces, matching the `/workspaces` list: a
+    soft-deleted workspace is not a member who bounced.
+    """
+    try:
+        live = (client.table("workspaces")
+                .select("id")
+                .is_("deleted_at", "null")
+                .limit(500).execute().data or [])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[ADMIN] funnel workspace fetch failed: %s", exc)
+        return {"never_opened_lane": 0, "lane_no_message": 0, "sent_message": 0, "authored": 0}
+
+    rollup = _engagement_rollup(client)
+    bands = {"never_opened_lane": 0, "lane_no_message": 0, "sent_message": 0, "authored": 0}
+    for w in live:
+        e = rollup.get(w["id"], {"lanes": 0, "messages": 0, "authored": 0})
+        if e["messages"] > 0:
+            bands["sent_message"] += 1
+        elif e["lanes"] > 0:
+            bands["lane_no_message"] += 1
+        else:
+            bands["never_opened_lane"] += 1
+        if e["authored"] > 0:
+            bands["authored"] += 1
+    return bands
 
 
 # =============================================================================
@@ -212,6 +409,8 @@ async def get_overview_stats(admin: AdminAuth):
 
         messages = client.table("session_messages").select("id", count="exact").execute()
 
+        funnel = _engagement_funnel(client)
+
         return AdminOverviewStats(
             total_workspaces=workspaces.count or 0,
             total_grants=grants.count or 0,
@@ -219,6 +418,10 @@ async def get_overview_stats(admin: AdminAuth):
             total_messages=messages.count or 0,
             workspaces_7d=workspaces_7d.count or 0,
             sessions_7d=sessions_7d.count or 0,
+            ws_never_opened_lane=funnel["never_opened_lane"],
+            ws_lane_no_message=funnel["lane_no_message"],
+            ws_sent_message=funnel["sent_message"],
+            ws_authored=funnel["authored"],
         )
     except Exception as e:
         logger.error("[ADMIN] Overview stats query failed: %s", e)
@@ -412,6 +615,11 @@ async def list_workspaces(admin: AdminAuth):
             except Exception as exc:  # noqa: BLE001 — one row never breaks the page
                 logger.warning("[ADMIN] effective balance failed for %s: %s", wid[:8], exc)
 
+        # --- engagement: lanes, messages, authored files (am.2) -------------
+        # Three fetches, bucketed in memory — the SAME function the funnel in
+        # /stats folds, so the two surfaces cannot disagree about one fact.
+        engagement = _engagement_rollup(client)
+
         # --- owner labels (ADR-655 D3: the ONE resolver, batched) -----------
         # `auth.users` is the writer of record for an account identity
         # (ADR-650); `workspaces.owner_email` was dropped by migration 257
@@ -445,6 +653,9 @@ async def list_workspaces(admin: AdminAuth):
                     wid, float(w.get("balance_usd") or 0)
                 ),
                 grant_count=grant_counts.get(wid, 0),
+                lane_count=engagement.get(wid, {}).get("lanes", 0),
+                message_count=engagement.get(wid, {}).get("messages", 0),
+                authored_file_count=engagement.get(wid, {}).get("authored", 0),
                 events_7d=events_7d.get(wid, 0),
                 spend_7d=round(spend_7d.get(wid, 0.0), 4),
                 last_activity=last_activity.get(wid),

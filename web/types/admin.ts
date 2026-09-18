@@ -19,6 +19,16 @@ export interface AdminOverviewStats {
   total_messages: number;
   workspaces_7d: number;
   sessions_7d: number;
+  /**
+   * The engagement funnel over LIVE workspaces (am.2). The first three bands are
+   * disjoint and sum to the live workspace count; `ws_authored` is a deeper
+   * stage of the same journey and deliberately overlaps `ws_sent_message`
+   * (against prod: 11 authored vs 9 who sent a message).
+   */
+  ws_never_opened_lane: number;
+  ws_lane_no_message: number;
+  ws_sent_message: number;
+  ws_authored: number;
 }
 
 /** One engine's share of the month's spend. Derived from what the ledger
@@ -66,6 +76,16 @@ export interface AdminWorkspaceRow {
    */
   effective_balance_usd: number;
   grant_count: number;
+  /** Lanes ever opened. Zero is the honest "never started". */
+  lane_count: number;
+  /** Messages ever sent, both roles. A lane with 0 messages is a real state. */
+  message_count: number;
+  /**
+   * Files authored, EXCLUDING the mirrored kernel substrate under `system/`.
+   * The raw count is furniture — every workspace carries 17-18 mirrored kernel
+   * artifacts, so an untouched workspace and a working one both read ~17.
+   */
+  authored_file_count: number;
   events_7d: number;
   spend_7d: number;
   last_activity: string | null;

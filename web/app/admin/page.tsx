@@ -30,6 +30,7 @@ import {
   DollarSign,
   Activity,
   Clock,
+  Footprints,
 } from "lucide-react";
 import { Working } from "@/components/shared/Working";
 
@@ -132,7 +133,8 @@ export default function OperatorConsolePage() {
       <div>
         <h1 className="text-2xl font-semibold">Console</h1>
         <p className="text-muted-foreground mt-1">
-          What the platform is doing, and what it costs.
+          What the platform is doing, whether members are getting anywhere, and
+          what it costs.
         </p>
       </div>
 
@@ -161,6 +163,71 @@ export default function OperatorConsolePage() {
             icon={DollarSign}
           />
         </div>
+      )}
+
+      {/* Did they get anywhere (am.2).
+          Every other activity figure here derives from `execution_events`, the
+          COST ledger — so a member who opened a lane and typed without
+          triggering a billable run reads 0 events / $0.00 / last-active "—",
+          identical to one who closed the tab. These bands separate them. */}
+      {overview && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Footprints className="w-4 h-4" />
+              Did they get anywhere
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                All {overview.total_workspaces} live workspaces
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+              {[
+                {
+                  label: "Never opened a lane",
+                  value: overview.ws_never_opened_lane,
+                  hint: "Signed up, never started a conversation",
+                  tone: "text-red-600",
+                },
+                {
+                  label: "Opened, never spoke",
+                  value: overview.ws_lane_no_message,
+                  hint: "A lane exists with no message in it",
+                  tone: "text-yellow-600",
+                },
+                {
+                  label: "Sent a message",
+                  value: overview.ws_sent_message,
+                  hint: "At least one turn happened",
+                  tone: "",
+                },
+                {
+                  label: "Authored a file",
+                  value: overview.ws_authored,
+                  hint: "Work landed in the substrate, kernel mirror excluded",
+                  tone: "text-emerald-600",
+                },
+              ].map((b) => (
+                <div key={b.label}>
+                  <p className="text-muted-foreground" title={b.hint}>
+                    {b.label}
+                  </p>
+                  <p className={`text-xl font-semibold tabular-nums ${b.tone}`}>
+                    {b.value}
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      /{overview.total_workspaces}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              The first three bands are disjoint and sum to the total. Authoring is a
+              deeper stage of the same journey, so it overlaps them.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Scheduler health + the daily guard */}
@@ -279,6 +346,24 @@ export default function OperatorConsolePage() {
                   >
                     Reach
                   </th>
+                  <th
+                    className="text-right py-2 px-2 font-medium text-muted-foreground"
+                    title="Lanes ever opened. 0 means they never started a conversation."
+                  >
+                    Lanes
+                  </th>
+                  <th
+                    className="text-right py-2 px-2 font-medium text-muted-foreground"
+                    title="Messages ever sent, both roles. A lane with 0 messages is someone who opened the door and did not speak."
+                  >
+                    Msgs
+                  </th>
+                  <th
+                    className="text-right py-2 px-2 font-medium text-muted-foreground"
+                    title="Files authored, excluding the mirrored kernel substrate under system/ — every workspace carries 17-18 of those, so a raw count cannot tell a bounced member from a working one."
+                  >
+                    Authored
+                  </th>
                   <th className="text-right py-2 px-2 font-medium text-muted-foreground">
                     Events 7d
                   </th>
@@ -311,7 +396,7 @@ export default function OperatorConsolePage() {
               <tbody>
                 {workspaces.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={12} className="py-8 text-center text-muted-foreground">
                       No workspaces yet.
                     </td>
                   </tr>
@@ -340,6 +425,31 @@ export default function OperatorConsolePage() {
                           </span>
                         </td>
                         <td className="py-2 px-2 text-right tabular-nums">{w.grant_count}</td>
+                        <td
+                          className={`py-2 px-2 text-right tabular-nums ${
+                            w.lane_count === 0 ? "text-red-600" : ""
+                          }`}
+                        >
+                          {w.lane_count}
+                        </td>
+                        <td
+                          className={`py-2 px-2 text-right tabular-nums ${
+                            w.message_count === 0 && w.lane_count > 0
+                              ? "text-yellow-600"
+                              : ""
+                          }`}
+                        >
+                          {w.message_count}
+                        </td>
+                        <td
+                          className={`py-2 px-2 text-right tabular-nums ${
+                            w.authored_file_count > 0
+                              ? "text-emerald-700 font-medium"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {w.authored_file_count}
+                        </td>
                         <td className="py-2 px-2 text-right tabular-nums">{w.events_7d}</td>
                         <td className="py-2 px-2 text-right tabular-nums">
                           ${w.spend_7d.toFixed(2)}
