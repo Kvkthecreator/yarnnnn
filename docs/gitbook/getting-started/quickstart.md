@@ -38,14 +38,39 @@ Right-click any file → **Properties**. You'll see its full history: which revi
 
 That's `history`. It's the thing that makes the workspace an asset rather than an output folder.
 
-## 6. Connect your other AI
+## 6. Already working in Claude or ChatGPT? Connect from there
 
-Connect from the AI's side:
+{% hint style="success" %}
+**This is the best way to use YARNNN.** If your thinking already happens in Claude or ChatGPT, don't move it. Connect YARNNN as a connector and your workspace becomes the memory those chats have always been missing — the same files, read and written from either side.
+{% endhint %}
 
-- **ChatGPT** or **Claude.ai** — add `https://mcp.yarnnn.com` as a connector
-- **Claude Desktop** or **Claude Code** — see the [full setup guide](../integrations/mcp-connector.md)
+Add `https://mcp.yarnnn.com` as a connector:
+
+{% tabs %}
+{% tab title="Claude.ai" %}
+**Settings** → **Connectors** → **Add custom connector** → name it `yarnnn`, URL `https://mcp.yarnnn.com`.
+{% endtab %}
+
+{% tab title="ChatGPT" %}
+**Settings** → **Apps** → **Advanced settings** → **Developer mode** on, then **Create app** with MCP Server URL `https://mcp.yarnnn.com` and Authentication **OAuth**.
+{% endtab %}
+{% endtabs %}
+
+You'll be asked to approve the connection. This screen is YARNNN's, not the AI's:
+
+![YARNNN's consent screen: pick which workspace the AI may reach, and see exactly what it will be able to do](../.gitbook/assets/yarnnn-oauth-consent-claude.png)
+
+You choose which workspace the connection binds to, and you see every permission before you approve it.
+
+Three things worth reading on it:
+
+- **Which workspace.** The connection binds to one. If you can reach more than one, the AI still only sees the one you pick here.
+- **What it can do.** Read your files; create, edit, move and delete them; create share links. Every change it makes is signed as that AI and is revertible — you'll see its name in Files → Properties alongside your own.
+- **Full access.** The connector asks for all of it, which is why the screen says so plainly. Approve it only if you trust that AI with everything listed.
 
 Once it's connected, tell ChatGPT something worth keeping and ask Claude about it tomorrow. Same workspace, both directions.
+
+Using **Claude Desktop** or **Claude Code** instead? Those need a config file — see the [full setup guide](../integrations/mcp-connector.md).
 
 ## What to do next
 
