@@ -36,6 +36,7 @@ import { ArrowRight, ChevronRight, FolderOpen, Plug, Plus } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, type StandingSummary } from '@/lib/api/client';
 import { connectorMeta, FRESHNESS_PROVIDERS, OFFERED_CONNECTORS } from '@/lib/connectors/registry';
+import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences, useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { useFeedback } from '@/contexts/FeedbackContext';
@@ -306,14 +307,18 @@ export function ReachConnected() {
           return (
             <li key={i.id} className="rounded-lg border border-border/60 p-4">
               <div className="flex items-start gap-3">
-                <div
-                  className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-                    meta ? meta.brand.chipClass : 'bg-muted',
-                  )}
-                >
-                  {meta ? meta.brand.icon : <Plug className="h-4 w-4 text-muted-foreground" />}
-                </div>
+                {/* An attached MCP server used to render the SAME generic plug
+                    as every other attached server, so a member who added Linear
+                    could not pick it out of their own list. It now resolves its
+                    own mark from the server address — the same resolution the
+                    finder row used, so the row they clicked and the row they
+                    landed on are visibly one connector. */}
+                <ConnectorAvatar
+                  size="md"
+                  url={i.server_url}
+                  title={name}
+                  override={meta ? meta.brand : undefined}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     {/* ADR-645 D3 — the name is the door into this connection's
@@ -462,14 +467,7 @@ export function ReachConnected() {
                 key={meta.provider}
                 className="flex items-center gap-3 rounded-lg border border-border/60 px-4 py-3"
               >
-                <div
-                  className={cn(
-                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                    meta.brand.chipClass,
-                  )}
-                >
-                  {meta.brand.icon}
-                </div>
+                <ConnectorAvatar size="md" title={meta.displayName} override={meta.brand} />
                 <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                   {meta.displayName}
                 </span>

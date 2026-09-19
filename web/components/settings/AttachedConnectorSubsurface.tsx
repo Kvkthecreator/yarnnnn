@@ -42,7 +42,6 @@ import {
   ArrowLeft,
   ExternalLink,
   Loader2,
-  Plug,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -51,6 +50,7 @@ import {
 import { api, APIError, type AttachedConnector } from "@/lib/api/client";
 import { Working } from '@/components/shared/Working';
 import { useFeedback } from "@/contexts/FeedbackContext";
+import { ConnectorAvatar } from "@/components/connectors/ConnectorAvatar";
 
 type Mode = "off" | "propose" | "direct";
 
@@ -238,9 +238,7 @@ export function AttachedConnectorSubsurface({
       </button>
 
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <Plug className="h-5 w-5" />
-        </div>
+        <ConnectorAvatar size="lg" url={row?.server_url} title={row?.title ?? slug} />
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold">{row?.title ?? slug}</h2>
           {row?.server_url && (

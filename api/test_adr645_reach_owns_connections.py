@@ -242,6 +242,197 @@ check("…the row's facts come from the server payload (`does` / `reach`)",
 check("Connected says the credential is the member's and the reach the workspace's",
       "held under your account" in _read("app/(authenticated)/reach/page.tsx"))
 
+
+# ---------------------------------------------------------------------------
+print()
+print("D5. one connector, one face — the mark survives the trip to Connected")
+
+# WHY THIS GROUP EXISTS. A connector used to have three faces: a brand chip on
+# the four platform-OAuth rows, a generic lucide plug for EVERY attached MCP
+# server, and nothing at all in the finder. The member who attached Linear could
+# not pick it out of their own list. `lib/connectors/marks.tsx` resolves one
+# identity and `ConnectorAvatar` renders it; these checks hold both halves.
+
+_marks = _read("lib/connectors/marks.tsx")
+_avatar = _read("components/connectors/ConnectorAvatar.tsx")
+_finder = _read("components/settings/FindConnectorModal.tsx")
+_attached_sub = _read("components/settings/AttachedConnectorSubsurface.tsx")
+
+# ⚠ Anchored on the EXPORT and on the avatar's CALL, not on the bare name. A
+# substring check is satisfied by a rename (`connectorIdentityX` still contains
+# `connectorIdentity`) and by an import line — the arm that deleted the resolver
+# came back GREEN against the loose form.
+check("the identity resolver is exported under its canonical name",
+      bool(re.search(r"export function connectorIdentity\(", _marks)))
+check("the one render site CALLS it",
+      bool(re.search(r"\bconnectorIdentity\(\{", _avatar)),
+      "ConnectorAvatar no longer resolves an identity")
+
+# ⭐ THE LEAK CHECK, and the reason this file is hand-authored at all. /reach is
+# the boundary surface; resolving 55 marks through a favicon service would tell
+# a third party which connectors a member browses, every time the modal opens.
+# Asserted on the RENDERED source of every connector surface, not on marks.tsx
+# alone — the leak would arrive as an <img> in whichever component added it.
+_surfaces = {
+    "lib/connectors/marks.tsx": _marks,
+    "components/connectors/ConnectorAvatar.tsx": _avatar,
+    "components/settings/FindConnectorModal.tsx": _finder,
+    "components/reach/ReachConnected.tsx": _reach_connected,
+    "components/settings/AttachedConnectorSubsurface.tsx": _attached_sub,
+}
+# ⚠ NOT through the shared `_strip_comments`. That helper strips `//` to
+# end-of-line, and every URL this check hunts for CONTAINS `//`, so a re-added
+# favicon endpoint is truncated at its scheme and the evidence is destroyed
+# BEFORE the search runs — the falsification arm that re-added one came back
+# GREEN for exactly that reason. Stripping is still needed, because marks.tsx's
+# own header names these services while explaining why it uses none of them; so
+# this strips a line comment only where the `//` does not follow a URL scheme.
+def _strip_comments_keeping_urls(src: str) -> str:
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
+    return re.sub(r"(?<!:)//[^\n]*", "", src)
+
+
+_leaks = [
+    name
+    for name, src in _surfaces.items()
+    if re.search(
+        r"s2/favicons|icons\.duckduckgo|favicon\.ico|<img\b|next/image",
+        _strip_comments_keeping_urls(src),
+    )
+]
+check("no connector surface fetches a third-party mark (no favicon service, no <img>)",
+      not _leaks, f"outbound mark fetch in {_leaks}")
+
+# ⭐ EVERY surface renders THE SAME component. A shared resolver with two render
+# sites still drifts; the whole point is that the finder row and the Connected
+# row are visibly one connector. Counted at the CALL, not at the import — an
+# `in src` check is satisfied by the import line alone (2026-09-17).
+# ⚠ The count is EXACT, not `>= 1`. ReachConnected renders the avatar twice
+# (the connected row AND the Available list) and the finder three times (the
+# curated row, the directory row, and the picked connector in the step header),
+# so a `>= 1` threshold stays green while one of them is deleted — the arm that
+# removed the Connected row's avatar came back GREEN against exactly that. A
+# threshold cannot fail on what it no longer covers; the census has to be the
+# assertion (ADR-636, and the 2026-09-17 action-feedback sweep).
+for name, src, want in (
+    # 4 = the curated row · the directory row · and the step header's TWO
+    # branches (a curated pick and a directory pick land on different steps).
+    ("the finder's browse rows + step header", _finder, 4),
+    ("the Connected list + Available list", _reach_connected, 2),
+    ("the attached connection's page", _attached_sub, 1),
+):
+    body = _strip_comments(src)
+    found = body.count("<ConnectorAvatar")
+    check(f"{name} render ConnectorAvatar at every site ({want})",
+          found == want,
+          f"{found} render sites, expected {want} — a site was added or deleted")
+
+# The generic plug is GONE from the two places that used to wear it AS A
+# CONNECTOR'S FACE. Scoped to a CHIP-shaped plug, not to the glyph as such: the
+# empty state ("Nothing is connected yet") still draws a plug, and there it
+# stands for the ABSENCE of connectors rather than for one connector, which is
+# the right glyph. A blanket ban went red on that empty state on first run —
+# the rule is about a row's identity, so the check has to be too.
+for _name, _src in (
+    ("the Connected row", _reach_connected),
+    ("the attached connection's header", _attached_sub),
+):
+    _body = _strip_comments(_src)
+    _chip_plug = re.search(r"h-\d+ w-\d+[^\"']*(?:rounded|bg-muted)[^\"']*\"[^<]*>\s*<Plug", _body) or re.search(
+        r"<Plug[^>]*className=\"[^\"]*h-\d", _body
+    ) and "rounded-lg bg-muted" in _body
+    check(f"{_name} no longer wears a generic plug as its face", not _chip_plug)
+
+# ⭐ A MARK IS A CLAIM ABOUT A VENDOR. The first draft of marks.tsx carried ~28
+# paths written from memory and the click-pass found roughly half were wrong
+# shapes — Ahrefs as a lowercase b, Box as goggles, Datadog as a blob. Every one
+# typechecked, built, and compiled into the CSS: a path string cannot be wrong
+# in a way a gate reads. So the gate holds the only thing it CAN hold — that the
+# set stays small and deliberate, and that the file still carries the discipline
+# that says a mark is not added until its rendering has been looked at.
+_mark_count = len(re.findall(r"icon:\s*svg\(", _marks))
+check("the mark set is bounded (a mark is added only after its shape is seen)",
+      0 < _mark_count <= 32, f"{_mark_count} marks — raising this needs a click-pass in the commit")
+check("marks.tsx records why a mark needs a click-pass before it is added",
+      "SEEN RENDERED" in _marks)
+
+# ⭐ THE FALLBACK MUST DISCRIMINATE. A lettermark that paints every row the same
+# tone is exactly as blind as the generic plug it replaced — the failure mode
+# that shipped a populated-but-constant column on /admin (2026-09-18). This
+# walks the REAL directory seed, not a fixture, so a re-derivation that clusters
+# the names cannot quietly collapse the palette.
+import json  # noqa: E402
+
+_seed = json.loads((API / "services/connector_directory_seed.json").read_text())
+_tones = re.findall(r'"(bg-\[#[0-9A-Fa-f]{6}\])"', _marks.split("const LETTER_TONES = [")[1].split("];")[0])
+_domains = re.findall(r'^\s*"([^"]+)":', _marks.split("const DOMAIN_MARKS: Record<string, ConnectorMark> = {")[1].split("\n};")[0], re.M)
+
+
+def _has_mark(host: str) -> bool:
+    if host in _domains:
+        return True
+    labels = host.split(".")
+    return any(".".join(labels[i:]) in _domains for i in range(1, len(labels) - 1))
+
+
+def _tone_for(seed: str) -> str:
+    h = 0
+    for ch in seed:
+        h = (h * 31 + ord(ch)) & 0xFFFFFFFF
+    return _tones[h % len(_tones)]
+
+
+_fallback = []
+for _srv in _seed["servers"]:
+    _host = _srv["url"].split("/")[2].lower()
+    if _has_mark(_host):
+        continue
+    _fallback.append((_srv["title"], _tone_for(_srv["title"].lower())))
+
+# DISTINCT, not the entry count: twelve copies of one slate is a palette of one
+# and would satisfy a length check while painting every fallback row the same.
+check("the lettermark palette is wide enough to separate a clustered directory",
+      len(set(_tones)) >= 12, f"only {len(set(_tones))} distinct tones")
+_spread = len({t for _, t in _fallback})
+check("the fallback DISTRIBUTES rather than painting one constant tone",
+      _spread >= min(6, len(_fallback)),
+      f"{len(_fallback)} lettermark rows collapsed onto {_spread} tones")
+
+# ⭐ A tone is seeded on the TITLE, never the host: four of the directory's
+# literature endpoints share ONE host, so a host-first seed paints them
+# identically — the indistinguishability the lettermark exists to end.
+#
+# ⚠ This reads the ORDER OUT OF THE TYPESCRIPT rather than recomputing it here.
+# The first version of this check called a Python `_tone_for(title)` and asked
+# whether the results differed — which they always did, because the gate was
+# choosing the seed itself. Reverting the real `const seed = …` line to
+# host-first left it GREEN: a gate agreeing with its own reimplementation
+# (2026-09-18, the `needs` fixture). The assertion has to be about the SOURCE.
+_seed_expr = re.search(r"const seed = ([^;]+);", _marks)
+check("the resolver's tone seed is derived (the source states the order)",
+      _seed_expr is not None)
+if _seed_expr:
+    _order = [t.strip() for t in _seed_expr.group(1).split("||")]
+    check("…and the TITLE is the first seed, not the host",
+          _order and _order[0].startswith("title"),
+          f"seed order is {_order} — a host-first seed collapses the shared-host rows")
+
+_shared_host = [s for s in _seed["servers"] if s["url"].split("/")[2].lower() == "hcls.mcp.claude.com"]
+if len(_shared_host) > 1:
+    # With the order confirmed above, the consequence is worth stating too: the
+    # real rows on that one host must land on different tones.
+    _their_tones = {_tone_for(s["title"].lower()) for s in _shared_host}
+    check("…so servers sharing one host still get different chips",
+          len(_their_tones) > 1,
+          f"{len(_shared_host)} rows on one host collapsed onto {len(_their_tones)} tone(s)")
+
+# ⭐ AN ARBITRARY TAILWIND CLASS ONLY EXISTS IF TAILWIND SAW IT. Every tone is a
+# `bg-[#......]` literal; if one were ever computed (a template string, a lookup
+# built at runtime) the class would vanish from the built CSS and the chip would
+# render transparent — visible only in a browser, never in a typecheck.
+check("every lettermark tone is a literal class Tailwind can scan",
+      all(re.fullmatch(r"bg-\[#[0-9A-Fa-f]{6}\]", t) for t in _tones))
+
 # ---------------------------------------------------------------------------
 print()
 if FAILED:

@@ -47,6 +47,7 @@ import { Working } from '@/components/shared/Working';
 import { api, APIError, type CuratedEntry, type DirectoryEntry } from '@/lib/api/client';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
+import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
 
 interface FindConnectorModalProps {
   open: boolean;
@@ -67,6 +68,15 @@ type Step = 'browse' | 'confirm' | 'curated';
  *  and a competing commons, with nothing between them. */
 const OPEN_LANE_CAVEAT =
   'yarnnn has not examined this server. We cannot tell you what it does with what you send it, or whether your work will accumulate on its side instead of here.';
+
+/** The address a curated entry will eventually have, with the member's hole
+ *  removed so it parses. A curated entry carries a `url_shape`
+ *  (`https://{store}.myshopify.com/api/mcp`) rather than a URL, because the
+ *  member supplies one segment on the next step — but the BRAND is in the part
+ *  that is already there, which is all the mark needs. Falls back to the
+ *  entry's own key when there is no shape at all. */
+const curatedUrlHint = (entry: CuratedEntry): string =>
+  entry.url ?? (entry.url_shape ?? '').replace(/\{[^}]*\}\.?/g, '');
 
 /** A pasted URL is the same act as a directory pick, minus the search. */
 const pastedEntry = (url: string): DirectoryEntry => ({
@@ -361,6 +371,19 @@ export function FindConnectorModal({
                 <ArrowLeft className="h-4 w-4" />
               </button>
             )}
+            {/* The picked connector keeps its face across the step change, so
+                the member can see that the row they clicked is the one they
+                are now being asked to trust. */}
+            {step === 'curated' && pickedCurated ? (
+              <ConnectorAvatar
+                size="sm"
+                url={curatedUrlHint(pickedCurated)}
+                title={pickedCurated.title}
+                connectorKey={pickedCurated.key}
+              />
+            ) : step === 'confirm' && picked ? (
+              <ConnectorAvatar size="sm" url={picked.url} title={picked.title} connectorKey={picked.key} />
+            ) : null}
             <h2 className="flex-1 text-sm font-semibold text-card-foreground">
               {step === 'browse'
                 ? 'Find a connector'
@@ -423,6 +446,17 @@ export function FindConnectorModal({
                         onClick={() => pickCurated(entry)}
                         className="flex w-full items-center gap-3 rounded-md border border-border px-3 py-2 text-left hover:bg-muted"
                       >
+                        {/* A curated entry has no URL yet — its address is a
+                            SHAPE with a hole the member fills on the next step.
+                            The brand is in the domain part, which is already
+                            there, so the identity resolves off the shape with
+                            the hole removed. */}
+                        <ConnectorAvatar
+                          size="sm"
+                          url={curatedUrlHint(entry)}
+                          title={entry.title}
+                          connectorKey={entry.key}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{entry.title}</span>
@@ -455,6 +489,12 @@ export function FindConnectorModal({
                         onClick={() => pick(entry)}
                         className="flex w-full items-center gap-3 rounded-md border border-border/60 px-3 py-2 text-left hover:bg-muted disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
                       >
+                        <ConnectorAvatar
+                          size="sm"
+                          url={entry.url}
+                          title={entry.title}
+                          connectorKey={entry.key}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{entry.title}</span>
