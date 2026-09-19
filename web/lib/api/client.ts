@@ -618,11 +618,13 @@ export interface Participant {
   created_at?: string;
 }
 
-// ADR-639 — standing-work shapes (mirror api/routes/standing_work.py). A
-// STANDING DECLARATION is the member's designation of one file as kept
+// ADR-639 / ADR-658 — standing-work shapes (mirror api/routes/standing_work.py).
+// A STANDING DECLARATION is the member's designation of one file as kept
 // current: {folder}/_standing.yaml + CONTRACT.md, the designated target leaf
-// revised by the standing run. The roster is read; the two direct switches
-// (Run now · Pause) are the only writes. Creation is a conversation.
+// revised by the standing run. ADR-658 gives it a door (create), a detail
+// (get), the composer's fields on update, and retire — beside the two direct
+// switches (Run now · Pause). Creation is ALSO a conversation
+// (`declaring-standing-work`); both paths emit what the one parser accepts.
 export interface StandingSource {
   id: string;
   /** An HTTP pull source. Exactly one of `url` / `connector`+`selector`. */
@@ -650,6 +652,9 @@ export interface StandingSummary {
   /** The app whose executor runs a prose declaration — explicit or derived
    *  from the target's type (ADR-639 D3). Null for a structured target. */
   app?: string | null;
+  /** Who minds it — DERIVED at read time from `app` (ADR-658 D2), never a
+   *  stored assignee. Null for a structured target (mechanical, no minder). */
+  minder?: { slug: string; name: string } | null;
   schedule?: string | string[] | null;
   /** The clock `schedule` is read in — the workspace's declared timezone
    *  (migration 247), "UTC" when none is declared. A bare cron does not say
@@ -664,6 +669,49 @@ export interface StandingSummary {
   problem?: string | null;
   /** The newest ledger row for this declaration (the write step preferred). */
   last_run?: StandingLastRun | null;
+}
+
+/** One ledger row of a declaration (ADR-658 D6): the step, its outcome, when. */
+export interface StandingRun {
+  step: 'sweep' | 'write' | string;
+  status: string;
+  error_reason?: string | null;
+  at?: string | null;
+  cost_usd?: number | null;
+}
+
+/** The detail (ADR-658 D6): the summary, the instructions as text, the runs. */
+export interface StandingDetailData {
+  summary: StandingSummary;
+  contract_path: string;
+  contract?: string | null;
+  runs: StandingRun[];
+}
+
+/** A pre-shaped start (ADR-658 D7): a verb bound to a connection the member
+ *  already holds, DERIVED from the capture bindings — or the HTTP start. */
+export interface StandingStart {
+  kind: 'connector' | 'url' | string;
+  connector?: string | null;
+  name: string;
+  reads?: string | null;
+  selectors: string[];
+  title: string;
+  suggested_folder: string;
+  suggested_target: string;
+  suggested_schedule: string;
+  contract_seed: string;
+}
+
+/** What the door takes (ADR-658 D4) — every field one the composer already knows. */
+export interface StandingCreateRequest {
+  folder: string;
+  target: string;
+  schedule: string | string[];
+  contract: string;
+  app?: string | null;
+  sources?: Array<{ id: string; url?: string; connector?: string; selector?: string }>;
+  shape?: Record<string, unknown> | null;
 }
 
 /** A topic is a meaning-folder path — encode each segment, keep the '/'
@@ -973,16 +1021,43 @@ export const api = {
   },
 
   // ADR-639 — standing work: the kept file, a kernel lane (not an app).
-  // Declarations are conversational (any colleague authors them beside the
-  // file under `declaring-standing-work` — no create route); these are the
-  // roster the Notifications "Standing work" pane reads plus its two switches.
+  // ADR-658 — its surface: the roster (read by the Notifications mirror AND
+  // the Supervisor's `work` band — ONE reader), the starts, the door, the
+  // detail, the composer's fields on update, retire, and the two switches.
   standing: {
     list: () => request<StandingSummary[]>("/api/standing"),
-    update: (topic: string, data: { paused?: boolean }) =>
+    /** The pre-shaped starts, derived from what is connected (ADR-658 D7). */
+    starts: () => request<StandingStart[]>("/api/standing/starts"),
+    /** The door (ADR-658 D4). A refusal rides `detail.problem` by name. */
+    create: (body: StandingCreateRequest) =>
+      request<StandingSummary>("/api/standing", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    /** The detail (ADR-658 D6): summary · instructions · runs. */
+    get: (topic: string) =>
+      request<StandingDetailData>(`/api/standing/${encodeTopic(topic)}`),
+    update: (
+      topic: string,
+      data: {
+        paused?: boolean;
+        schedule?: string | string[];
+        sources?: Array<{ id: string; url?: string; connector?: string; selector?: string }>;
+        shape?: Record<string, unknown> | null;
+        target?: string;
+      },
+    ) =>
       request<StandingSummary>(`/api/standing/${encodeTopic(topic)}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    /** Retire (ADR-658 §6.2): the declaration goes to Trash; the kept file and
+     *  its instructions stay, history intact. */
+    retire: (topic: string) =>
+      request<{ success: boolean; topic: string; archived_path: string; kept: string[] }>(
+        `/api/standing/${encodeTopic(topic)}`,
+        { method: "DELETE" },
+      ),
     /** Run now — the manual fire (takes the same claim as the scheduler, ADR-618 D2). */
     run: (topic: string) =>
       request<{ success: boolean; no_change?: boolean; error_reason?: string; detail?: string }>(
@@ -1625,13 +1700,13 @@ export const api = {
   // envelope as `agents` and rendered by components/agents/AgentsSurface.tsx.
 
 
-  // ADR-656 — the Supervisor app's read door. The surfaces payload says the
-  // app exists; this says what it SHOWS when opened.
+  // ADR-656 → ADR-658 — the Supervisor app's read door for its COMPOSED bands
+  // (needs-you · note). The `work` band is the standing roster and reads
+  // `standing.list` — the ONE reader — beside this.
   supervisor: {
     state: () =>
       request<{
         needs_you: Array<{ lane_id: string; title: string; excerpt: string; at?: string | null }>;
-        threads: Array<{ lane_id: string; title: string; app: string; agent: string; at?: string | null }>;
         note: { path: string; content: string } | null;
       }>("/api/supervisor/state"),
   },

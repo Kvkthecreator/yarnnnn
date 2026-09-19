@@ -1,21 +1,29 @@
-"""The Supervisor app's served state (ADR-656 §7) — its three bands, read.
+"""The Supervisor app's served state (ADR-656 §7 → ADR-658 D5) — two bands, read.
 
 The app's surface renders DECLARED sections, so something must answer what each
-one shows. That is this module: three bounded reads, one per band, each over
-material that ALREADY EXISTS.
+one shows. That is this module for two of them: bounded reads over material
+that ALREADY EXISTS.
 
     needs-you  → `mentions.list_mentions`  (ADR-605/637's attention derivation)
-    threads    → the member's conversations (`chat_sessions` + cast membership)
     note       → one rendered `.md` from the workspace
+
+The third band — `work`, the app's reason (ADR-658 D5) — is NOT composed here:
+it is the standing roster, and the roster has ONE reader, `GET /api/standing`
+(routes/standing_work.py). A second composition of the same rows in this
+payload would be the two-readers drift ADR-637 ended for attention; the
+surface mounts the one route directly, beside this state.
+
+⚠️ `threads` is DELETED (ADR-658 §2): a list of chat conversations answered
+nothing a member asks, and it read `chat_sessions` — so a first-time member
+opened to an empty band. The kind, its renderer and `THREAD_CAP` are gone.
 
 ⭐ NOTHING HERE IS A NEW SOURCE OF TRUTH. Each band is a READING of a ledger
 that other surfaces already read — which is the test ADR-435 set and the last
-composition failed. The difference is the COMPOSITION: no other surface shows
-work in flight, so this one redirects to nothing.
+composition failed. The difference is the COMPOSITION.
 
 ⚠️ EVERY BAND DEGRADES CLOSED AND INDEPENDENTLY. This payload drives a surface;
 a band that cannot be read returns empty rather than failing the pane, and one
-band's failure never blanks the other two. The ADR-630/653 posture for a
+band's failure never blanks the other. The ADR-630/653 posture for a
 member-facing read: a broken part must not be able to take the whole surface
 down with it.
 """
@@ -27,14 +35,9 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-#: How many threads the band shows. A bound read: this runs on a surface the
-#: member opens, and a supervisor that lists two hundred conversations has
-#: answered "what is underway" with "everything", which is the same as nothing.
-THREAD_CAP = 30
-
-#: How many unresolved mentions the band shows. Smaller than the thread cap on
-#: purpose — band 2's discipline is that most of the time there is nothing to
-#: raise, and a long "waiting on you" list is the noise failure with a scrollbar.
+#: How many unresolved mentions the band shows. Small on purpose — the band's
+#: discipline is that most of the time there is nothing to raise, and a long
+#: "waiting on you" list is the noise failure with a scrollbar.
 NEEDS_YOU_CAP = 10
 
 #: The app's own note. `supervisor/` holds what the app knows ABOUT the work as
@@ -71,50 +74,6 @@ def _needs_you(workspace_id: str, user_id: str) -> list[dict]:
     ]
 
 
-def _threads(client: Any, user_id: str) -> list[dict]:
-    """Band: *what is underway?* — the member's conversations, newest first.
-
-    ⭐ THE KIND THIS APP EXISTS FOR. No other surface shows work in flight:
-    Files shows files, Chat shows one conversation at a time, Notifications
-    shows what already happened. This band is why the app is not the
-    "glorified redirect" ADR-435 deleted the last composition for being.
-
-    The resident is DERIVED per row (`_lane_agent`), never stored — so a thread
-    reads as belonging to whoever its app declares TODAY (ADR-597 D1).
-    """
-    try:
-        from routes.lanes import _lane_agent
-
-        rows = (
-            client.table("chat_sessions")
-            .select("id, status, context_metadata, updated_at")
-            .eq("user_id", user_id)
-            .eq("status", "active")
-            .order("updated_at", desc=True)
-            .limit(THREAD_CAP)
-            .execute()
-        ).data or []
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[SUPERVISOR] threads unavailable: %s", exc)
-        return []
-
-    out: list[dict] = []
-    for row in rows:
-        meta = ((row.get("context_metadata") or {}).get("lane")) or {}
-        if not meta:
-            continue  # not a lane — a legacy session shape, not work in flight
-        out.append({
-            "lane_id": row.get("id"),
-            "title": meta.get("name") or "Untitled",
-            # The app this thread belongs to — the routing edge (ADR-656 §4).
-            # Empty means it belongs to nothing, which is the gap routing fills.
-            "app": meta.get("app") or "",
-            "agent": _lane_agent(meta) or "",
-            "at": row.get("updated_at"),
-        })
-    return out
-
-
 def _note(client: Any, user_id: str) -> Optional[dict]:
     """Band: *what did we decide?* — one rendered `.md`, or None.
 
@@ -145,7 +104,7 @@ def _note(client: Any, user_id: str) -> Optional[dict]:
 
 
 def supervisor_state(client: Any, user_id: str, workspace_id: str) -> dict:
-    """The three bands, composed. Never raises.
+    """The two composed bands. Never raises.
 
     ⚠️ The bands are read INDEPENDENTLY and each degrades to its own empty.
     One unreadable band must not blank the surface — a pane that goes dark
@@ -153,6 +112,5 @@ def supervisor_state(client: Any, user_id: str, workspace_id: str) -> dict:
     """
     return {
         "needs_you": _needs_you(workspace_id, user_id),
-        "threads": _threads(client, user_id),
         "note": _note(client, user_id),
     }

@@ -360,13 +360,23 @@ from services.agents_registry import historical_agent_name, resolve_agent  # noq
 from services.authoring import all_apps, resolve_app  # noqa: E402
 from services.kernel_surfaces import KERNEL_SURFACES  # noqa: E402
 
-check("the register is exactly {editor, designer, blogger}", set(AGENTS) == {"editor", "designer", "blogger"})
-check("supervisor does not resolve (nothing routes a turn to it)", resolve_agent("supervisor") is None)
-check("…but its name is still legible on the rows it signed (display only)",
+# ADR-656 revived `supervisor` as a DIFFERENT being (its material is the
+# member's own work, ADR-658: standing work surfaced), so the register is four
+# and the slug resolves. What D4 deleted stays deleted: the keeper executor and
+# the strings app below. These three lines were RED from 2026-09-18 until
+# ADR-658 A1.7 amended them — ADR-656 §9 never listed this gate.
+check("the register is exactly {editor, designer, blogger, supervisor}",
+      set(AGENTS) == {"editor", "designer", "blogger", "supervisor"})
+check("supervisor resolves — it is the resident of a pane a member opens (ADR-656 D1)",
+      resolve_agent("supervisor") is not None)
+check("…and its name is still legible on the rows it signed (display only)",
       historical_agent_name("supervisor") == "Supervisor" and historical_agent_name("editor") is None)
 check("lanes.py resolves transcript speakers through the historical table",
       "historical_agent_name(" in _code_only(_read("api/routes/lanes.py")))
-check("the apps are exactly {slides, text, images, blogger}", set(all_apps()) == {"slides", "text", "images", "blogger"})
+check("the apps are exactly {slides, text, images, blogger, supervisor}",
+      set(all_apps()) == {"slides", "text", "images", "blogger", "supervisor"})
+check("the supervisor app declares NO standing_executor (ADR-658 D3: it surfaces, never executes)",
+      not (resolve_app("supervisor") or {}).get("standing_executor"))
 check("no strings registration", resolve_app("strings") is None)
 check("no strings surface row", not [e for e in KERNEL_SURFACES if e.get("slug") == "strings"])
 for gone in ("api/services/strings.py", "api/routes/strings.py",

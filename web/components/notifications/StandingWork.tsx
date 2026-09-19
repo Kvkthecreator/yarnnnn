@@ -13,59 +13,24 @@
  * and left with it: the file is read at its own surface (Files / Text), the
  * runs are receipts in the Activity pane beside this one.
  *
- * Declaring is a CONVERSATION: any colleague holds `declaring-standing-work`,
- * so the empty state says so rather than offering a form (ADR-569 D7's
- * form-free discipline, unchanged).
+ * ADR-658 A1.5: this pane is the MIRROR (ADR-340 D1 — complete, neutral,
+ * never deleted). The Supervisor app is the COMPOSITION — the door, the
+ * starts, the detail — and the ROW is one shared component mounted by both
+ * (`components/standing/StandingRow`, the ADR-340 D8 rule: one body, two
+ * mounts). Setting standing work up is the Supervisor's act or a
+ * conversation under `declaring-standing-work`; the empty state names both.
  *
  * DP29: everything here is derived at read time from the roster the server
- * composes; nothing is stored. `runStatusLine` is the three-way refusal
- * renderer lifted verbatim from the deleted pane — an honest refusal reads
- * as what it is, never as "failed".
+ * composes; nothing is stored.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, FolderOpen, Loader2, Pause, Play, RefreshCw, Zap } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
-import { api, type StandingLastRun, type StandingSummary } from '@/lib/api/client';
+import { StandingRow } from '@/components/standing/StandingRow';
+import { api, type StandingSummary } from '@/lib/api/client';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useFeedback } from '@/contexts/FeedbackContext';
-import { formatLedgerTime } from '@/lib/formatting';
-import { cn } from '@/lib/utils';
-
-/** Operator words for a declaration that parses but cannot run. */
-const PROBLEM_COPY: Record<string, string> = {
-  missing_target: 'No file named. The instructions don’t say which file to keep current.',
-  invalid_target: 'The file to keep current must be in the same folder as the instructions.',
-  unsupported_format: 'Only md, csv, json and txt files can be kept current.',
-  sources_invalid: 'The sources aren’t valid. A data file (csv or json) takes exactly one source.',
-  app_invalid: 'The instructions name an app that doesn’t exist.',
-};
-
-function runStatusLine(e: StandingLastRun): string {
-  if (e.status === 'skipped' && e.error_reason === 'no_change') return 'Ran. Nothing changed';
-  if (e.status === 'skipped' && e.error_reason === 'router_disabled') return 'Skipped. The engine is unavailable';
-  if (e.status === 'skipped') return `Skipped${e.error_reason ? ` — ${e.error_reason}` : ''}`;
-  if (e.status === 'success') return 'Ran. The file was updated';
-  if (e.error_reason === 'shape_violation') return 'Not updated. The new data didn’t fit the file’s shape';
-  if (e.error_reason === 'no_sources_fetched') return 'No source could be read';
-  if (e.error_reason === 'balance_exhausted') return 'Did not run. The workspace balance is used up';
-  return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
-}
-
-/** The cadence, and the clock it is read in.
- *
- * A bare cron says nothing about its timezone, and the "next" beside it is
- * rendered in the BROWSER's — so a Seoul workspace read from Seoul showed
- * `0 13 * * *` next to a 1pm that agreed by luck, and read from anywhere else
- * showed two times, one of which is nobody's. The schedule resolves against
- * the WORKSPACE's clock (migration 247); name it. UTC is left unlabelled —
- * it is the default and the label would be noise on every undeclared row.
- */
-function scheduleLine(s: StandingSummary['schedule'], tz?: string | null): string {
-  if (!s) return 'no cadence';
-  const cadence = Array.isArray(s) ? s.join(' · ') : String(s);
-  return tz && tz !== 'UTC' ? `${cadence} · ${tz}` : cadence;
-}
 
 export function StandingWork() {
   const { navigateToSurface } = useSurfacePreferences();
@@ -144,8 +109,7 @@ export function StandingWork() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-6 py-3">
         <p className="text-xs text-muted-foreground">
-          Files kept current on a schedule. To keep another file current, ask an agent in
-          chat. It writes the instructions next to the file.
+          Files kept current on a schedule. Set one up in Supervisor, or ask an agent in chat.
         </p>
         <button
           type="button"
@@ -168,108 +132,31 @@ export function StandingWork() {
           <div className="rounded-md border border-dashed border-border px-4 py-6 text-center">
             <p className="text-sm text-foreground">Nothing is kept current yet.</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Open a file in Text and tell Editor what it should stay true to and where its
-              updates come from. The instructions go next to the file and run on a schedule.
+              Set one up in Supervisor, or ask an agent in chat. The instructions go next to
+              the file and run on a schedule.
             </p>
+            <button
+              type="button"
+              onClick={() => navigateToSurface('supervisor')}
+              className="mt-3 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
+            >
+              Open Supervisor
+            </button>
           </div>
         )}
 
         <ul className="space-y-3">
-          {rows.map((row) => {
-            const kept = row.target_path ?? `/workspace/${row.topic}/${row.target}`;
-            const isBusy = busy === row.topic;
-            return (
-              <li key={row.topic} className="rounded-lg border border-border/70 bg-background p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => navigateToSurface('files', { path: kept })}
-                      className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:underline"
-                      title="Open in Files"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="truncate">{row.target || '(no target)'}</span>
-                    </button>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.topic}</p>
-                    <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarClock className="h-3 w-3" /> {scheduleLine(row.schedule, row.timezone)}
-                      </span>
-                      {row.paused && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground/70">
-                          Paused
-                        </span>
-                      )}
-                      {row.next_run_at && !row.paused && (
-                        <span>next {formatLedgerTime(row.next_run_at)}</span>
-                      )}
-                      {row.sources.length > 0 && (
-                        <span>
-                          {row.sources.length} source{row.sources.length === 1 ? '' : 's'}
-                        </span>
-                      )}
-                    </p>
-                    {/* A connector slice captures what the CONNECTION reads, and
-                        the binding says so itself (`reads`, served) — shown here
-                        so a member sees that a GitHub slice is issue + PR
-                        activity, not a commit log, before a run says "no landed
-                        snapshot" (Part P owed 2). */}
-                    {row.sources.some((s) => s.connector) && (
-                      <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
-                        {row.sources.filter((s) => s.connector).map((s) => (
-                          <li key={s.id} className="truncate">
-                            <span className="font-medium text-foreground/70">{s.connector}</span>
-                            {s.selector ? ` · ${s.selector}` : ''}
-                            {s.reads ? ` — reads ${s.reads}` : ''}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void runNow(row)}
-                      disabled={isBusy || row.problem != null}
-                      title={row.problem != null
-                        ? 'It can’t run until its instructions are fixed'
-                        : 'Update the file now'}
-                      className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
-                    >
-                      {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                      Run now
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void togglePause(row)}
-                      disabled={isBusy}
-                      className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
-                    >
-                      {row.paused
-                        ? (<><Play className="h-3.5 w-3.5" /> Resume</>)
-                        : (<><Pause className="h-3.5 w-3.5" /> Pause</>)}
-                    </button>
-                  </div>
-                </div>
-
-                {row.problem != null && (
-                  <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                    {PROBLEM_COPY[row.problem] ?? `Cannot run: ${row.problem}`} Ask a colleague to repair the declaration.
-                  </p>
-                )}
-
-                {(note[row.topic] || row.last_run) && (
-                  <p className={cn('mt-3 text-xs', note[row.topic] ? 'text-foreground' : 'text-muted-foreground')}>
-                    {note[row.topic]
-                      ?? (row.last_run
-                        ? `${runStatusLine(row.last_run)}${row.last_run.at ? ` · ${formatLedgerTime(row.last_run.at)}` : ''}`
-                        : null)}
-                  </p>
-                )}
-              </li>
-            );
-          })}
+          {rows.map((row) => (
+            <StandingRow
+              key={row.topic}
+              row={row}
+              busy={busy === row.topic}
+              note={note[row.topic]}
+              onRunNow={(r) => void runNow(r)}
+              onTogglePause={(r) => void togglePause(r)}
+              onOpenFile={(r) => navigateToSurface('files', { path: r.target_path ?? `/workspace/${r.topic}/${r.target}` })}
+            />
+          ))}
         </ul>
       </div>
     </div>

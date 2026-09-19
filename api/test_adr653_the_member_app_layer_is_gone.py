@@ -268,8 +268,11 @@ check("the declared pin agrees with the derivation",
 _sec = _strip_comments_ts(_read(_WEB, "components/supervisor/SupervisorSection.tsx"))
 check("the section dispatch exists", bool(_sec))
 check("dispatch is by KIND", "switch (kind)" in _sec)
-for _kind in ("needs-you", "threads", "note"):
+# ADR-658 D5: the vocabulary is work · needs-you · note; `threads` is DELETED
+# (a list of chat conversations answered nothing a member asks).
+for _kind in ("work", "needs-you", "note"):
     check(f"the client draws {_kind!r}", f"case '{_kind}':" in _sec)
+check("the client no longer draws `threads` (ADR-658 §2)", "case 'threads':" not in _sec)
 
 # ⚠️ An unknown kind renders the HONEST MISS, never a blank. Silence is the
 # failure mode: a blank band reads as "this app has nothing" and a member
@@ -296,8 +299,10 @@ check("band 2 names who is minding it", "looks after this." in _surf)
 check("the resting copy reassures rather than reporting absence",
       "Nothing is waiting on you." in _sec and "No items" not in _sec)
 
-# The supervisor does the work of no thread: its one act is a NAVIGATION.
-check("the surface's only act is opening a thread",
+# The supervisor does the work of no thread: a mention opens as a NAVIGATION.
+# (ADR-658 adds the standing-work verbs — create, pause, run, retire — which
+# are acts on DECLARATIONS, never on beings.)
+check("opening a mention navigates to chat",
       "navigateToSurface('chat'" in _surf)
 
 _sup_ts = _strip_comments_ts(_read(_WEB, "types/surface.ts"))

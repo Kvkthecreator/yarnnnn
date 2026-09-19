@@ -1,6 +1,9 @@
 # ADR-658 — The Supervisor manages standing work: the app is the door a member can reach
 
-> **Status**: **Proposed** (2026-09-18) — supersedes **ADR-656** (the Supervisor app, Phases 1–2).
+> **Status**: **Accepted + Implemented** (2026-09-19; Proposed 2026-09-18) — supersedes **ADR-656** (the Supervisor app,
+> Phases 1–2). **Amendment 1** (2026-09-19, below the decisions): the audit of this ADR's own claims, the
+> operator's registry framing ruled, and three additions — D6 the detail, D7 the pre-shaped starts, the
+> mirror/composition split. Gate: `api/test_adr658_standing_work_surface.py`.
 > **Date**: 2026-09-18
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **What** (the work itself — the material a member manages).
@@ -65,7 +68,13 @@ The mechanism for exactly that already exists and **nobody can reach it**:
   route"*.
 - `docs/SESSION-HANDOFF.md` has carried *"a Files door for declaring standing work"* as open debt
   **since 2026-09-04** — two weeks.
-- Live prod: **0 standing declarations**.
+- Live prod, re-run 2026-09-19: **0 standing declarations** (0 archived too), `tasks` holds 0 rows, and the
+  newest standing receipt is 2026-09-06 — six runs in thirty days, all of one folder the operator has
+  since removed.
+- ⚠️ *"nothing lists what they have declared"* (the draft's wording) **overstated** — the Notifications
+  window's **Standing work** pane (ADR-639 D4) lists declarations with Run now and Pause, and Reach shows
+  which declarations read through a connection. What is missing is a **door**, a **detail**, and a home
+  that is not a window about *what already happened*. Amendment A1.5 rules the shape.
 
 ⚠️ **The gap is NOT that creation is impossible — that framing is wrong and was corrected during
 this ADR's own drafting.** A member can create a declaration today by *asking in chat*: the
@@ -262,13 +271,163 @@ work sees it immediately. That is the whole difference from ADR-656.
 
 | The member says | The declaration |
 |---|---|
-| *"keep a weekly report on my shop"* | `sources: [{connector: mcp:shopify}]`, `schedule: "0 9 * * 1"`, `target: report.md` |
+| *"keep a weekly brief of my team's channels"* | `sources: [{connector: slack, selector: C0123}]`, `schedule: "0 9 * * 1"`, `target: brief.md` |
 | *"track my MRR daily"* | `target: metrics.csv`, `shape.columns: [date, mrr]` |
 | *"watch these pages and keep a brief"* | `sources: [{url: …}]`, `target: brief.md` |
 
 Each is a verb + a connected system + a cadence. The app is where they are created, seen, paused and
-read. **This is what "an evolved plugin" means here** — the connector supplies reach, the declaration
+read. ⚠️ A connector source is one the kernel holds a **capture binding** for — Slack, Notion and GitHub
+today (`CONNECTOR_CAPTURE_BINDINGS`); an attached MCP server is reach for a *turn*, not a source for a
+run (`_reach_connector_sources` answers `no_binding`). The first draft's `mcp:shopify` example promised
+what the kernel refuses and is corrected here. **This is what "an evolved plugin" means here** — the connector supplies reach, the declaration
 supplies the verb and the cadence, the derivation supplies the worker.
+
+---
+
+## Amendment 1 (2026-09-19) — the audit, the operator's registry framing, and three additions
+
+> Operator, 2026-09-19: *"we should assess if we should implement a dedicated registry for tasks … tasks
+> can be dedicated a dedicated domain or data handling scope … the architecture … scheduling, automation,
+> connectors, should be first class and thus a container … [the registry] can either be pre-determined
+> handling (much like a scaffolding of plugins) or a builder … display this information within the
+> supervisor app much like a cockpit showing the list of tasks, then route into per task details, where you
+> configure and manage."*
+
+### A1.1 The registry exists, and it is DERIVED — a second one is refused
+
+What the framing asks for — a first-class, listable, addressable unit that binds scheduling, connectors
+and an executor — is what a standing declaration already IS, and its registry is already two things: the
+substrate row (`{folder}/_standing.yaml` + `CONTRACT.md`, attributed and versioned — Axiom 1) and the thin
+index `tasks` (`kind='standing'`), materialized from discovery and *"fully reconstructable from filesystem
+state"* (ADR-231 D4 Path B; ADR-639 D3). A dedicated registry table or object would be a second authority
+over the same fact — the two-authorities defect `supervisor_state.py` itself cites (ADR-495 D3) — and
+reopens ADR-231 D4 with no new evidence. **So: first-class, yes — it already is. A dedicated store, no.**
+
+Two vocabulary rulings ride with this. *Task* was dissolved by ADR-231 D8 and is a banned synonym in
+member copy (VOICE §1.10 names *recurrence, task, scheduled action* as three words for one thing); the
+member's word is **standing work**, the file is **instructions**, the cadence is **on a schedule**. And the
+*scope* the framing asks for is the folder (ADR-384: directory is meaning; ADR-569 D1/D2: one declaration
+per folder, the writer confined to its designated leaf) — nothing is minted for it.
+
+### A1.2 The container's three legs are the declaration's own fields
+
+| the framing | the field | the mechanism |
+|---|---|---|
+| inputs — connectors, context in | `sources[]` | a connector slice at the connection's aperture (ADR-594 D2, reach with a receipt) or an HTTP pull; raws retained under `inbound/` (DP32) |
+| orchestration and intelligence | `app` → the derived executor · `CONTRACT.md` | the standing frame + the craft skill, one bounded judgment turn (ADR-639 D1/D2; ADR-618) |
+| communication and display | `target` · the ledger | the kept file with `derived_from` citing the raws; `standing-sweep:` / `standing-write:` receipts; this surface |
+
+⚠️ **One correction to "multi-agent orchestration"**: a declaration has exactly ONE executor, derived from
+the target's type (§4). There is no orchestrator over other agents and no fan-out — that is ADR-596 D1's
+deliberate limit, not a gap. The Claude-Projects analogue (a container whose context is shared across
+sessions) is the **workspace itself** (ADR-411; ADR-656 D4), so no per-item memory store is built either.
+
+### A1.3 D7 — scaffold AND builder; the scaffold is DERIVED from reach
+
+The builder is D4's door. The scaffold is the **pre-shaped start**: a verb bound to a connection the member
+already holds. A start is derived at read time from the acting workspace's connections ∩
+`CONNECTOR_CAPTURE_BINDINGS` (the platforms a capture binding exists for), carrying the binding's own
+`reads` sentence and the selectors chosen at that connection's aperture (`landscape.selected_sources`) —
+never a hand-typed template table. The ADR-657 lesson applies verbatim: when a screen asks a human to type
+what the system already knows, the knowledge is missing upstream. `GET /api/standing/starts` serves them;
+the door opens pre-filled from one; an HTTP start is always offered; with nothing connected, the empty
+state names Reach as the next step. A door-created declaration carries `fire_on_activation: true`, so its
+first run fires on the next tick rather than at the first cron boundary — the member sees the file
+change within minutes, which is the whole first impression.
+
+### A1.4 D6 — the cockpit routes into a detail
+
+§7's `work` band is the list. The framing's *"route into per task details, where you configure and
+manage"* is added as **D6**, with canon precedent: ADR-231 D7's *detail mode* (the declaration, its runs
+filtered by slug, the latest output, edit affordances) over the successor object. ADR-639 D4 deleted the
+strings pane's composed view as chrome (*sources as parties · consumers · head facts · seeds*); D6 is not
+that. It is bounded to the declaration's own facts:
+
+- `GET /api/standing/{topic}` — the summary, the instructions text, the recent runs from the ledger, and
+  the derived minder.
+- `PATCH /api/standing/{topic}` widens from `paused` to the composer's own fields (`schedule · sources ·
+  shape · target`); every write is `compose_standing_yaml` → `parse_standing_yaml` → `write_revision`,
+  **refused by problem name before anything lands**. The route's earlier refusal to widen guarded against
+  rebuilding a form ADR-567 D3 replaced; D4 has already made direct manipulation a door, so the fields are
+  editable where they are created. Pausing a declaration already in a problem state stays allowed.
+- `DELETE /api/standing/{topic}` — retire (§6.2, A1.6).
+- Instructions are edited as the file they are (`PATCH /api/workspace/file`), never through a second
+  door; the detail links to that edit.
+
+### A1.5 The roster has a mirror already — and that is not the defect
+
+§1.1's draft claim is corrected above. ADR-340 D1 settles the shape: the Notifications pane is the
+**mirror** (complete, neutral, never deleted); this app is the **composition** (the door, the starts, the
+detail); and by ADR-340 D8 — *one body, two mounts* — the row is one shared component
+(`web/components/standing/StandingRow.tsx`). Nothing is rendered twice by two codes; the mirror's empty
+state names this app as where standing work is set up.
+
+### A1.6 The tombstone hazard, driven
+
+`write_revision` on an archived path UPDATES the row and leaves `lifecycle='archived'` unless told
+otherwise — so a retire-then-recreate would land the new declaration in Trash: undiscovered, silently never
+run, with a roster that says nothing. Ruled: retire is `archive_live_file` on `_standing.yaml` alone (the
+one delete — ADR-209-attributed, Trash-restorable; the instructions and the target untouched), and the
+door writes with `lifecycle="active"` (restore-as-write, the `restore_live_file` shape). The gate drives
+create → retire → create on a client that models Trash and asserts the second declaration is live and
+discovered. `_move_file`'s own tombstone blindness stays the separate open item it already is.
+
+### A1.7 Gate findings at baseline
+
+`test_adr639_standing_work.py` was **RED at baseline** — three checks stale since ADR-656 revived
+`supervisor` (*the register is exactly {editor, designer, blogger}* · *supervisor does not resolve* · *the
+apps are exactly {slides, text, images, blogger}*). ADR-656 §9 did not list it. Amended here to the live
+truth. Baselines run, not read: `test_agent_registry` 145/145 · `test_adr653` 94/94 · `test_adr592` 45/45 ·
+`test_adr338` 17/17 · `test_adr297` 161/0.
+
+### A1.8 The manual run could double-fire — driven, and closed at the door
+
+The click-pass found it with money on it. The door arms a new declaration (`fire_on_activation`), so the
+production scheduler drained it at **04:27:25 UTC**; the member's Run now click landed six seconds later
+and the declaration ran **twice** — two sweeps, two judgment turns, two derivation revisions of `brief.md`,
+two charges ($0.0139 + $0.0095). ADR-618 D2's claim did not hold across the two doors: `claim_run` is a CAS
+against the value **its caller read**, and a caller that reads *after* the drain's claim reads the drain's
+**sentinel** — which still equals itself, so the manual claim succeeds. The door makes this race likely
+(create → the tick fires within the minute → the member clicks), so it is closed here rather than named:
+`_claim_in_flight` refuses when the stored `next_run_at` is one the schedule **could not have produced** —
+in the future, and not `compute_next_run_at`'s boundary for this declaration (a minute's tolerance). A due
+row and the ordinary armed row both stay claimable, because Run now is table stakes. Driven three ways in
+the gate with a spy in place of the sweep, and falsified RED. ⚠️ The drain's own side still trusts the CAS
+alone; it has one instance, so nothing double-fires there today — named, not built.
+
+### A1.9 Bands ARRIVE independently, not only degrade independently
+
+The first cut awaited the surface's three reads together. On the click-pass the mentions read took **23
+seconds**, and it held the roster — and even an opened detail — behind one spinner: the app's reason,
+waiting on the band least likely to have anything in it. Each read now lands on its own; a band whose
+read is still out says *Loading…* itself; an opened detail reads only its own route. Measured: the cockpit
+rendered **3.9 s** after the dock click, against 23 s+ before. ⚠️ Why the mentions read is that slow from a
+cold local API is the shared-service-client item already open in SESSION-HANDOFF, not this ADR's.
+
+### A1.10 The click-pass, driven (2026-09-19)
+
+An isolated headless Chrome (another session held the shared DevTools profile), logged in through the app's
+own `/auth/callback?token_hash=` path, against a local API on the production database:
+
+- the empty state offered **four derived starts** — Slack, Notion, GitHub, a web page — from the operator's
+  live connections; a connection with nothing chosen says so and points at Reach instead of offering an
+  empty picker;
+- the door refused `deck.pptx` in the member's words, then created `click-pass-brief/brief.md` (revision
+  `a760ff2b`); the detail showed the file, **Editor looks after this**, *Every weekday at 09:00 ·
+  Asia/Seoul*, the source and the instructions;
+- Run now wrote the file — a real HTTP pull and one bounded judgment turn; `brief.md` cites its source —
+  and the detail listed the runs from the ledger;
+- Pause (`7851a277`) and Resume (`b0454afd`) landed as attributed revisions of the declaration;
+- the **mirror** (bell → Open Notifications → Standing work) listed the same row with the same minder and
+  names the Supervisor as where standing work is set up;
+- Retire (`db92b610`) archived `_standing.yaml` alone: `brief.md` and `CONTRACT.md` stayed `active` with
+  their chains, the index row was gone, and the cockpit returned to the empty state with its starts.
+
+⚠️ **Two things the drive found that are not this ADR's**, recorded in SESSION-HANDOFF: a cold load of
+`/supervisor` (or `/notifications?…`) can foreground the shell's *remembered* window instead of the one
+the URL names — the race `route-sync.ts` says it closes; and the click-pass folder is left in the
+operator's workspace for them to trash.
+
 
 ---
 
@@ -325,8 +484,19 @@ Gate: `api/test_adr658_standing_work_surface.py` (to be written with the impleme
 - `threads` is gone: the kind, its renderer and `_threads` are absent, and the surface renders the
   three declared sections. An undrawable kind still renders the amber miss.
 - Every band still degrades closed and independently.
+- **D6**: the detail serves the instructions text and the runs from the ledger for exactly that topic; a
+  widened PATCH that would produce a problem is refused by name and writes nothing; retiring archives the
+  declaration only and the tasks index drops the row.
+- **D7**: the starts are derived from connections that hold a capture binding — an attached MCP row or an
+  unbound platform yields none; the HTTP start is always present.
+- **A1.5**: the mirror and the composition mount one row component; the mirror keeps its three verbs.
+- **A1.8**: Run now against a row the drain holds is the honest no-op — no second sweep; the ordinary armed
+  row and a due row still run by hand.
+- **A1.9**: the surface's three reads are never awaited together, and an opened detail is never held behind
+  the bands' wait.
 - A browser click-pass: create a declaration from the app, see it listed with its connector, cadence
-  and derived minder, pause it, run it now, and read the target it wrote.
+  and derived minder, open its detail, pause it, run it now, read the target it wrote, and retire it
+  without destroying the file.
 
 ### 10.1 Gates this ADR inherits rather than owns
 

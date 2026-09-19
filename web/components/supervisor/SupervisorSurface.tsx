@@ -1,41 +1,46 @@
 'use client';
 
 /**
- * SupervisorSurface — the Supervisor app's pane (ADR-656 §7).
+ * SupervisorSurface — the Supervisor app's pane (ADR-656 §7 → ADR-658).
  *
  * THE FIRST COMPOSED SURFACE IN YARNNN: its shape is DECLARED (the sections
  * below) rather than mirrored from one substrate concern. That is the register
  * ADR-435 declined to name and ADR-653 D3.a promoted, and this is its first
- * tenant — which is what makes the promotion load-bearing rather than
- * decorative.
+ * tenant.
  *
- * ⭐ IT REDIRECTS TO NOTHING, which is the test ADR-435 set and the last
- * composition (Home) failed: its six slots each deep-linked to a mirror that
- * already owned the concept. Here, Files shows files, Chat shows ONE
- * conversation, Notifications shows what already happened — and none of them
- * answers *what is underway*.
+ * ⭐ WHAT IT IS FOR (ADR-658 §11): where a member creates, sees and manages the
+ * work that runs on its own — a verb bound to a connected system, minded by an
+ * agent the workspace derives. The `work` band is the cockpit; a row opens its
+ * detail (D6); the empty state offers pre-shaped starts (D7); the door creates
+ * (D4). Files shows files, Reach shows connections, Chat shows one
+ * conversation, Notifications shows what already happened — nothing else shows
+ * the work itself, which is why this is not the glorified redirect ADR-435
+ * deleted the last composition for being.
+ *
+ * ⚠️ ONE READER PER LEDGER. The roster is `api.standing.list` (the same route
+ * the Notifications mirror reads); the composed bands are `api.supervisor.state`.
+ * The three reads are independent and each degrades to its own empty — one
+ * unreadable band never blanks the surface.
  *
  * THE THREE BANDS (APP-BUILDER-UX §2.2, the part that survived the re-scope):
  *   1. what this is      — the name and the one-line claim
  *   2. who is minding it — the resident, named
  *   3. the work          — the declared sections
- *
- * ⚠️ BAND 2 IS THE RESTING STATE ONLY. "Supervisor looks after this" is a
- * complete, reassuring sentence — someone is on it and there is nothing to do.
- * The working and raising states (§4) need the resident read and are not built;
- * the discipline they encode is already here in band 3's copy, which says
- * "Nothing is waiting on you" rather than "No items".
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api/client';
+import { api, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import {
   SupervisorSection,
   type SupervisorSectionDecl,
   type SupervisorStateData,
+  type WorkBand,
 } from '@/components/supervisor/SupervisorSection';
+import { NewStandingWorkModal } from '@/components/supervisor/NewStandingWorkModal';
+import { StandingDetail } from '@/components/supervisor/StandingDetail';
 import { Working } from '@/components/shared/Working';
-import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useFeedback } from '@/contexts/FeedbackContext';
+import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 /**
  * The app's declared sections.
@@ -45,45 +50,82 @@ import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
  * surface and a bespoke one. A kind this client cannot draw renders the honest
  * amber miss rather than a blank.
  *
- * ⭐ Ordered by URGENCY, not by size. What is waiting on the member comes
- * first because band 3's job is to answer "what do I do next"; the decisions
- * note is last because it is reference, not a call to act.
+ * ⭐ Ordered by what a member manages first: the work itself, then what is
+ * waiting on them, then the decisions note — reference, not a call to act.
  */
 const SECTIONS: SupervisorSectionDecl[] = [
+  { kind: 'work', title: 'Standing work' },
   { kind: 'needs-you', title: 'Waiting on you' },
-  { kind: 'threads', title: 'Underway' },
   { kind: 'note', title: 'What we decided' },
 ];
 
 export function SupervisorSurface() {
   const [data, setData] = useState<SupervisorStateData | null>(null);
   const [failed, setFailed] = useState(false);
+  const [rows, setRows] = useState<StandingSummary[] | null>(null);
+  const [rosterFailed, setRosterFailed] = useState(false);
+  const [starts, setStarts] = useState<StandingStart[]>([]);
+  const [timezone, setTimezone] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [newOpen, setNewOpen] = useState(false);
+  const [newStart, setNewStart] = useState<StandingStart | null>(null);
   const { navigateToSurface } = useSurfacePreferences();
+  const { runAction } = useFeedback();
+  const param = useSurfaceParam('supervisor');
+  // The detail (ADR-658 D6) is a deep-linkable pane param, like every other
+  // surface's: `?supervisor.work=<topic>`.
+  const openTopic = param.get('work');
 
+  const loadRoster = useCallback(async () => {
+    try {
+      const list = await api.standing.list();
+      setRows(list);
+      setRosterFailed(false);
+      const tz = list.find((r) => r.timezone)?.timezone ?? null;
+      if (tz) setTimezone(tz);
+    } catch {
+      setRows([]);
+      setRosterFailed(true);
+    }
+  }, []);
+
+  // ⚠️ THREE READS, EACH LANDING ON ITS OWN (driven 2026-09-19). A first cut
+  // awaited them together, so a 23-second mentions read held the roster — and
+  // even an opened detail — behind one spinner. "Every band degrades
+  // independently" has a twin: every band ARRIVES independently.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const result = await api.supervisor.state();
+    api.supervisor.state().then(
+      (result) => {
         if (cancelled) return;
         // Defensive: a read path never trusts the served shape (house style).
         setData({
           needs_you: Array.isArray(result?.needs_you) ? result.needs_you : [],
-          threads: Array.isArray(result?.threads) ? result.threads : [],
           note: result?.note ?? null,
         });
-      } catch {
+      },
+      () => { if (!cancelled) setFailed(true); },
+    );
+    api.standing.list().then(
+      (list) => {
         if (cancelled) return;
-        setFailed(true);
-      }
-    })();
+        setRows(list);
+        const tz = list.find((r) => r.timezone)?.timezone ?? null;
+        if (tz) setTimezone(tz);
+      },
+      () => { if (!cancelled) { setRows([]); setRosterFailed(true); } },
+    );
+    api.standing.starts().then(
+      (st) => { if (!cancelled) setStarts(Array.isArray(st) ? st : []); },
+      () => { if (!cancelled) setStarts([]); },
+    );
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Opening a thread is the ONE act this surface has, and it is a navigation
-  // rather than a mutation — the supervisor does the work of no thread.
+  // Opening a mention is a navigation, never a mutation.
   const openLane = useCallback(
     (laneId: string) => {
       navigateToSurface('chat', { lane: laneId });
@@ -91,17 +133,83 @@ export function SupervisorSurface() {
     [navigateToSurface],
   );
 
-  if (failed) {
+  const runNow = useCallback(async (row: StandingSummary) => {
+    if (busy) return;
+    setBusy(row.topic);
+    try {
+      const res = await runAction(() => api.standing.run(row.topic), {
+        pending: `Running ${row.topic}…`,
+      });
+      const line = res.no_change
+        ? 'Ran — nothing changed.'
+        : res.success
+          ? 'Ran — the file was updated.'
+          : res.error_reason === 'shape_violation'
+            ? `Update refused — ${res.detail ?? 'the fetched data broke the file’s shape'}.`
+            : res.error_reason === 'router_disabled'
+              ? 'Skipped — the engine is unavailable on this workspace.'
+              : `Run failed (${res.error_reason ?? 'unknown'}).`;
+      setNotes((n) => ({ ...n, [row.topic]: line }));
+    } catch (e) {
+      setNotes((n) => ({ ...n, [row.topic]: `Run failed (${e instanceof Error ? e.message : String(e)}).` }));
+    } finally {
+      setBusy(null);
+      void loadRoster();
+    }
+  }, [busy, loadRoster, runAction]);
+
+  const togglePause = useCallback(async (row: StandingSummary) => {
+    if (busy) return;
+    setBusy(row.topic);
+    try {
+      await runAction(() => api.standing.update(row.topic, { paused: !row.paused }), {
+        success: row.paused ? 'Resumed' : 'Paused',
+        error: row.paused ? 'Could not resume this' : 'Could not pause this',
+      });
+    } catch {
+      /* reported; the reload below restores the true state */
+    } finally {
+      setBusy(null);
+      void loadRoster();
+    }
+  }, [busy, loadRoster, runAction]);
+
+  const work: WorkBand = {
+    rows,
+    failed: rosterFailed,
+    starts,
+    busy,
+    notes,
+    onRunNow: runNow,
+    onTogglePause: togglePause,
+    onOpen: (row) => param.set({ work: row.topic }),
+    onNew: (start) => {
+      setNewStart(start);
+      setNewOpen(true);
+    },
+    onOpenReach: () => {
+      navigateToSurface('reach');
+    },
+  };
+
+  if (failed && rosterFailed) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-          Couldn&apos;t read what&apos;s underway just now.
+          Couldn&apos;t read your work just now.
         </div>
       </div>
     );
   }
-  // ADR-651 — the ONE way to say wait, self-bounding at 6s and 30s.
-  if (!data) return <Working label="Loading…" fill />;
+  // ADR-651 — the ONE way to say wait, self-bounding at 6s and 30s. Shown only
+  // while NOTHING has arrived AND no piece of work is opened: the bands load
+  // INDEPENDENTLY (ADR-658 D5), so a slow mentions read never holds the work
+  // band — the app's reason — behind a spinner, and an opened detail reads
+  // only its own route. A band whose read is still out says "Loading…" itself.
+  if (!openTopic && !data && !failed && rows === null && !rosterFailed) return <Working label="Loading…" fill />;
+
+  // null = the composed bands' read is still out (or failed); each band says so.
+  const state: SupervisorStateData | null = data ?? (failed ? { needs_you: [], note: null } : null);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -109,7 +217,7 @@ export function SupervisorSurface() {
       <header className="border-b border-border/60 px-5 py-4">
         <h1 className="text-[15px] font-semibold text-foreground">Supervisor</h1>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          What is underway, and what needs you.
+          The work that runs on its own, and what needs you.
         </p>
       </header>
 
@@ -118,17 +226,39 @@ export function SupervisorSurface() {
         <p className="text-[13px] text-foreground/80">Supervisor looks after this.</p>
       </div>
 
-      {/* Band 3 — the declared sections. */}
-      <div className="flex-1 space-y-5 px-5 py-4">
-        {SECTIONS.map((section) => (
-          <SupervisorSection
-            key={section.kind}
-            section={section}
-            data={data}
-            onOpenLane={openLane}
-          />
-        ))}
-      </div>
+      {/* Band 3 — the declared sections, or one piece of work opened (D6). */}
+      {openTopic ? (
+        <StandingDetail
+          topic={openTopic}
+          onBack={() => param.set({ work: null })}
+          onChanged={() => void loadRoster()}
+        />
+      ) : (
+        <div className="flex-1 space-y-5 px-5 py-4">
+          {SECTIONS.map((section) => (
+            <SupervisorSection
+              key={section.kind}
+              section={section}
+              data={state}
+              work={work}
+              onOpenLane={openLane}
+            />
+          ))}
+        </div>
+      )}
+
+      <NewStandingWorkModal
+        open={newOpen}
+        start={newStart}
+        starts={starts}
+        timezone={timezone}
+        onClose={() => setNewOpen(false)}
+        onCreated={(created) => {
+          setNewOpen(false);
+          void loadRoster();
+          param.set({ work: created.topic });
+        }}
+      />
     </div>
   );
 }

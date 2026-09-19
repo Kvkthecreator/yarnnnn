@@ -1,4 +1,4 @@
-"""The Supervisor app (ADR-656) — the member's view of what is underway.
+"""The Supervisor app (ADR-656 → ADR-658) — where a member manages the work that runs on its own.
 
 The first COMPOSED kernel app: its surface's shape is DECLARED (sections over
 the workspace) rather than mirrored from one substrate concern, which is the
@@ -95,8 +95,9 @@ def supervisor_pane_posture(
 # `agents_registry.AGENTS`, never a caller-supplied model.
 #
 # ⚠️ NO `standing_executor`. The field exists (ADR-604 D2) and this app does
-# not fill it: the supervisor's subject is ATTENDED work — what the member is
-# doing now — and standing work is a kernel lane with its own executor derived
-# from the kept file's type (ADR-639). An app that claimed both would re-merge
-# the distinction ADR-639 drew.
+# not fill it. ADR-658 D3: this app is standing work's SURFACE — where a member
+# creates, sees and manages it — and executes none of it. The executor stays
+# derived per declaration from the kept file's type → its app (ADR-639 D3);
+# an app that both surfaced and executed would re-merge the distinction
+# ADR-639 drew between running work and showing it.
 register_app("supervisor", resident="supervisor", posture=supervisor_pane_posture)

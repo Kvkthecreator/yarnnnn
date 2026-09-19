@@ -878,12 +878,20 @@ def build_standing_job(decl: StandingDecl) -> str:
 
 
 def _read_file(client, user_id: str, path: str) -> Optional[str]:
+    """The LIVE file's content, or None. A reader of the substrate owes the
+    not-in-Trash predicate (the 2026-09-07 discovery lesson, ADR-658 A1.6): a
+    trashed CONTRACT.md must not govern a run, and a trashed target reads as
+    absent on the roster rather than as its last live head."""
+    from services.workspace_context import live_files_filter
+
     try:
         rows = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", path)
+            live_files_filter(
+                client.table("workspace_files")
+                .select("content")
+                .eq("user_id", user_id)
+                .eq("path", path)
+            )
             .limit(1)
             .execute()
         ).data or []

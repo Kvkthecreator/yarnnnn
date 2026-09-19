@@ -166,8 +166,25 @@ Row deleted after the pass.
   it is the one shape that fails until the above lands (§11.6).
 
 ## Standing work / apps
-- Carried since 2026-09-04: `projection.ts`'s second CSV parser · a Files door for declaring
-  standing work · blogger's first real standing declaration (compose-only) · the `/images` export click-pass.
+- **A cold URL load can foreground the shell's REMEMBERED window instead of the one the URL names**
+  (found 2026-09-19, ADR-658 click-pass). `/supervisor` rendered the Text surface with an empty Dock, and
+  on another load flipped to Files ~30s in, while the address bar still read `/supervisor`; the same for
+  `/notifications?notifications.pane=standing` — the URL the `/strings` stub redirects to. The Supervisor
+  DID mount (its three reads were served 200). This is the race `web/lib/shell/route-sync.ts` says it
+  closes; its gate did not see it. Entering through the Dock works. Not reproduced on a fresh account —
+  the operator's `member_state.shell` row carried `open: […, notifications, supervisor]` and a remembered
+  `foregrounded` at the time. Drive it before reasoning about it.
+- **The drain trusts `claim_run`'s CAS alone** (ADR-658 A1.8). The manual door now refuses a row held by a
+  claim sentinel; the drain does not check, and is safe only because there is ONE scheduler instance.
+- **`GET /api/supervisor/state` took ~23s from a cold local API** (the mentions read, through the shared
+  service client — likely the `[Errno 11]` item below). The surface no longer waits on it (A1.9); the read
+  itself is unexamined.
+- **Click-pass residue in the operator's workspace**: `click-pass-brief/` holds `brief.md`, `CONTRACT.md`,
+  a retired `_standing.yaml` (in Trash), and two raw captures under `inbound/web/`. Left for the operator
+  to trash — a session does not delete from a member's workspace on its own.
+- Carried since 2026-09-04: `projection.ts`'s second CSV parser · blogger's first real standing
+  declaration (compose-only) · the `/images` export click-pass. (The Files door for declaring standing
+  work closed 2026-09-19 as the Supervisor's door — ADR-658 D4.)
 - IMAGES tagline promises live rendering "on the canvas" — true via Designer in the lane, not a
   button; whether it wants an explicit affordance is a product call.
 

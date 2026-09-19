@@ -1,26 +1,38 @@
-"""Standing work routes — ADR-639 (the kept file's direct switches + the roster).
+"""Standing work routes — ADR-639 (the kernel lane) · ADR-658 (its surface).
 
-The pane the strings app carried is DELETED (ADR-639 D4). What survives is
-what had exactly one caller each and answers a question no other surface can:
+    GET    /standing                 — what stands: every declaration in the
+                                       acting workspace, with its last run
+    GET    /standing/starts          — the pre-shaped starts (ADR-658 D7):
+                                       derived from the connections that
+                                       hold a capture binding, never a table
+    POST   /standing                 — the door (ADR-658 D4): compose + write
+                                       CONTRACT.md and _standing.yaml through
+                                       the ONE composer and the ONE write path
+    GET    /standing/{topic}         — the detail (ADR-658 D6): the summary,
+                                       the instructions, the runs, the minder
+    PATCH  /standing/{topic}         — pause / resume, and the composer's own
+                                       fields (schedule · sources · shape ·
+                                       target), refused by problem name
+    DELETE /standing/{topic}         — retire (ADR-658 §6.2): archive the
+                                       declaration ONLY; the kept file and its
+                                       instructions stay, history intact
+    POST   /standing/{topic}/run     — Run now (the manual fire, ADR-618 D2)
 
-    GET   /standing                 — what stands: every declaration in the
-                                      acting workspace, with its last run
-    PATCH /standing/{topic}         — Pause / Resume (the direct switch)
-    POST  /standing/{topic}/run     — Run now (the manual fire, ADR-618 D2)
-
-Rendered by the Notifications "Standing work" pane. Creation stays
-CONVERSATIONAL (ADR-569 D7): a colleague authors CONTRACT.md + _standing.yaml
-through any lane under `declaring-standing-work`; the tick discovers. There
-is deliberately NO create route, and no composed per-declaration VIEW — the
-sources-as-parties, consumers and head-fact projections were pane chrome
-(ADR-595 D3) and left with it. Reading happens at the file's own surface.
+Rendered by two mounts of one row (ADR-340 D8): the Notifications "Standing
+work" pane (the mirror) and the Supervisor app's `work` band (the composition,
+which also holds the door, the starts and the detail). Creation is ALSO
+conversational (ADR-569 D7): a colleague authors the two files through any
+lane under `declaring-standing-work`; both paths emit what the one parser
+accepts, and the ADR-658 gate holds them to it.
 
 Repair states stay LOUD (ADR-569 D3): a declaration that parses but cannot
 run carries `problem`; the last run's status rides each row from the ledger,
 so a refused write is visible where the roster is.
 
 Auth boundary (ADR-501): everything scopes to the ACTING WORKSPACE'S OWNER
-user_id via ``_acting_owner``.
+user_id via ``_acting_owner``. Authority (ADR-658 D2): no route here takes or
+stores an agent slug — the minder is DERIVED at read time from the target's
+app and displayed, never written.
 """
 
 from __future__ import annotations
@@ -46,6 +58,9 @@ _SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,62}$")
 #: roster's "last run" so history stays legible; never written again.
 _LEGACY_LEDGER_PREFIXES = ("string-write:", "string-sweep:")
 
+#: How many ledger rows the detail shows (ADR-658 D6). A bound read.
+_DETAIL_RUNS = 20
+
 
 def _validate_topic(topic: str) -> str:
     """A topic is its folder path relative to /workspace/ — an EXISTING
@@ -62,6 +77,10 @@ def _validate_topic(topic: str) -> str:
             status_code=422,
             detail="topic must be 1..6 plain path segments (no traversal, no leading dots)",
         )
+    if segments[0] == "system":
+        # The kernel mirror is never a member's meaning-folder (the skill's
+        # own anti-pattern: "declaring a file that lives under system/").
+        raise HTTPException(status_code=422, detail="standing work cannot live under system/")
     return "/".join(segments)
 
 
@@ -95,12 +114,39 @@ class LastRun(BaseModel):
     at: Optional[str] = None
 
 
+class StandingMinder(BaseModel):
+    """Who is minding this piece of work — DERIVED (ADR-658 D2), never stored.
+    `target's type → its app → that app's standing executor` at read time.
+    None for a structured target, which runs mechanically and has no minder."""
+
+    slug: str
+    name: str
+
+
 class UpdateStandingRequest(BaseModel):
-    """The direct switch (ADR-569 D7). Everything else is the conversation's
-    — a silently-widened PATCH here would rebuild the form ADR-567 D3
-    replaced."""
+    """The direct switch (`paused`) plus the composer's own fields (ADR-658
+    D6). Every field is one `compose_standing_yaml` already takes; a request
+    cannot reach a key the parser does not name."""
 
     paused: Optional[bool] = None
+    schedule: Optional[Any] = None
+    sources: Optional[list[dict]] = None
+    shape: Optional[dict] = None
+    target: Optional[str] = None
+
+
+class CreateStandingRequest(BaseModel):
+    """The door (ADR-658 D4). `folder` is the topic — an existing or new
+    meaning-folder; `target` the designated leaf, one segment, md/csv/json/txt;
+    `contract` the instructions prose (load-bearing — refused when blank)."""
+
+    folder: str
+    target: str
+    schedule: Any
+    contract: str
+    app: Optional[str] = None
+    sources: list[dict] = []
+    shape: Optional[dict] = None
 
 
 class StandingSummary(BaseModel):
@@ -112,6 +158,8 @@ class StandingSummary(BaseModel):
     #: The app whose executor runs a prose declaration — explicit or derived
     #: (ADR-639 D3). None for a structured target (mechanical).
     app: Optional[str] = None
+    #: Who minds it — derived from `app` (ADR-658 D2). Never a stored field.
+    minder: Optional[StandingMinder] = None
     schedule: Optional[Any] = None
     #: The clock `schedule` is read in — the ACTING WORKSPACE's declared
     #: timezone (`workspaces.timezone`, migration 247), "UTC" when none is
@@ -131,6 +179,47 @@ class StandingSummary(BaseModel):
     last_run: Optional[LastRun] = None
 
 
+class StandingRun(BaseModel):
+    """One ledger row of this declaration (ADR-658 D6) — the step (`sweep`
+    fetches, `write` revises), its outcome, when."""
+
+    step: str
+    status: str
+    error_reason: Optional[str] = None
+    at: Optional[str] = None
+    cost_usd: Optional[float] = None
+
+
+class StandingDetail(BaseModel):
+    """The detail (ADR-658 D6): the summary, the instructions as text, the
+    recent runs. Bounded to the declaration's own facts — the strings pane's
+    parties/consumers/head-facts chrome (ADR-639 D4) is not rebuilt here."""
+
+    summary: StandingSummary
+    contract_path: str
+    contract: Optional[str] = None
+    runs: list[StandingRun] = []
+
+
+class StandingStart(BaseModel):
+    """A pre-shaped start (ADR-658 D7): a verb bound to a connection the
+    member already holds, DERIVED from the capture bindings — or the HTTP
+    start, always offered. The door opens pre-filled from one."""
+
+    kind: str  # "connector" | "url"
+    connector: Optional[str] = None
+    name: str
+    #: The binding's own statement of what a slice reads (connector starts).
+    reads: Optional[str] = None
+    #: The selectors chosen at the connection's aperture — what a source may name.
+    selectors: list[str] = []
+    title: str
+    suggested_folder: str
+    suggested_target: str
+    suggested_schedule: str
+    contract_seed: str
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -140,6 +229,12 @@ def _decl_path(topic: str) -> str:
     from services.standing_work import DECLARATION_LEAF
 
     return f"/workspace/{topic}/{DECLARATION_LEAF}"
+
+
+def _contract_path(topic: str) -> str:
+    from services.standing_work import CONTRACT_LEAF
+
+    return f"/workspace/{topic}/{CONTRACT_LEAF}"
 
 
 def _acting_workspace(auth) -> Optional[str]:
@@ -155,11 +250,18 @@ def _acting_owner(auth) -> str:
 
 
 def _read_declaration(client, user_id: str, topic: str) -> Optional[str]:
+    """The LIVE declaration's body, or None. Not-in-Trash by construction —
+    the same predicate discovery owes (2026-09-07): a retired declaration
+    must read as absent here, or Run now would fire what the roster hides."""
+    from services.workspace_context import live_files_filter
+
     rows = (
-        client.table("workspace_files")
-        .select("content")
-        .eq("user_id", user_id)
-        .eq("path", _decl_path(topic))
+        live_files_filter(
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", _decl_path(topic))
+        )
         .limit(1)
         .execute()
     ).data or []
@@ -178,7 +280,11 @@ def compose_standing_yaml(
 ) -> str:
     """Compose the ``_standing.yaml`` body — PURE machine config (ADR-569 D2:
     judgment prose lives in CONTRACT.md, which no machine writer touches).
-    Deterministic, machine-class (ADR-254): comment header + safe_dump."""
+    Deterministic, machine-class (ADR-254): comment header + safe_dump.
+
+    THE ONE COMPOSER (ADR-658 D4). The door, the switch and the widened PATCH
+    all emit through here; a second formatter is the drift `DECLARATION_KEYS`
+    was created to end."""
     payload: dict[str, Any] = {"target": target}
     if app:
         payload["app"] = app
@@ -208,7 +314,7 @@ def _parse_or_none(content: str, topic: str, user_id: str):
 
 async def _materialize(client, user_id: str) -> None:
     """Immediate index sync post-write — a switched declaration re-arms now,
-    not at the next global discovery."""
+    not at the next global discovery; a retired one drops its row now."""
     from services.standing_work import discover_standing, materialize_standing_index
     from services.workspace_context import effective_workspace_id
     decls = discover_standing(
@@ -227,6 +333,13 @@ def _index_rows(client, user_id: str) -> dict[str, dict]:
     return {r["slug"]: r for r in rows}
 
 
+def _ledger_slugs(topic: str) -> list[str]:
+    return (
+        [f"standing-write:{topic}", f"standing-sweep:{topic}"]
+        + [f"{p}{topic}" for p in _LEGACY_LEDGER_PREFIXES]
+    )
+
+
 def _last_runs(client, user_id: str, topics: list[str]) -> dict[str, LastRun]:
     """The newest ledger row per topic — one query, the write step preferred
     over the sweep step when both exist (the write is the outcome). Reads the
@@ -236,8 +349,7 @@ def _last_runs(client, user_id: str, topics: list[str]) -> dict[str, LastRun]:
         return {}
     slugs: list[str] = []
     for t in topics:
-        slugs += [f"standing-write:{t}", f"standing-sweep:{t}"]
-        slugs += [f"{p}{t}" for p in _LEGACY_LEDGER_PREFIXES]
+        slugs += _ledger_slugs(t)
     try:
         events = (
             client.table("execution_events")
@@ -265,6 +377,38 @@ def _last_runs(client, user_id: str, topics: list[str]) -> dict[str, LastRun]:
     return out
 
 
+def _recent_runs(client, user_id: str, topic: str, limit: int = _DETAIL_RUNS) -> list[StandingRun]:
+    """The detail's ledger read (ADR-658 D6): this topic's rows, newest first.
+    Never fails the detail — an unreadable ledger is an empty list."""
+    try:
+        events = (
+            client.table("execution_events")
+            .select("slug, status, created_at, error_reason, cost_usd")
+            .eq("user_id", user_id)
+            .in_("slug", _ledger_slugs(topic))
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STANDING] runs read failed for %s: %s", topic, e)
+        return []
+    out: list[StandingRun] = []
+    for e in events:
+        slug = str(e.get("slug") or "")
+        head = slug.split(":", 1)[0]
+        step = "write" if head.endswith("write") else "sweep"
+        cost = e.get("cost_usd")
+        out.append(StandingRun(
+            step=step,
+            status=e.get("status") or "unknown",
+            error_reason=e.get("error_reason"),
+            at=e.get("created_at"),
+            cost_usd=(float(cost) if cost is not None else None),
+        ))
+    return out
+
+
 def _connector_reads(platform: Optional[str]) -> Optional[str]:
     """The capture binding's own statement of what it reads, for a connector
     source — or None for an HTTP source / an unbound platform."""
@@ -274,6 +418,27 @@ def _connector_reads(platform: Optional[str]) -> Optional[str]:
 
     binding = CONNECTOR_CAPTURE_BINDINGS.get(str(platform).strip().lower())
     return (binding or {}).get("reads")
+
+
+def _minder(app: Optional[str]) -> Optional[StandingMinder]:
+    """ADR-658 D2 — the derivation, displayed. `app → standing_executor_for_app
+    → the register's name`. None when there is no app (a structured target)
+    or the app names no executor. Reads the register; writes nothing."""
+    if not app:
+        return None
+    try:
+        import services.apps  # noqa: F401  (registration side-effect — ADR-562)
+        from services.agents_registry import get_agent
+        from services.authoring import standing_executor_for_app
+
+        slug = standing_executor_for_app(app)
+        row = get_agent(slug) if slug else None
+        if not slug or row is None:
+            return None
+        return StandingMinder(slug=slug, name=str(row.get("name") or slug))
+    except Exception as e:  # noqa: BLE001 — a display derivation never fails the roster
+        logger.warning("[STANDING] minder derivation failed for app %r: %s", app, e)
+        return None
 
 
 def _summarize(client, user_id: str, decl, index_row: Optional[dict],
@@ -297,6 +462,7 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict],
         target_path=decl.target_path if (decl.target and target_head is not None) else None,
         format=decl.format,
         app=decl.app,
+        minder=_minder(decl.app),
         schedule=decl.schedule,
         paused=decl.paused,
         sources=[
@@ -317,6 +483,139 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict],
         problem=decl.problem,
         last_run=last_run,
     )
+
+
+def _summary_for(client, user_id: str, decl) -> StandingSummary:
+    return _summarize(
+        client, user_id, decl, _index_rows(client, user_id).get(decl.slug),
+        _last_runs(client, user_id, [decl.topic]).get(decl.topic),
+    )
+
+
+def _refuse(problem: str, status_code: int = 422) -> HTTPException:
+    """A refusal BY NAME (ADR-658 D4): the problem token the parser would
+    have served rides `detail.problem`, so the door can say which rule
+    refused rather than "invalid"."""
+    words = {
+        "missing_target": "Name the file to keep current.",
+        "invalid_target": "The file to keep current must be in this folder, one plain name.",
+        "unsupported_format": "Only md, csv, json and txt files can be kept current.",
+        "sources_invalid": "Add at least one source. A csv, json or txt file takes exactly one.",
+        "app_invalid": "That app does not exist.",
+        "missing_contract": "Write what the file must stay true to.",
+        "already_declared": "This folder already has standing work. Open it instead.",
+    }
+    return HTTPException(
+        status_code=status_code,
+        detail={"problem": problem, "message": words.get(problem, problem)},
+    )
+
+
+def _write_access(auth, path: str) -> None:
+    # ADR-643 D2 — a declaration schedules UNATTENDED spend (ADR-618), which
+    # makes it one of the sharper writes in the substrate; the door asks the
+    # ONE decider before composing.
+    from services.access import resolve_access
+
+    decision = resolve_access(auth, path, "write")
+    if not decision.allowed:
+        raise HTTPException(status_code=403, detail=decision.reason)
+
+
+# ---------------------------------------------------------------------------
+# The starts (ADR-658 D7) — derived from reach, never a table
+# ---------------------------------------------------------------------------
+
+#: The verb each capture binding's slice naturally supports, in the member's
+#: words. Keyed by the binding's platform; a platform with no binding has no
+#: start here by construction (the D7 rule: the kernel must be able to read
+#: the source the start names).
+_CONNECTOR_STARTS: dict[str, dict[str, str]] = {
+    "slack": {
+        "title": "Keep a brief of your Slack channels current",
+        "folder": "team-brief",
+        "target": "brief.md",
+        "schedule": "0 9 * * 1-5",
+        "contract": (
+            "A short brief of what moved in the chosen Slack channels since the "
+            "last update: decisions made, questions asked, and anything waiting "
+            "on someone. Plain sentences, dated, newest first. Leave out chatter."
+        ),
+    },
+    "notion": {
+        "title": "Keep a summary of your Notion pages current",
+        "folder": "notion-summary",
+        "target": "summary.md",
+        "schedule": "0 9 * * 1",
+        "contract": (
+            "A summary of the chosen Notion pages as they stand today: what each "
+            "page is for and what changed since the last update. One section per "
+            "page, plain sentences, no copied blocks."
+        ),
+    },
+    "github": {
+        "title": "Keep a changelog of your repositories current",
+        "folder": "changelog",
+        "target": "changelog.md",
+        "schedule": "0 9 * * 1",
+        "contract": (
+            "A changelog of the chosen repositories: issues opened and closed and "
+            "pull requests merged since the last update, grouped by repository, "
+            "newest first. Name the change, not the commit."
+        ),
+    },
+}
+
+_URL_START = StandingStart(
+    kind="url",
+    connector=None,
+    name="A web page",
+    reads=None,
+    selectors=[],
+    title="Keep a page's summary current",
+    suggested_folder="watch",
+    suggested_target="summary.md",
+    suggested_schedule="0 9 * * *",
+    contract_seed=(
+        "A summary of what the page says today and what changed since the last "
+        "update. Plain sentences, dated, newest first."
+    ),
+)
+
+
+def standing_starts(client, user_id: str) -> list[StandingStart]:
+    """The pre-shaped starts for this workspace (ADR-658 D7), DERIVED:
+    connections that are active AND hold a capture binding, each carrying the
+    binding's `reads` sentence and the selectors chosen at its aperture. The
+    HTTP start is always last. Never raises — an unreadable connection row
+    yields no start, not a broken door."""
+    from services.connectors import (
+        CONNECTOR_CAPTURE_BINDINGS, connection_row, platform_display_name,
+        selected_ids_from_row,
+    )
+
+    out: list[StandingStart] = []
+    for plat, binding in CONNECTOR_CAPTURE_BINDINGS.items():
+        shape = _CONNECTOR_STARTS.get(plat)
+        if shape is None:
+            continue
+        row = connection_row(client, user_id, plat)
+        if row is None or (row.get("status") or "active") != "active":
+            continue
+        out.append(StandingStart(
+            kind="connector",
+            connector=plat,
+            name=platform_display_name(plat),
+            reads=binding.get("reads"),
+            selectors=selected_ids_from_row(row),
+            title=shape["title"],
+            suggested_folder=shape["folder"],
+            suggested_target=shape["target"],
+            suggested_schedule=shape["schedule"],
+            contract_seed=shape["contract"],
+        ))
+    out.append(_URL_START)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -345,10 +644,115 @@ async def list_standing(auth: UserClient) -> list[StandingSummary]:
     ]
 
 
+# Declared BEFORE `/standing/{topic:path}` — a path parameter would otherwise
+# swallow the literal segment and answer 404 for a topic named "starts".
+@router.get("/standing/starts")
+async def list_standing_starts(auth: UserClient) -> list[StandingStart]:
+    """The pre-shaped starts (ADR-658 D7), derived from what the workspace's
+    owner has connected — the connections a run will actually reach through."""
+    return standing_starts(auth.client, _acting_owner(auth))
+
+
+@router.post("/standing", status_code=201)
+async def create_standing(request: CreateStandingRequest, auth: UserClient) -> StandingSummary:
+    """The door (ADR-658 D4). Composes through the ONE composer, parses through
+    the ONE parser, writes through the ONE write path — and refuses BY NAME.
+
+    Order: the folder is validated; a blank contract is refused (the contract
+    is the load-bearing half — without it no run can be judged); a folder
+    that already holds a LIVE declaration is refused (one per folder, ADR-569
+    D2); the composed YAML is parsed and any problem refuses the write; access
+    is asked; then CONTRACT.md and _standing.yaml land as `lifecycle='active'`
+    revisions (a retired declaration at this path is REVIVED, never left in
+    Trash — ADR-658 A1.6); the index is synced so the roster shows it now.
+    """
+    actor = _acting_owner(auth)
+    topic = _validate_topic(request.folder)
+    decl_path = _decl_path(topic)
+    contract_path = _contract_path(topic)
+
+    contract = (request.contract or "").strip()
+    if not contract:
+        raise _refuse("missing_contract")
+    if _read_declaration(auth.client, actor, topic) is not None:
+        raise _refuse("already_declared", status_code=409)
+
+    sources = [s for s in (request.sources or []) if isinstance(s, dict)]
+    app = (str(request.app).strip() if request.app else None) or None
+    shape = request.shape if isinstance(request.shape, dict) and request.shape else None
+    content = compose_standing_yaml(
+        target=(request.target or "").strip(),
+        app=app,
+        schedule=request.schedule,
+        paused=False,
+        sources=sources,
+        shape=shape,
+        # The first run fires on the next tick, not at the first cron boundary
+        # (ADR-658 D7): the member sees the file change within minutes.
+        fire_on_activation=True,
+    )
+    decl = _parse_or_none(content, topic, actor)
+    if decl is None:  # cannot happen for content we just composed — fail loud
+        raise HTTPException(status_code=500, detail="composed declaration unparseable")
+    if decl.problem is not None:
+        raise _refuse(decl.problem)
+
+    _write_access(auth, decl_path)
+
+    from services.authored_substrate import write_revision
+    ws = getattr(auth, "workspace_id", None)
+    write_revision(
+        auth.client,
+        user_id=actor,
+        path=contract_path,
+        content=contract + "\n",
+        authored_by="operator",
+        author_identity_uuid=auth.user_id,
+        message=f"declare standing work in '{topic}': the instructions",
+        workspace_id=ws,
+        lifecycle="active",
+    )
+    write_revision(
+        auth.client,
+        user_id=actor,
+        path=decl_path,
+        content=content,
+        authored_by="operator",
+        author_identity_uuid=auth.user_id,
+        message=f"declare standing work in '{topic}': keep '{decl.target}' current",
+        workspace_id=ws,
+        lifecycle="active",
+    )
+    await _materialize(auth.client, actor)
+    return _summary_for(auth.client, actor, decl)
+
+
+@router.get("/standing/{topic:path}")
+async def get_standing(topic: str, auth: UserClient) -> StandingDetail:
+    """The detail (ADR-658 D6): the summary, the instructions, the runs."""
+    from services.standing_work import _read_file
+
+    actor = _acting_owner(auth)
+    topic = _validate_topic(topic)
+    content = _read_declaration(auth.client, actor, topic)
+    if content is None:
+        raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
+    decl = _parse_or_none(content, topic, actor)
+    if decl is None:
+        raise HTTPException(status_code=422, detail="declaration unparseable — repair it first")
+    return StandingDetail(
+        summary=_summary_for(auth.client, actor, decl),
+        contract_path=decl.contract_path,
+        contract=_read_file(auth.client, actor, decl.contract_path),
+        runs=_recent_runs(auth.client, actor, topic),
+    )
+
+
 @router.patch("/standing/{topic:path}")
 async def update_standing(topic: str, request: UpdateStandingRequest, auth: UserClient) -> StandingSummary:
-    """The direct switch only: Pause / Resume. Everything else is the
-    conversation's."""
+    """Pause / Resume, and the composer's own fields (ADR-658 D6). A change
+    that would leave the declaration unable to run is refused BY NAME and
+    writes nothing; the pause switch alone is never refused."""
     actor = _acting_owner(auth)
     topic = _validate_topic(topic)
     content = _read_declaration(auth.client, actor, topic)
@@ -364,20 +768,23 @@ async def update_standing(topic: str, request: UpdateStandingRequest, auth: User
 
     if request.paused is not None:
         parsed["paused"] = request.paused
+    edited = False
+    if request.schedule is not None:
+        parsed["schedule"] = request.schedule
+        edited = True
+    if request.sources is not None:
+        parsed["sources"] = [s for s in request.sources if isinstance(s, dict)]
+        edited = True
+    if request.shape is not None:
+        parsed["shape"] = request.shape if request.shape else None
+        edited = True
+    if request.target is not None:
+        parsed["target"] = str(request.target).strip()
+        edited = True
 
     # fire_on_activation is consume-on-first-update (the radar lesson: a
     # re-emitted create-time flag kept a never-run declaration permanently
     # armed through every pause/resume).
-    # ADR-643 D2 — editing a standing declaration rewrites a real file, so the
-    # door asks before composing. A declaration schedules UNATTENDED spend
-    # (ADR-618), which makes this one of the sharper writes in the substrate to
-    # leave unasked.
-    from services.access import resolve_access
-
-    _edit = resolve_access(auth, _decl_path(topic), "write")
-    if not _edit.allowed:
-        raise HTTPException(status_code=403, detail=_edit.reason)
-
     new_content = compose_standing_yaml(
         target=str(parsed.get("target") or ""),
         app=(str(parsed.get("app")).strip() if parsed.get("app") else None),
@@ -386,26 +793,71 @@ async def update_standing(topic: str, request: UpdateStandingRequest, auth: User
         sources=[s for s in (parsed.get("sources") or []) if isinstance(s, dict)],
         shape=parsed.get("shape") if isinstance(parsed.get("shape"), dict) else None,
     )
+    decl = _parse_or_none(new_content, topic, actor)
+    if decl is None:  # cannot happen for content we just composed — fail loud
+        raise HTTPException(status_code=500, detail="recomposed declaration unparseable")
+    if edited and decl.problem is not None:
+        raise _refuse(decl.problem)
+
+    _write_access(auth, _decl_path(topic))
 
     from services.authored_substrate import write_revision
+    if edited:
+        message = f"edit standing work in '{topic}'"
+    else:
+        message = f"{'pause' if parsed.get('paused') else 'resume'} standing work in '{topic}'"
     write_revision(
         auth.client,
         user_id=actor,
         path=_decl_path(topic),
         content=new_content,
         authored_by="operator",
-        message=f"{'pause' if parsed.get('paused') else 'resume'} standing work in '{topic}'",
+        author_identity_uuid=auth.user_id,
+        message=message,
         workspace_id=getattr(auth, "workspace_id", None),
     )
     await _materialize(auth.client, actor)
+    return _summary_for(auth.client, actor, decl)
 
-    decl = _parse_or_none(new_content, topic, actor)
-    if decl is None:  # cannot happen for content we just composed — fail loud
-        raise HTTPException(status_code=500, detail="recomposed declaration unparseable")
-    return _summarize(
-        auth.client, actor, decl, _index_rows(auth.client, actor).get(decl.slug),
-        _last_runs(auth.client, actor, [topic]).get(topic),
+
+@router.delete("/standing/{topic:path}")
+async def retire_standing(topic: str, auth: UserClient) -> dict:
+    """Retire (ADR-658 §6.2): the declaration goes to Trash — the ONE delete,
+    attributed, restorable in one act. The kept file and its instructions are
+    NOT touched: retiring stops a file being kept current, it does not destroy
+    what was made. The index drops the row now."""
+    actor = _acting_owner(auth)
+    topic = _validate_topic(topic)
+    content = _read_declaration(auth.client, actor, topic)
+    if content is None:
+        raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
+    decl = _parse_or_none(content, topic, actor)
+    decl_path = _decl_path(topic)
+    _write_access(auth, decl_path)
+
+    from services.authored_substrate import archive_live_file
+    tombstone = archive_live_file(
+        auth.client,
+        user_id=actor,
+        path=decl_path,
+        authored_by="operator",
+        author_identity_uuid=auth.user_id,
+        message=f"retire standing work in '{topic}' — the file and its instructions stay",
+        workspace_id=getattr(auth, "workspace_id", None),
     )
+    if tombstone is None:
+        raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
+    await _materialize(auth.client, actor)
+    kept = [_contract_path(topic)]
+    if decl is not None and decl.target:
+        kept.insert(0, decl.target_path)
+    return {
+        "success": True,
+        "topic": topic,
+        "archived_path": decl_path,
+        "tombstone_revision_id": tombstone,
+        "kept": kept,
+    }
 
 
 @router.post("/standing/{topic:path}/run")
@@ -435,7 +887,20 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     # SUCCESSFUL no-op, not an error: the run IS happening, just not on this
     # caller's thread. A never-indexed declaration (no row yet) stays
     # claimable rather than being read as a lost race.
+    #
+    # ⚠️ ADR-658 A1.8 — DRIVEN 2026-09-19: the CAS alone does not close the
+    # race. It compares against the value THIS caller read, and a caller that
+    # reads AFTER the drain's claim reads the drain's SENTINEL — which still
+    # equals itself, so the manual claim succeeds and the declaration runs a
+    # second time six seconds behind the first (two writes, two charges, on
+    # the click-pass's own folder). A sentinel is a `next_run_at` the schedule
+    # could not have produced: in the future, and not the boundary the
+    # declaration computes. That row is IN FLIGHT and the door answers the
+    # honest no-op.
     _row = read_standing_task_row(auth.client, actor, decl.slug)
+    if _row is not None and _claim_in_flight(auth.client, actor, _row, decl):
+        return {"success": True, "slug": decl.slug, "no_change": True,
+                "detail": "already running — a scheduled run claimed this declaration"}
     _claimed = claim_run(
         auth.client, actor, decl.slug, STANDING_KIND, (_row or {}).get("next_run_at"),
     )
@@ -450,6 +915,43 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     except Exception as e:  # noqa: BLE001
         logger.warning("[STANDING] manual-run record failed for %s: %s", topic, e)
     return result
+
+
+def _claim_in_flight(client, user_id: str, row: dict, decl) -> bool:
+    """Is this index row held by a drain's claim sentinel right now?
+
+    ADR-658 A1.8. The drain claims a row by bumping `next_run_at` to
+    `now + CLAIM_SENTINEL_HOURS` (`scheduling.claim_run`); `record_run` puts the
+    schedule's own next boundary back when the run ends. So while a run is in
+    flight the stored value is one the schedule COULD NOT have produced: in the
+    future, and not `compute_next_run_at`'s answer for this declaration. A due
+    or past value is a commitment (claimable); a future value the schedule
+    agrees with is the ordinary armed row (claimable — Run now is table stakes);
+    a future value the schedule disagrees with is somebody's claim. Compared at
+    a minute's tolerance so a boundary computed a few seconds apart still
+    agrees with itself. Never raises — an unreadable clock means claimable, and
+    the CAS behind this still refuses a same-instant collision."""
+    from datetime import datetime, timezone as _tz
+    from services.scheduling import _parse_iso, compute_next_run_at
+    from services.schedule_utils import get_workspace_timezone
+
+    try:
+        stored = _parse_iso(row.get("next_run_at"))
+        if stored is None:
+            return False
+        now = datetime.now(_tz.utc)
+        if stored <= now:
+            return False
+        expected = compute_next_run_at(
+            decl, last_run_at=_parse_iso(row.get("last_run_at")), now=now,
+            user_timezone=get_workspace_timezone(client, user_id),
+        )
+        if expected is None:
+            return True
+        return abs((stored - expected).total_seconds()) > 60
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STANDING] in-flight check failed for %s: %s", decl.slug, e)
+        return False
 
 
 def _strip_frontmatter(content: str) -> str:
