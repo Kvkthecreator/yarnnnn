@@ -11,7 +11,10 @@ import {
   Mail,
   Shield,
   History,
+  Languages,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { createClient } from "@/lib/supabase/client";
@@ -93,7 +96,7 @@ type NotificationKind = {
 // with members real, billing is authority-gated workspace governance (the
 // ChatGPT/Claude Team convention). Supersedes ADR-429 §13.3's account-door
 // placement.
-type SettingsTab = "account" | "notification-settings";
+type SettingsTab = "account" | "notification-settings" | "language";
 
 // ADR-645 D3 (2026-09-08) — the Connections pane is DELETED from this door.
 // It LED here from 2026-08-21 on the reasoning that this door is opened to
@@ -103,20 +106,26 @@ type SettingsTab = "account" | "notification-settings";
 // of each decision (what this workspace reads, what its tools may do) can
 // actually name the workspace it is deciding for. `/connectors` is a redirect
 // stub into that pane. Notifications now leads.
-const PANE_GROUPS: PaneGroup[] = [
+// ADR-660 — the roster holds catalog KEYS, never copy: a module-level constant is
+// evaluated once, before any member's language is known. The component words it.
+const PANE_ROSTER = [
   // ADR-593 D5 — the Notifications pane: how this workspace reaches you.
   // Personal question (member-experience scope), per-workspace store.
   {
-    label: "Notifications",
-    panes: [{ key: "notification-settings", label: "Notifications", icon: Bell }],
+    labelKey: "groups.notifications",
+    panes: [{ key: "notification-settings", labelKey: "panes.notifications", icon: Bell }],
   },
   {
-    label: "Account",
-    panes: [{ key: "account", label: "Account", icon: User }],
+    labelKey: "groups.account",
+    panes: [
+      { key: "account", labelKey: "panes.account", icon: User },
+      // ADR-660 D2 — a language belongs to the human, so it lives in the account door.
+      { key: "language", labelKey: "panes.language", icon: Languages },
+    ],
   },
-];
+] as const;
 
-const ALL_PANES: SettingsTab[] = PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key as SettingsTab));
+const ALL_PANES: SettingsTab[] = PANE_ROSTER.flatMap((g) => g.panes.map((p) => p.key as SettingsTab));
 // ADR-425 §2 — "integrations" is GONE with its card and endpoint. Leaving a
 // dead member here is what let the ADR-476 D3 move keep live plumbing behind.
 type DangerAction =
@@ -125,6 +134,11 @@ type DangerAction =
   | null;
 
 export default function SettingsPage() {
+  const t = useTranslations("settings");
+  const paneGroups: PaneGroup[] = PANE_ROSTER.map((group) => ({
+    label: t(group.labelKey),
+    panes: group.panes.map((pane) => ({ key: pane.key, label: t(pane.labelKey), icon: pane.icon })),
+  }));
   const router = useRouter();
   const { navigateToSurface } = useSurfacePreferences();
   const accountParam = useSurfaceParam('settings');
@@ -378,6 +392,13 @@ export default function SettingsPage() {
           via the effect above; no cases here. */}
 
 
+      {pane === "language" && (
+        <section className="mb-8">
+          <PaneHeader icon={Languages} title={t("panes.language")} bordered={false} />
+          <LanguageSwitcher />
+        </section>
+      )}
+
       {/* Account Tab - Data & Privacy */}
       {pane === "account" && (
         <section className="mb-8">
@@ -591,7 +612,7 @@ export default function SettingsPage() {
     <>
       <SettingsPaneShell
         windowSlug="settings"
-        paneGroups={PANE_GROUPS}
+        paneGroups={paneGroups}
         defaultPane="notification-settings"
         renderPane={renderPane}
       />

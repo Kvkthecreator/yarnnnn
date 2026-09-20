@@ -1,0 +1,53 @@
+{
+  "language": {
+    "label": "Language",
+    "help": "The language of the interface. Your files and your agents' replies are not translated.",
+    "saveFailed": "We couldn't save your language. Please try again."
+  },
+  "settings": {
+    "groups": {
+      "notifications": "Notifications",
+      "account": "Account"
+    },
+    "panes": {
+      "notifications": "Notifications",
+      "account": "Account",
+      "language": "Language"
+    }
+  },
+  "auth": {
+    "loginSubheading": "Sign in to your account",
+    "signupSubheading": "Create your account",
+    "continueWithGoogle": "Continue with Google",
+    "or": "or",
+    "email": "Email",
+    "password": "Password",
+    "passwordRule": "At least {min} characters.",
+    "loading": "Loading…",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "forgotPassword": "Forgot your password?",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "confirmationSent": "Check your email for a confirmation link.",
+    "resetSent": "If that address has an account, a reset link is on its way.",
+    "errors": {
+      "incompleteEmail": "That email address looks incomplete — check the part after the @.",
+      "undeliverable": "We couldn't send to that address. Check it for a typo, or continue with Google.",
+      "resetNeedsEmail": "Enter your email address above, then choose “Forgot your password?”",
+      "invalidCredentials": "That email and password don't match. Check them and try again.",
+      "emailNotConfirmed": "Confirm your email first — the link is in your inbox.",
+      "alreadyRegistered": "That email already has an account. Sign in instead.",
+      "weakPassword": "Choose a stronger password — at least {min} characters.",
+      "rateLimited": "Too many attempts. Wait a minute, then try again.",
+      "generic": "Something went wrong. Please try again."
+    },
+    "connect": {
+      "loginSubheading": "Sign in to connect your assistant to your memory",
+      "signupSubheading": "Create your yarnnn memory",
+      "signIn": "Sign in & connect",
+      "signUp": "Sign up & connect",
+      "footer": "Connecting your assistant to your yarnnn memory. You can visit yarnnn.com anytime with the same account."
+    }
+  }
+}

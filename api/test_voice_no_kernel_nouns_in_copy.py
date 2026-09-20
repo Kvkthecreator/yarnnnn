@@ -15,6 +15,7 @@ regresses. Same shape as test_adr209_no_filename_versioning.py.
 
 SCOPE — only RENDERED operator-facing strings:
   - web/: JSX text + string-literal props (NOT // or /* */ comments, NOT imports).
+  - web/messages/*.json: every catalog VALUE, every locale (ADR-660 D4).
   - backend copy sites: the files that SERVE prose the UI renders verbatim —
     the surface roster (kernel_surfaces: launcher titles + summaries), the
     reach sentences (reach_status.describe), the notification kinds
@@ -521,7 +522,34 @@ def find_violations(include_phase2: bool = True) -> list[tuple[str, int, str, st
                     if _allowlisted(rel, line, allow):
                         continue
                     violations.append((rel, lineno, line.strip(), reason))
+    violations.extend(_catalog_violations(pattern_sets))
     return violations
+
+
+# ADR-660 D4 — the guard follows the strings. Copy that moves into a message
+# catalog leaves every JSX context this file knows how to read, and the guard
+# would go green over an emptying codebase. A catalog VALUE is rendered copy by
+# construction, so this arm needs no context heuristic; a KEY is never rendered
+# and is never matched (`"artifact": "…"` is an address, not a word a member reads).
+# Every locale is scanned with the same patterns — an untranslated value is
+# English, and a kernel noun is not excused by the file it sits in.
+CATALOG_DIR = REPO_ROOT / "web" / "messages"
+_CATALOG_ENTRY = re.compile(r'^\s*"[^"]+"\s*:\s*"(?P<value>.*)"\s*,?\s*$')
+
+
+def _catalog_violations(pattern_sets) -> list[tuple[str, int, str, str]]:
+    out: list[tuple[str, int, str, str]] = []
+    for path in sorted(CATALOG_DIR.glob("*.json")):
+        rel = str(path.relative_to(REPO_ROOT))
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            entry = _CATALOG_ENTRY.match(line)
+            if not entry:
+                continue
+            for patterns, allow in pattern_sets:
+                for pat, reason in patterns:
+                    if pat.search(entry.group("value")) and not _allowlisted(rel, line, allow):
+                        out.append((rel, lineno, line.strip(), reason))
+    return out
 
 
 def test_no_kernel_nouns_in_operator_copy():

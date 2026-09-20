@@ -106,7 +106,10 @@ the bell shows), `web/components/chat-surface/toolLabels.ts` (what a running too
 
 `api/test_voice_no_kernel_nouns_in_copy.py` scans rendered string contexts (JSX text, copy-bearing
 props, thrown errors, toasts) under `web/` plus the served-prose files in §4, and fails on any banned
-pattern that is not allowlisted. Three phases:
+pattern that is not allowlisted. It also reads every VALUE in `web/messages/*.json`, every locale
+(ADR-660 D4): copy that moves into a catalog leaves each JSX context above, and a guard that did not
+follow it would go green over an emptying codebase. A catalog key is never rendered and never matched.
+Three phases:
 
 - **Phase 1** (2026-06-24): `ADR-NNN` and `_name.yaml` in copy. Zero-false-positive classes.
 - **Phase 2** (2026-06-24): recurrence · wake · substrate · capital action · occupant · primitive.
@@ -212,3 +215,22 @@ The multi-line fix exposed **35 pre-existing violations** the guard had never be
 24 Phase-3, 8 Phase-2, 3 Phase-1, concentrated in `/invest` and Studio. Baselined per §5 so the
 detector improvement lands without a 35-site copy rewrite; they are now **owed item 0**, ahead of
 the marketing line above, because they are the same marketing pages with a bigger true count.
+
+## 7. Korean (ADR-660 D6)
+
+The catalog is `web/messages/ko.json`; its English source is `en.json`, key for key.
+
+- **`해요체` throughout** — the polite-informal register Korean product interfaces have converged on.
+  Never `합쇼체` (it reads as a terms-of-service page), never `반말`.
+- **A control is a noun or a bare stem** — `저장`, `삭제`, `로그인` — not a sentence. A sentence is for
+  what happened or what to do next: `다시 시도해 주세요.`
+- **Loanwords where Korean software already uses them** — `워크스페이스`, `에이전트`, `파일`, `이메일`.
+  The product's name and brand names stay in Latin script.
+- **§3 applies in translation.** A kernel noun does not come back as its transliteration; translate the
+  member word in the right-hand column, not the left.
+- **An error names the control as it is labelled.** The English reset hint said *"choose Reset password"*
+  over a button labelled *"Forgot your password?"*; a faithful translation would have carried the
+  mismatch. Both languages now name the button the member can actually see.
+- **Slot budgets (§2) are measured in the rendered language.** Korean is usually shorter than English
+  per idea and wider per glyph; check the slot, do not assume.
+

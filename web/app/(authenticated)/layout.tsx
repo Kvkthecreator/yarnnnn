@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from "next";
-import { createClient } from '@/lib/supabase/server';
+import { getRequestUser } from '@/lib/supabase/server';
+import { IntlScope } from '@/components/i18n/IntlScope';
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
 import { Wordmark } from '@/components/shared/Wordmark';
 import { Working } from '@/components/shared/Working';
@@ -35,17 +36,17 @@ export const metadata: Metadata = {
  * client retains a sign-out *listener* (live invalidation), not a gate.
  */
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Request-cached and shared with the locale resolver (ADR-660 D2): one fetch.
+  const user = await getRequestUser();
 
   return (
-    <Suspense fallback={<LayoutFallback />}>
-      <AuthenticatedLayout userEmail={user?.email ?? undefined}>
-        {children}
-      </AuthenticatedLayout>
-    </Suspense>
+    <IntlScope>
+      <Suspense fallback={<LayoutFallback />}>
+        <AuthenticatedLayout userEmail={user?.email ?? undefined}>
+          {children}
+        </AuthenticatedLayout>
+      </Suspense>
+    </IntlScope>
   );
 }
 

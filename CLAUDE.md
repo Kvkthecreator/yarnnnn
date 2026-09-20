@@ -164,6 +164,7 @@ The ratchets run and the ADR's gate.
 | App exposure stage (ADR-592) | `api/services/app_stage.py`; a slug leaving the roster leaves `web/middleware.ts` with it |
 | Client app registry — one `AppDescriptor` per app, never authority-shaped fields (ADR-636) | `web/lib/apps/registry.ts`; icons and accents in `web/lib/shell/surface-icons.tsx` (ADR-641) |
 | Routes, window manager, rendering layers | `web/lib/routes.ts` (`HOME_ROUTE` is `/desktop`); `web/lib/shell/surface-preferences.ts`; `web/lib/content-shapes/` + `web/components/library/` |
+| Interface language (ADR-660) | roster `web/i18n/config.ts`; the ONE chain `resolveLocale` in `web/i18n/resolve.ts`; catalogs `web/messages/`; `IntlScope` mounts in three layouts and NEVER the root — `useTranslations` throws outside one; a module-level table holds catalog keys, worded at render |
 | Redirect stubs | pure server `redirect()` (ADR-308), never `'use client'` + `useEffect` |
 | Memory — in-session, no batch extraction | `api/services/memory.py`; guidance rides the lane frame's commons contract |
 | Alpha-ops harness — orchestrates real persona workspaces, so Hat A | `api/scripts/alpha_ops/` |

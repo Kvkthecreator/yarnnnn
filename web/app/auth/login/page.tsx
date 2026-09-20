@@ -10,8 +10,11 @@ import { AuthForm } from "@/components/auth/AuthForm";
 import Link from "next/link";
 import { Wordmark } from "@/components/shared/Wordmark";
 import { Working } from '@/components/shared/Working';
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useTranslations } from "next-intl";
 
 function LoginForm() {
+  const t = useTranslations("auth");
   const searchParams = useSearchParams();
   const [initialError, setInitialError] = useState<string | null>(null);
   const nextPath = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
@@ -58,10 +61,16 @@ function LoginForm() {
           // 2026-09-15. Anything but "signup" stays on sign-in, so an
           // unrecognised value degrades to today's behaviour.
           initialMode={searchParams.get("mode") === "signup" ? "signup" : "login"}
-          loginSubheading="Sign in to your account"
-          signupSubheading="Create your account"
+          loginSubheading={t("loginSubheading")}
+          signupSubheading={t("signupSubheading")}
           initialError={initialError}
         />
+
+        {/* ADR-660 D2 — signed out, the choice is the device cookie; the first
+            signed-in render adopts it into the account. */}
+        <div className="mt-6 flex justify-center">
+          <LanguageSwitcher variant="inline" />
+        </div>
       </div>
     </div>
   );

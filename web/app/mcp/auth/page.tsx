@@ -21,10 +21,12 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AuthForm } from "@/components/auth/AuthForm";
+import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/shared/Wordmark";
 import { Working } from '@/components/shared/Working';
 
 function MCPAuthInner() {
+  const t = useTranslations("auth.connect");
   const searchParams = useSearchParams();
   const [initialError, setInitialError] = useState<string | null>(null);
 
@@ -71,15 +73,15 @@ function MCPAuthInner() {
             window.location.href = resumeTarget;
           }}
           callbackRedirect={callbackRedirect}
-          loginSubheading="Sign in to connect your assistant to your memory"
-          signupSubheading="Create your yarnnn memory"
-          loginSubmitLabel="Sign in & connect"
-          signupSubmitLabel="Sign up & connect"
+          loginSubheading={t("loginSubheading")}
+          signupSubheading={t("signupSubheading")}
+          loginSubmitLabel={t("signIn")}
+          signupSubmitLabel={t("signUp")}
           initialError={initialError}
         />
 
         <p className="text-center text-xs text-[#1a1a1a]/40 mt-6">
-          Connecting your assistant to your yarnnn memory. You can visit yarnnn.com anytime with the same account.
+          {t("footer")}
         </p>
       </div>
     </div>

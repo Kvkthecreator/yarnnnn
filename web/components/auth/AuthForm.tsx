@@ -22,6 +22,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
+import { useTranslations } from "next-intl";
 import { STAGE_NOTICE } from "@/lib/metadata";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 
@@ -95,10 +96,11 @@ export function AuthForm({
   initialMode = "login",
   loginSubheading,
   signupSubheading,
-  loginSubmitLabel = "Sign in",
-  signupSubmitLabel = "Sign up",
+  loginSubmitLabel,
+  signupSubmitLabel,
   initialError = null,
 }: AuthFormProps) {
+  const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -121,6 +123,22 @@ export function AuthForm({
 
   const supabase = createClient();
 
+  /**
+   * ADR-660 — the provider answers in English. Its error CODE is stable, so the
+   * common ones are worded from the catalog; anything unrecognised keeps the
+   * provider's own sentence rather than collapsing to a generic one.
+   */
+  const wordProviderError = (err: unknown): string => {
+    const raw = err instanceof Error ? err.message : "";
+    const code = (err as { code?: string } | null)?.code ?? "";
+    if (code === "invalid_credentials" || /invalid login credentials/i.test(raw)) return t("errors.invalidCredentials");
+    if (code === "email_not_confirmed" || /email not confirmed/i.test(raw)) return t("errors.emailNotConfirmed");
+    if (code === "user_already_exists" || /already registered/i.test(raw)) return t("errors.alreadyRegistered");
+    if (code === "weak_password") return t("errors.weakPassword", { min: MIN_PASSWORD_LENGTH });
+    if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit") return t("errors.rateLimited");
+    return raw || t("errors.generic");
+  };
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     // Caught HERE rather than at the provider: a TLD-less domain returns a 500
@@ -128,7 +146,7 @@ export function AuthForm({
     if (!looksDeliverable(email)) {
       setNotice({
         tone: "error",
-        text: "That email address looks incomplete — check the part after the @.",
+        text: t("errors.incompleteEmail"),
       });
       return;
     }
@@ -148,7 +166,7 @@ export function AuthForm({
         if (error) throw error;
         setNotice({
           tone: "success",
-          text: "Check your email for a confirmation link.",
+          text: t("confirmationSent"),
         });
       }
     } catch (err) {
@@ -161,8 +179,8 @@ export function AuthForm({
       setNotice({
         tone: "error",
         text: undeliverable
-          ? "We couldn't send to that address. Check it for a typo, or continue with Google."
-          : raw || "Something went wrong. Please try again.",
+          ? t("errors.undeliverable")
+          : wordProviderError(err),
       });
     } finally {
       setLoading(false);
@@ -187,7 +205,7 @@ export function AuthForm({
     if (!looksDeliverable(email)) {
       setNotice({
         tone: "error",
-        text: "Enter your email address above, then choose Reset password.",
+        text: t("errors.resetNeedsEmail"),
       });
       return;
     }
@@ -203,7 +221,7 @@ export function AuthForm({
     } finally {
       setNotice({
         tone: "success",
-        text: "If that address has an account, a reset link is on its way.",
+        text: t("resetSent"),
       });
       setLoading(false);
     }
@@ -224,7 +242,7 @@ export function AuthForm({
     } catch (err) {
       setNotice({
         tone: "error",
-        text: err instanceof Error ? err.message : "Something went wrong. Please try again.",
+        text: wordProviderError(err),
       });
       setLoading(false);
     }
@@ -251,7 +269,7 @@ export function AuthForm({
           disabled={loading}
         >
           <GoogleIcon />
-          Continue with Google
+          {t("continueWithGoogle")}
         </Button>
 
         <div className="relative">
@@ -259,14 +277,14 @@ export function AuthForm({
             <div className="w-full border-t border-[#1a1a1a]/10" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white/80 text-[#1a1a1a]/50">or</span>
+            <span className="px-2 bg-white/80 text-[#1a1a1a]/50">{t("or")}</span>
           </div>
         </div>
 
         <form onSubmit={handleEmailAuth} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-[#1a1a1a]">
-              Email
+              {t("email")}
             </label>
             <Input
               id="email"
@@ -281,7 +299,7 @@ export function AuthForm({
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-[#1a1a1a]">
-              Password
+              {t("password")}
             </label>
             <Input
               id="password"
@@ -298,7 +316,7 @@ export function AuthForm({
               // after a failed submit, which reads as a rejection rather than a
               // rule a person could have followed.
               <p className="mt-1 text-xs text-[#1a1a1a]/50">
-                At least {MIN_PASSWORD_LENGTH} characters.
+                {t("passwordRule", { min: MIN_PASSWORD_LENGTH })}
               </p>
             )}
           </div>
@@ -319,7 +337,11 @@ export function AuthForm({
             className="w-full bg-[#1a1a1a] hover:bg-[#1a1a1a]/90 text-white"
             disabled={loading}
           >
-            {loading ? "Loading..." : mode === "login" ? loginSubmitLabel : signupSubmitLabel}
+            {loading
+              ? t("loading")
+              : mode === "login"
+                ? (loginSubmitLabel ?? t("signIn"))
+                : (signupSubmitLabel ?? t("signUp"))}
           </Button>
 
           {mode === "login" && (
@@ -331,7 +353,7 @@ export function AuthForm({
               disabled={loading}
               className="w-full text-center text-xs text-[#1a1a1a]/50 hover:text-[#1a1a1a]/80 transition-colors disabled:opacity-50"
             >
-              Forgot your password?
+              {t("forgotPassword")}
             </button>
           )}
         </form>
@@ -339,24 +361,24 @@ export function AuthForm({
         <p className="text-center text-sm text-[#1a1a1a]/60">
           {mode === "login" ? (
             <>
-              Don&apos;t have an account?{" "}
+              {t("noAccount")}{" "}
               <button
                 type="button"
                 onClick={() => setMode("signup")}
                 className="text-[#1a1a1a] font-medium hover:underline"
               >
-                Sign up
+                {t("signUp")}
               </button>
             </>
           ) : (
             <>
-              Already have an account?{" "}
+              {t("haveAccount")}{" "}
               <button
                 type="button"
                 onClick={() => setMode("login")}
                 className="text-[#1a1a1a] font-medium hover:underline"
               >
-                Sign in
+                {t("signIn")}
               </button>
             </>
           )}

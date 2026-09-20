@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BRAND } from "@/lib/metadata";
+import { IntlScope } from "@/components/i18n/IntlScope";
 
 export const metadata: Metadata = {
   title: "Sign In",
@@ -20,5 +21,6 @@ export default function LoginLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  // ADR-660 D3 — a signed-out page learns its language from the device cookie.
+  return <IntlScope>{children}</IntlScope>;
 }

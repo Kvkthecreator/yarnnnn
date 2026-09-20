@@ -6,6 +6,24 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## Korean: the mechanism shipped, the coverage has not (ADR-660, 2026-09-20)
+
+The switch, the account preference and the sign-in path are live and driven. **1005 lines of literal copy
+in 104 files are still English** — `LITERAL_COPY_CEILING` in `api/test_adr660_the_interface_speaks_korean.py`
+is the meter; lower it in the commit that lowers the count. Next by measurement: the shell + chat surface
+(115 lines, 15 files), then Studio / billing / connectors where copy concentrates. The meter is a FLOOR —
+it cannot see copy in module-level tables (`toolLabels.ts`, `FAMILY_META`, `ROLE_META`) or toasts.
+Convert a table by holding catalog KEYS and wording them at render (ADR-660 D3). Undecided, ADR §8:
+served strings (136 `HTTPException` details), outbound email, the marketing site, the sign-up stage notice.
+
+## The local `node_modules` does not match what Vercel installs (found 2026-09-20)
+
+The deploy resolves from `web/package-lock.json` (npm); the local tree is a pnpm layout with no committed
+pnpm lockfile, so it floats. Measured: **19 top-level packages differ** (`@supabase/supabase-js` 2.116 local
+vs 2.93 locked, `@sentry/nextjs` 10.75 vs 10.51, `framer-motion` 12.43 vs 12.29). A green local build has not
+been verifying the deployed dependency set. Pick one manager and one lockfile. Do NOT run `npm install` into
+the pnpm tree, and do not commit a `pnpm-lock.yaml` beside the npm lock — it switches Vercel's manager.
+
 ## Compose's dead brief-builders (found 2026-09-18, ADR-635 am.2 cleanup)
 
 `services/compose/assembly.py` and `services/compose/revision.py` are re-exported

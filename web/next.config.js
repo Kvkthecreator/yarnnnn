@@ -7,6 +7,10 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
 });
 
+// ADR-660 — next-intl reads its request config (the locale resolution chain +
+// the catalogs) from here. No i18n routing: the app carries no locale in its URLs.
+const withNextIntl = require("next-intl/plugin")("./i18n/request.ts");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Vercel handles SSR natively
@@ -96,7 +100,7 @@ const nextConfig = {
   },
 };
 
-module.exports = withBundleAnalyzer(withSentryConfig(nextConfig, {
+module.exports = withBundleAnalyzer(withSentryConfig(withNextIntl(nextConfig), {
   // Sentry webpack plugin options
   silent: true,           // suppress build output noise
   org: process.env.SENTRY_ORG,

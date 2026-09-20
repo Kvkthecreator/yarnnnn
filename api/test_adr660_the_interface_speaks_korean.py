@@ -1,0 +1,278 @@
+"""ADR-660 gate — the interface speaks Korean.
+
+    D1  the roster and the catalogs agree
+    D2  one resolution chain: account → device cookie → Accept-Language → English;
+        a guess is never written down
+    D3  the provider is scoped — the root layout stays static, and no unscoped
+        route mounts a translated component
+    D4  the catalogs hold: parity, placeholders, "it is Korean", every call
+        resolves, and coverage only ratchets down
+    D5  no language instruction reaches the lane frame
+
+Script-shaped: run it and READ THE COUNT (`pytest` collects nothing from it).
+
+    cd api && python3 test_adr660_the_interface_speaks_korean.py
+
+Static by necessity — the subject is the web tree. What reading cannot prove (the
+switch actually re-renders, the account preference follows a member to a second
+device) is the click-pass in ADR-660 §9, not this file. Each arm was proven RED
+by editing the shipped file in place and restoring it in place.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+API = Path(__file__).resolve().parent
+REPO = API.parent
+WEB = REPO / "web"
+sys.path.insert(0, str(API))
+
+from test_voice_no_kernel_nouns_in_copy import _jsx_text_line_numbers  # noqa: E402
+
+PASS = FAIL = 0
+
+
+def check(name: str, cond, note: str = "") -> None:
+    global PASS, FAIL
+    if cond:
+        PASS += 1
+        print(f"  ✓ {name}")
+    else:
+        FAIL += 1
+        print(f"  ✗ {name}" + (f" — {note}" if note else ""))
+
+
+def flatten(node, prefix="") -> dict[str, str]:
+    out: dict[str, str] = {}
+    for key, value in node.items():
+        path = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            out.update(flatten(value, path))
+        else:
+            out[path] = value
+    return out
+
+
+def read(rel: str) -> str:
+    return (WEB / rel).read_text(encoding="utf-8")
+
+
+def strip_comments(src: str) -> str:
+    """Block and whole-line comments only. A `//` mid-line is left alone — a
+    stripper that cuts `//…` to end-of-line eats the URL it is hunting."""
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    return "\n".join(line for line in src.splitlines() if not line.lstrip().startswith("//"))
+
+
+# ── D1 — the roster and the catalogs agree ───────────────────────────────────
+print("D1 — roster")
+config = read("i18n/config.ts")
+roster = re.search(r"LOCALES\s*=\s*\[([^\]]*)\]", config)
+LOCALES = re.findall(r'"([a-z]{2}(?:-[A-Z]{2})?)"', roster.group(1)) if roster else []
+default = re.search(r'DEFAULT_LOCALE:\s*Locale\s*=\s*"([a-z-]+)"', config)
+DEFAULT = default.group(1) if default else ""
+on_disk = sorted(p.stem for p in (WEB / "messages").glob("*.json"))
+check("the roster names at least English and Korean", {"en", "ko"} <= set(LOCALES), f"LOCALES={LOCALES}")
+check("every roster locale has a catalog, and no catalog is off the roster",
+      sorted(LOCALES) == on_disk, f"roster={sorted(LOCALES)} disk={on_disk}")
+check("every roster locale has an endonym",
+      all(re.search(rf"\b{loc}:\s*\"[^\"]+\"", config) for loc in LOCALES))
+
+CATALOGS = {loc: flatten(json.loads(read(f"messages/{loc}.json"))) for loc in on_disk}
+BASE = CATALOGS.get(DEFAULT, {})
+
+# ── D4 — the catalogs hold ────────────────────────────────────────────────────
+print("D4 — catalogs")
+check("the default catalog is not empty", len(BASE) > 0)
+
+ICU_ARG = re.compile(r"\{\s*(\w+)")
+HANGUL = re.compile(r"[가-힣]")
+# Names that do not translate. A value made ONLY of these (plus punctuation,
+# digits and ICU arguments) is allowed to carry no Hangul.
+UNTRANSLATED_OK = {"yarnnn", "yarnnn.com", "Google", "GitHub", "Notion", "Slack", "MCP", "AI"}
+
+for loc, flat in CATALOGS.items():
+    if loc == DEFAULT:
+        continue
+    missing = sorted(set(BASE) - set(flat))
+    orphan = sorted(set(flat) - set(BASE))
+    check(f"[{loc}] parity — no key missing", not missing, f"{len(missing)} missing, e.g. {missing[:3]}")
+    check(f"[{loc}] parity — no orphan key", not orphan, f"{len(orphan)} orphan, e.g. {orphan[:3]}")
+    drift = [k for k in flat if k in BASE and set(ICU_ARG.findall(flat[k])) != set(ICU_ARG.findall(BASE[k]))]
+    check(f"[{loc}] every key carries the same ICU arguments as {DEFAULT}", not drift, f"e.g. {drift[:3]}")
+
+if "ko" in CATALOGS:
+    not_korean = []
+    for key, value in CATALOGS["ko"].items():
+        if HANGUL.search(value):
+            continue
+        residue = ICU_ARG.sub("", value)
+        for name in sorted(UNTRANSLATED_OK, key=len, reverse=True):
+            residue = residue.replace(name, "")
+        if re.search(r"[A-Za-z]{2,}", residue):
+            not_korean.append(key)
+    check("[ko] every value is Korean, or only names that do not translate",
+          not not_korean, f"{len(not_korean)} English values, e.g. {not_korean[:3]}")
+
+# Every call resolves. A missing key renders its own path in production, silently.
+SCOPED_DIRS = ["app", "components", "lib", "contexts"]
+USE = re.compile(r"const\s+(\w+)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*(?:\"([^\"]*)\")?\s*\)")
+unresolved: list[str] = []
+calls = 0
+translated_files: set[Path] = set()
+for top in SCOPED_DIRS:
+    for path in (WEB / top).rglob("*.ts*"):
+        if "node_modules" in path.parts or path.suffix not in (".ts", ".tsx"):
+            continue
+        src = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+        bindings = USE.findall(src)
+        if not bindings:
+            continue
+        translated_files.add(path)
+        namespaces = [ns for _, ns in bindings]
+        for var, ns in bindings:
+            for key in re.findall(rf"(?<![\w.]){re.escape(var)}\(\s*\"([^\"]+)\"", src):
+                calls += 1
+                full = f"{ns}.{key}" if ns else key
+                if full not in BASE:
+                    unresolved.append(f"{path.relative_to(WEB)} → {full}")
+        # A module-level roster holds KEYS (`labelKey: "panes.account"`), worded at render.
+        for key in re.findall(r"\b\w*[kK]ey:\s*\"([a-z][\w]*(?:\.[\w]+)+)\"", src):
+            calls += 1
+            if not any((f"{ns}.{key}" if ns else key) in BASE for ns in namespaces):
+                unresolved.append(f"{path.relative_to(WEB)} → (roster key) {key}")
+check("the scan found translation calls to resolve", calls > 0, "zero calls — the arm is reading nothing")
+check("every t(…) and every roster key resolves in the default catalog",
+      not unresolved, f"{len(unresolved)} unresolved, e.g. {unresolved[:3]}")
+
+# ── D3 — the provider is scoped ───────────────────────────────────────────────
+print("D3 — scope")
+root_layout = strip_comments(read("app/layout.tsx"))
+check("the root layout imports nothing from next-intl or the locale resolver",
+      not re.search(r"from\s+[\"'](next-intl|@/i18n|@/components/i18n)", root_layout))
+SCOPES = ["app/(authenticated)/layout.tsx", "app/auth/login/layout.tsx", "app/mcp/auth/layout.tsx"]
+for rel in SCOPES:
+    check(f"{rel} mounts the scope", "<IntlScope>" in strip_comments(read(rel)))
+
+# No unscoped route mounts a translated component — one import level deep, which
+# is the depth the defect was found at (`AuthForm` under `/mcp/auth`).
+scope_dirs = [(WEB / rel).parent for rel in SCOPES]
+
+
+def resolve_import(spec: str, importer: Path) -> Path | None:
+    base = (WEB / spec[2:]) if spec.startswith("@/") else (importer.parent / spec) if spec.startswith(".") else None
+    if base is None:
+        return None
+    for candidate in (base.with_suffix(".tsx"), base.with_suffix(".ts"), base / "index.tsx", base / "index.ts"):
+        if candidate.exists():
+            return candidate.resolve()
+    return None
+
+
+translated_resolved = {p.resolve() for p in translated_files}
+unscoped_mounts: list[str] = []
+routes_seen = 0
+for path in (WEB / "app").rglob("*.tsx"):
+    if any(scope in path.parents or scope == path.parent for scope in scope_dirs):
+        continue
+    routes_seen += 1
+    src = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+    if re.search(r"from\s+[\"']next-intl", src):
+        unscoped_mounts.append(f"{path.relative_to(WEB)} imports next-intl")
+    for spec in re.findall(r"from\s+[\"']([^\"']+)[\"']", src):
+        target = resolve_import(spec, path)
+        if target in translated_resolved:
+            unscoped_mounts.append(f"{path.relative_to(WEB)} → {target.relative_to(WEB.resolve())}")
+check("the scan saw unscoped routes", routes_seen > 0)
+check("no route outside a scope mounts a translated component", not unscoped_mounts,
+      f"would throw at render: {unscoped_mounts[:3]}")
+
+# ── D2 — one chain, and a guess is never written down ─────────────────────────
+print("D2 — resolution")
+resolve_src = strip_comments(read("i18n/resolve.ts"))
+body = resolve_src[resolve_src.find("export async function resolveLocale"):]
+order = [body.find("user_metadata"), body.find("cookieStore.get("), body.find("negotiateLocale(")]
+check("the chain reads account, then cookie, then Accept-Language",
+      all(i >= 0 for i in order) and order == sorted(order), f"offsets={order}")
+writers = []
+for top in ("app", "components", "lib", "i18n"):
+    for path in (WEB / top).rglob("*.ts*"):
+        if "node_modules" in path.parts:
+            continue
+        src = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+        if re.search(r"document\.cookie\s*=", src) and "LOCALE_COOKIE" in src:
+            writers.append(str(path.relative_to(WEB)))
+check("exactly one module writes the locale cookie", writers == ["components/i18n/locale-cookie.ts"], f"writers={writers}")
+for rel in ("middleware.ts", "lib/supabase/middleware.ts"):
+    check(f"{rel} never records a negotiated locale",
+          not re.search(r"NEXT_LOCALE|LOCALE_COOKIE|negotiateLocale", strip_comments(read(rel))))
+
+# ── D5 — what an agent writes is not the interface ────────────────────────────
+print("D5 — the lane frame")
+for rel in ("services/lane_runner.py", "services/standing_work.py", "services/derive_turn.py"):
+    src = (API / rel).read_text(encoding="utf-8")
+    check(f"{rel} reads no member locale",
+          not re.search(r"user_metadata.{0,40}locale|accept[-_]language|NEXT_LOCALE", src, re.I))
+
+# ── The deploy resolves from the npm lock ─────────────────────────────────────
+print("Deploy parity")
+pkg = json.loads(read("package.json"))
+lock = json.loads(read("package-lock.json"))
+declared = pkg.get("dependencies", {}).get("next-intl")
+check("next-intl is declared", bool(declared))
+check("next-intl is in package-lock.json — the lockfile the deploy installs from",
+      "node_modules/next-intl" in lock.get("packages", {}))
+check("no pnpm lockfile rides along (it would switch the deploy's package manager)",
+      not (WEB / "pnpm-lock.yaml").exists())
+
+# ── D4 — coverage only ratchets down ──────────────────────────────────────────
+print("D4 — coverage")
+# Lines of literal, member-facing copy still in components a scope renders. A
+# METER, not a proof: it counts what it can see (JSX text + copy-bearing props).
+# A pass lowers the ceiling in the commit that lowers the count; nothing raises it.
+LITERAL_COPY_CEILING = 1005  # 2026-09-20 — the first reading, after the sign-in path
+COPY_PROP = re.compile(r"\b(placeholder|title|aria-label|label|alt|subtitle|description)=\"[^\"]*[A-Za-z]{2,}[^\"]*\"")
+INLINE_TEXT = re.compile(r">([^<>{}]*[A-Za-z]{2,}[^<>{}]*)</")
+METERED = [WEB / "app" / "(authenticated)", WEB / "app" / "auth", WEB / "app" / "mcp", WEB / "components"]
+NOT_MEMBER_FACING = {"landing", "marketing", "admin", "ui"}
+
+
+def literal_copy_lines(path: Path) -> int:
+    raw = path.read_text(encoding="utf-8", errors="ignore")
+    continuation = _jsx_text_line_numbers(raw)
+    count = 0
+    for lineno, line in enumerate(raw.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith(("//", "*", "/*", "import ")):
+            continue
+        if lineno in continuation and re.search(r"[A-Za-z]{2,}", re.sub(r"\{[^{}]*\}", "", stripped)):
+            count += 1
+        elif INLINE_TEXT.search(line) or COPY_PROP.search(line):
+            count += 1
+    return count
+
+
+measured = 0
+files_with_copy = 0
+for top in METERED:
+    for path in top.rglob("*.tsx"):
+        if NOT_MEMBER_FACING & set(path.relative_to(WEB).parts):
+            continue
+        n = literal_copy_lines(path)
+        measured += n
+        files_with_copy += 1 if n else 0
+print(f"    literal copy: {measured} lines across {files_with_copy} files (ceiling {LITERAL_COPY_CEILING})")
+check("the meter reads something", measured > 0, "zero — the meter is blind, not the app translated")
+check("literal member-facing copy is at or under its ceiling",
+      measured <= LITERAL_COPY_CEILING, f"{measured} > {LITERAL_COPY_CEILING}")
+check("the ceiling is tight — lower it in the commit that lowers the count",
+      LITERAL_COPY_CEILING - measured <= 25, f"slack {LITERAL_COPY_CEILING - measured}")
+
+print()
+print(f"  {PASS} passed, {FAIL} failed")
+print()
+print("✓ all ADR-660 checks passed" if not FAIL else "✗ ADR-660 gate RED")
