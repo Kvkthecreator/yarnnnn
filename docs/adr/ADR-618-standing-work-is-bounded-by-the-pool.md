@@ -67,3 +67,32 @@ This is the same shape as ADR-615's opt-in defect, found the same day: **a servi
 - **`standing_declarations.py` generalization.** It has zero runtime callers and `DECLARATION_KEYS` governs no parser — deliberate per ADR-603 D6, which gates it on a second declaration kind that does not yet exist.
 
 **The rule this ADR leaves behind**: an unattended lane that spends must name its bound. "Nobody has declared one yet" is a population fact, not a guard.
+
+## Amendment 1 (2026-09-20) — a run the output ceiling cut is refused, and its spend is recorded
+
+Found by driving, not by reading. A prose run's contract is *"return the FULL revised file"*, and the run's
+ceiling is `_STANDING_MAX_TOKENS = 4096`. A completion the ceiling stopped (`finish_reason='length'`) came
+back from `run_bounded_derive_turn` as `status="ok"`; `run_standing_sweep` wrote the stump over the head as a
+`derivation` and metered `success`. The next run then read the stump as THE CURRENT FILE, so the loss
+compounded — the member's corrections in the lost tail were gone from every later run (still in the revision
+chain, never again in the head). The router has always captured `finish_reason`; the attended loop has read it
+since 2026-09-16 (`_TRUNCATED_ANSWER_NOTICE`); this turn never did.
+
+Ruled under this ADR because it is the same subject — spend that must be bounded **and recorded**, and here it
+was spend that destroyed what it was spent to keep:
+
+- `DeriveTurn.status` gains **`truncated`** — checked before the text is read, carrying the usage and **no
+  text**, so no caller can write it by mistake.
+- The sweep refuses the write and records `standing-write:{topic}` as `failed` / **`output_truncated`** with
+  the model and the usage (the tokens were consumed). The file is left as it was.
+- The roster, the detail and the Run-now note say so in the member's words (*"the file has grown too long to
+  keep current in one run"*).
+
+Gate: `test_adr618_standing_spend_gate.py` §3 — the REAL sweep and the REAL derive turn driven with a cut
+completion (refused by name · nothing written · ledger says failed · spend recorded) plus the discriminating
+arm (a complete answer still writes the designated leaf). **18/18**; falsified RED **15/18** by editing the
+guard out in place — the red output reproduced the original defect exactly (`success`, a revision written).
+
+⚠️ **What this does not fix**: the ceiling itself. A kept file is still structurally a short document
+(~12–16 KB), an eighth of what the same agent authors attended. That is a limit of the unit, not of this
+guard — see `docs/analysis/the-supervisor-from-first-principles-2026-09-20.md`.

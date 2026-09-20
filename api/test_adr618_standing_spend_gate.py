@@ -246,5 +246,85 @@ check("2e a never-indexed string is claimable, not read as a lost race",
       "if _row is not None and not _claimed" in _ROUTE)
 
 print()
+# ═════════════════════════════════════════════════════════════════════════════
+print("§3 a run the output ceiling CUT is refused, and its spend is recorded")
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ⭐⭐⭐ FOUND BY DRIVING (2026-09-20). The run's contract is "return the FULL
+# revised file". A completion stopped at `_STANDING_MAX_TOKENS` came back
+# `status="ok"`, was written over the head as a `derivation`, and metered
+# `success` — then the next run read the stump as THE CURRENT FILE. Spend that
+# destroys what it was spent to keep is this ADR's subject; so is recording it.
+from unittest.mock import AsyncMock, patch  # noqa: E402
+
+import services.authored_substrate as _asub  # noqa: E402
+import services.lane_runner as _lr  # noqa: E402
+import services.model_router as _mr  # noqa: E402
+
+_FULL = "# Brief\n\nEvery section is here.\n"
+_STUMP = "# Brief\n\nThe sentence stops mid"
+
+
+def _completion(text: str, finish: str):
+    import dataclasses as _dc
+
+    kw = {"text": text, "finish_reason": finish}
+    for name, f in _mr.RoutedCompletion.__dataclass_fields__.items():
+        if name in kw:
+            continue
+        if f.default is _dc.MISSING and f.default_factory is _dc.MISSING:
+            kw[name] = "anthropic/claude-sonnet-5"
+    out = _mr.RoutedCompletion(**kw)
+    out.usage = {"input_tokens": 900, "output_tokens": 4096}
+    return out
+
+
+def _drive(text: str, finish: str):
+    """The REAL sweep and the REAL derive turn; only the edges are faked."""
+    events: list = []
+    writes: list = []
+    real_ree = tel.record_execution_event
+    tel.record_execution_event = lambda *a, **k: events.append(k)
+    try:
+        with patch.object(pl, "check_balance", return_value=(True, 5.0)), \
+             patch.object(st, "_fetch_source", new=AsyncMock(return_value="fresh material")), \
+             patch.object(st, "_retain_raw", return_value="/workspace/inbound/web/s/raw.md"), \
+             patch.object(st, "_read_file", return_value="# Brief\n\nThe member's corrected head.\n"), \
+             patch.object(st, "resolve_executor", return_value=("editor", "anthropic/claude-sonnet-5", "c")), \
+             patch.object(_lr, "build_standing_frame", return_value="frame"), \
+             patch.object(_mr, "model_router_enabled", return_value=True), \
+             patch.object(_mr, "route_completion", new=AsyncMock(return_value=_completion(text, finish))), \
+             patch.object(_asub, "write_revision", side_effect=lambda *a, **k: writes.append(k) or "rev-1"), \
+             patch("services.primitives.workspace._embed_workspace_file", new=AsyncMock()):
+            out = asyncio.new_event_loop().run_until_complete(
+                st.run_standing_sweep(object(), "u-1", _decl())
+            )
+    finally:
+        tel.record_execution_event = real_ree
+    return out, events, writes
+
+
+_outT, _evT, _wrT = _drive(_STUMP, "length")
+check("3a a cut completion is REFUSED by name",
+      _outT.get("success") is False and _outT.get("error_reason") == "output_truncated",
+      f"got {_outT}")
+check("3b NOTHING is written over the head",
+      _wrT == [], f"writes={[w.get('path') for w in _wrT]}")
+_rowT = next((e for e in _evT if str(e.get("slug", "")).startswith("standing-write:")), {})
+check("3c the ledger says failed/output_truncated — never success",
+      _rowT.get("status") == "failed" and _rowT.get("error_reason") == "output_truncated",
+      f"row={_rowT.get('status')}/{_rowT.get('error_reason')}")
+check("3d the spend is RECORDED — the tokens were consumed",
+      _rowT.get("output_tokens") == 4096 and bool(_rowT.get("model")),
+      f"row keys={sorted(_rowT)}")
+
+# The discriminating half: a COMPLETE answer must still land. Without it, a
+# sweep that refused every judgment write would pass 3a–3c.
+_outK, _evK, _wrK = _drive(_FULL, "stop")
+check("3e a complete answer still writes the designated leaf",
+      _outK.get("success") is True and len(_wrK) == 1
+      and _wrK[0].get("path") == "/workspace/ops/x/x.md" and _wrK[0].get("content") == _FULL,
+      f"out={_outK} writes={[w.get('path') for w in _wrK]}")
+
 print(f"{PASS}/{PASS + FAIL} ADR-618 assertions pass")
 sys.exit(1 if FAIL else 0)

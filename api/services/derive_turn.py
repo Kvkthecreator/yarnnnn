@@ -22,12 +22,21 @@ The turn is deliberately minimal:
   - **The empty answer is honest and first-class**: a lane must never
     manufacture a revision on an unchanged world (the ADR-401 D5 lesson —
     spend follows judgment cadence, not intake chatter).
+  - **A cut answer is never a file** (2026-09-20): the output contract is
+    "the FULL revised file", so a completion the ceiling stopped
+    (``finish_reason='length'``) is a stump, not a revision. Returned as
+    ``ok`` it was written over the head and metered ``success`` — and the
+    next run read the stump as THE CURRENT FILE, so the loss compounded. The
+    router always captured ``finish_reason``; the attended loop has read it
+    since 2026-09-16 and this turn never did. ``truncated`` carries the usage
+    (the tokens were spent) and NO text, so no caller can write it by mistake.
 
 Callers branch on ``DeriveTurn.status`` and keep their own metering:
 
     turn = await run_bounded_derive_turn(model=..., system=..., user_msg=...)
     if turn.status == "router_disabled": ...  # meter skipped, reason=config
     if turn.status == "raised":          ...  # meter failed, detail=turn.error
+    if turn.status == "truncated":       ...  # meter failed WITH usage; write nothing
     if turn.status == "no_change":       ...  # meter skipped, honest zero
     text = turn.text                          # status == "ok"
 """
@@ -59,7 +68,7 @@ def strip_fence(note: str) -> str:
 class DeriveTurn(NamedTuple):
     """One bounded derive turn's outcome. ``status`` is the branch key."""
 
-    status: str                    # "ok" | "no_change" | "router_disabled" | "raised"
+    status: str                    # "ok" | "no_change" | "truncated" | "router_disabled" | "raised"
     text: str                      # fence-stripped body ("" unless status == "ok")
     ledger_model: Optional[str]    # the model the ledger records (None when no call ran)
     usage: dict                    # token usage kwargs for record_execution_event
@@ -98,6 +107,11 @@ async def run_bounded_derive_turn(
     except Exception as e:  # noqa: BLE001 — the lane meters, never crashes the tick
         logger.exception("[DERIVE_TURN] completion raised: %s", e)
         return DeriveTurn("raised", "", None, {}, str(e))
+
+    # Checked BEFORE the text is read: a stump is not a shorter file.
+    if getattr(routed, "finish_reason", None) == "length":
+        logger.warning("[DERIVE_TURN] completion cut at max_tokens=%s — refused", max_tokens)
+        return DeriveTurn("truncated", "", routed.ledger_model, routed.usage, None)
 
     text = strip_fence(routed.text or "")
     if not text or text in tuple(no_change_tokens):

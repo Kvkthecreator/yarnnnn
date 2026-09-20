@@ -146,6 +146,8 @@ export function SupervisorSurface() {
           ? 'Ran — the file was updated.'
           : res.error_reason === 'shape_violation'
             ? `Update refused — ${res.detail ?? 'the fetched data broke the file’s shape'}.`
+            : res.error_reason === 'output_truncated'
+              ? 'Update refused — the file has grown too long to keep current in one run. It was left as it was.'
             : res.error_reason === 'router_disabled'
               ? 'Skipped — the engine is unavailable on this workspace.'
               : `Run failed (${res.error_reason ?? 'unknown'}).`;

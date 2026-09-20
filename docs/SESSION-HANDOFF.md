@@ -174,8 +174,28 @@ Row deleted after the pass.
   closes; its gate did not see it. Entering through the Dock works. Not reproduced on a fresh account —
   the operator's `member_state.shell` row carried `open: […, notifications, supervisor]` and a remembered
   `foregrounded` at the time. Drive it before reasoning about it.
-- **The drain trusts `claim_run`'s CAS alone** (ADR-658 A1.8). The manual door now refuses a row held by a
-  claim sentinel; the drain does not check, and is safe only because there is ONE scheduler instance.
+- ⭐**READ FIRST: `docs/analysis/the-supervisor-from-first-principles-2026-09-20.md`.** The operator's thesis
+  (ADR-658 is a half measure; it asked what the canon permits, not which limits are law) was audited and HOLDS:
+  of five capabilities a Supervisor needs — intake · flow · output · attention · cockpit — the lane delivers the
+  door half of one. A source cannot be a workspace path, so nothing chains and the commons is unreadable
+  unattended; `needs-you` reads chat mentions, never the work; a run has no link to the revision it wrote; the
+  Supervisor's job text never mentions standing work. §5 is the build order (step 1 workspace sources → step 2
+  the $0 pace rule are the hinge). **Awaiting the operator's ruling on §5 — then it is an ADR, doc-first.**
+- **The drain's materializer OVERWRITES an in-flight claim sentinel — a DEFECT, driven 2026-09-20** (was: "the
+  drain trusts the CAS alone"). A never-run door-created declaration is claimed → the next tick's
+  `materialize_standing_index` rewrites `next_run_at` to `now` (`preserve_due_commitment` declines a FUTURE
+  stored value) → due again → a second claim SUCCEEDS mid-run. Exposure: Run now on a never-run declaration
+  overlapping a tick — the mirror of A1.8. Root cause shared: the claim lives in the column the materializer
+  owns. Fix = analysis §5 step 0 (`claimed_until` on the index row). Production holds 0 declarations today.
+- **`app: supervisor` resolves the Supervisor as a standing EXECUTOR** (driven), against `apps/supervisor.py`'s
+  own comment and ADR-658 D3 — the resident fallback in `standing_executor_for_app` defeats the "declares no
+  executor" guard, and `request.app` is free text at the door. Also: NO app declares `standing_executor`; all
+  five resolve via the fallback, so "only Text has an executor" (the 09-19 carry-over) was false.
+- **Connector capture has NO driver**: `run_connector_capture`'s only caller is the standing sweep, so with 0
+  declarations nothing is captured from any connected platform. `intake-pipeline.md` §5's "the scheduler
+  drives" row contradicts its own status row.
+- `test_adr557_router_hardening.py` now CRASHES (`FileNotFoundError: services/apps/images/decompose.py`) — the
+  gate census lists it as drift; it has decayed to reporting nothing.
 - **`GET /api/supervisor/state` took ~23s from a cold local API** (the mentions read, through the shared
   service client — likely the `[Errno 11]` item below). The surface no longer waits on it (A1.9); the read
   itself is unexamined.

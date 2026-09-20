@@ -1117,6 +1117,20 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
                 funnel_decision="standing", principal_id=user_id,
             )
             return {"success": False, "slug": decl.slug, "error_reason": "derive_raised"}
+        if turn.status == "truncated":
+            # The file outgrew the run's output ceiling. REFUSED, never
+            # written: the contract is the full file, and a stump over the
+            # head would be read back next run as THE CURRENT FILE. The spend
+            # was real, so the row carries the model and the usage.
+            record_execution_event(
+                client, user_id=user_id, slug=f"standing-write:{topic}",
+                mode="judgment", trigger_type="scheduled", status="failed",
+                error_reason="output_truncated",
+                error_detail=f"the revised file exceeded {_STANDING_MAX_TOKENS} output tokens",
+                model=turn.ledger_model, funnel_decision="standing",
+                principal_id=user_id, **turn.usage,
+            )
+            return {"success": False, "slug": decl.slug, "error_reason": "output_truncated"}
         write_mode = "judgment"
         ledger_model = turn.ledger_model
         usage = turn.usage

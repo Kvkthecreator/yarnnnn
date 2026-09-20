@@ -35,6 +35,7 @@ function runLine(r: StandingRun): string {
   if (r.error_reason === 'shape_violation') return `${what} — refused, the data didn’t fit the file’s shape`;
   if (r.error_reason === 'no_sources_fetched') return `${what} — no source could be read`;
   if (r.error_reason === 'balance_exhausted') return `${what} — did not run, the balance is used up`;
+  if (r.error_reason === 'output_truncated') return `${what} — refused, the file has grown too long to keep current in one run`;
   return `${what} — failed${r.error_reason ? ` (${r.error_reason})` : ''}`;
 }
 

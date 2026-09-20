@@ -42,6 +42,7 @@ export function runStatusLine(e: StandingLastRun): string {
   if (e.error_reason === 'shape_violation') return 'Not updated. The new data didn’t fit the file’s shape';
   if (e.error_reason === 'no_sources_fetched') return 'No source could be read';
   if (e.error_reason === 'balance_exhausted') return 'Did not run. The workspace balance is used up';
+  if (e.error_reason === 'output_truncated') return 'Not updated. The file has grown too long to keep current in one run';
   return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
 }
 
