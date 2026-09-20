@@ -83,7 +83,7 @@ That substrate is reachable from any LLM via the interop face. What you author i
 
 ### Layer 2 — The operation layer (what standing work and a program add)
 
-- **Standing work** (ADR-603/639) — a member declares that a file is to be kept current: the target, a contract that says what "true" means for it, a schedule, its sources. The kernel drains it; the app's resident does the work in a toolless, contract-checked, receipted run; the member sees every run in Notifications and can Run now or Pause. Nothing else runs unattended.
+- **Standing work** (ADR-603/639) — a member declares that a file is to be kept current: the target, a contract that says what "true" means for it, a schedule, its sources — a web page, a connection, or **the workspace itself**, so one kept file can feed the next and a chain of declarations is how work flows (ADR-659). The kernel drains it; a run whose sources have not moved costs nothing; the app's resident does the work in a toolless, contract-checked, receipted run; the member sees every run in Notifications and can Run now or Pause. Nothing else runs unattended.
 - **The witness dial** (ADR-307/405) — a consequential act (a proposal to move money, a publish, a send) surfaces to the member before it binds — every one, above a ceiling, or within a declared envelope — and the member's verdict is recorded.
 - **A program** (ADR-414 D5) — a hire that brings a declared mandate, a reference workspace, standing declarations and a ground-truth signal appropriate to the domain. Workspaces don't have types; they hire.
 

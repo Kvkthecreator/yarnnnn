@@ -627,8 +627,10 @@ export interface Participant {
 // (`declaring-standing-work`); both paths emit what the one parser accepts.
 export interface StandingSource {
   id: string;
-  /** An HTTP pull source. Exactly one of `url` / `connector`+`selector`. */
+  /** An HTTP pull source. Exactly one of `url` / `connector`+`selector` / `path`. */
   url?: string | null;
+  /** A workspace path (ADR-659 D4): a file, or a folder with a trailing slash. */
+  path?: string | null;
   /** A connector slice (ADR-582 D6 / ADR-594): reach with a receipt. */
   connector?: string | null;
   selector?: string | null;
@@ -678,6 +680,10 @@ export interface StandingRun {
   error_reason?: string | null;
   at?: string | null;
   cost_usd?: number | null;
+  /** ADR-659 D2 — what a successful update WROTE, derived server-side from the
+   *  kept file's revision chain: the revision, and the files it was made from. */
+  revision_id?: string | null;
+  derived_from?: string[];
 }
 
 /** The detail (ADR-658 D6): the summary, the instructions as text, the runs. */
@@ -691,7 +697,7 @@ export interface StandingDetailData {
 /** A pre-shaped start (ADR-658 D7): a verb bound to a connection the member
  *  already holds, DERIVED from the capture bindings — or the HTTP start. */
 export interface StandingStart {
-  kind: 'connector' | 'url' | string;
+  kind: 'connector' | 'path' | 'url' | string;
   connector?: string | null;
   name: string;
   reads?: string | null;
@@ -710,7 +716,7 @@ export interface StandingCreateRequest {
   schedule: string | string[];
   contract: string;
   app?: string | null;
-  sources?: Array<{ id: string; url?: string; connector?: string; selector?: string }>;
+  sources?: Array<{ id: string; url?: string; connector?: string; selector?: string; path?: string }>;
   shape?: Record<string, unknown> | null;
 }
 
@@ -1042,7 +1048,7 @@ export const api = {
       data: {
         paused?: boolean;
         schedule?: string | string[];
-        sources?: Array<{ id: string; url?: string; connector?: string; selector?: string }>;
+        sources?: Array<{ id: string; url?: string; connector?: string; selector?: string; path?: string }>;
         shape?: Record<string, unknown> | null;
         target?: string;
       },

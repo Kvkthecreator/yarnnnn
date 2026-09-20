@@ -109,6 +109,7 @@ class _Query:
     def in_(self, k, vs): self.filters.append(("in", k, list(vs))); return self
     def like(self, k, pat): self.filters.append(("like", k, pat)); return self
     def lte(self, k, v): self.filters.append(("lte", k, v)); return self
+    def lt(self, k, v): self.filters.append(("lt", k, v)); return self
     def is_(self, k, v): self.filters.append(("is", k, v)); return self
     def or_(self, clause, *a, **k):
         if "lifecycle" in str(clause):
@@ -123,6 +124,11 @@ class _Query:
             if op == "neq" and r.get(k) == v: return False
             if op == "in" and r.get(k) not in v: return False
             if op == "lte" and not (r.get(k) is not None and r.get(k) <= v): return False
+            if op == "lt":
+                from datetime import datetime as _d
+                cur = r.get(k)
+                if cur is None or not (_d.fromisoformat(str(cur)) < _d.fromisoformat(str(v))):
+                    return False
             if op == "is" and r.get(k) is not None: return False
             if op == "like":
                 rx = "^" + re.escape(str(v)).replace("%", ".*") + "$"
@@ -144,6 +150,8 @@ class _Query:
             row = self._payload
             row.setdefault("id", self.db.next_id())
             row.setdefault("created_at", self.db.next_ts())
+            if self.name == "tasks":  # migration 258's column default (ADR-659 D1)
+                row.setdefault("claimed_until", "1970-01-01T00:00:00+00:00")
             rows.append(row)
             return _Res([dict(row)])
         if self._op == "upsert":
@@ -457,32 +465,42 @@ check("the new instructions replaced the old as a new revision, chain intact",
       _live_contract[0]["content"].startswith("Second life") and len(db.versions(contract_path)) == _contract_chain + 1)
 
 # ═══════════════════════════════════════════════════════════════════════════
-print("A1.8. Run now against a row the drain is holding — the honest no-op, driven")
+print("A1.8. Run now against a row another run is holding — the honest no-op, driven")
 # ═══════════════════════════════════════════════════════════════════════════
+# ⚠️ Rewritten for ADR-659 D1. A1.8 closed this race with a HEURISTIC — "a
+# `next_run_at` the schedule could not have produced" — because the claim lived
+# in the column the materializer owns. The claim is now its own column and a
+# lock, so the heuristic is deleted and these arms drive the lock itself.
 import services.standing_work as _sw  # noqa: E402
 from datetime import datetime as _dt, timedelta as _td, timezone as _tzz  # noqa: E402
 _calls: list = []
 _orig_sweep = _sw.run_standing_sweep
-async def _spy(client, user_id, decl):
-    _calls.append(decl.slug); return {"success": True, "slug": decl.slug, "no_change": True}
+async def _spy(client, user_id, decl, **kw):
+    _calls.append((decl.slug, kw.get("force"))); return {"success": True, "slug": decl.slug, "no_change": True}
 _sw.run_standing_sweep = _spy
 try:
     _task_row = next(r for r in db.tables["tasks"] if r["slug"] == "standing:team-brief")
-    _armed = _task_row.get("next_run_at")
-    # (i) a row the drain holds: next_run_at = a sentinel the schedule could not have produced
-    _task_row["next_run_at"] = (_dt.now(_tzz.utc) + _td(hours=2)).isoformat()
+    # (i) a row another run HOLDS
+    _hold = (_dt.now(_tzz.utc) + _td(hours=2)).isoformat()
+    _task_row["claimed_until"] = _hold
     _out = run(R.run_standing_now("team-brief", auth))
-    check("a manual Run now against a drain-held row is the honest no-op (never a second run)",
+    check("a manual Run now against a HELD row is the honest no-op (never a second run)",
           _out.get("no_change") is True and _calls == [], str(_out))
-    check("…and the sentinel is left for the drain to clear", _task_row["next_run_at"] != _armed)
-    # (ii) the ordinary armed row (the schedule's own boundary) still runs by hand
-    _task_row["next_run_at"] = _armed
+    check("…and the hold is left for its owner to release",
+          next(r for r in db.tables["tasks"] if r["slug"] == "standing:team-brief")["claimed_until"] == _hold)
+    # (ii) an unheld row runs by hand — whatever its next_run_at says
+    next(r for r in db.tables["tasks"] if r["slug"] == "standing:team-brief")["claimed_until"] = "1970-01-01T00:00:00+00:00"
     _out = run(R.run_standing_now("team-brief", auth))
-    check("Run now against the ordinary armed row proceeds (table stakes)", _calls == ["standing:team-brief"], str(_out))
-    # (iii) a due (past) commitment is claimable too
-    _task_row["next_run_at"] = (_dt.now(_tzz.utc) - _td(minutes=5)).isoformat()
+    check("Run now against an unheld row proceeds (table stakes), FORCED past the pace rule",
+          _calls == [("standing:team-brief", True)], str(_out))
+    check("…and releases its own hold when it ends",
+          next(r for r in db.tables["tasks"] if r["slug"] == "standing:team-brief")["claimed_until"]
+          == "1970-01-01T00:00:00+00:00")
+    # (iii) a LAPSED hold — a run that crashed — does not strand the declaration
+    next(r for r in db.tables["tasks"] if r["slug"] == "standing:team-brief")["claimed_until"] = (
+        _dt.now(_tzz.utc) - _td(minutes=5)).isoformat()
     run(R.run_standing_now("team-brief", auth))
-    check("Run now against a due row proceeds", len(_calls) == 2)
+    check("Run now against a lapsed hold proceeds", len(_calls) == 2)
 finally:
     _sw.run_standing_sweep = _orig_sweep
 R.run_standing_sweep = _orig_sweep if hasattr(R, "run_standing_sweep") else None

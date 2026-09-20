@@ -31,11 +31,15 @@ Only the DESIGNATED target is ever a standing writer's target. One declaration p
          - id: repo
            connector: github       # or a connector slice: {connector, selector}
            selector: org/repo
+         - id: inbox
+           path: inbound/uploads/  # or a workspace path: a file, or a folder (trailing slash)
        shape:                      # structured formats only
          columns: [date, mrr]      # csv: the required columns (the file is projected to them)
          # keys: [mrr, churn]      # json: required top-level keys
 
-   A csv, json or txt target takes exactly ONE source; prose folds up to twelve. Never invent a source URL. When unsure, say so and ask.
+   A csv, json or txt target takes exactly ONE source, and a file rather than a folder; prose folds up to twelve. Never invent a source URL or a path: list the folder first. When unsure, say so and ask.
+
+   A path source reads the member's own workspace: what they uploaded, what a connection captured, another kept file. A folder gives the run its newest files. This is how work feeds work. One file is kept from the outside, a second is kept from the first, a third from the second, each with its own contract. When the member describes several steps, declare several files in a chain rather than one file asked to do everything. Never close a loop (A kept from B while B is kept from A): it is refused, and neither file runs.
 
    The cadence is read in the workspace's own timezone (Workspace Settings → General; UTC until the owner declares one), so "0 13 * * *" is 1pm where the workspace lives, not 1pm UTC. A member naming a time means their clock — take it as given and say which one you wrote.
 5. Read _standing.yaml back and confirm it parses. A malformed declaration means the file silently stops being kept.
@@ -44,6 +48,8 @@ Only the DESIGNATED target is ever a standing writer's target. One declaration p
 ## Managing
 
 A connector slice captures exactly what that connection reads — the roster and the connection's card state it (a GitHub slice is issue and pull-request activity, not a commit log). A file that needs what the connection does not read has no source there; say so rather than declaring it. Change a source, the cadence or the shape by editing the file that owns the fact (EditFile for small changes). Pause with `paused: true`. A run refused with a shape violation means the source and the declared shape disagree: read both, say which is wrong, repair that one. When the member asks why the file reads as it does, answer from the contract, and offer to revise it if their intent has drifted from its text.
+
+A run whose sources have not changed since it last ran costs nothing and writes nothing, so a tight cadence on a file fed from the workspace is cheap. Say so when the member worries about cost.
 
 ## Anti-patterns
 

@@ -30,10 +30,14 @@ One folder holds ONE declaration, split on the ADR-564 D2 bright line:
                                                  # timezone (mig 247) |
                                                  # @-semantic | list
                         paused: false
-                        sources:                 # HTTP pull, or a connector
-                          - id: main             # slice (ADR-582 D6 / 594 D2):
-                            url: https://…       # {connector, selector} reading
-                                                 # LANDED snapshots
+                        sources:                 # THREE shapes, one parser:
+                          - id: main             #  {url}  an HTTP pull
+                            url: https://…       #  {connector, selector}  a
+                          - id: inbox            #    slice's LANDED snapshots
+                            path: inbound/uploads/   # (ADR-582 D6 / 594 D2)
+                                                 #  {path}  a workspace FILE, or
+                                                 #    a FOLDER (trailing slash)
+                                                 #    — ADR-659 D4
                         shape:                   # structured formats only —
                           columns: [date, mrr]   # csv: required column set
                           # keys: [mrr, churn]   # json: required top-level keys
@@ -49,14 +53,31 @@ revision does not fight an authoring surface's editing model. Designating an
 authoring-app artifact (a deck, an image stage, a post) is NAMED-DEFERRED,
 never silently allowed. The refusal here is the ``unsupported_format`` problem.
 
-One run = fetch → map/derive → validate → write, at the depth the format
+A SOURCE MAY BE A WORKSPACE PATH (ADR-659 D4), which is what lets work feed
+work: another declaration's kept file is a source like any other, so a chain
+(capture → digest → report) is a graph of declarations over files — "agents do
+not orchestrate agents; declarations do" (ADR-626 D4.a), to the letter. The
+kernel gathers the material and hands it to the same TOOLLESS turn; every path
+read is cited in `derived_from`, so the graph is witnessed on the ledger and
+stored nowhere else. A loop is refused by name (`source_cycle`, D5).
+
+One run = fetch → PACE → map/derive → validate → write, at the depth the format
 demands (D4):
 
     fetch    — HTTP pull of the declared sources (httpx, honest UA); each raw
                body retained as an immutable observation under inbound/web/
-               (the ADR-376/DP32 raw lane — the evidence the write CITES); a
+               (the ADR-376/DP32 raw lane — the evidence the write CITES), and
+               NOT retained again when byte-identical to the last one; a
                connector source reaches-with-a-receipt through the ONE capture
-               writer and reads the landed snapshot (ADR-594 D2)
+               writer and reads the landed snapshot (ADR-594 D2); a path
+               source is gathered from the declaration's OWN workspace — live
+               text only, bounded, never its own machinery
+    pace     — `make`'s one rule (ADR-659 D6): if no source and no CONTRACT.md
+               has moved since this declaration was last JUDGED, the run stops
+               here at $0 (`skipped` / `sources_unchanged`, no model call). A
+               first run, and a member's Run now, always proceed. The drain is
+               still the only thing that fires a run — a change is READ on the
+               next tick and CAUSES none (Axiom 4, untouched)
     map      — csv: parse + project to the declared columns; json: parse +
                require the declared keys; txt: passthrough; md: ONE bounded
                judgment turn governed by CONTRACT.md, composed through the
@@ -80,8 +101,9 @@ demands (D4):
 Scheduling rides the thin ``tasks`` index with ``kind='standing'`` and the ONE
 drain loop in ``services/scheduling.py`` (ADR-639 D3 — capture rides the same
 loop): the tick discovers declarations, materializes the slice
-(``preserve_due_commitment`` applies by construction — b8ac1c7), claims via
-CAS, runs, records. The run is BOUNDED BY THE POOL before the fetch (ADR-618).
+(``preserve_due_commitment`` applies by construction — b8ac1c7), takes the
+row's LOCK (`claimed_until`, ADR-659 D1), runs, records-and-releases. The run
+is BOUNDED BY THE POOL before the fetch (ADR-618).
 
 The topic is the folder path relative to ``/workspace/`` (any meaning-folder —
 the designated file lives where it lives).
@@ -118,6 +140,12 @@ SUPPORTED_FORMATS = ("md", "csv", "json", "txt")
 
 #: Structured formats map ONE endpoint to the leaf; prose folds several.
 _MAX_SOURCES_PROSE = 12
+#: What ONE source may hand the turn, whatever its shape.
+_SOURCE_SLICE_CHARS = 40_000
+#: A folder source (ADR-659 D4): its newest live text files, each cut here, the
+#: whole cut at the source slice. The material says how many were left out.
+_MAX_FOLDER_FILES = 20
+_FOLDER_FILE_CHARS = 8_000
 _FETCH_TIMEOUT_S = 15.0
 _MAX_FETCH_CHARS = 500_000
 _USER_AGENT = "yarnnn-standing/1.0 (+https://yarnnn.com)"
@@ -176,9 +204,13 @@ class StandingDecl:
     options: dict = field(default_factory=dict)
     declaration_path: str = ""
     user_id: Optional[str] = None
+    #: The workspace this declaration LIVES in (ADR-659 D4 rule 5). Every path
+    #: gather filters on it: an owner of two workspaces must never have one's
+    #: run read the other's same-named file. None only on the N=1 fallback.
+    workspace_id: Optional[str] = None
     #: A declaration that parses but cannot run — the LOUD half of D3. None
     #: when healthy. Values: missing_target | invalid_target |
-    #: unsupported_format | sources_invalid | app_invalid.
+    #: unsupported_format | sources_invalid | app_invalid | source_cycle.
     problem: Optional[str] = None
 
     @property
@@ -197,6 +229,28 @@ class StandingDecl:
     def format(self) -> Optional[str]:
         ext = self.target.rsplit(".", 1)[-1].lower() if "." in self.target else ""
         return ext if ext in SUPPORTED_FORMATS else None
+
+    @property
+    def target_rel(self) -> str:
+        """The target, workspace-relative — the spelling a path source uses."""
+        return f"{self.topic}/{self.target}"
+
+    @property
+    def machinery(self) -> frozenset:
+        """The three files a run must never READ as material: what it writes,
+        what governs it, what declares it (ADR-659 D4 rule 2). Absolute."""
+        return frozenset({self.target_path, self.contract_path,
+                          f"{self.root}/{DECLARATION_LEAF}"})
+
+    def path_sources(self) -> list[tuple[str, bool]]:
+        """This declaration's path sources as ``(workspace-relative, is_folder)``."""
+        out = []
+        for s in self.sources:
+            if _is_path_source(s):
+                norm = normalize_source_path(s.get("path"))
+                if norm is not None:
+                    out.append(norm)
+        return out
 
 
 def topic_from_declaration_path(path: str) -> Optional[str]:
@@ -240,6 +294,33 @@ def _is_connector_source(s: dict) -> bool:
     )
 
 
+def _is_path_source(s: dict) -> bool:
+    """A workspace-path source (ADR-659 D4): {path: research/digest.md} or a
+    folder {path: inbound/uploads/}. Exactly one shape per source — a dict
+    that also names a url or a connector is not a path source."""
+    return (bool(str(s.get("path", "")).strip())
+            and not _is_http_source(s) and not _is_connector_source(s))
+
+
+def normalize_source_path(raw: Any) -> Optional[tuple[str, bool]]:
+    """``(workspace-relative path, is_folder)`` or None when it is not a path
+    inside the workspace. `/workspace/x`, `workspace/x` and `x` are ONE path —
+    through the WRITE door's own normalizer, so a source and the write that
+    produced it can never key differently. A trailing slash means a folder.
+    Pure."""
+    from services.primitives.workspace import _normalize_workspace_rel
+
+    p = str(raw or "").strip()
+    if not p or "\\" in p:
+        return None
+    is_folder = p.endswith("/")
+    rel = _normalize_workspace_rel(p).strip("/")
+    parts = rel.split("/")
+    if not rel or any(seg in ("", ".", "..") for seg in parts):
+        return None
+    return rel, is_folder
+
+
 def _derive_app(fmt: Optional[str]) -> Optional[str]:
     """The app a target's type belongs to (ADR-639 D3). Pure."""
     return _APP_BY_FORMAT.get(fmt or "")
@@ -250,31 +331,60 @@ def _classify_app(app: Optional[str], fmt: Optional[str]) -> Optional[str]:
 
     An explicit `app` must be a REGISTERED app — which is also how "never an
     agent" is enforced without a second rule: `app: editor` is not an app,
-    so it is refused loudly rather than parked or honoured. A prose target
-    with no resolvable app cannot run (no executor); a structured target
-    needs none.
+    so it is refused loudly rather than parked or honoured — and never a
+    COMPOSED one (ADR-659 D3). A prose target with no resolvable app cannot
+    run (no executor); a structured target needs none.
     """
     if app:
         import services.apps  # noqa: F401  (registration side-effect — ADR-562)
         from services.authoring import resolve_app
+        from services.kernel_surfaces import is_composition, kernel_surface_entries
 
-        return None if resolve_app(app) else "app_invalid"
+        if not resolve_app(app):
+            return "app_invalid"
+        # ADR-659 D3 — ruled from MATERIAL, not by name: the executor derives
+        # from what the file IS, and a COMPOSED app owns no material, so it can
+        # be no file's app. Before this, `app: supervisor` parsed clean and the
+        # Supervisor ran the declaration — the only guard was the ABSENCE of a
+        # `standing_executor`, which the resident fallback defeats.
+        if any(e.get("slug") == app and is_composition(e)
+               for e in kernel_surface_entries()):
+            return "app_invalid"
+        return None
     if fmt in ("md",) and _derive_app(fmt) is None:
         return "app_invalid"
     return None
 
 
-def _classify_sources(sources: list[dict], fmt: Optional[str]) -> Optional[str]:
-    """Source rules (D4, amended by ADR-582 D6): HTTP pull OR a connector
-    slice; structured formats map exactly ONE source to the leaf; prose folds
-    up to the radar cap."""
+def _classify_sources(
+    sources: list[dict], fmt: Optional[str], *, machinery_rel: frozenset = frozenset(),
+    target_rel: str = "",
+) -> Optional[str]:
+    """Source rules (D4, amended by ADR-582 D6 and ADR-659 D4): an HTTP pull,
+    a connector slice, or a workspace path; structured formats map exactly ONE
+    source to the leaf — and a FILE, never a folder; prose folds up to the
+    radar cap. A source naming this declaration's own target is the smallest
+    loop there is (`source_cycle`); naming its other machinery is invalid."""
     clean = [
         s for s in sources
         if isinstance(s, dict) and s.get("id")
-        and (_is_http_source(s) or _is_connector_source(s))
+        and (_is_http_source(s) or _is_connector_source(s) or _is_path_source(s))
     ]
     if len(clean) != len(sources) or not clean:
         return "sources_invalid"
+    for s in clean:
+        if not _is_path_source(s):
+            continue
+        norm = normalize_source_path(s.get("path"))
+        if norm is None:
+            return "sources_invalid"
+        rel, is_folder = norm
+        if not is_folder and rel == target_rel:
+            return "source_cycle"
+        if not is_folder and rel in machinery_rel:
+            return "sources_invalid"
+        if is_folder and fmt in ("csv", "json", "txt"):
+            return "sources_invalid"
     if fmt in ("csv", "json", "txt") and len(clean) != 1:
         return "sources_invalid"
     if fmt == "md" and len(clean) > _MAX_SOURCES_PROSE:
@@ -282,8 +392,44 @@ def _classify_sources(sources: list[dict], fmt: Optional[str]) -> Optional[str]:
     return None
 
 
+def mark_source_cycles(decls: list["StandingDecl"]) -> None:
+    """ADR-659 D5 — refuse the loop BY NAME, on every declaration in it.
+
+    Once a target can be a source, A-keeps-a.md-from-b.md and
+    B-keeps-b.md-from-a.md is expressible, and under the pace rule each write
+    re-arms the other: spend with no floor. An edge A→B exists when A reads
+    B's target — by file, or by a folder that contains it. A declaration's own
+    target inside its own folder source is NOT an edge (the gather skips it).
+    Every healthy declaration that can reach itself gets `source_cycle`, so
+    none of them is indexed and the roster says why. `decls` is ONE
+    workspace's. Mutates; pure otherwise."""
+    healthy = [d for d in decls if d.problem is None]
+    reads: dict[str, set[str]] = {}
+    for a in healthy:
+        srcs = a.path_sources()
+        reads[a.slug] = {
+            b.slug for b in healthy if b.slug != a.slug and any(
+                (not is_folder and rel == b.target_rel)
+                or (is_folder and b.target_rel.startswith(rel + "/"))
+                for rel, is_folder in srcs
+            )
+        }
+    for d in healthy:
+        seen: set[str] = set()
+        stack = list(reads[d.slug])
+        while stack:
+            n = stack.pop()
+            if n == d.slug:
+                d.problem = "source_cycle"
+                break
+            if n not in seen:
+                seen.add(n)
+                stack.extend(reads.get(n, ()))
+
+
 def parse_standing_yaml(
-    content: str, *, topic: str, declaration_path: str, user_id: Optional[str] = None
+    content: str, *, topic: str, declaration_path: str, user_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> Optional[StandingDecl]:
     """Parse one ``_standing.yaml`` body. None on unparseable (the caller's 422
     repair state); a PARSEABLE declaration that cannot run comes back with
@@ -333,12 +479,17 @@ def parse_standing_yaml(
         options=options,
         declaration_path=declaration_path,
         user_id=user_id,
+        workspace_id=workspace_id,
     )
     # Explicit wins; absent derives from the target's type (ADR-639 D3).
     decl.app = explicit_app or _derive_app(decl.format)
     decl.problem = (
         _classify_target(target)
-        or _classify_sources(sources, decl.format)
+        or _classify_sources(
+            sources, decl.format, target_rel=decl.target_rel,
+            machinery_rel=frozenset({f"{topic}/{CONTRACT_LEAF}",
+                                     f"{topic}/{DECLARATION_LEAF}"}),
+        )
         or _classify_app(explicit_app, decl.format)
     )
     return decl
@@ -432,10 +583,19 @@ def discover_standing(client, *, workspace_id: Optional[str] = None) -> dict[str
             topic=topic,
             declaration_path=path,
             user_id=key,
+            workspace_id=row.get("workspace_id"),
         )
         if decl is None:
             continue
         by_user.setdefault(key, []).append(decl)
+    # ADR-659 D5 — a loop is a property of ONE workspace's declarations: an
+    # owner's second workspace may hold the same paths and is no part of it.
+    for decls in by_user.values():
+        by_ws: dict[Optional[str], list[StandingDecl]] = {}
+        for d in decls:
+            by_ws.setdefault(d.workspace_id, []).append(d)
+        for group in by_ws.values():
+            mark_source_cycles(group)
     return by_user
 
 
@@ -547,31 +707,6 @@ async def materialize_standing_index(
                 logger.warning("[STANDING_SCHED] delete failed for %s/%s: %s", user_id[:8], slug, e)
 
     return touched
-
-
-def read_standing_task_row(client, user_id: str, slug: str) -> Optional[dict]:
-    """This declaration's index row, or None when it has never been materialized.
-
-    ADR-618 — the manual door needs the CURRENT `next_run_at` to take the same
-    CAS claim the drain takes; the drain already holds it from its due-scan.
-    None means "not indexed yet" (a declaration since the last tick), which
-    the caller must treat as claimable rather than as a lost race — there is no
-    scheduled run to collide with.
-    """
-    try:
-        rows = (
-            client.table("tasks")
-            .select("id, slug, next_run_at, last_run_at")
-            .eq("user_id", user_id)
-            .eq("slug", slug)
-            .eq("kind", STANDING_KIND)
-            .limit(1)
-            .execute()
-        ).data or []
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[STANDING] task-row read failed for %s: %s", slug, e)
-        return None
-    return rows[0] if rows else None
 
 
 # ---------------------------------------------------------------------------
@@ -725,11 +860,11 @@ async def _reach_connector_sources(
 
 async def _read_connector_source(
     client, user_id: str, platform: str, selector: str,
-) -> tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str], Optional[datetime]]:
     """Resolve a connector source (ADR-582 D6): the newest LANDED snapshot at
-    the fixed intake lane. Returns (content, /workspace-absolute path) or
-    (None, None) — an un-captured selector is the same honest empty as a dead
-    feed. Substrate reads only — the reach half lives in
+    the fixed intake lane. Returns (content, /workspace-absolute path, the
+    snapshot's stamp — what the pace rule reads, ADR-659 D6) or (None, None,
+    None) — an un-captured selector is the same honest empty as a dead feed. Substrate reads only — the reach half lives in
     `_reach_connector_sources`, which goes through the ONE capture writer;
     this read path never touches a platform API or HTTP."""
     from services.connectors import read_landed_snapshots
@@ -738,29 +873,59 @@ async def _read_connector_source(
     um = UserMemory(client, user_id)
     snaps = await read_landed_snapshots(um, platform, selector, limit=1)
     if not snaps:
-        return None, None
-    rel = snaps[-1][0]
+        return None, None, None
+    rel, stamp = snaps[-1]
     try:
         body = await um.read(rel)
     except Exception as e:  # noqa: BLE001
         logger.warning("[STANDING] connector source read failed %s: %s", rel, e)
-        return None, None
+        return None, None, None
     if body is None:
-        return None, None
-    return body, f"/workspace/{rel.lstrip('/')}"
+        return None, None, None
+    return body, f"/workspace/{rel.lstrip('/')}", stamp
 
 
-def _retain_raw(client, user_id: str, *, source_id: str, url: str,
-                observed_at: str, stamp: str, body: str, fmt: str) -> str:
+def _scoped(query, decl: StandingDecl, user_id: str):
+    """Scope a `workspace_files` read to the declaration's OWN workspace
+    (ADR-659 D4 rule 5); the `(user_id)` key is the N=1 fallback only."""
+    if decl.workspace_id:
+        return query.eq("workspace_id", decl.workspace_id)
+    return query.eq("user_id", user_id)
+
+
+def _retain_raw(client, user_id: str, decl: StandingDecl, *, source_id: str, url: str,
+                observed_at: str, stamp: str, body: str) -> tuple[str, Optional[datetime]]:
     """Retain one fetched body as an immutable raw observation — the
     ADR-376/DP32 raw lane, sibling to track_web_sources' (same inbound/web/
-    home, source-slugged). Returns the path the write CITES."""
+    home, source-slugged). Returns ``(the path the write CITES, when that
+    observation last MOVED)``.
+
+    ADR-659 D6 — a body byte-identical to the last retained raw is NOT retained
+    again: the existing raw is cited and its own time is returned, which is
+    how the pace rule knows an HTTP source did not move. Before this, every
+    tick wrote a new copy of an unchanged page. `None` for the time means
+    "just now" (a new observation), which the pace rule reads as moved."""
     from services.authored_substrate import write_revision
     from services.primitives.track_web_sources import _slug as _source_slug
+    from services.workspace_context import live_files_filter
 
-    ext = fmt if fmt in SUPPORTED_FORMATS else "txt"
-    path = f"/workspace/inbound/web/{_source_slug(source_id)}/{stamp}.{ext}"
+    ext = decl.format if decl.format in SUPPORTED_FORMATS else "txt"
+    home = f"/workspace/inbound/web/{_source_slug(source_id)}/"
     truncated = body[:_MAX_FETCH_CHARS]
+    try:
+        last = (
+            live_files_filter(_scoped(
+                client.table("workspace_files").select("path, content, updated_at"),
+                decl, user_id,
+            ).like("path", f"{home}%"))
+            .order("updated_at", desc=True).limit(1).execute()
+        ).data or []
+        if last and last[0].get("content") == truncated:
+            return last[0]["path"], _coerce_datetime(last[0].get("updated_at"))
+    except Exception as e:  # noqa: BLE001 — cannot compare → retain (never lose a raw)
+        logger.warning("[STANDING] last-raw read failed for %s: %s", home, e)
+
+    path = f"{home}{stamp}.{ext}"
     write_revision(
         client,
         user_id=user_id,
@@ -770,7 +935,139 @@ def _retain_raw(client, user_id: str, *, source_id: str, url: str,
         message=f"raw standing observation: {url} @ {observed_at}",
         revision_kind="observation",
     )
-    return path
+    return path, None
+
+
+def gather_path_source(
+    client, user_id: str, decl: StandingDecl, rel: str, is_folder: bool,
+) -> tuple[Optional[str], list[str], Optional[datetime]]:
+    """ADR-659 D4 — read ONE workspace-path source: ``(material, the absolute
+    paths actually read, when the newest of them moved)``, or ``(None, [],
+    None)`` when there is nothing live to read.
+
+    The kernel gathers so the turn stays TOOLLESS. Live text only — Trash and
+    binary are never material (the 2026-09-07 lifecycle lesson); the
+    declaration's own machinery is never material (rule 2), so a folder that
+    contains the kept file gathers AROUND it; `_`-prefixed leaves are machine
+    config (ADR-254), not reading. A folder is its newest `_MAX_FOLDER_FILES`
+    files, each cut at `_FOLDER_FILE_CHARS`, and the header tells the turn how
+    many it did NOT see. A FILE's material is its content, unadorned, so a
+    structured target can map it. Never raises."""
+    from services.workspace_context import live_files_filter
+
+    base = f"{_WORKSPACE_PREFIX}{rel}"
+    try:
+        q = _scoped(
+            client.table("workspace_files").select("path, content, updated_at"),
+            decl, user_id,
+        )
+        if is_folder:
+            q = q.like("path", f"{base}/%").order("updated_at", desc=True).limit(200)
+        else:
+            q = q.eq("path", base).limit(1)
+        rows = live_files_filter(q).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STANDING] path source read failed %s: %s", base, e)
+        return None, [], None
+
+    readable = [
+        r for r in rows
+        if (r.get("content") or "").strip()
+        and r.get("path") not in decl.machinery
+        # LIKE treats `_` as a wildcard — re-check the prefix exactly.
+        and (not is_folder or str(r.get("path", "")).startswith(f"{base}/"))
+        and not str(r.get("path", "")).rsplit("/", 1)[-1].startswith("_")
+    ]
+    if not readable:
+        return None, [], None
+
+    moved = max((_coerce_datetime(r.get("updated_at")) for r in readable
+                 if r.get("updated_at")), default=None)
+    if not is_folder:
+        r = readable[0]
+        return r["content"], [r["path"]], moved
+
+    kept = readable[:_MAX_FOLDER_FILES]
+    left_out = len(readable) - len(kept)
+    head = f"FOLDER {rel}/ — {len(kept)} file{'s' if len(kept) != 1 else ''}, newest first"
+    if left_out > 0:
+        head += f" ({left_out} older file{'s' if left_out != 1 else ''} NOT shown)"
+    parts = [head]
+    for r in kept:
+        body = r["content"]
+        cut = " …[cut]" if len(body) > _FOLDER_FILE_CHARS else ""
+        parts.append(
+            f"--- {r['path'][len(_WORKSPACE_PREFIX):]} "
+            f"(changed {str(r.get('updated_at') or '')[:10]}){cut} ---\n"
+            f"{body[:_FOLDER_FILE_CHARS]}"
+        )
+    return "\n\n".join(parts), [r["path"] for r in kept], moved
+
+
+def last_judged_at(client, user_id: str, decl: StandingDecl) -> Optional[datetime]:
+    """The moment this declaration's last JUDGED run began READING (ADR-659
+    D6), or None.
+
+    A run is judged when its `standing-write` row is a `success` or an honest
+    `no_change`; a failed, refused or pace-skipped run is not a judgment — so
+    it retries. ⚠️ The answer is that run's START, not the time its row was
+    written: a source that moves DURING the model call must read as moved, or
+    it is older than the judgment and never re-read. The run's start is its
+    `standing-sweep` row's time less that row's own duration; with no sweep
+    row to pair, the write row's time less the run's whole budget — early on
+    purpose, since the cost of early is one redundant turn and the cost of
+    late is a missed change.
+
+    Read from the ledger; nothing is stored. None = never judged, or the ledger
+    could not be read — and BOTH mean "run": a read hiccup must not silently
+    stop a member's standing work (the ADR-618 fail-open posture)."""
+    from datetime import timedelta
+
+    try:
+        q = (
+            client.table("execution_events")
+            .select("slug, status, error_reason, created_at, duration_ms")
+            .in_("slug", [f"standing-write:{decl.topic}", f"standing-sweep:{decl.topic}"])
+        )
+        q = (q.eq("workspace_id", decl.workspace_id) if decl.workspace_id
+             else q.eq("user_id", user_id))
+        rows = q.order("created_at", desc=True).limit(40).execute().data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STANDING] last-judged read failed for %s: %s", decl.topic, e)
+        return None
+
+    judged: Optional[datetime] = None
+    for r in rows:  # newest first
+        at = _coerce_datetime(r.get("created_at"))
+        if at is None:
+            continue
+        is_write = str(r.get("slug", "")).startswith("standing-write:")
+        if judged is None:
+            if is_write and (r.get("status") == "success" or (
+                r.get("status") == "skipped" and r.get("error_reason") == "no_change"
+            )):
+                judged = at
+            continue
+        if not is_write and r.get("status") == "success":
+            return at - timedelta(milliseconds=int(r.get("duration_ms") or 0))
+    if judged is None:
+        return None
+    return judged - timedelta(seconds=_DERIVE_TIMEOUT_S + _FETCH_TIMEOUT_S * _MAX_SOURCES_PROSE)
+
+
+def _file_moved_at(client, user_id: str, decl: StandingDecl, path: str) -> Optional[datetime]:
+    """When a live file last changed, or None (absent / unreadable)."""
+    from services.workspace_context import live_files_filter
+
+    try:
+        rows = (
+            live_files_filter(_scoped(
+                client.table("workspace_files").select("updated_at"), decl, user_id,
+            ).eq("path", path)).limit(1).execute()
+        ).data or []
+        return _coerce_datetime(rows[0].get("updated_at")) if rows else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -906,14 +1203,29 @@ def _read_file(client, user_id: str, path: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
+async def run_standing_sweep(
+    client, user_id: str, decl: StandingDecl, *, force: bool = False,
+) -> dict:
     """One run of one declaration. Returns {success, slug, target_path?,
-    no_change?, error_reason?, detail?}. Never raises past its own boundary —
-    the drain loop records the run either way."""
-    from services.telemetry import record_execution_event
+    no_change?, skipped?, error_reason?, detail?}. The drain loop records the
+    run either way.
+
+    `force` is the member's Run now (ADR-659 D6): they asked, so the pace rule
+    does not apply, and the ledger says `manual` rather than `scheduled`."""
+    from services import telemetry as _telemetry
 
     started = datetime.now(timezone.utc)
     topic = decl.topic
+    _trigger = "manual" if force else "scheduled"
+
+    def record_execution_event(*args, **kwargs):
+        # ONE place stamps what every row of this run shares: how it was
+        # triggered, and the workspace it ran FOR (the declaration's own —
+        # never re-derived from the owner, who may hold a second workspace).
+        # Resolved through the module at CALL time so a gate can spy on it.
+        kwargs.setdefault("trigger_type", _trigger)
+        kwargs.setdefault("workspace_id", decl.workspace_id)
+        return _telemetry.record_execution_event(*args, **kwargs)
 
     # A declaration in a problem state never runs — the pane already says so.
     if decl.problem is not None or decl.format is None:
@@ -959,7 +1271,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
         # to say why nothing moved, and the drain loop records either way.
         record_execution_event(
             client, user_id=user_id, slug=f"standing-sweep:{topic}",
-            mode="mechanical", trigger_type="scheduled",
+            mode="mechanical",
             status="failed", error_reason="balance_exhausted",
             error_detail="workspace balance is exhausted — the run did not fire",
             duration_ms=0, funnel_decision="standing",
@@ -975,11 +1287,15 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
     #       source: REACH WITH A RECEIPT (ADR-594 D2) — invoke the one capture
     #       writer for this run's declared selectors (aperture-intersected,
     #       freshness-floored), then read the LANDED snapshot and cite it.
-    #       Capture retained it, so there is no re-retain here. ──────────────
+    #       Capture retained it, so there is no re-retain here. OR a workspace
+    #       PATH (ADR-659 D4): gathered from this declaration's own workspace,
+    #       and every path read is cited. Each source also says when it last
+    #       MOVED — None meaning "just now" — which is all the pace rule reads.
     observed_at = started.isoformat()
     stamp = started.strftime("%Y-%m-%dT%H-%M-%S")
     bodies: list[tuple[dict, str]] = []
     raw_paths: list[str] = []
+    moved_ats: list[Optional[datetime]] = []
     errors: list[str] = []
     conn_sources = [s for s in decl.sources if _is_connector_source(s)]
     reach: dict[str, dict] = {}
@@ -994,7 +1310,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
     for s in decl.sources:
         try:
             if _is_connector_source(s):
-                landed, landed_path = await _read_connector_source(
+                landed, landed_path, landed_at = await _read_connector_source(
                     client, user_id, str(s["connector"]), str(s["selector"]),
                 )
                 if landed is None:
@@ -1009,15 +1325,31 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
                     continue
                 bodies.append((s, landed[:_MAX_FETCH_CHARS]))
                 raw_paths.append(landed_path)
+                moved_ats.append(landed_at)
+                continue
+            if _is_path_source(s):
+                rel, is_folder = normalize_source_path(s.get("path"))
+                material, read_paths, moved = gather_path_source(
+                    client, user_id, decl, rel, is_folder,
+                )
+                if material is None:
+                    errors.append(f"{s.get('id')}: nothing live to read at "
+                                  f"{rel}{'/' if is_folder else ''}")
+                    continue
+                bodies.append((s, material))
+                raw_paths.extend(read_paths)
+                moved_ats.append(moved)
                 continue
             body = await _fetch_source(str(s["url"]))
             if len(body) > _MAX_FETCH_CHARS:
                 body = body[:_MAX_FETCH_CHARS]
             bodies.append((s, body))
-            raw_paths.append(_retain_raw(
-                client, user_id, source_id=str(s["id"]), url=str(s["url"]),
-                observed_at=observed_at, stamp=stamp, body=body, fmt=decl.format,
-            ))
+            raw_path, raw_moved = _retain_raw(
+                client, user_id, decl, source_id=str(s["id"]), url=str(s["url"]),
+                observed_at=observed_at, stamp=stamp, body=body,
+            )
+            raw_paths.append(raw_path)
+            moved_ats.append(raw_moved)
         except Exception as e:  # noqa: BLE001 — per-source isolation
             errors.append(f"{s.get('id')}: {e!r}")
 
@@ -1025,7 +1357,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
     sweep_ok = bool(bodies)
     record_execution_event(
         client, user_id=user_id, slug=f"standing-sweep:{topic}",
-        mode="mechanical", trigger_type="scheduled",
+        mode="mechanical",
         status="success" if sweep_ok else "failed",
         error_reason=None if sweep_ok else "no_sources_fetched",
         error_detail=("; ".join(errors)[:500] or None) if errors else None,
@@ -1035,6 +1367,39 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
     if not sweep_ok:
         return {"success": False, "slug": decl.slug, "error_reason": "no_sources_fetched",
                 "reach": reach, "errors": errors}
+
+    # ── 1b. THE PACE RULE (ADR-659 D6) — `make`'s one rule, BEFORE the spend ─
+    # If nothing this declaration reads has moved since it was last JUDGED,
+    # the run stops here: no model call, $0. Until this, every tick of a prose
+    # declaration was a paid turn whether or not anything changed — the honest
+    # no-op was detected AFTER the spend. CONTRACT.md counts as a prerequisite:
+    # a changed contract must re-judge an unchanged world. The member's own
+    # edits to the TARGET neither hasten nor delay (ADR-580 D2, kept).
+    #
+    # ⭐ Nothing here FIRES a run. The drain reached this line on the
+    # declaration's schedule; a change is READ on this tick and CAUSES none
+    # (Axiom 4). What it buys is that a tick with nothing new costs nothing, so
+    # a chain settles within a few ticks of its head moving with no event
+    # source at all.
+    #
+    # Unknown is MOVED: a first run (never judged), an unreadable ledger, a
+    # source with no timestamp and a brand-new observation (None) all proceed.
+    # A failed or refused run was not a judgment, so it retries.
+    if not force:
+        judged_at = last_judged_at(client, user_id, decl)
+        if judged_at is not None:
+            prerequisites = moved_ats + [
+                _file_moved_at(client, user_id, decl, decl.contract_path) or judged_at
+            ]
+            if all(m is not None and m <= judged_at for m in prerequisites):
+                record_execution_event(
+                    client, user_id=user_id, slug=f"standing-write:{topic}",
+                    mode="mechanical", status="skipped",
+                    error_reason="sources_unchanged",
+                    funnel_decision="standing", principal_id=user_id,
+                )
+                return {"success": True, "slug": decl.slug, "no_change": True,
+                        "skipped": "sources_unchanged"}
 
     current = _read_file(client, user_id, decl.target_path)
 
@@ -1049,7 +1414,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
             # silent bad numbers.
             record_execution_event(
                 client, user_id=user_id, slug=f"standing-write:{topic}",
-                mode="mechanical", trigger_type="scheduled", status="failed",
+                mode="mechanical", status="failed",
                 error_reason="shape_violation", error_detail=str(e)[:500],
                 funnel_decision="standing", principal_id=user_id,
             )
@@ -1072,10 +1437,11 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
 
         contract = _read_file(client, user_id, decl.contract_path)
         def _source_label(s: dict) -> str:
-            return s.get("url") or "{}:{}".format(s.get("connector"), s.get("selector"))
+            return (s.get("url") or s.get("path")
+                    or "{}:{}".format(s.get("connector"), s.get("selector")))
 
         material = "\n\n".join(
-            f"SOURCE {s.get('id')} ({_source_label(s)}):\n{body[:40_000]}"
+            f"SOURCE {s.get('id')} ({_source_label(s)}):\n{body[:_SOURCE_SLICE_CHARS]}"
             for s, body in bodies
         )
         user_msg = (
@@ -1103,7 +1469,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
         if turn.status == "router_disabled":
             record_execution_event(
                 client, user_id=user_id, slug=f"standing-write:{topic}",
-                mode="judgment", trigger_type="scheduled", status="skipped",
+                mode="judgment", status="skipped",
                 error_reason="router_disabled",
                 funnel_decision="standing", principal_id=user_id,
             )
@@ -1112,7 +1478,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
             logger.error("[STANDING] derive failed for %s/%s: %s", user_id[:8], decl.slug, turn.error)
             record_execution_event(
                 client, user_id=user_id, slug=f"standing-write:{topic}",
-                mode="judgment", trigger_type="scheduled", status="failed",
+                mode="judgment", status="failed",
                 error_reason="derive_raised", error_detail=(turn.error or "")[:500],
                 funnel_decision="standing", principal_id=user_id,
             )
@@ -1124,7 +1490,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
             # was real, so the row carries the model and the usage.
             record_execution_event(
                 client, user_id=user_id, slug=f"standing-write:{topic}",
-                mode="judgment", trigger_type="scheduled", status="failed",
+                mode="judgment", status="failed",
                 error_reason="output_truncated",
                 error_detail=f"the revised file exceeded {_STANDING_MAX_TOKENS} output tokens",
                 model=turn.ledger_model, funnel_decision="standing",
@@ -1137,7 +1503,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
         if turn.status == "no_change":
             record_execution_event(
                 client, user_id=user_id, slug=f"standing-write:{topic}",
-                mode="judgment", trigger_type="scheduled", status="skipped",
+                mode="judgment", status="skipped",
                 error_reason="no_change", model=ledger_model,
                 funnel_decision="standing", principal_id=user_id, **usage,
             )
@@ -1151,7 +1517,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
     if current is not None and content == current:
         record_execution_event(
             client, user_id=user_id, slug=f"standing-write:{topic}",
-            mode=write_mode, trigger_type="scheduled", status="skipped",
+            mode=write_mode, status="skipped",
             error_reason="no_change", model=ledger_model,
             duration_ms=write_ms, funnel_decision="standing",
             principal_id=user_id, **usage,
@@ -1186,7 +1552,7 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
     # ── 5. meter ──────────────────────────────────────────────────────────
     record_execution_event(
         client, user_id=user_id, slug=f"standing-write:{topic}",
-        mode=write_mode, trigger_type="scheduled", status="success",
+        mode=write_mode, status="success",
         model=ledger_model, duration_ms=write_ms,
         funnel_decision="standing", principal_id=user_id, **usage,
     )
@@ -1201,9 +1567,9 @@ async def run_standing_sweep(client, user_id: str, decl: StandingDecl) -> dict:
 # ---------------------------------------------------------------------------
 
 
-async def _due_standing(client, now: datetime) -> list[tuple[str, StandingDecl, Optional[str]]]:
-    """Discover, sync the index, and return the rows due now — each with the
-    stored `next_run_at` the claim compares against. Paused and problem
+async def _due_standing(client, now: datetime) -> list[tuple[str, StandingDecl]]:
+    """Discover, sync the index, and return the rows due now and UNHELD
+    (ADR-659 D1 — a row another run holds is not due). Paused and problem
     declarations never reach the loop (a problem is a loud repair state, not
     a failure to retry)."""
     decls_by_user = discover_standing(client)
@@ -1215,14 +1581,15 @@ async def _due_standing(client, now: datetime) -> list[tuple[str, StandingDecl, 
 
     due_rows = (
         client.table("tasks")
-        .select("id, user_id, slug, next_run_at")
+        .select("id, user_id, slug")
         .eq("status", "active")
         .eq("kind", STANDING_KIND)
         .lte("next_run_at", now.isoformat())
+        .lt("claimed_until", now.isoformat())
         .execute()
     ).data or []
 
-    out: list[tuple[str, StandingDecl, Optional[str]]] = []
+    out: list[tuple[str, StandingDecl]] = []
     for row in due_rows:
         uid = row["user_id"]
         decl = next(
@@ -1230,7 +1597,7 @@ async def _due_standing(client, now: datetime) -> list[tuple[str, StandingDecl, 
         )
         if decl is None or decl.paused or decl.problem is not None:
             continue
-        out.append((uid, decl, row.get("next_run_at")))
+        out.append((uid, decl))
     return out
 
 
@@ -1266,9 +1633,12 @@ __all__ = [
     "parse_standing_yaml",
     "discover_standing",
     "materialize_standing_index",
-    "read_standing_task_row",
     "resolve_executor",
     "map_structured",
+    "normalize_source_path",
+    "mark_source_cycles",
+    "gather_path_source",
+    "last_judged_at",
     "build_standing_job",
     "run_standing_sweep",
     "drain_due_standing_work",

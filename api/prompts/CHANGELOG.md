@@ -15,6 +15,32 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.20.1] - The declaring skill teaches the workspace source, and the chain
+### Changed
+- api/services/skills/declaring-standing-work/SKILL.md: the YAML example gains the third source
+  shape (`path:` — a file, or a folder with a trailing slash); one paragraph on what a path source
+  reads and that SEVERAL STEPS are SEVERAL DECLARATIONS in a chain, never one file asked to do
+  everything; the loop it must not close; one line that an unmoved run costs nothing.
+- Expected behavior: asked for multi-step standing work ("digest what lands in my uploads, then
+  keep a weekly report from the digest"), a lane declares two kept files, the second sourcing the
+  first, instead of one declaration with a contract that reads like a pipeline — and it lists the
+  folder before naming a path rather than inventing one. Asked about cost on a tight cadence, it
+  answers from the pace rule.
+### Why
+The observed failure is structural, not a model error: until ADR-659 the parser accepted only a
+URL or a connector slice, so the skill could not teach a workspace source and a lane could not
+declare one — a single unrecognised source made the WHOLE declaration `sources_invalid`
+(`_classify_sources`). Every multi-step ask therefore had one expressible shape: one file, one
+contract doing all the steps, fed only from outside. Receipt: production holds 0 live
+declarations (queried 2026-09-20), and `docs/analysis/the-supervisor-from-first-principles-2026-09-20.md`
+§2 scores the lane against the member's own sentence. The skill's failure is silent (CLAUDE.md
+protocol item 4): a capability the skill does not name is, to a lane, a capability that does not
+exist — ADR-658's own lesson about the door, one layer down.
+### Gate
+`api/test_adr659_standing_work_reads_the_workspace.py` (the skill names `path:`, the chain and the
+loop). Ratchets run: `api/test_adr630_skills.py`, `api/test_adr632_the_seat_retires.py` §5,
+`api/test_prompt_changelog_discipline.py`.
+
 ## [2026.09.18.4] - The engine roster catches up to both frontiers
 ### Changed
 - api/services/lane_runner.py (`LANE_MODELS`): +`anthropic/claude-fable-5-1` ("Claude Fable 5.1"),

@@ -7,11 +7,12 @@ schedules, ADR-596 D4 workspace timezone).
 capture declaration) and returns the next firing time. `preserve_due_commitment`
 keeps a due moment across a re-declaration.
 
-ADR-632: the recurrence INDEX half of this module (`materialize_scheduling_index`,
-`get_due_recurrences`, `claim_task_run`, `record_task_run`, the `tasks` rows) is
-DELETED with the steward — recurrences were retired by ADR-603 D5 and the
-index had no live reader once the cron-tick wake source went. The `tasks`
-table survives as data until a follow-up migration drops it.
+The second half is the ONE drain loop every unattended kind rides (ADR-639 D3):
+`claim_run` · `record_run` · `drain_due`, over the thin `tasks` index. The claim
+is its own column and a lock (ADR-659 D1) — never a value parked in `next_run_at`.
+
+ADR-632 deleted the recurrence index half (`materialize_scheduling_index` and its
+readers) with the steward; ADR-639 D3 re-founded `tasks` as this loop's index.
 """
 
 from __future__ import annotations
@@ -287,9 +288,10 @@ def preserve_due_commitment(
 
     The rule: when the stored ``next_run_at`` has come due and the
     declaration still wants to run (not paused), the materializer must KEEP
-    it, so the due scan claims it. The claim CAS then parks the row on its
-    in-flight sentinel and the post-run record re-anchors on ``last_run_at``
-    — the commitment is consumed by exactly one run, never re-preserved.
+    it, so the due scan claims it. The claim holds the row (`claimed_until`,
+    ADR-659 D1 — a column this rule never touches) and the post-run record
+    re-anchors on ``last_run_at`` — the commitment is consumed by exactly one
+    run, never re-preserved.
     A paused declaration is honored over any commitment (pause wins, as it
     does in ``compute_next_run_at``).
     """
@@ -415,11 +417,12 @@ def _parse_iso(value: Optional[str]) -> Optional[datetime]:
 
 __all__ = [
     "compute_next_run_at",
-    "materialize_scheduling_index",
     "preserve_due_commitment",
-    "get_due_recurrences",
-    "claim_task_run",
-    "record_task_run",
+    "CLAIM_HOLD_HOURS",
+    "UNHELD",
+    "claim_run",
+    "record_run",
+    "drain_due",
 ]
 
 
@@ -435,47 +438,55 @@ __all__ = [
 # supplies its own discovery + run body); only the loop is shared.
 #
 # A kind supplies:
-#   due(client, now)        → list of (user_id, decl, original_next_run) — the
-#                             rows that should run now, already filtered for
-#                             paused / problem states; `original_next_run` is
-#                             the stored value the claim compares against
+#   due(client, now)        → list of (user_id, decl) — the rows that should
+#                             run now, already filtered for paused / problem
+#                             states and for rows another run HOLDS
 #   run(client, user_id, decl) → {"success": bool, "error_reason"?: str, …}
 #   record(client, user_id, decl, last_run_at) → None — advances the row
 #
 # `decl` is any object with `.slug`, `.schedule`, `.paused`, `.paused_until`,
 # `.options` (what `compute_next_run_at` reads).
 
-#: How long a claimed row is held by its sentinel before another scheduler
-#: instance may reclaim it. Long enough for the slowest run; short enough that
-#: a crashed instance does not strand the row for a day.
-CLAIM_SENTINEL_HOURS = 2
+#: How long a run HOLDS its index row. Long enough for the slowest run; short
+#: enough that a crashed run does not strand the row for a day — a hold that
+#: lapses is simply claimable again.
+CLAIM_HOLD_HOURS = 2
+
+#: `claimed_until` for a row nobody holds (migration 258's column default).
+UNHELD = "1970-01-01T00:00:00+00:00"
 
 
 def claim_run(
-    client, user_id: str, slug: str, kind: str, original_next_run: Optional[str],
-    *, sentinel_hours: int = CLAIM_SENTINEL_HOURS,
+    client, user_id: str, slug: str, kind: str, *, hold_hours: int = CLAIM_HOLD_HOURS,
 ) -> bool:
-    """CAS atomic claim on ONE kind's index row.
+    """Take the LOCK on ONE kind's index row (ADR-659 D1).
 
-    Bumps `next_run_at` to a sentinel iff it still equals `original_next_run`,
-    so concurrent scheduler instances (and the manual Run-now door, ADR-618 D2)
-    cannot both execute one row. Kind-scoped so two kinds sharing a slug (an
-    authoring error) can never cross-claim. `None` for the baseline refuses:
-    there is nothing to compare against, and a caller that reads None as a
-    lost race would make a never-indexed declaration un-fireable by hand — the
-    caller decides what None means (ADR-618 D2).
+    One conditional update — *hold this row until T, if nobody holds it now* —
+    which the database serialises, so the scheduler and the manual Run-now door
+    (ADR-618 D2) cannot both execute one row. Kind-scoped so two kinds sharing a
+    slug (an authoring error) can never cross-claim.
+
+    ⚠️ It compares against NO value its caller read. The claim it replaces was a
+    compare-and-swap on `next_run_at`, parked there as a sentinel — so a caller
+    reading AFTER a claim read the sentinel, which equals itself (ADR-658 A1.8:
+    two runs, two charges), and the materializer, which OWNS that column, could
+    rewrite it mid-run (driven 2026-09-20: a never-run declaration came due
+    again while its first run was in flight). `claimed_until` is written here
+    and released in `record_run`, and by nothing else.
+
+    False = somebody holds it, or there is no row. A caller with no row yet
+    materializes first; "no row" is never read as "free to run unclaimed".
     """
-    if original_next_run is None:
-        return False
-    sentinel = (datetime.now(timezone.utc) + timedelta(hours=sentinel_hours)).isoformat()
+    now = datetime.now(timezone.utc)
+    until = (now + timedelta(hours=hold_hours)).isoformat()
     try:
         result = (
             client.table("tasks")
-            .update({"next_run_at": sentinel})
+            .update({"claimed_until": until})
             .eq("user_id", user_id)
             .eq("slug", slug)
             .eq("kind", kind)
-            .eq("next_run_at", original_next_run)
+            .lt("claimed_until", now.isoformat())
             .execute()
         )
         return bool(result.data)
@@ -488,10 +499,10 @@ def record_run(
     client, user_id: str, decl: Any, kind: str, *, last_run_at: datetime,
     user_timezone: Optional[str] = None, market_context: Optional[dict] = None,
 ) -> None:
-    """Advance `last_run_at` + `next_run_at` after a run (clears the sentinel).
+    """Advance `last_run_at` + `next_run_at` after a run, and RELEASE the hold.
 
-    Always writes `next_run_at` — the next scheduled time, or None — so a row
-    never stays stranded on its claim sentinel after a failed run.
+    Runs in the loop's `finally`, so a failed or raised run still releases —
+    a row is never stranded behind its own claim.
     """
     if user_timezone is None:
         from services.schedule_utils import get_workspace_timezone
@@ -511,6 +522,7 @@ def record_run(
             .update({
                 "last_run_at": last_run_at.isoformat(),
                 "next_run_at": next_run.isoformat() if next_run else None,
+                "claimed_until": UNHELD,
             })
             .eq("user_id", user_id).eq("slug", decl.slug).eq("kind", kind)
             .execute()
@@ -529,8 +541,7 @@ async def drain_due(
     REASON here (ADR-618's named gap: a count cannot say `router_disabled`,
     and that is what let production's one string fail four days running while
     every log line looked ordinary). A raised run is a failure, never a
-    crashed tick. `record` runs in `finally` so a row is never left on its
-    claim sentinel.
+    crashed tick. `record` runs in `finally` so a row is never left held.
     """
     now = datetime.now(timezone.utc)
     try:
@@ -540,10 +551,10 @@ async def drain_due(
         return 0, 0, 0
 
     found = succeeded = failed = 0
-    for user_id, decl, original_next_run in rows:
+    for user_id, decl in rows:
         found += 1
-        if not claim_run(client, user_id, decl.slug, kind, original_next_run):
-            logger.info("[DRAIN:%s] %s/%s already claimed by another instance; skipping",
+        if not claim_run(client, user_id, decl.slug, kind):
+            logger.info("[DRAIN:%s] %s/%s is held by another run; skipping",
                         kind, user_id[:8], decl.slug)
             continue
         try:

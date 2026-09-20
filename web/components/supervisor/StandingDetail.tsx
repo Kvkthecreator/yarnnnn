@@ -31,6 +31,7 @@ function runLine(r: StandingRun): string {
   const what = r.step === 'write' ? 'Update' : 'Read sources';
   if (r.status === 'success') return `${what} — done`;
   if (r.status === 'skipped' && r.error_reason === 'no_change') return `${what} — nothing changed`;
+  if (r.status === 'skipped' && r.error_reason === 'sources_unchanged') return `${what} — not needed, nothing new to read`;
   if (r.status === 'skipped') return `${what} — skipped${r.error_reason ? ` (${r.error_reason})` : ''}`;
   if (r.error_reason === 'shape_violation') return `${what} — refused, the data didn’t fit the file’s shape`;
   if (r.error_reason === 'no_sources_fetched') return `${what} — no source could be read`;
@@ -269,7 +270,9 @@ export function StandingDetail({
                     <li key={src.id} className="truncate">
                       {src.connector
                         ? <><span className="font-medium">{src.connector}</span>{src.selector ? ` · ${src.selector}` : ''}{src.reads ? <span className="text-muted-foreground"> — reads {lowerFirst(src.reads)}</span> : null}</>
-                        : <span className="font-mono">{src.url}</span>}
+                        : src.path
+                          ? <><span className="font-mono">{src.path}</span><span className="text-muted-foreground"> — {src.path.endsWith('/') ? 'a folder in this workspace, newest files first' : 'a file in this workspace'}</span></>
+                          : <span className="font-mono">{src.url}</span>}
                     </li>
                   ))}
                 </ul>
@@ -333,7 +336,18 @@ export function StandingDetail({
           <ul className="rounded-md border border-border/60">
             {detail.runs.map((r, i) => (
               <li key={`${r.at}-${i}`} className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2 text-xs last:border-b-0">
-                <span className="text-foreground">{runLine(r)}</span>
+                <span className="min-w-0 text-foreground">
+                  {runLine(r)}
+                  {/* ADR-659 D2 — what this update was MADE FROM, read off the
+                      kept file's own revision. The ledger row alone could only
+                      say that a run happened, never what it produced. */}
+                  {r.derived_from && r.derived_from.length > 0 && (
+                    <span className="block truncate text-muted-foreground">
+                      from {r.derived_from.slice(0, 3).map((p) => p.replace(/^\/workspace\//, '')).join(', ')}
+                      {r.derived_from.length > 3 ? ` and ${r.derived_from.length - 3} more` : ''}
+                    </span>
+                  )}
+                </span>
                 <span className="shrink-0 text-muted-foreground">{r.at ? formatLedgerTime(r.at) : ''}</span>
               </li>
             ))}

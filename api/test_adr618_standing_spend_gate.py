@@ -3,7 +3,8 @@
 Holds two decisions:
   §1 a string's run is BALANCE-GATED, before the fetch, and a refusal is a
      RECORDED run (the desk must be able to say why nothing moved)
-  §2 the MANUAL fire takes the same CAS claim the scheduled drain takes
+  §2 the MANUAL fire takes the same LOCK the scheduled drain takes (ADR-659 D1)
+  §3 a run the output ceiling cut is refused, and its spend is recorded (am. 1)
 
 Script-style (python3, from api/).
 """
@@ -231,19 +232,26 @@ if _fn is not None:
     # that only mentions the claim.
     check("2b it CLAIMS before running (no double-run/double-spend window)",
           "claim_run" in _calls, f"calls={sorted(set(_calls))}")
-    check("2c it reads the current next_run_at to claim against",
-          "read_standing_task_row" in _calls)
+    # ADR-659 D1 — the claim is a LOCK, comparing against nothing its caller
+    # read, so there is no baseline to fetch. What the door owes instead is a
+    # ROW to lock: it materializes first.
+    check("2c it materializes BEFORE it claims (a row to lock, never a baseline to read)",
+          "_materialize" in _calls and "read_standing_task_row" not in _calls
+          and _calls.index("_materialize") < _calls.index("claim_run"),
+          f"calls={_calls}")
     # Ordering is the whole point: claiming after the sweep bounds nothing.
     _idx = {c: i for i, c in enumerate(_calls)}
     check("2d the claim precedes the sweep",
           _idx.get("claim_run", 99) < _idx.get("run_standing_sweep", -1),
           f"claim@{_idx.get('claim_run')} sweep@{_idx.get('run_standing_sweep')}")
 
-# ⭐ A never-indexed string (declared since the last tick) has no row to claim
-# against — it must stay RUNNABLE. Reading `None` as a lost race would make a
-# brand-new string permanently un-fireable by hand.
-check("2e a never-indexed string is claimable, not read as a lost race",
-      "if _row is not None and not _claimed" in _ROUTE)
+# ⭐ A never-indexed declaration (written since the last tick) must stay
+# RUNNABLE by hand — and must not run UNCLAIMED, which is what the old "no row
+# means claimable" arm allowed. Materializing first gives both. The release is
+# in a `finally`: a run that raised must not strand its own declaration.
+_fn_src = ast.get_source_segment(_ROUTE, _fn) if _fn is not None else ""
+check("2e the run is released in a `finally` (a raise never strands the hold)",
+      "finally:" in _fn_src and _fn_src.index("finally:") < _fn_src.index("record_run("))
 
 print()
 # ═════════════════════════════════════════════════════════════════════════════

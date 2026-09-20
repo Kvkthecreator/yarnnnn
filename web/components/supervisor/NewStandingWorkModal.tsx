@@ -69,16 +69,40 @@ export function NewStandingWorkModal({
   const [target, setTarget] = useState('');
   const [preset, setPreset] = useState<string>(PRESETS[0].cron);
   const [customCron, setCustomCron] = useState('');
-  const [sourceKind, setSourceKind] = useState<'connector' | 'url'>('url');
+  const [sourceKind, setSourceKind] = useState<'connector' | 'path' | 'url'>('url');
   const [connector, setConnector] = useState<string>('');
   const [selector, setSelector] = useState<string>('');
   const [url, setUrl] = useState('');
+  // ADR-659 D4 — a workspace path. The folders are what the workspace already
+  // HAS (`getRoots`, filesystem-literal): offered, never asked for from memory.
+  const [path, setPath] = useState('');
+  const [folders, setFolders] = useState<Array<{ path: string; label: string }>>([]);
   const [contract, setContract] = useState('');
   const [pickingFolder, setPickingFolder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Re-open lands on the chosen start (pre-filled) or a blank door.
+  // The folders this workspace actually has — read when the door opens, and
+  // independent of everything else on it: an unreadable tree leaves the field
+  // typable, never a broken door.
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    api.workspace
+      .getRoots()
+      .then((roots) => {
+        if (!live) return;
+        setFolders(
+          roots
+            .filter((r) => r.exists && r.name !== 'system' && r.name !== 'agents')
+            .map((r) => ({ path: `${r.name}/`, label: r.display_name || r.name })),
+        );
+      })
+      .catch(() => { if (live) setFolders([]); });
+    return () => { live = false; };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -98,6 +122,8 @@ export function NewStandingWorkModal({
       setSourceKind('connector');
       setConnector(s.connector);
       setSelector(s.selectors[0] ?? '');
+    } else if (s?.kind === 'path') {
+      setSourceKind('path');
     } else {
       const first = connectorStarts[0];
       setSourceKind(first && !s ? 'connector' : 'url');
@@ -105,6 +131,7 @@ export function NewStandingWorkModal({
       setSelector(first?.selectors[0] ?? '');
     }
     setUrl('');
+    setPath('');
     setContract(s?.contract_seed ?? '');
   }, [open, start, connectorStarts]);
 
@@ -115,7 +142,11 @@ export function NewStandingWorkModal({
   const ext = target.includes('.') ? target.split('.').pop()!.toLowerCase() : '';
   const formatOk = FORMATS.includes(ext);
   const folderSlug = slugify(folder);
-  const sourceOk = sourceKind === 'url' ? /^https?:\/\//.test(url.trim()) : Boolean(connector && selector);
+  const sourceOk = sourceKind === 'url'
+    ? /^https?:\/\//.test(url.trim())
+    : sourceKind === 'path'
+      ? Boolean(path.trim().replace(/^\/+/, ''))
+      : Boolean(connector && selector);
   const canCreate = Boolean(folderSlug && target.trim() && formatOk && schedule && sourceOk && contract.trim()) && !busy;
 
   const create = async () => {
@@ -130,7 +161,9 @@ export function NewStandingWorkModal({
         contract: contract.trim(),
         sources: sourceKind === 'url'
           ? [{ id: 'page', url: url.trim() }]
-          : [{ id: slugify(selector) || 'source', connector, selector }],
+          : sourceKind === 'path'
+            ? [{ id: slugify(path.replace(/\/+$/, '').split('/').pop() ?? '') || 'source', path: path.trim() }]
+            : [{ id: slugify(selector) || 'source', connector, selector }],
       });
       onCreated(created);
     } catch (e) {
@@ -230,6 +263,13 @@ export function NewStandingWorkModal({
                 )}
                 <button
                   type="button"
+                  onClick={() => setSourceKind('path')}
+                  className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'path' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
+                >
+                  Your workspace
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSourceKind('url')}
                   className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'url' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
                 >
@@ -269,6 +309,24 @@ export function NewStandingWorkModal({
                   {chosenStart?.reads && (
                     <p className="text-[11px] text-muted-foreground">It reads {lowerFirst(chosenStart.reads)}.</p>
                   )}
+                </div>
+              ) : sourceKind === 'path' ? (
+                <div className="mt-2 space-y-1">
+                  <input
+                    value={path}
+                    onChange={(e) => setPath(e.target.value)}
+                    list="standing-source-folders"
+                    placeholder="A folder, or a file inside one"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-foreground/30"
+                  />
+                  <datalist id="standing-source-folders">
+                    {folders.map((f) => (
+                      <option key={f.path} value={f.path}>{f.label}</option>
+                    ))}
+                  </datalist>
+                  <p className="text-[11px] text-muted-foreground">
+                    End a folder with a slash and it reads the newest files in it. Name another kept file and this one follows it.
+                  </p>
                 </div>
               ) : (
                 <input

@@ -157,14 +157,13 @@ async def materialize_capture_index(
 
 async def due_captures(
     client, now: Optional[datetime] = None,
-) -> list[tuple[str, CaptureDeclaration, Optional[str]]]:
-    """The due ``(user_id, declaration, stored next_run_at)`` triples of
-    kind='capture' — the shape the ONE drain loop consumes (ADR-639 D3).
+) -> list[tuple[str, CaptureDeclaration]]:
+    """The due ``(user_id, declaration)`` pairs of kind='capture' — the shape
+    the ONE drain loop consumes (ADR-639 D3).
 
-    Queries `tasks` for active capture rows with next_run_at <= now, then
-    re-reads each user's ``_captures.yaml`` (truth) and matches by slug. The
-    third element is the baseline the claim compares against — read here, in
-    the same scan, rather than re-read per row by the loop.
+    Queries `tasks` for active capture rows that are due AND unheld (ADR-659
+    D1 — a row another run holds is not due), then re-reads each user's
+    ``_captures.yaml`` (truth) and matches by slug.
     """
     if now is None:
         now = datetime.now(timezone.utc)
@@ -176,6 +175,7 @@ async def due_captures(
             .eq("status", "active")
             .eq("kind", CAPTURE_KIND)
             .lte("next_run_at", now.isoformat())
+            .lt("claimed_until", now.isoformat())
             .execute()
         )
         due_rows = result.data or []
@@ -187,7 +187,7 @@ async def due_captures(
     for row in due_rows:
         rows_by_user.setdefault(row["user_id"], []).append(row)
 
-    out: list[tuple[str, CaptureDeclaration, Optional[str]]] = []
+    out: list[tuple[str, CaptureDeclaration]] = []
     for user_id, user_rows in rows_by_user.items():
         declarations = walk_workspace_captures(client, user_id)
         by_slug = {d.slug: d for d in declarations}
@@ -202,7 +202,7 @@ async def due_captures(
                 continue
             if decl.paused:
                 continue
-            out.append((user_id, decl, row.get("next_run_at")))
+            out.append((user_id, decl))
 
     return out
 

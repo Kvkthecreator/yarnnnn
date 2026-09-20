@@ -309,16 +309,18 @@ _log: list = []
 
 
 class _Tasks:
-    """A tasks table whose CAS claim succeeds once per baseline."""
-    def __init__(self): self.rows = {("u1", "standing:a"): "T0"}; self._q = {}
-    def table(self, n): return self
+    """A tasks table whose LOCK (ADR-659 D1) is taken once: the claim is one
+    conditional update — hold the row if `claimed_until` is in the past."""
+    def __init__(self): self.held = {("u1", "standing:a"): "1970-01-01T00:00:00+00:00"}; self._q = {}
+    def table(self, n): self._q = {}; return self
     def update(self, payload): self._q = {"update": payload}; return self
     def eq(self, k, v): self._q[k] = v; return self
+    def lt(self, k, v): self._q[f"lt:{k}"] = v; return self
     def execute(self):
         key = (self._q.get("user_id"), self._q.get("slug"))
-        if "update" in self._q and "next_run_at" in self._q:
-            if self.rows.get(key) == self._q["next_run_at"]:
-                self.rows[key] = self._q["update"]["next_run_at"]; return SimpleNamespace(data=[{"id": 1}])
+        if "lt:claimed_until" in self._q:
+            if key in self.held and self.held[key] < self._q["lt:claimed_until"]:
+                self.held[key] = self._q["update"]["claimed_until"]; return SimpleNamespace(data=[{"id": 1}])
             return SimpleNamespace(data=[])
         return SimpleNamespace(data=[{"id": 1}])
 
@@ -326,7 +328,7 @@ class _Tasks:
 _decl_a = SimpleNamespace(slug="standing:a", schedule=None, paused=False, paused_until=None, options={})
 
 
-async def _due(client, now): return [("u1", _decl_a, "T0"), ("u1", _decl_a, "STALE")]
+async def _due(client, now): return [("u1", _decl_a), ("u1", _decl_a)]
 async def _run_ok(client, uid, decl): _log.append("run"); return {"success": True}
 async def _run_boom(client, uid, decl): _log.append("run"); raise RuntimeError("x")
 def _rec(client, uid, decl, at): _log.append("record")
@@ -344,10 +346,10 @@ try:
         drain_due(_Tasks(), "standing", due=_due, run=_run_boom, record=_rec))
 finally:
     _logging.disable(_logging.NOTSET)
-check("a raising run is a FAILURE that still records (the row never strands on its sentinel)",
+check("a raising run is a FAILURE that still records (the row is never left held)",
       (_f, _s, _x) == (2, 0, 1) and _log == ["run", "record"], f"{(_f, _s, _x)} {_log}")
-check("claim_run refuses a None baseline (a never-indexed row is the CALLER's call, ADR-618 D2)",
-      claim_run(_Tasks(), "u1", "standing:a", "standing", None) is False)
+check("claim_run refuses a row that does not exist (the caller materializes first, ADR-659 D1)",
+      claim_run(_Tasks(), "u1", "standing:ghost", "standing") is False)
 check("the tick drains standing work (and no strings lane)",
       "drain_due_standing_work(" in _read("api/jobs/unified_scheduler.py")
       and "drain_due_string_runs" not in _read("api/jobs/unified_scheduler.py"))

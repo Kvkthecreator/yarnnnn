@@ -174,34 +174,43 @@ Row deleted after the pass.
   closes; its gate did not see it. Entering through the Dock works. Not reproduced on a fresh account —
   the operator's `member_state.shell` row carried `open: […, notifications, supervisor]` and a remembered
   `foregrounded` at the time. Drive it before reasoning about it.
-- ⭐**READ FIRST: `docs/analysis/the-supervisor-from-first-principles-2026-09-20.md`.** The operator's thesis
-  (ADR-658 is a half measure; it asked what the canon permits, not which limits are law) was audited and HOLDS:
-  of five capabilities a Supervisor needs — intake · flow · output · attention · cockpit — the lane delivers the
-  door half of one. A source cannot be a workspace path, so nothing chains and the commons is unreadable
-  unattended; `needs-you` reads chat mentions, never the work; a run has no link to the revision it wrote; the
-  Supervisor's job text never mentions standing work. §5 is the build order (step 1 workspace sources → step 2
-  the $0 pace rule are the hinge). **Awaiting the operator's ruling on §5 — then it is an ADR, doc-first.**
-- **The drain's materializer OVERWRITES an in-flight claim sentinel — a DEFECT, driven 2026-09-20** (was: "the
-  drain trusts the CAS alone"). A never-run door-created declaration is claimed → the next tick's
-  `materialize_standing_index` rewrites `next_run_at` to `now` (`preserve_due_commitment` declines a FUTURE
-  stored value) → due again → a second claim SUCCEEDS mid-run. Exposure: Run now on a never-run declaration
-  overlapping a tick — the mirror of A1.8. Root cause shared: the claim lives in the column the materializer
-  owns. Fix = analysis §5 step 0 (`claimed_until` on the index row). Production holds 0 declarations today.
-- **`app: supervisor` resolves the Supervisor as a standing EXECUTOR** (driven), against `apps/supervisor.py`'s
-  own comment and ADR-658 D3 — the resident fallback in `standing_executor_for_app` defeats the "declares no
-  executor" guard, and `request.app` is free text at the door. Also: NO app declares `standing_executor`; all
-  five resolve via the fallback, so "only Text has an executor" (the 09-19 carry-over) was false.
+- ⭐**READ FIRST: `docs/analysis/the-supervisor-from-first-principles-2026-09-20.md`** — the operator ruled
+  ADR-658 a half measure (it asked what the canon PERMITS, not which limits are LAW). Audited; it holds. Steps
+  0–2 SHIPPED as **ADR-659** (2026-09-20): a source may be a workspace path so kept files CHAIN, a run whose
+  sources have not moved is skipped at $0, the claim is its own lock column. **NEXT, in the analysis's order
+  (each its own ADR):** (3) `needs-you` reads the WORK — a refused run, a problem declaration — not only chat
+  mentions; the Supervisor's job text is still ADR-656's subject and never mentions standing work
+  (`build_supervisor_posture`, 0 occurrences of *standing · declar · schedule*); the cockpit draws the graph
+  the ledger now witnesses. (4) the PROPOSED ACT — a run ends in a send/publish that waits for the member's
+  click (the queue is live: `action_proposals`, `ProposeAction`). (5) compose targets, the generator
+  cardinality, and the 4096-token ceiling (a kept file is still a short document).
+- ⚠️**ADR-659's door is NOT click-passed.** `tsc` clean, `next build` green, the lock DRIVEN against the live
+  `tasks` table — but the new "Your workspace" source field (its folder list from `getRoots`), the detail's
+  "from …" line and the `source_cycle` copy have not been driven in a browser. Drive: create from the
+  workspace start over a real folder → Run now → the run row names what it was made from → a second Run-less
+  tick reads *"Checked. Nothing new to read"* → chain a second declaration off the first kept file.
+- ⚠️**Named limit (ADR-659 D4 rule 6)**: the DOOR refuses a source its declarer cannot read; the
+  conversational path writes the YAML through `WriteFile`, which checks WRITE scopes only. Safe today — every
+  narrowed-read grant is share-as-view with `write_scopes=[]` — and a hole the day a write-but-narrowed-read
+  grant exists: the run must then check the declaration's AUTHOR.
 - **Connector capture has NO driver**: `run_connector_capture`'s only caller is the standing sweep, so with 0
   declarations nothing is captured from any connected platform. `intake-pipeline.md` §5's "the scheduler
   drives" row contradicts its own status row.
+- The MCP `delete` verb's docstring promises a FOLDER grain; `reference: "click-pass-brief"` answered
+  `file_not_found` while two live files sat under it (2026-09-20). Files deleted by name instead. Undriven
+  beyond that one call — it may want a trailing slash, in which case the docstring should say so.
+- `test_retired_vocabulary_ratchet.py` is RED at baseline: `ADR-LEDGER.md` 49 > 48 retired-term lines, and has
+  been across at least the last eight ledger commits (back past `9e3d5e9`). ADR-659's and ADR-618's entries
+  add ZERO. Find the line that crossed it and reword it; do not raise the ceiling.
 - `test_adr557_router_hardening.py` now CRASHES (`FileNotFoundError: services/apps/images/decompose.py`) — the
   gate census lists it as drift; it has decayed to reporting nothing.
+- `scripts/alpha_ops/activate_persona.py`, `restore_track_universe_schedule.py` and
+  `scripts/oneshot/adr267_pnl_unification_migration.py` import `materialize_scheduling_index`, which ADR-632
+  DELETED — they raise on import of that name. alpha_ops is Hat A; rule whether they are rewritten against
+  standing work or deleted with the recurrences they activated.
 - **`GET /api/supervisor/state` took ~23s from a cold local API** (the mentions read, through the shared
   service client — likely the `[Errno 11]` item below). The surface no longer waits on it (A1.9); the read
   itself is unexamined.
-- **Click-pass residue in the operator's workspace**: `click-pass-brief/` holds `brief.md`, `CONTRACT.md`,
-  a retired `_standing.yaml` (in Trash), and two raw captures under `inbound/web/`. Left for the operator
-  to trash — a session does not delete from a member's workspace on its own.
 - Carried since 2026-09-04: `projection.ts`'s second CSV parser · blogger's first real standing
   declaration (compose-only) · the `/images` export click-pass. (The Files door for declaring standing
   work closed 2026-09-19 as the Supervisor's door — ADR-658 D4.)

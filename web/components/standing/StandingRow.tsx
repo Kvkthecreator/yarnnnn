@@ -30,12 +30,14 @@ export const PROBLEM_COPY: Record<string, string> = {
   missing_target: 'No file named. The instructions don’t say which file to keep current.',
   invalid_target: 'The file to keep current must be in the same folder as the instructions.',
   unsupported_format: 'Only md, csv, json and txt files can be kept current.',
-  sources_invalid: 'The sources aren’t valid. A data file (csv or json) takes exactly one source.',
-  app_invalid: 'The instructions name an app that doesn’t exist.',
+  sources_invalid: 'The sources aren’t valid. A data file (csv or json) takes exactly one source, and a file rather than a folder.',
+  app_invalid: 'The instructions name an app that can’t keep a file current.',
+  source_cycle: 'This is part of a loop: it is kept from a file that is kept from it. Neither will run until one source changes.',
 };
 
 export function runStatusLine(e: StandingLastRun): string {
   if (e.status === 'skipped' && e.error_reason === 'no_change') return 'Ran. Nothing changed';
+  if (e.status === 'skipped' && e.error_reason === 'sources_unchanged') return 'Checked. Nothing new to read';
   if (e.status === 'skipped' && e.error_reason === 'router_disabled') return 'Skipped. The engine is unavailable';
   if (e.status === 'skipped') return `Skipped${e.error_reason ? ` — ${e.error_reason}` : ''}`;
   if (e.status === 'success') return 'Ran. The file was updated';

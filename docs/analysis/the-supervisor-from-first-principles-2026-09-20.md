@@ -134,9 +134,9 @@ table.
 
 | Step | Build | Unlocks | Touches |
 |---|---|---|---|
-| **0** | Run honesty: the truncation refusal (**done**, ADR-618 am.1) · the claim out of `next_run_at` (§6.2) · run → revision join · `app:` may not name an app that executes nothing (§6.3) | the cockpit stops lying | ADR-618 · 658 |
-| **1** | **Workspace sources** — `{path}` file or folder; bounded read; cycle refused as a named problem; a declaration may not source its own target | intake (1) and flow (2) in one change | ADR-569/639 source grammar |
-| **2** | **The pace rule** — skip at $0 when no prerequisite moved; downstream comes due when upstream wrote | chains that cost nothing idle; near-arrival latency | `scheduling.py` due-condition; Axiom 4 untouched |
+| **0** ✅ | *(shipped — ADR-659 D1–D3)* Run honesty: the truncation refusal (ADR-618 am.1) · the claim out of `next_run_at` (§6.2) · run → revision join · `app:` may not name an app that executes nothing (§6.3) | the cockpit stops lying | ADR-618 · 658 |
+| **1** ✅ | *(shipped — ADR-659 D4/D5/D7)* **Workspace sources** — `{path}` file or folder; bounded read; cycle refused as a named problem; a declaration may not source its own target | intake (1) and flow (2) in one change | ADR-569/639 source grammar |
+| **2** ✅ | *(shipped — ADR-659 D6)* **The pace rule** — skip at $0 when no prerequisite moved; downstream comes due when upstream wrote | chains that cost nothing idle; near-arrival latency | `scheduling.py` due-condition; Axiom 4 untouched |
 | **3** | **Attention reads the work**; the Supervisor's job text re-derived; the cockpit draws the graph | (4) and (5) | ADR-658 D5 · the posture (prompt protocol) |
 | **4** | **The proposed act** — a declaration's optional closing step enqueues to the existing queue | execute (3b), witnessed | ADR-307/405 · 628 |
 | **5** | Compose targets (deck · post) and the generator cardinality; the 4096 ceiling (sectioned writes) | compose (3a) in full | ADR-569 D1 collision · 639 D6 |

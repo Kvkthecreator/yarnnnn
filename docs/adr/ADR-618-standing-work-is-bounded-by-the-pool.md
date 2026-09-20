@@ -96,3 +96,14 @@ guard out in place — the red output reproduced the original defect exactly (`s
 ⚠️ **What this does not fix**: the ceiling itself. A kept file is still structurally a short document
 (~12–16 KB), an eighth of what the same agent authors attended. That is a limit of the unit, not of this
 guard — see `docs/analysis/the-supervisor-from-first-principles-2026-09-20.md`.
+
+## Amendment 2 (2026-09-20) — D2's claim is a lock, not a compare-and-swap (ADR-659 D1)
+
+D2 made Run now take *"the same CAS claim the drain takes"*. The CAS compared against a value its caller had
+READ, and the value was a sentinel parked in `next_run_at` — so a caller reading after a claim read the sentinel
+(ADR-658 A1.8: two runs, two charges), and the materializer, which owns that column, could rewrite it mid-run
+(driven 2026-09-20). ADR-659 D1 moves the claim to its own column (`tasks.claimed_until`, migration 258) as one
+conditional update the database serialises. D2's INTENT is unchanged and now holds: one declaration, one run at
+a time, across both doors. Run now materializes first (a row to lock, never "no row means free to run") and
+releases in a `finally`. Gate §2 re-expressed (2c, 2e); driven against the live table: claim → refused →
+released → claimable.

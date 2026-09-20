@@ -395,6 +395,12 @@ row and the ordinary armed row both stay claimable, because Run now is table sta
 the gate with a spy in place of the sweep, and falsified RED. ⚠️ The drain's own side still trusts the CAS
 alone; it has one instance, so nothing double-fires there today — named, not built.
 
+> **Superseded 2026-09-20 by ADR-659 D1.** *Named, not built* was wrong: driven, the drain's materializer
+> OVERWROTE an in-flight sentinel and a second claim succeeded mid-run — the mirror of this race. Both have one
+> cause (the claim lived in `next_run_at`, the column the materializer owns), so the claim is now its own
+> column and a lock (`tasks.claimed_until`, migration 258), and `_claim_in_flight` — this section's heuristic —
+> is **deleted**. The three arms above are re-expressed against the lock in this ADR's gate (121/121).
+
 ### A1.9 Bands ARRIVE independently, not only degrade independently
 
 The first cut awaited the surface's three reads together. On the click-pass the mentions read took **23

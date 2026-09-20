@@ -317,11 +317,15 @@ def _drive_string_source():
         ws.UserMemory = orig_um
 
 
-body, cited = _drive_string_source()
+body, cited, landed_at = _drive_string_source()
 check("6d the source resolves the LANDED snapshot (substrate, no HTTP, no API)",
       body == "landed snapshot body", str(body))
 check("6e the run cites the landed path as its raw (no re-retain)",
       cited == "/workspace/inbound/slack/c001/2026-08-19T01:00:00Z.md", str(cited))
+# ADR-659 D6 — the pace rule reads WHEN the snapshot landed, from the stamp the
+# capture writer named the file with; never a second clock.
+check("6e2 the source also says when its snapshot LANDED (the pace rule's input)",
+      landed_at is not None and landed_at.isoformat().startswith("2026-08-19T01:00:00"), str(landed_at))
 
 # The connector branch must never reach httpx or a platform tool.
 strings_src = _code_only(API / "services" / "standing_work.py")

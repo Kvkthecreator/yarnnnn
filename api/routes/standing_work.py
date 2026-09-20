@@ -90,8 +90,9 @@ def _validate_topic(topic: str) -> str:
 
 
 class StandingSource(BaseModel):
-    """One declared source — an HTTP pull (`url`) or a connector slice
-    (`connector` + `selector`, ADR-582 D6 / ADR-594 D4). Both shapes served."""
+    """One declared source — an HTTP pull (`url`), a connector slice
+    (`connector` + `selector`, ADR-582 D6 / ADR-594 D4), or a workspace path
+    (`path`; a trailing slash is a folder — ADR-659 D4). All three served."""
     #: What a connector slice actually CAPTURES — the binding's own `reads`
     #: statement (services.connectors), surfaced at the declaration door so a
     #: member can see that GitHub reads issue + pull-request activity, not a
@@ -103,6 +104,7 @@ class StandingSource(BaseModel):
     url: Optional[str] = None
     connector: Optional[str] = None
     selector: Optional[str] = None
+    path: Optional[str] = None
 
 
 class LastRun(BaseModel):
@@ -173,7 +175,7 @@ class StandingSummary(BaseModel):
     last_run_at: Optional[str] = None
     next_run_at: Optional[str] = None
     #: Parseable-but-cannot-run (missing_target | invalid_target |
-    #: unsupported_format | sources_invalid | app_invalid) — served, never
+    #: unsupported_format | sources_invalid | app_invalid | source_cycle) — served, never
     #: swallowed (ADR-569 D3).
     problem: Optional[str] = None
     last_run: Optional[LastRun] = None
@@ -188,6 +190,12 @@ class StandingRun(BaseModel):
     error_reason: Optional[str] = None
     at: Optional[str] = None
     cost_usd: Optional[float] = None
+    #: ADR-659 D2 — what this run WROTE: the `system:standing` revision of the
+    #: kept file a successful write produced, and what it was made from.
+    #: DERIVED at read time from the revision chain; the cost ledger stores no
+    #: pointer. None on every row that wrote nothing.
+    revision_id: Optional[str] = None
+    derived_from: list[str] = []
 
 
 class StandingDetail(BaseModel):
@@ -206,7 +214,7 @@ class StandingStart(BaseModel):
     member already holds, DERIVED from the capture bindings — or the HTTP
     start, always offered. The door opens pre-filled from one."""
 
-    kind: str  # "connector" | "url"
+    kind: str  # "connector" | "path" | "url"
     connector: Optional[str] = None
     name: str
     #: The binding's own statement of what a slice reads (connector starts).
@@ -307,9 +315,42 @@ def compose_standing_yaml(
 
 def _parse_or_none(content: str, topic: str, user_id: str):
     from services.standing_work import parse_standing_yaml
+    from services.workspace_context import effective_workspace_id
     return parse_standing_yaml(
-        content, topic=topic, declaration_path=_decl_path(topic), user_id=user_id
+        content, topic=topic, declaration_path=_decl_path(topic), user_id=user_id,
+        workspace_id=effective_workspace_id(user_id),
     )
+
+
+def _guard_sources(auth, user_id: str, decl) -> None:
+    """The two source rules only the DOOR can ask (ADR-659 D4 rule 6, D5).
+
+    `source_unreadable` — a run reads with the OWNER's reach, so a source the
+    DECLARER cannot read would launder it into a file they can. Asked of the
+    ONE matcher the ReadFile gate uses.
+
+    `source_cycle` — a loop is a property of the workspace's declarations
+    TOGETHER, which the one-file parse cannot see: the candidate is set among
+    the live ones and the same marker discovery uses decides.
+    """
+    from services.primitives.workspace import _is_path_readable_for_principal
+    from services.standing_work import discover_standing, mark_source_cycles
+
+    for rel, is_folder in decl.path_sources():
+        if not _is_path_readable_for_principal(auth, rel + ("/" if is_folder else "")):
+            raise _refuse("source_unreadable")
+
+    if not decl.path_sources():
+        return
+    others = [
+        d for d in discover_standing(
+            auth.client, workspace_id=decl.workspace_id
+        ).get(user_id, [])
+        if d.slug != decl.slug
+    ]
+    mark_source_cycles(others + [decl])
+    if decl.problem is not None:
+        raise _refuse(decl.problem)
 
 
 async def _materialize(client, user_id: str) -> None:
@@ -377,8 +418,55 @@ def _last_runs(client, user_id: str, topics: list[str]) -> dict[str, LastRun]:
     return out
 
 
-def _recent_runs(client, user_id: str, topic: str, limit: int = _DETAIL_RUNS) -> list[StandingRun]:
-    """The detail's ledger read (ADR-658 D6): this topic's rows, newest first.
+#: A successful write row is recorded moments AFTER the revision it wrote
+#: (the embed sits between them). The join's window, generous on one side only.
+_RUN_REVISION_WINDOW_S = 180
+
+
+def _written_revisions(client, user_id: str, target_path: Optional[str]) -> list[dict]:
+    """The kept file's `system:standing` revisions, newest first — each IS one
+    successful run's product. Never raises."""
+    if not target_path:
+        return []
+    try:
+        from services.authored_substrate import list_revisions
+
+        revs = list_revisions(client, user_id=user_id, path=target_path, limit=40)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[STANDING] revisions read failed for %s: %s", target_path, e)
+        return []
+    return [r for r in revs
+            if str(r.get("authored_by") or "") in ("system:standing", "system:strings")]
+
+
+def _join_revision(run_at: Optional[str], revisions: list[dict]) -> Optional[dict]:
+    """The revision a successful write row produced (ADR-659 D2): the newest
+    standing revision at or just before the row. Pure."""
+    from datetime import datetime as _dt
+
+    def _ts(v):
+        try:
+            return _dt.fromisoformat(str(v).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+
+    at = _ts(run_at)
+    if at is None:
+        return None
+    for rev in revisions:  # newest first
+        made = _ts(rev.get("created_at"))
+        if made is None:
+            continue
+        gap = (at - made).total_seconds()
+        if -5 <= gap <= _RUN_REVISION_WINDOW_S:
+            return rev
+    return None
+
+
+def _recent_runs(client, user_id: str, topic: str, limit: int = _DETAIL_RUNS,
+                 *, target_path: Optional[str] = None) -> list[StandingRun]:
+    """The detail's ledger read (ADR-658 D6): this topic's rows, newest first,
+    each successful write joined to the revision it produced (ADR-659 D2).
     Never fails the detail — an unreadable ledger is an empty list."""
     try:
         events = (
@@ -393,18 +481,23 @@ def _recent_runs(client, user_id: str, topic: str, limit: int = _DETAIL_RUNS) ->
     except Exception as e:  # noqa: BLE001
         logger.warning("[STANDING] runs read failed for %s: %s", topic, e)
         return []
+    revisions = _written_revisions(client, user_id, target_path)
     out: list[StandingRun] = []
     for e in events:
         slug = str(e.get("slug") or "")
         head = slug.split(":", 1)[0]
         step = "write" if head.endswith("write") else "sweep"
         cost = e.get("cost_usd")
+        wrote = (_join_revision(e.get("created_at"), revisions)
+                 if step == "write" and e.get("status") == "success" else None)
         out.append(StandingRun(
             step=step,
             status=e.get("status") or "unknown",
             error_reason=e.get("error_reason"),
             at=e.get("created_at"),
             cost_usd=(float(cost) if cost is not None else None),
+            revision_id=(wrote or {}).get("id"),
+            derived_from=[str(p) for p in ((wrote or {}).get("derived_from") or [])],
         ))
     return out
 
@@ -471,11 +564,13 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict],
                 url=(str(s["url"]) if s.get("url") else None),
                 connector=(str(s["connector"]) if s.get("connector") else None),
                 selector=(str(s["selector"]) if s.get("selector") else None),
+                path=(str(s["path"]) if s.get("path") else None),
                 reads=_connector_reads(s.get("connector")),
             )
             for s in decl.sources
             if isinstance(s, dict) and s.get("id")
-            and (s.get("url") or (s.get("connector") and s.get("selector")))
+            and (s.get("url") or s.get("path")
+                 or (s.get("connector") and s.get("selector")))
         ],
         timezone=tz,
         last_run_at=(index_row or {}).get("last_run_at"),
@@ -500,7 +595,15 @@ def _refuse(problem: str, status_code: int = 422) -> HTTPException:
         "missing_target": "Name the file to keep current.",
         "invalid_target": "The file to keep current must be in this folder, one plain name.",
         "unsupported_format": "Only md, csv, json and txt files can be kept current.",
-        "sources_invalid": "Add at least one source. A csv, json or txt file takes exactly one.",
+        "sources_invalid": (
+            "Add at least one source. A csv, json or txt file takes exactly one, "
+            "and a file rather than a folder."
+        ),
+        "source_cycle": (
+            "That would make a loop: this file would be kept from a file that is "
+            "kept from it. Choose a different source."
+        ),
+        "source_unreadable": "You can't read that part of the workspace, so it can't be a source.",
         "app_invalid": "That app does not exist.",
         "missing_contract": "Write what the file must stay true to.",
         "already_declared": "This folder already has standing work. Open it instead.",
@@ -583,6 +686,24 @@ _URL_START = StandingStart(
 )
 
 
+_WORKSPACE_START = StandingStart(
+    kind="path",
+    connector=None,
+    name="Something in your workspace",
+    reads="A file, or a folder — Downloads, a project, another kept file.",
+    selectors=[],
+    title="Keep a summary of a folder current",
+    suggested_folder="overview",
+    suggested_target="overview.md",
+    suggested_schedule="0 9 * * *",
+    contract_seed=(
+        "An overview of what is in the folder: what each file is, what changed "
+        "since the last update, and what looks unfinished. Plain sentences, "
+        "newest first, each point naming the file it came from."
+    ),
+)
+
+
 def standing_starts(client, user_id: str) -> list[StandingStart]:
     """The pre-shaped starts for this workspace (ADR-658 D7), DERIVED:
     connections that are active AND hold a capture binding, each carrying the
@@ -614,6 +735,9 @@ def standing_starts(client, user_id: str) -> list[StandingStart]:
             suggested_schedule=shape["schedule"],
             contract_seed=shape["contract"],
         ))
+    # Always offered, connection or none (ADR-659 D7): the workspace is the one
+    # source every member already has.
+    out.append(_WORKSPACE_START)
     out.append(_URL_START)
     return out
 
@@ -696,6 +820,7 @@ async def create_standing(request: CreateStandingRequest, auth: UserClient) -> S
         raise HTTPException(status_code=500, detail="composed declaration unparseable")
     if decl.problem is not None:
         raise _refuse(decl.problem)
+    _guard_sources(auth, actor, decl)
 
     _write_access(auth, decl_path)
 
@@ -744,7 +869,7 @@ async def get_standing(topic: str, auth: UserClient) -> StandingDetail:
         summary=_summary_for(auth.client, actor, decl),
         contract_path=decl.contract_path,
         contract=_read_file(auth.client, actor, decl.contract_path),
-        runs=_recent_runs(auth.client, actor, topic),
+        runs=_recent_runs(auth.client, actor, topic, target_path=decl.target_path),
     )
 
 
@@ -798,6 +923,8 @@ async def update_standing(topic: str, request: UpdateStandingRequest, auth: User
         raise HTTPException(status_code=500, detail="recomposed declaration unparseable")
     if edited and decl.problem is not None:
         raise _refuse(decl.problem)
+    if edited:
+        _guard_sources(auth, actor, decl)
 
     _write_access(auth, _decl_path(topic))
 
@@ -866,9 +993,7 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     scheduled run's body, INCLUDING its claim (ADR-618 D2)."""
     from datetime import datetime, timezone as _tz
     from services.scheduling import claim_run, record_run
-    from services.standing_work import (
-        STANDING_KIND, read_standing_task_row, run_standing_sweep,
-    )
+    from services.standing_work import STANDING_KIND, run_standing_sweep
 
     actor = _acting_owner(auth)
     topic = _validate_topic(topic)
@@ -881,77 +1006,31 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     if decl.problem is not None:
         raise HTTPException(status_code=422, detail=f"the declaration cannot run: {decl.problem}")
 
-    # The manual fire takes the SAME CAS CLAIM the scheduled drain takes
-    # (ADR-618 D2). Without it, Run-now racing a tick executes the declaration
-    # TWICE — two derives, two writes, two charges. Losing the claim is a
-    # SUCCESSFUL no-op, not an error: the run IS happening, just not on this
-    # caller's thread. A never-indexed declaration (no row yet) stays
-    # claimable rather than being read as a lost race.
+    # The manual fire takes the SAME LOCK the scheduled drain takes (ADR-618 D2,
+    # ADR-659 D1). Without it, Run-now racing a tick executes the declaration
+    # TWICE — two derives, two writes, two charges (driven with money on it,
+    # ADR-658 A1.8). Losing the claim is a SUCCESSFUL no-op, not an error: the
+    # run IS happening, just not on this caller's thread.
     #
-    # ⚠️ ADR-658 A1.8 — DRIVEN 2026-09-19: the CAS alone does not close the
-    # race. It compares against the value THIS caller read, and a caller that
-    # reads AFTER the drain's claim reads the drain's SENTINEL — which still
-    # equals itself, so the manual claim succeeds and the declaration runs a
-    # second time six seconds behind the first (two writes, two charges, on
-    # the click-pass's own folder). A sentinel is a `next_run_at` the schedule
-    # could not have produced: in the future, and not the boundary the
-    # declaration computes. That row is IN FLIGHT and the door answers the
-    # honest no-op.
-    _row = read_standing_task_row(auth.client, actor, decl.slug)
-    if _row is not None and _claim_in_flight(auth.client, actor, _row, decl):
+    # Materialize FIRST: a declaration written since the last tick has no index
+    # row, and "no row" must never mean "free to run unclaimed" — the tick could
+    # index and claim it a second later.
+    await _materialize(auth.client, actor)
+    if not claim_run(auth.client, actor, decl.slug, STANDING_KIND):
         return {"success": True, "slug": decl.slug, "no_change": True,
-                "detail": "already running — a scheduled run claimed this declaration"}
-    _claimed = claim_run(
-        auth.client, actor, decl.slug, STANDING_KIND, (_row or {}).get("next_run_at"),
-    )
-    if _row is not None and not _claimed:
-        return {"success": True, "slug": decl.slug, "no_change": True,
-                "detail": "already running — a scheduled run claimed this declaration"}
+                "detail": "already running — another run holds this declaration"}
 
-    result = await run_standing_sweep(auth.client, actor, decl)
+    # The member ASKED, so the pace rule does not apply (ADR-659 D6). The record
+    # is in a `finally`, as in the drain: it releases the hold, and a run that
+    # raised must not strand its own declaration behind it.
     try:
-        record_run(auth.client, actor, decl, STANDING_KIND,
-                   last_run_at=datetime.now(_tz.utc))
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[STANDING] manual-run record failed for %s: %s", topic, e)
-    return result
-
-
-def _claim_in_flight(client, user_id: str, row: dict, decl) -> bool:
-    """Is this index row held by a drain's claim sentinel right now?
-
-    ADR-658 A1.8. The drain claims a row by bumping `next_run_at` to
-    `now + CLAIM_SENTINEL_HOURS` (`scheduling.claim_run`); `record_run` puts the
-    schedule's own next boundary back when the run ends. So while a run is in
-    flight the stored value is one the schedule COULD NOT have produced: in the
-    future, and not `compute_next_run_at`'s answer for this declaration. A due
-    or past value is a commitment (claimable); a future value the schedule
-    agrees with is the ordinary armed row (claimable — Run now is table stakes);
-    a future value the schedule disagrees with is somebody's claim. Compared at
-    a minute's tolerance so a boundary computed a few seconds apart still
-    agrees with itself. Never raises — an unreadable clock means claimable, and
-    the CAS behind this still refuses a same-instant collision."""
-    from datetime import datetime, timezone as _tz
-    from services.scheduling import _parse_iso, compute_next_run_at
-    from services.schedule_utils import get_workspace_timezone
-
-    try:
-        stored = _parse_iso(row.get("next_run_at"))
-        if stored is None:
-            return False
-        now = datetime.now(_tz.utc)
-        if stored <= now:
-            return False
-        expected = compute_next_run_at(
-            decl, last_run_at=_parse_iso(row.get("last_run_at")), now=now,
-            user_timezone=get_workspace_timezone(client, user_id),
-        )
-        if expected is None:
-            return True
-        return abs((stored - expected).total_seconds()) > 60
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[STANDING] in-flight check failed for %s: %s", decl.slug, e)
-        return False
+        return await run_standing_sweep(auth.client, actor, decl, force=True)
+    finally:
+        try:
+            record_run(auth.client, actor, decl, STANDING_KIND,
+                       last_run_at=datetime.now(_tz.utc))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[STANDING] manual-run record failed for %s: %s", topic, e)
 
 
 def _strip_frontmatter(content: str) -> str:
