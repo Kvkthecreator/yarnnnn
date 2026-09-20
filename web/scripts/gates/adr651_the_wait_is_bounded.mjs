@@ -126,12 +126,17 @@ check(
 // CODEPOINT. Every frame that is in the emoji set must carry U+FE0E
 // (VARIATION SELECTOR-15, text presentation) — and the stylesheet must say
 // the same thing for engines that honour font-variant-emoji.
-const EMOJI_SET_FRAMES = new Set([0x2733, 0x2736, 0x2734, 0x2747, 0x2728, 0x2795, 0x2796, 0x2797]);
+// Decided by the Unicode property, never a hand-list: the first cut of this
+// arm listed U+2736 as at-risk and it is NOT Emoji=true, so a hand-list both
+// over- and under-reports. Node's ICU carries the real table.
+const IS_EMOJI = /\p{Emoji}/u;
+// ASCII digits, # and * are Emoji=true but only inside a keycap sequence.
+const KEYCAP_BASE = new Set([...'0123456789#*'].map((c) => c.codePointAt(0)));
+const atRisk = (ch) => IS_EMOJI.test(ch) && !KEYCAP_BASE.has(ch.codePointAt(0));
 const glyphLiteral = (primitive ?? '').match(/const GLYPHS = \[([^\]]*)\]/)?.[1] ?? '';
 const frames = [...glyphLiteral.matchAll(/'([^']*)'/g)].map((m) => m[1]);
 const unguarded = frames.filter((f) => {
-  const cp = f.codePointAt(0);
-  if (cp === undefined || !EMOJI_SET_FRAMES.has(cp)) return false;
+  if (!atRisk(f)) return false;
   return !f.includes('\uFE0E');
 });
 check(
@@ -207,6 +212,58 @@ const panel = read('web/components/chat-surface/LanePanel.tsx') ?? '';
 const steps = read('web/components/chat-surface/StreamSteps.tsx') ?? '';
 check('§6 the in-flight bubble is the primitive with its start time', /<Working[^>]*since=/.test(panel));
 check('§6 the stepped thread spins the same glyph', /<WorkingGlyph/.test(steps) && !/Loader2/.test(steps));
+
+// ── §7 no glyph in rendered text is left to the font's emoji preference ─────
+// The Working glyph was green on iOS because U+2733 is in the Unicode emoji
+// set: a font stack that prefers emoji drew it from the COLOUR font while
+// every desktop read of the source showed a plain asterisk (b9af95c). The
+// same trap is open to any glyph in any rendered string, so the rule is
+// repo-wide, decided by CODEPOINT, and it ignores comments — a character that
+// never renders cannot have this defect.
+//
+// Intentional colour is declared, not inferred: a glyph is clean if it is
+// Emoji_Presentation=true (colour on EVERY platform, so it is consistent and
+// evidently meant as a picture) or if it already carries a variation selector.
+// What fails is the in-between: Emoji=true with a text default, which renders
+// one way here and another way on a phone.
+const IS_PRES = /\p{Emoji_Presentation}/u;
+// Blank comment bodies while preserving offsets and string contents. The "//"
+// run needs a preceding delimiter so a URL's scheme is not eaten — the
+// comment-stripper lesson from the favicon endpoint.
+function stripComments(src) {
+  const out = src.split('');
+  let i = 0, mode = null, quote = null;
+  while (i < src.length) {
+    const c = src[i], d = src[i + 1];
+    if (mode === 'block') { if (c === '*' && d === '/') { mode = null; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; } if (c !== '\n') out[i] = ' '; i++; continue; }
+    if (mode === 'line') { if (c === '\n') { mode = null; i++; continue; } out[i] = ' '; i++; continue; }
+    if (quote) { if (c === '\\') { i += 2; continue; } if (c === quote) quote = null; i++; continue; }
+    if (c === '"' || c === "'" || c === '`') { quote = c; i++; continue; }
+    if (c === '/' && d === '*') { mode = 'block'; out[i] = ' '; out[i + 1] = ' '; i += 2; continue; }
+    if (c === '/' && d === '/' && (i === 0 || /[\s({[;,=>]/.test(src[i - 1]))) { mode = 'line'; out[i] = ' '; i++; continue; }
+    i++;
+  }
+  return out.join('');
+}
+const emojiOffenders = [];
+for (const [p, raw] of sources) {
+  const src = stripComments(raw);
+  src.split('\n').forEach((line, i) => {
+    const chars = [...line];
+    chars.forEach((ch, ci) => {
+      if (ch.codePointAt(0) < 0x00a1 || !atRisk(ch)) return;
+      if (IS_PRES.test(ch)) return; // colour everywhere: consistent by construction
+      const nx = chars[ci + 1]?.codePointAt(0);
+      if (nx === 0xfe0e || nx === 0xfe0f) return; // declared
+      emojiOffenders.push(`${p}:${i + 1} U+${ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')} ${ch}`);
+    });
+  });
+}
+check(
+  '\u00a77 no rendered glyph is left to the font\'s emoji preference (add U+FE0E)',
+  emojiOffenders.length === 0,
+  emojiOffenders.join('\n      '),
+);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

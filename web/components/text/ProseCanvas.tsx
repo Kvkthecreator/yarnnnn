@@ -183,6 +183,8 @@ const PROSE_THEME = EditorView.theme({
     width: '1.35em',
     fontFamily: FACE.mono,
     color: 'var(--muted-foreground, #666)',
+    // Says the same thing as the U+FE0E above, for engines that honour it.
+    fontVariantEmoji: 'text',
   },
   '.cm-mdTaskDone': { opacity: '0.65' },
   // A thematic break is a RULE. Drawn as a border on an inline-block so it
@@ -519,7 +521,12 @@ class TaskBoxWidget extends WidgetType {
   toDOM() {
     const s = document.createElement('span');
     s.className = 'cm-mdTask' + (this.checked ? ' cm-mdTaskDone' : '');
-    s.textContent = this.checked ? '☑' : '☐';
+    // U+FE0E (text presentation) on the CHECKED box: U+2611 is in the Unicode
+    // emoji set, so a font stack that prefers emoji draws it as a filled dark
+    // square, while its unchecked partner U+2610 is NOT an emoji and stays an
+    // outline — the pair reads as two unrelated shapes on iOS. Same class as
+    // the green Working glyph (ADR-651, b9af95c).
+    s.textContent = this.checked ? '☑︎' : '☐';
     return s;
   }
   ignoreEvent() { return false; }

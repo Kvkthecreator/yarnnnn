@@ -228,7 +228,7 @@ export default function DevelopersPage() {
                       <div className="flex items-baseline justify-between gap-3 mb-2">
                         <h3 className="text-lg font-medium text-white">{r.name}</h3>
                         <span className="text-white/30 text-xs shrink-0">
-                          {r.external ? "↗" : "→"}
+                          {r.external ? "↗︎" : "→"}
                         </span>
                       </div>
                       <p className="text-white/50 text-sm leading-relaxed mb-3">
