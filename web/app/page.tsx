@@ -8,6 +8,7 @@ import { IntegrationHub } from "@/components/landing/IntegrationHub";
 import { TraceCard } from "@/components/landing/TraceCard";
 import { CompoundsStepper } from "@/components/landing/CompoundsStepper";
 import { AppShowcase } from "@/components/landing/AppShowcase";
+import { AppStrip } from "@/components/landing/AppStrip";
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import {
   getMarketingMetadata,
@@ -168,6 +169,16 @@ export default function LandingPage() {
                 If that&apos;s you, this is the fix.
               </p>
             </blockquote>
+          </ScrollReveal>
+        </section>
+
+        {/* ─── Section 2.5 — The roster strip (what's in the box) ───────── */}
+        {/* Sits between the problem and the product chapter: Section 2 ends on
+            "if that's you, this is the fix", and this answers "fix made of
+            WHAT" in one glance before Section 3 walks four of them slowly. */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-16 md:py-20">
+          <ScrollReveal className="max-w-5xl mx-auto">
+            <AppStrip />
           </ScrollReveal>
         </section>
 
