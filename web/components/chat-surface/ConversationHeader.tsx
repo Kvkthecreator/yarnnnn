@@ -43,6 +43,7 @@
  * so the faces open the drill-in instead — one gesture, one destination.
  */
 
+import { useTranslations } from 'next-intl';
 import { MoreHorizontal, UserPlus } from 'lucide-react';
 import { AgentFace } from '@/components/agents/AgentFace';
 import type { PrincipalKind } from '@/lib/workspace/attribution';
@@ -136,6 +137,7 @@ export function ConversationHeader({
   onAddParticipant,
   leading,
 }: ConversationHeaderProps) {
+  const t = useTranslations('chat.header');
   const identity = (
     <>
       <FaceStack faces={faces} />
@@ -187,7 +189,7 @@ export function ConversationHeader({
           type="button"
           onClick={onOpenDetails}
           className="flex items-center gap-2 min-w-0 rounded hover:bg-muted -mx-1 px-1 py-0.5 transition-colors text-left"
-          title="Conversation details"
+          title={t('conversationDetails')}
         >
           {identity}
         </button>
@@ -202,7 +204,7 @@ export function ConversationHeader({
           type="button"
           onClick={onOpenDetails}
           className="shrink-0 px-1.5 py-px rounded-full bg-muted text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-          title="See who's in this conversation"
+          title={t('whoIsHere')}
         >
           {participantCount} members
         </button>
@@ -218,8 +220,8 @@ export function ConversationHeader({
           type="button"
           onClick={onAddParticipant}
           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Add someone to this conversation"
-          title="Add people or agents"
+          aria-label={t('addSomeone')}
+          title={t('addPeopleOrAgents')}
         >
           <UserPlus className="w-4 h-4" />
         </button>
@@ -227,8 +229,8 @@ export function ConversationHeader({
           type="button"
           onClick={onOpenDetails}
           className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Conversation details"
-          title="Details"
+          aria-label={t('conversationDetails')}
+          title={t('details')}
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>

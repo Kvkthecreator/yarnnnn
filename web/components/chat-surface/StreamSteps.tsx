@@ -36,7 +36,8 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WorkingGlyph } from '@/components/shared/Working';
-import { toolStepLine } from './toolLabels';
+import { toolStepRef } from './toolLabels';
+import { useToolLabels } from './useToolLabels';
 
 export type StreamStep = { name: string; subject?: string };
 
@@ -50,6 +51,7 @@ interface StreamStepsProps {
 }
 
 export function StreamSteps({ steps, running, className }: StreamStepsProps) {
+  const wordTool = useToolLabels();
   if (steps.length === 0) return null;
   return (
     // `list` + `listitem` roles: the thread is a sequence of things that
@@ -83,7 +85,7 @@ export function StreamSteps({ steps, running, className }: StreamStepsProps) {
               )}
             </span>
             <span className={cn('min-w-0 break-words', inFlight && 'text-foreground/70')}>
-              {toolStepLine(step)}
+              {wordTool(toolStepRef(step))}
             </span>
           </li>
         );

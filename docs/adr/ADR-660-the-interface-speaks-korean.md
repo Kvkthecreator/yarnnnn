@@ -3,8 +3,8 @@
 > **Status**: **Accepted + Implemented — the mechanism, the sign-in path, and the shell** (2026-09-20, operator:
 > *"consistent request to support korean language as an optionality … industry conventions, just fitting to our
 > service specifics"*). D1–D6 shipped and driven (§9); the shell pass and its ruling on served titles in §10.
-> **Coverage is the open half**: 972 lines of literal copy across 100 files remain English, held by D4's
-> ratchet; §8 names what is not decided here.
+> **Coverage is the open half**: 898 lines of literal copy across 93 files remain English, held by D4's
+> ratchet; §8 names what is not decided here. §11 is the chat-surface pass.
 > **Date**: 2026-09-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Who** (a preference of the human, not of the commons).
@@ -213,3 +213,58 @@ plus `toolLabels.ts`, which the meter cannot see), then `settings/page.tsx`, the
 `AttentionCenter` still borrows three shared label layers — `actorLine`, `proposalLabel`,
 `proposalQueuedByDialLine` — that also feed the Notifications and Reach surfaces; they translate with
 those surfaces, not ahead of them.
+
+---
+
+## 11. The chat surface (2026-09-20)
+
+**Translated**: `ChatSurface`, `LanePanel`, `ConversationDetail`, `ConversationHeader`, `MentionMenu`,
+`NewChatModal`, `ArtifactCard`, `StreamSteps`, and `toolLabels.ts` — what a running tool says it is doing.
+**898 lines across 93 files** remain (972 → 898).
+
+**`toolLabels.ts` is the D3 case at its largest.** 23 primitive verbs × up to three tenses, a module-level
+table evaluated at import. It now names no words at all: it resolves a primitive to a catalog **key plus
+args** (`ToolLabelRef`), and one hook — `useToolLabels` — words it, so the streaming steps and the settled
+footer cannot drift into two spellings of the same verb. `withSubject` moved from a CONCATENATION
+(`"reading" + path`) to a whole ICU message, because joining a verb to its object in that order is English
+grammar, not a sentence: Korean puts the subject first (`{subject} 읽는 중`). `seedTargetNoun` in
+`LanePanel` got the same treatment.
+
+**⭐ The gate was green over work it could not see.** `USE`, the regex binding a `useTranslations(…)` call to
+its namespace, matched a **double-quoted** namespace only. Every file translated in this session writes
+`useTranslations('chat')` — the prevailing style under `components/` — so **17 of 22 bindings never bound**,
+and the "every `t()` resolves" arm checked *none* of the ~200 keys in them. It was green when the shell pass
+shipped, and it would have stayed green over a missing key rendering its own path in production. The regex
+now accepts both quote styles, at the binding and at the call site; proven RED by breaking `t('signOut')` in
+`UserMenu.tsx` **in place** and restored byte-identical. **A gate that reads source with a regex is only as
+wide as its own syntax assumptions, and the assumption is invisible while everything it does read passes.**
+
+The repaired arm immediately found a real defect it had been blind to: `chat.newChat` was both a string (the
+button) and an object (the modal's namespace), so `t('newChat')` resolved to a node. Split into
+`chat.newChat` and `chat.newChatModal`.
+
+**Two arms added** for keys no scan can infer, both proven RED in place:
+- every tool verb's messages exist in every catalog, both directions (a verb in code with no entry; an entry
+  naming no verb; a `withSubject` the code will never ask for);
+- every seed-target shape the composer can build is named.
+
+**Found by the voice guard**, once the catalog arm could read the moved strings: `Pin lane` / `Unpin lane` —
+a kernel noun in two `aria-label`s, carried forward unexamined from the old JSX. Now `Pin this chat`.
+
+**Receipts**: gate **32/32** (29 + 3 new arms). Voice guard 0. `tsc` 0 errors. `next build` 136 prerendered
+routes (23 static + 113 SSG), unchanged, marketing all static. Driven on the `bare-kernel` rig with the API
+up and `LANES_ENABLED=1`: the chat list, the new-chat modal, an opened lane, the composer and the cast
+detail all read Korean — `채팅은 에이전트 한 명과 나누고, 서로 분리돼 있어요`, `메시지를 입력해 보세요…`,
+`이 대화에 2명`, `대화 전체를 읽어요` — with **0 page errors**. The same rig at `locale: "en"` renders the
+pre-pass strings unchanged (`Write a message…`, `2 IN THIS CONVERSATION`, `Reads the whole conversation`).
+Account restored to no `locale` key.
+
+**Still English inside the chat surface, and why**: the lane's NAME (`_DEFAULT_LANE_NAME = "New chat"` in
+`api/routes/lanes.py`) and the agent names and descriptions in the new-chat modal are SERVED — §8's open
+question, the same class the shell's roster left by §10's ruling. `just now` / `2m ago` come from
+`formatRelativeTime` in `lib/formatting.ts`, a shared layer reaching **15 surfaces**; it translates with a
+pass of its own, not ahead of them.
+
+**Next by measurement**: `app/(authenticated)/settings/page.tsx` (25), then `StudioDesignTab` (61),
+`SubscriptionCard` (46), `ManageConnectionSubsurface` (38), `FindConnectorModal` (35),
+`WorkspaceMembersCard` (32), `TextEditor` (31).

@@ -52,6 +52,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { useAutoResize, COMPOSER_MAX_PX } from '@/hooks/useAutoResize';
 import { isSubmitKey } from '@/lib/shell/submit-key';
@@ -84,7 +85,8 @@ import { AgentFace } from '@/components/agents/AgentFace';
 import { MentionMenu, type MentionCandidate } from './MentionMenu';
 import { ArtifactCard } from './ArtifactCard';
 import { ImagePreviewModal } from './ImagePreviewModal';
-import { toolLabelLine } from './toolLabels';
+import { toolLabelRefs } from './toolLabels';
+import { useToolLabels } from './useToolLabels';
 import { StreamSteps, type StreamStep } from './StreamSteps';
 import { Working } from '@/components/shared/Working';
 
@@ -257,17 +259,20 @@ function readRange(raw: unknown): { start: number; end: number } | null {
 
 /** The chip's noun for a seed target — shared by the composer chip and the
  *  transcript chip so a gesture reads identically before and after Send. */
-function seedTargetNoun(t: SeedTarget): string {
-  if (t.label === 'selection') return 'the selection';
+/** The seed chip's noun, as a catalog key + args. ADR-660 D3 — this is
+ *  module-level, evaluated before any member's language is known, so it names
+ *  no words; the component's `seedNoun` words it. */
+function seedTargetRef(t: SeedTarget): { key: string; args?: Record<string, string> } {
+  if (t.label === 'selection') return { key: 'selection' };
   // ADR-620 — read the LABEL for the page grain, not the ABSENCE of a block
   // id. Until compose, page grain implied no id; a composed slide carries its
   // own (pages are stamped since ADR-519), and the old proxy would have called
   // it "the slide block". Mirrors `_seed_line`'s noun, deliberately: the chip
   // and the frame must read identically before and after Send.
   if (t.pageIndex != null && (t.label === 'slide' || t.label === 'section' || !t.blockId)) {
-    return `${t.label || 'slide'} ${t.pageIndex + 1}`;
+    return { key: 'page', args: { label: t.label || 'slide', number: String(t.pageIndex + 1) } };
   }
-  return `the ${t.label || 'block'} block`;
+  return { key: 'block', args: { label: t.label || 'block' } };
 }
 
 interface LaneMessage {
@@ -512,6 +517,24 @@ export function LanePanel({
   // When the running turn began — the in-flight row shows its elapsed time
   // (ADR-651 D2, the patient form; the SSE idle deadline bounds the wait).
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);
+  const t = useTranslations('chat.lane');
+  const wordTool = useToolLabels();
+  // A seed label arrives as an app's own grain word ("slide", "section"); the
+  // catalog names the ones we know and passes anything else through.
+  const seedNoun = useCallback(
+    (target: SeedTarget): string => {
+      const ref = seedTargetRef(target);
+      const label = ref.args?.label;
+      const args = ref.args && {
+        ...ref.args,
+        ...(label && t.has(`seedTarget.labels.${label}`)
+          ? { label: t(`seedTarget.labels.${label}`) }
+          : {}),
+      };
+      return t(`seedTarget.${ref.key}`, args);
+    },
+    [t],
+  );
   const [error, setError] = useState<string | null>(null);
   // Phase-A turn controls: the in-flight stream's abort handle (stop), the
   // user message being edited (edit-and-resend), copy feedback.
@@ -559,7 +582,7 @@ export function LanePanel({
       const name = path.split('/').filter(Boolean).pop() || path;
       const isImage = /\.(png|jpe?g|webp|gif)$/i.test(name);
       if (isImage && !visionCapable) {
-        setError(`${modelLabel} cannot see images — attach documents instead.`);
+        setError(t('errors.noVision', { model: modelLabel }));
         return;
       }
       setAttachments((prev) =>
@@ -611,7 +634,7 @@ export function LanePanel({
       for (const file of files) {
         const kind: 'image' | 'file' = file.type.startsWith('image/') ? 'image' : 'file';
         if (kind === 'image' && !visionCapable) {
-          setError(`${modelLabel} cannot see images — attach documents instead.`);
+          setError(t('errors.noVision', { model: modelLabel }));
           continue;
         }
         const key = `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -691,7 +714,7 @@ export function LanePanel({
         if (cancelled) return;
         setMessages(mapMessages(res.messages));
       })
-      .catch(() => !cancelled && setError('Could not load this chat.'))
+      .catch(() => !cancelled && setError(t('errors.load')))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
@@ -1090,7 +1113,7 @@ export function LanePanel({
           }
         },
         onError: (message: string) => {
-          setError(message || 'Something went wrong. Try again.');
+          setError(message || t('errors.generic'));
           // Papercut fix: preserve the user's text so it isn't lost.
           if (kind === 'send' && opts.content) setInput((cur) => cur || opts.content!);
           dropEmptyPlaceholder();
@@ -1120,7 +1143,7 @@ export function LanePanel({
           });
         }
       } catch {
-        setError('Something went wrong. Try again.');
+        setError(t('errors.generic'));
         if (kind === 'send' && opts.content) setInput((cur) => cur || opts.content!);
         dropEmptyPlaceholder();
       } finally {
@@ -1227,10 +1250,7 @@ export function LanePanel({
                     hands), and a name must never be shown where a receipt is
                     meant. */}
                 <p className="font-medium text-foreground/80">{laneName} · {speaker}</p>
-                <p>
-                  This conversation is private. Whatever {modelLabel} makes here
-                  lands in your workspace files, under your name.
-                </p>
+                <p>{t('privateNote', { model: modelLabel })}</p>
               </div>
             )}
             {suggestions && suggestions.length > 0 && (
@@ -1428,7 +1448,7 @@ export function LanePanel({
                           <Sparkles className="w-3 h-3" />
                           <span className="capitalize">{m.seed.verb}</span>
                           <span>·</span>
-                          <span className="truncate max-w-[200px]">{seedTargetNoun(m.seed)}</span>
+                          <span className="truncate max-w-[200px]">{seedNoun(m.seed)}</span>
                         </span>
                       </div>
                     )}
@@ -1455,7 +1475,7 @@ export function LanePanel({
                     {m.content && m.tools_called && m.tools_called.length > 0 && (
                       <div className="mt-1.5 pt-1.5 border-t border-border/40 flex items-center gap-1 text-[10px] text-muted-foreground">
                         <Wrench className="w-3 h-3" />
-                        {toolLabelLine(m.tools_called, 'did')}
+                        {toolLabelRefs(m.tools_called, 'did').map(wordTool).join(' · ')}
                       </div>
                     )}
                   </div>
@@ -1476,8 +1496,8 @@ export function LanePanel({
                     type="button"
                     onClick={() => copyMessage(m)}
                     className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    aria-label="Copy message"
-                    title="Copy"
+                    aria-label={t('copyMessage')}
+                    title={t('copy')}
                   >
                     {copiedId === m.id ? (
                       <Check className="w-3 h-3" />
@@ -1490,8 +1510,8 @@ export function LanePanel({
                       type="button"
                       onClick={() => startEdit(m)}
                       className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      aria-label="Edit and resend"
-                      title="Edit & resend"
+                      aria-label={t('editAndResend')}
+                      title={t('editResend')}
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -1501,8 +1521,8 @@ export function LanePanel({
                       type="button"
                       onClick={() => void runStream('regenerate')}
                       className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      aria-label="Regenerate reply"
-                      title="Regenerate"
+                      aria-label={t('regenerateReply')}
+                      title={t('regenerate')}
                     >
                       <RefreshCw className="w-3 h-3" />
                     </button>
@@ -1632,17 +1652,17 @@ export function LanePanel({
               <span className="capitalize">{pendingSeed.verb}</span>
               <span>·</span>
               <span className="truncate max-w-[180px]">
-                {seedTargetNoun(pendingSeed)}
+                {seedNoun(pendingSeed)}
                 {pendingSeed.excerpt ? ` — “${pendingSeed.excerpt.slice(0, 40)}${pendingSeed.excerpt.length > 40 ? '…' : ''}”` : ''}
               </span>
               <span className="ml-0.5 inline-flex items-center gap-0.5 rounded bg-amber-200/70 px-1 text-[9px] font-semibold tracking-wide text-amber-900 dark:bg-amber-800/60 dark:text-amber-100">
-                AI
+                {t('aiTag')}
               </span>
               <button
                 type="button"
                 onClick={() => setPendingSeed(null)}
                 className="p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40"
-                aria-label="Drop the gesture target"
+                aria-label={t('dropSeed')}
               >
                 <X className="w-3 h-3" />
               </button>
@@ -1658,10 +1678,10 @@ export function LanePanel({
               <div className="w-full rounded border border-amber-300/50 bg-amber-50/60 px-2 py-1.5 text-[11px] dark:border-amber-700/50 dark:bg-amber-950/20">
                 <div className="flex flex-wrap items-center gap-1 text-amber-900/80 dark:text-amber-200/80">
                   {pendingSeed.compose.blocks.length === 0 ? (
-                    <span className="italic">This {pendingSeed.label || 'slide'} is empty.</span>
+                    <span className="italic">{t('seedEmpty', { label: pendingSeed.label || 'slide' })}</span>
                   ) : (
                     <>
-                      <span className="mr-0.5">On it now:</span>
+                      <span className="mr-0.5">{t('onItNow')}</span>
                       {pendingSeed.compose.blocks.map((b) => (
                         <span
                           key={b.id}
@@ -1680,8 +1700,8 @@ export function LanePanel({
                       "fill this empty slide" is the case that motivated the
                       feature. */}
                   {([
-                    [false, 'Fill in what’s missing'],
-                    [true, 'Replace what’s there'],
+                    [false, t('fillMissing')],
+                    [true, t('replaceExisting')],
                   ] as Array<[boolean, string]>).map(([val, copy]) => (
                     <button
                       key={String(val)}
@@ -1753,7 +1773,7 @@ export function LanePanel({
                   <FileText className="w-3 h-3" />
                 )}
                 <span className="truncate max-w-[140px]">{a.name}</span>
-                {a.error && <span>failed</span>}
+                {a.error && <span>{t('attachmentFailed')}</span>}
                 <button
                   type="button"
                   onClick={() =>
@@ -1817,8 +1837,8 @@ export function LanePanel({
             onClick={() => fileInputRef.current?.click()}
             disabled={sending}
             className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 shrink-0 transition-colors"
-            aria-label="Attach a file"
-            title="Attach (upload)"
+            aria-label={t('attachFile')}
+            title={t('attachUpload')}
           >
             <Paperclip className="w-4 h-4" />
           </button>
@@ -1833,18 +1853,18 @@ export function LanePanel({
             onClick={() => setWorkspacePickOpen(true)}
             disabled={sending}
             className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 shrink-0 transition-colors"
-            aria-label="Attach a workspace file"
-            title="Attach from workspace"
+            aria-label={t('attachWorkspaceFile')}
+            title={t('attachWorkspace')}
           >
             <FolderOpen className="w-4 h-4" />
           </button>
           <WorkspacePickerModal
             open={workspacePickOpen}
             mode="file"
-            title="Attach from workspace"
-            subtitle="Reference an existing file — nothing is copied"
-            confirmLabel="Attach"
-            emptyMessage="Nothing in the workspace yet."
+            title={t('attachWorkspace')}
+            subtitle={t('attachWorkspaceHint')}
+            confirmLabel={t('attachConfirm')}
+            emptyMessage={t('attachEmpty')}
             selectable={() => true}
             onClose={() => setWorkspacePickOpen(false)}
             onConfirm={attachWorkspaceFile}
@@ -1940,18 +1960,18 @@ export function LanePanel({
             // where a wrong name is true of none.
             placeholder={
               editing
-                ? 'Edit your message…'
+                ? t('composer.editing')
                 : // A held gesture makes the composer's job specific: the chip
                   // above already says WHAT is being acted on, so the input
                   // asks only for the member's intent. This replaces the
                   // prefill that used to restate the chip.
                   pendingSeed
-                  ? `How should ${seedTargetNoun(pendingSeed)} read?`
+                  ? t('composer.seed', { target: seedNoun(pendingSeed) })
                   : floorName
-                    ? `Message ${floorName}…`
+                    ? t('composer.toSomeone', { name: floorName })
                     : speakerLabel
-                      ? `Message ${speakerLabel}…`
-                      : 'Write a message…'
+                      ? t('composer.toSomeone', { name: speakerLabel })
+                      : t('composer.generic')
             }
             rows={1}
             // The phone paints its return key from this. Say what the key
@@ -1968,8 +1988,8 @@ export function LanePanel({
             <button
               onClick={stop}
               className="p-2 rounded-md border border-border text-foreground hover:bg-muted shrink-0 transition-colors"
-              aria-label="Stop generating"
-              title="Stop"
+              aria-label={t('stopGenerating')}
+              title={t('stop')}
             >
               <Square className="w-4 h-4" />
             </button>
@@ -1978,7 +1998,7 @@ export function LanePanel({
               onClick={() => void send()}
               disabled={!input.trim() || attachments.some((a) => a.uploading)}
               className="p-2 rounded-md bg-primary text-primary-foreground disabled:opacity-40 shrink-0"
-              aria-label="Send"
+              aria-label={t('send')}
             >
               <ArrowUp className="w-4 h-4" />
             </button>

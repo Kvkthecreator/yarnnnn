@@ -33,6 +33,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { cn } from '@/lib/utils';
 
@@ -81,6 +82,7 @@ export function MentionMenu({
   onClose,
   onItemsChange,
 }: MentionMenuProps) {
+  const t = useTranslations('chat.mention');
   const rootRef = useRef<HTMLDivElement>(null);
 
   const { agents, people, outsiders, selectable } = useMemo(() => {
@@ -129,7 +131,7 @@ export function MentionMenu({
     <div
       ref={rootRef}
       role="listbox"
-      aria-label="Address someone in this conversation"
+      aria-label={t('address')}
       className="absolute bottom-full left-0 mb-2 w-72 max-h-72 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-lg z-30 animate-in fade-in slide-in-from-bottom-2 duration-150"
     >
       {agents.length > 0 && (
@@ -189,7 +191,7 @@ export function MentionMenu({
                 role="option"
                 aria-selected={idx === highlight}
                 data-mention-item={idx}
-                title="Mentioning a person flags it for them — they’ll see it in their notifications"
+                title={t('personHint')}
                 onMouseEnter={() => onHighlight(idx)}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -217,7 +219,7 @@ export function MentionMenu({
             <button
               key={`outsider-${c.handle}`}
               type="button"
-              title="Opens Add people — adding them is your call, never a mention's side effect"
+              title={t('addHint')}
               onMouseDown={(e) => {
                 e.preventDefault();
                 onPickOutsider(c);
@@ -226,7 +228,7 @@ export function MentionMenu({
             >
               <AgentFace name={c.name} avatarUrl={c.avatarUrl} kind={c.kind} size="sm" />
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              <span className="shrink-0 text-[10px] text-muted-foreground">add…</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{t('addMore')}</span>
             </button>
           ))}
         </>

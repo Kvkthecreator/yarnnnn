@@ -1,6 +1,7 @@
 /**
  * toolLabels — operator-facing spellings for lane tool verbs (2026-08-18;
- * re-cut 2026-08-25 for the stepped stream display).
+ * re-cut 2026-08-25 for the stepped stream display; moved into the catalogs
+ * 2026-09-20, ADR-660).
  *
  * The stream and the reply footer used to print raw primitive names
  * ("Designer · WriteFile · ReadFile…") — the same internal-vocabulary leak the
@@ -18,6 +19,13 @@
  * principals can see, with attribution. "on your computer" would be a
  * marketing-honesty defect in the transcript itself.
  *
+ * ⭐ ADR-660 — this module is evaluated at import, before any member's language
+ * is known, so it holds no words at all: it resolves a primitive name to a
+ * catalog KEY plus its arguments, and the COMPONENT words it. Composing a
+ * subject line by concatenation ("reading" + path) was also an English word
+ * order; the catalog carries `withSubject` as a whole ICU message so Korean can
+ * put the subject first (`{subject} 읽는 중`).
+ *
  * The roster mirrors `api/services/lane_runner.py::lane_tool_names()` — the
  * file + folder verbs + LANE_SURFACE_EXTRA, plus the ADR-585 `turn_reach`
  * platform reads a reach-bearing turn holds. An unknown name (a future roster
@@ -32,39 +40,39 @@
  * a pass of its own rather than a silent unification in a display change.
  */
 
-/** A verb's two tenses, and whether it takes a subject in front of the place. */
-type ToolLabel = {
-  doing: string;
-  did: string;
-  /** Composed as `${withSubject} ${subject}` when the step carries a subject —
-   *  "Reading" + "Documents/memo.md". Absent when naming a subject would read
-   *  worse than the plain verb. */
-  withSubject?: string;
-};
+/** The catalog namespace every key below lives under. */
+export const TOOL_LABEL_NS = 'chat.tools';
 
-const TOOL_LABELS: Record<string, ToolLabel> = {
-  ReadFile: { doing: 'reading a file in your workspace', did: 'read a file', withSubject: 'reading' },
-  WriteFile: { doing: 'writing a file in your workspace', did: 'wrote a file', withSubject: 'writing' },
-  EditFile: { doing: 'revising a file in your workspace', did: 'revised a file', withSubject: 'revising' },
+/**
+ * Which verbs the catalog names, and which of them can take a subject. A name
+ * absent from here has no catalog entry and degrades to `humanize`.
+ *
+ * `true` — the verb has a `withSubject` message (it reads well naming what it
+ * acted on). `false` — naming a subject would read worse than the plain verb.
+ */
+const TOOL_VERBS: Record<string, boolean> = {
+  ReadFile: true,
+  WriteFile: true,
+  EditFile: true,
   // 2026-08-21 — the file-verb set is one set, whoever holds it. Named
   // explicitly rather than left to `humanize`: "deleting a file" is the one
   // verb a member most needs to read accurately in a streaming transcript.
-  DeleteFile: { doing: 'deleting a file in your workspace', did: 'deleted a file', withSubject: 'deleting' },
-  MoveFile: { doing: 'moving a file in your workspace', did: 'moved a file', withSubject: 'moving' },
+  DeleteFile: true,
+  MoveFile: true,
   // 2026-08-21 — the FOLDER grain. Named "folder", never "files": a fan-out's
   // blast radius must read in the transcript as what it was. The count itself
   // rides in the verb's own result message ("19 moved to Trash · 2 stayed").
-  DeleteFolder: { doing: 'deleting a folder in your workspace', did: 'deleted a folder', withSubject: 'deleting the folder' },
-  MoveFolder: { doing: 'moving a folder in your workspace', did: 'moved a folder', withSubject: 'moving the folder' },
+  DeleteFolder: true,
+  MoveFolder: true,
   // The inverse of the two deletes. "restoring" rather than "undeleting":
   // Trash is a place, and this is the Put Back beside it.
-  Restore: { doing: 'restoring from Trash', did: 'restored from Trash', withSubject: 'restoring' },
-  SearchFiles: { doing: 'searching your workspace', did: 'searched your workspace', withSubject: 'searching your workspace for' },
-  ListFiles: { doing: 'listing files in your workspace', did: 'listed files', withSubject: 'listing' },
-  QueryKnowledge: { doing: 'searching knowledge', did: 'searched knowledge', withSubject: 'searching knowledge for' },
-  WebSearch: { doing: 'searching the web', did: 'searched the web', withSubject: 'searching the web for' },
-  list_integrations: { doing: 'checking connections', did: 'checked connections' },
-  GenerateImage: { doing: 'generating an image', did: 'generated an image' },
+  Restore: true,
+  SearchFiles: true,
+  ListFiles: true,
+  QueryKnowledge: true,
+  WebSearch: true,
+  list_integrations: false,
+  GenerateImage: false,
 
   // ADR-585 turn reach — the read-only platform surface a reach-bearing turn
   // holds. Un-named, these fell through `humanize` and printed
@@ -73,29 +81,15 @@ const TOOL_LABELS: Record<string, ToolLabel> = {
   // roster the map had not caught up with. Named in the PLATFORM's own
   // vocabulary (channel, page, repo) because that is what the member sees on
   // the other side of the connection.
-  platform_slack_list_channels: { doing: 'listing Slack channels', did: 'listed Slack channels' },
-  platform_slack_get_channel_history: {
-    doing: 'reading a Slack channel', did: 'read a Slack channel', withSubject: 'reading Slack',
-  },
-  platform_notion_search: {
-    doing: 'searching Notion', did: 'searched Notion', withSubject: 'searching Notion for',
-  },
-  platform_notion_get_page: {
-    doing: 'reading a Notion page', did: 'read a Notion page', withSubject: 'reading the Notion page',
-  },
-  platform_github_list_repos: { doing: 'listing GitHub repos', did: 'listed GitHub repos' },
-  platform_github_get_issues: {
-    doing: 'reading GitHub issues', did: 'read GitHub issues', withSubject: 'reading issues in',
-  },
-  platform_github_get_repo_metadata: {
-    doing: 'reading a GitHub repo', did: 'read a GitHub repo', withSubject: 'reading',
-  },
-  platform_github_get_readme: {
-    doing: 'reading a GitHub README', did: 'read a GitHub README', withSubject: 'reading the README of',
-  },
-  platform_github_get_releases: {
-    doing: 'reading GitHub releases', did: 'read GitHub releases', withSubject: 'reading releases in',
-  },
+  platform_slack_list_channels: false,
+  platform_slack_get_channel_history: true,
+  platform_notion_search: true,
+  platform_notion_get_page: true,
+  platform_github_list_repos: false,
+  platform_github_get_issues: true,
+  platform_github_get_repo_metadata: true,
+  platform_github_get_readme: true,
+  platform_github_get_releases: true,
 };
 
 /** "WriteFile" → "write file", "list_integrations" → "list integrations". */
@@ -107,8 +101,9 @@ function humanize(name: string): string {
 }
 
 /** Sentence case for a step row: only the first letter, so a path's own casing
- *  and a proper noun (Slack, Notion) both survive. */
-function sentenceCase(s: string): string {
+ *  and a proper noun (Slack, Notion) both survive. Korean has no letter case,
+ *  so this is a no-op on a Hangul string by construction. */
+export function sentenceCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
@@ -130,19 +125,29 @@ function shortenSubject(subject: string): string {
   return parts.length <= 2 ? path : `…/${parts.slice(-2).join('/')}`;
 }
 
-/** One streaming step's line: verb + subject when the server named one, the
- *  plain present-tense verb when it did not. */
-export function toolStepLine(step: { name: string; subject?: string }): string {
-  const label = TOOL_LABELS[step.name];
-  if (step.subject && label?.withSubject) {
-    return sentenceCase(`${label.withSubject} ${shortenSubject(step.subject)}`);
+/** What a component needs to word one line: a catalog key relative to
+ *  `TOOL_LABEL_NS` and its ICU arguments, or `fallback` when the verb has no
+ *  catalog entry (an unknown name from a newer roster). */
+export type ToolLabelRef =
+  | { key: string; args?: Record<string, string>; fallback?: undefined }
+  | { key?: undefined; args?: undefined; fallback: string };
+
+/** One streaming step's line: verb + subject when the server named one AND the
+ *  verb reads well with one, the plain present-tense verb when it does not. */
+export function toolStepRef(step: { name: string; subject?: string }): ToolLabelRef {
+  const takesSubject = TOOL_VERBS[step.name];
+  if (takesSubject === undefined) return { fallback: sentenceCase(humanize(step.name)) };
+  if (step.subject && takesSubject) {
+    return { key: `${step.name}.withSubject`, args: { subject: shortenSubject(step.subject) } };
   }
-  return sentenceCase(label?.doing ?? humanize(step.name));
+  return { key: `${step.name}.doing` };
 }
 
-/** Deduped, joined display line for a turn's tool calls. */
-export function toolLabelLine(names: string[], form: 'doing' | 'did'): string {
-  return Array.from(new Set(names))
-    .map((n) => TOOL_LABELS[n]?.[form] ?? humanize(n))
-    .join(' · ');
+/** The deduped set of refs for a turn's tool calls, in call order. The caller
+ *  words each and joins them — joining worded strings is the component's job,
+ *  so the separator is not baked into a key. */
+export function toolLabelRefs(names: string[], form: 'doing' | 'did'): ToolLabelRef[] {
+  return Array.from(new Set(names)).map((n) =>
+    TOOL_VERBS[n] === undefined ? { fallback: humanize(n) } : { key: `${n}.${form}` },
+  );
 }

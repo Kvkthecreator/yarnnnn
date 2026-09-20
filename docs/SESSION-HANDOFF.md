@@ -6,19 +6,30 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## Korean: the shell speaks it, the surfaces do not (ADR-660, 2026-09-20)
+## Korean: the shell and chat speak it, the rest does not (ADR-660, 2026-09-20)
 
-The mechanism, the sign-in path and the SHELL are live and driven (ADR-660 §10 — the served roster is worded
-client-side by slug through `useSurfaceWords`, ruling 1). **972 lines of literal copy in 100 files are still
-English** — `LITERAL_COPY_CEILING` in `api/test_adr660_the_interface_speaks_korean.py` is the meter; lower it
-in the commit that lowers the count. Next by measurement: the chat surface (`ChatSurface` 24, `LanePanel` 21,
-`ConversationDetail` 15, plus `toolLabels.ts`), then `settings/page.tsx`, then Studio / billing / connectors.
-The meter is a FLOOR — it cannot see module-level tables (`toolLabels.ts`, `FAMILY_META`, `ROLE_META`),
-toasts, template literals, or a lowercase DB enum made English by CSS `capitalize` (a role; found by driving,
-not by the meter). Convert a table by holding catalog KEYS and wording them at render (ADR-660 D3).
-`AttentionCenter` still borrows `actorLine` / `proposalLabel` / `proposalQueuedByDialLine`, shared with the
-Notifications and Reach surfaces — translate them with those surfaces, not ahead of them. Undecided, ADR §8:
-served error details (136 `HTTPException`), outbound email, the marketing site, the sign-up stage notice.
+The mechanism, the sign-in path, the SHELL (§10) and the CHAT SURFACE (§11) are live and driven.
+**898 lines of literal copy in 93 files are still English** — `LITERAL_COPY_CEILING` in
+`api/test_adr660_the_interface_speaks_korean.py` is the meter; lower it in the commit that lowers the count.
+Next by measurement: `app/(authenticated)/settings/page.tsx` (25), then `StudioDesignTab` (61),
+`SubscriptionCard` (46), `ManageConnectionSubsurface` (38), `FindConnectorModal` (35),
+`WorkspaceMembersCard` (32), `TextEditor` (31).
+
+The meter is a FLOOR — it cannot see module-level tables, toasts, template literals, or a lowercase DB enum
+made English by CSS `capitalize`. **Read the file, not the meter.** Convert a table by holding catalog KEYS
+and wording at render (D3); convert a `verb + subject` concatenation into a whole ICU message, because the
+join order is English grammar.
+
+⚠️ **The gate's `USE` regex matched a double-quoted namespace only until 2026-09-20** — it was green over 17
+of 22 bindings. Fixed, but the lesson stands: a source-reading gate is only as wide as its syntax
+assumptions. Dynamic keys (`t(`${name}.doing`)`) are checked by two dedicated arms, not the scan.
+
+Two shared label layers still need their own pass, each reaching many surfaces: `actorLine` /
+`proposalLabel` / `proposalQueuedByDialLine` (AttentionCenter + Notifications + Reach) and
+`formatRelativeTime` in `lib/formatting.ts` (**15 surfaces**). Translate them with their surfaces.
+Undecided, ADR §8: served error details (136 `HTTPException`), the lane's default name
+(`_DEFAULT_LANE_NAME` in `api/routes/lanes.py`), the served agent roster, outbound email, the marketing
+site, the sign-up stage notice.
 
 ## The local `node_modules` does not match what Vercel installs (found 2026-09-20)
 

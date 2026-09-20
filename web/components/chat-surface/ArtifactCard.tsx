@@ -102,6 +102,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   ChevronDown,
   ChevronUp,
@@ -153,6 +154,7 @@ export function ArtifactCard({
   streaming = false,
   pending = false,
 }: ArtifactCardProps) {
+  const t = useTranslations('chat.artifact');
   // ADR-436 §6: the shared file-load hook (was a hand-written getFile machine).
   // `cachedFirst`: this mount re-mounts on every post-turn transcript resync
   // (row identities swap local→DB); a card already read must not respin.
@@ -324,9 +326,9 @@ export function ArtifactCard({
             className="flex w-full items-center justify-center gap-1 border-t border-border/60 py-1.5 text-[11px] text-muted-foreground hover:bg-muted/30 hover:text-foreground"
           >
             {expanded ? (
-              <><ChevronUp className="h-3 w-3" /> Show less</>
+              <><ChevronUp className="h-3 w-3" /> {t('showLess')}</>
             ) : (
-              <><ChevronDown className="h-3 w-3" /> Show more</>
+              <><ChevronDown className="h-3 w-3" /> {t('showMore')}</>
             )}
           </button>
         </>

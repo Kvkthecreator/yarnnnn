@@ -39,6 +39,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
@@ -127,6 +128,7 @@ interface NewChatModalProps {
 }
 
 export function NewChatModal({ agents, engines, defaultEngine, onPick, onClose }: NewChatModalProps) {
+  const t = useTranslations('chat.newChatModal');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<string | null>(null);
@@ -154,7 +156,7 @@ export function NewChatModal({ agents, engines, defaultEngine, onPick, onClose }
         await onPick(choice);
         rememberStart(id);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not start this chat');
+        setError(e instanceof Error ? e.message : t('error'));
         setBusy(null);
       }
     },
@@ -183,13 +185,13 @@ export function NewChatModal({ agents, engines, defaultEngine, onPick, onClose }
         >
           <div className="flex items-start justify-between">
             <h3 className="text-base font-semibold text-card-foreground">
-              New chat
+              {t('title')}
             </h3>
             <button
               type="button"
               onClick={onClose}
               className="p-1 -mr-1 -mt-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-              aria-label="Close"
+              aria-label={t('close')}
             >
               <X className="w-4 h-4" />
             </button>
@@ -244,7 +246,7 @@ export function NewChatModal({ agents, engines, defaultEngine, onPick, onClose }
                 onClick={() => setShowEngines(true)}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
               >
-                Or start with an engine
+                {t('orEngine')}
                 <ChevronDown className="w-3 h-3" />
               </button>
             ) : (

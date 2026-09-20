@@ -210,5 +210,255 @@
       "nothingOpenTitle": "Nothing open",
       "nothingOpenBody": "Click an icon in the dock, or open the Launcher (the grid icon) to see everything in this workspace."
     }
+  },
+  "chat": {
+    "title": "Chat",
+    "opening": "Opening chat…",
+    "unavailableTitle": "Chat isn't available yet",
+    "unavailableBody": "Your files and agents are unaffected.",
+    "hideList": "Hide the chat list",
+    "showList": "Show the chat list",
+    "showListAction": "Show your chats",
+    "search": "Search chats…",
+    "clearSearch": "Clear search",
+    "allWho": "All",
+    "noChatsTitle": "No chats yet",
+    "noChatsBody": "Each chat is with one agent, kept separate from the others. Whatever it makes lands in your workspace files, under your name.",
+    "noMatches": "No chats match “{query}”.",
+    "resizeRail": "Drag to resize",
+    "emptyTitle": "Your conversations",
+    "emptyBodyWithRail": "Each chat is with one agent, kept separate from the others. Pick a chat on the left or start a new one. Whatever it makes lands in your files, under your name.",
+    "emptyBodyNoRail": "Each chat is with one agent, kept separate from the others. Show your chats or start a new one. Whatever it makes lands in your files, under your name.",
+    "members": "{count} members",
+    "directChat": "Direct chat",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinLane": "Pin this chat",
+    "unpinLane": "Unpin this chat",
+    "rename": "Rename",
+    "renameChat": "Rename chat",
+    "archive": "Archive chat",
+    "starting": "Starting the chat…",
+    "archiving": "Archiving…",
+    "archived": "Archived",
+    "errors": {
+      "start": "Could not start this chat",
+      "archive": "Could not archive this chat",
+      "pin": "Could not pin this chat",
+      "unpin": "Could not unpin this chat",
+      "rename": "Could not rename this chat"
+    },
+    "lane": {
+      "privateNote": "This conversation is private. Whatever {model} makes here lands in your workspace files, under your name.",
+      "copy": "Copy",
+      "copyMessage": "Copy message",
+      "editResend": "Edit & resend",
+      "editAndResend": "Edit and resend",
+      "regenerate": "Regenerate",
+      "regenerateReply": "Regenerate reply",
+      "aiTag": "AI",
+      "dropSeed": "Drop the gesture target",
+      "seedEmpty": "This {label} is empty.",
+      "onItNow": "On it now:",
+      "fillMissing": "Fill in what's missing",
+      "replaceExisting": "Replace what's there",
+      "attachmentFailed": "failed",
+      "attachUpload": "Attach (upload)",
+      "attachFile": "Attach a file",
+      "attachWorkspace": "Attach from workspace",
+      "attachWorkspaceFile": "Attach a workspace file",
+      "attachWorkspaceHint": "Reference an existing file — nothing is copied",
+      "attachConfirm": "Attach",
+      "attachEmpty": "Nothing in the workspace yet.",
+      "stop": "Stop",
+      "stopGenerating": "Stop generating",
+      "send": "Send",
+      "composer": {
+        "editing": "Edit your message…",
+        "seed": "How should {target} read?",
+        "toSomeone": "Message {name}…",
+        "generic": "Write a message…"
+      },
+      "seedTarget": {
+        "selection": "the selection",
+        "page": "{label} {number}",
+        "block": "the {label} block",
+        "labels": {
+          "slide": "slide",
+          "section": "section",
+          "block": "block"
+        }
+      },
+      "errors": {
+        "noVision": "{model} cannot see images — attach documents instead.",
+        "load": "Could not load this chat.",
+        "generic": "Something went wrong. Try again."
+      }
+    },
+    "detail": {
+      "title": "Details",
+      "back": "Back to the conversation",
+      "count": "{count} in this conversation",
+      "add": "Add",
+      "addTitle": "Add to this conversation",
+      "close": "Close",
+      "shareHistory": "Let them read what came before",
+      "people": "People",
+      "agents": "Agents",
+      "remove": "Remove {name}",
+      "removeTitle": "Remove from this conversation",
+      "defaultResponder": "Replies when you don't say who",
+      "joinedPartway": "Joined partway — reads from turn {sequence}",
+      "readsAll": "Reads the whole conversation",
+      "onlyPerson": "You're the only person in this workspace.",
+      "everyoneHere": "Everyone in this workspace is already here.",
+      "inviteToWorkspace": "Invite someone to the workspace",
+      "everyAgentHere": "Every agent is already in this conversation.",
+      "noAgent": "No Agent is in this conversation, so nobody replies automatically — it's just the people here. Add one and replies begin.",
+      "errors": {
+        "add": "Could not add them",
+        "remove": "Could not remove them"
+      },
+      "you": "You",
+      "agentFallback": "agent",
+      "memberFallback": "member"
+    },
+    "header": {
+      "details": "Details",
+      "conversationDetails": "Conversation details",
+      "whoIsHere": "See who's in this conversation",
+      "addSomeone": "Add someone to this conversation",
+      "addPeopleOrAgents": "Add people or agents"
+    },
+    "mention": {
+      "address": "Address someone in this conversation",
+      "personHint": "Mentioning a person flags it for them — they'll see it in their notifications",
+      "addHint": "Opens Add people — adding them is your call, never a mention's side effect",
+      "addMore": "add…"
+    },
+    "artifact": {
+      "showLess": "Show less",
+      "showMore": "Show more"
+    },
+    "newChat": "New chat",
+    "newChatModal": {
+      "title": "New chat",
+      "close": "Close",
+      "error": "Could not start this chat",
+      "orEngine": "Or start with an engine"
+    },
+    "tools": {
+      "ReadFile": {
+        "doing": "reading a file in your workspace",
+        "did": "read a file",
+        "withSubject": "reading {subject}"
+      },
+      "WriteFile": {
+        "doing": "writing a file in your workspace",
+        "did": "wrote a file",
+        "withSubject": "writing {subject}"
+      },
+      "EditFile": {
+        "doing": "revising a file in your workspace",
+        "did": "revised a file",
+        "withSubject": "revising {subject}"
+      },
+      "DeleteFile": {
+        "doing": "deleting a file in your workspace",
+        "did": "deleted a file",
+        "withSubject": "deleting {subject}"
+      },
+      "MoveFile": {
+        "doing": "moving a file in your workspace",
+        "did": "moved a file",
+        "withSubject": "moving {subject}"
+      },
+      "DeleteFolder": {
+        "doing": "deleting a folder in your workspace",
+        "did": "deleted a folder",
+        "withSubject": "deleting the folder {subject}"
+      },
+      "MoveFolder": {
+        "doing": "moving a folder in your workspace",
+        "did": "moved a folder",
+        "withSubject": "moving the folder {subject}"
+      },
+      "Restore": {
+        "doing": "restoring from Trash",
+        "did": "restored from Trash",
+        "withSubject": "restoring {subject}"
+      },
+      "SearchFiles": {
+        "doing": "searching your workspace",
+        "did": "searched your workspace",
+        "withSubject": "searching your workspace for {subject}"
+      },
+      "ListFiles": {
+        "doing": "listing files in your workspace",
+        "did": "listed files",
+        "withSubject": "listing {subject}"
+      },
+      "QueryKnowledge": {
+        "doing": "searching knowledge",
+        "did": "searched knowledge",
+        "withSubject": "searching knowledge for {subject}"
+      },
+      "WebSearch": {
+        "doing": "searching the web",
+        "did": "searched the web",
+        "withSubject": "searching the web for {subject}"
+      },
+      "list_integrations": {
+        "doing": "checking connections",
+        "did": "checked connections"
+      },
+      "GenerateImage": {
+        "doing": "generating an image",
+        "did": "generated an image"
+      },
+      "platform_slack_list_channels": {
+        "doing": "listing Slack channels",
+        "did": "listed Slack channels"
+      },
+      "platform_slack_get_channel_history": {
+        "doing": "reading a Slack channel",
+        "did": "read a Slack channel",
+        "withSubject": "reading Slack {subject}"
+      },
+      "platform_notion_search": {
+        "doing": "searching Notion",
+        "did": "searched Notion",
+        "withSubject": "searching Notion for {subject}"
+      },
+      "platform_notion_get_page": {
+        "doing": "reading a Notion page",
+        "did": "read a Notion page",
+        "withSubject": "reading the Notion page {subject}"
+      },
+      "platform_github_list_repos": {
+        "doing": "listing GitHub repos",
+        "did": "listed GitHub repos"
+      },
+      "platform_github_get_issues": {
+        "doing": "reading GitHub issues",
+        "did": "read GitHub issues",
+        "withSubject": "reading issues in {subject}"
+      },
+      "platform_github_get_repo_metadata": {
+        "doing": "reading a GitHub repo",
+        "did": "read a GitHub repo",
+        "withSubject": "reading {subject}"
+      },
+      "platform_github_get_readme": {
+        "doing": "reading a GitHub README",
+        "did": "read a GitHub README",
+        "withSubject": "reading the README of {subject}"
+      },
+      "platform_github_get_releases": {
+        "doing": "reading GitHub releases",
+        "did": "read GitHub releases",
+        "withSubject": "reading releases in {subject}"
+      }
+    }
   }
 }

@@ -124,7 +124,15 @@ if "ko" in CATALOGS:
 
 # Every call resolves. A missing key renders its own path in production, silently.
 SCOPED_DIRS = ["app", "components", "lib", "contexts"]
-USE = re.compile(r"const\s+(\w+)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*(?:\"([^\"]*)\")?\s*\)")
+# ⚠️ 2026-09-20 — this matched a DOUBLE-quoted namespace only. The repo writes
+# both (`useTranslations('chat')` is the prevailing style under components/),
+# so 17 of 22 bindings never bound and the key arm below checked NOTHING in the
+# files that had just been translated: green over unread work. Both quote
+# styles, both here and at the call site.
+USE = re.compile(
+    r"const\s+(\w+)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\("
+    r"\s*(?:\"([^\"]*)\"|'([^']*)')?\s*\)"
+)
 unresolved: list[str] = []
 calls = 0
 translated_files: set[Path] = set()
@@ -133,13 +141,16 @@ for top in SCOPED_DIRS:
         if "node_modules" in path.parts or path.suffix not in (".ts", ".tsx"):
             continue
         src = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
-        bindings = USE.findall(src)
+        bindings = [(var, dq or sq) for var, dq, sq in USE.findall(src)]
         if not bindings:
             continue
         translated_files.add(path)
         namespaces = [ns for _, ns in bindings]
         for var, ns in bindings:
-            for key in re.findall(rf"(?<![\w.]){re.escape(var)}\(\s*\"([^\"]+)\"", src):
+            for dq_key, sq_key in re.findall(
+                rf"(?<![\w.]){re.escape(var)}\(\s*(?:\"([^\"]+)\"|'([^']+)')", src
+            ):
+                key = dq_key or sq_key
                 calls += 1
                 full = f"{ns}.{key}" if ns else key
                 if full not in BASE:
@@ -152,6 +163,35 @@ for top in SCOPED_DIRS:
 check("the scan found translation calls to resolve", calls > 0, "zero calls — the arm is reading nothing")
 check("every t(…) and every roster key resolves in the default catalog",
       not unresolved, f"{len(unresolved)} unresolved, e.g. {unresolved[:3]}")
+
+# A DYNAMIC key — `t(`${step.name}.doing`)` — is invisible to the scan above: a
+# missing one renders its own path in production, silently. The two rosters that
+# build keys from data are checked against the catalogs directly, both ways, so
+# neither a new verb nor a deleted message can drift out of sight.
+tool_src = strip_comments(read("components/chat-surface/toolLabels.ts"))
+tool_verbs = dict(re.findall(r"^  ([A-Za-z_]+): (true|false),", tool_src, re.M))
+check("the tool-verb roster reads something", len(tool_verbs) > 10, f"{len(tool_verbs)} verbs")
+verb_drift: list[str] = []
+for name, takes_subject in tool_verbs.items():
+    forms = ["doing", "did"] + (["withSubject"] if takes_subject == "true" else [])
+    for loc, flat in CATALOGS.items():
+        for form in forms:
+            if f"chat.tools.{name}.{form}" not in flat:
+                verb_drift.append(f"[{loc}] missing chat.tools.{name}.{form}")
+    if takes_subject == "false" and f"chat.tools.{name}.withSubject" in BASE:
+        verb_drift.append(f"orphan chat.tools.{name}.withSubject — the code never asks for it")
+for key in BASE:
+    if key.startswith("chat.tools.") and key.split(".")[2] not in tool_verbs:
+        verb_drift.append(f"{key} names no verb in toolLabels.ts")
+check("every tool verb's messages exist in every catalog, and none is orphaned",
+      not verb_drift, f"{len(verb_drift)}, e.g. {verb_drift[:3]}")
+seed_drift = [
+    f"[{loc}] missing chat.lane.seedTarget.{k}"
+    for k in ("selection", "page", "block")
+    for loc, flat in CATALOGS.items()
+    if f"chat.lane.seedTarget.{k}" not in flat
+]
+check("every seed-target shape the composer can build is named", not seed_drift, f"{seed_drift}")
 
 # ── D3 — the provider is scoped ───────────────────────────────────────────────
 print("D3 — scope")
@@ -238,7 +278,7 @@ print("D4 — coverage")
 # Lines of literal, member-facing copy still in components a scope renders. A
 # METER, not a proof: it counts what it can see (JSX text + copy-bearing props).
 # A pass lowers the ceiling in the commit that lowers the count; nothing raises it.
-LITERAL_COPY_CEILING = 972  # 2026-09-20 — after the shell pass (was 1005)
+LITERAL_COPY_CEILING = 898  # 2026-09-20 — after the chat surface (1005 → 972 → 898)
 COPY_PROP = re.compile(r"\b(placeholder|title|aria-label|label|alt|subtitle|description)=\"[^\"]*[A-Za-z]{2,}[^\"]*\"")
 INLINE_TEXT = re.compile(r">([^<>{}]*[A-Za-z]{2,}[^<>{}]*)</")
 METERED = [WEB / "app" / "(authenticated)", WEB / "app" / "auth", WEB / "app" / "mcp", WEB / "components"]

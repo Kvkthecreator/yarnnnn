@@ -31,6 +31,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ArrowLeft, ArrowUpRight, Check, Loader2, Trash2, UserPlus, X } from 'lucide-react';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
@@ -87,6 +88,7 @@ export function ConversationDetail({
   onCastChanged,
 }: ConversationDetailProps) {
   const { runAction } = useFeedback();
+  const t = useTranslations('chat.detail');
   const [participants, setParticipants] = useState<Participant[]>(
     initialParticipants ?? [],
   );
@@ -175,7 +177,7 @@ export function ConversationDetail({
         commit(res.participants);
         setAdding(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not add them');
+        setError(e instanceof Error ? e.message : t('errors.add'));
       } finally {
         setBusy(null);
       }
@@ -203,7 +205,7 @@ export function ConversationDetail({
       } catch (e) {
         // The server refuses the last human (a conversation nobody can read is
         // deletion wearing another name) — show ITS words, not a guess.
-        setError(e instanceof Error ? e.message : 'Could not remove them');
+        setError(e instanceof Error ? e.message : t('errors.remove'));
       } finally {
         setBusy(null);
       }
@@ -213,10 +215,10 @@ export function ConversationDetail({
 
   const label = (p: Participant) => {
     if (p.member_kind === 'agent') {
-      return agentBySlug.get(p.agent_slug || '')?.name || p.agent_slug || 'agent';
+      return agentBySlug.get(p.agent_slug || '')?.name || p.agent_slug || t('agentFallback');
     }
-    if (p.principal_id && p.principal_id === viewerId) return 'You';
-    return personById.get(p.principal_id || '')?.label || 'member';
+    if (p.principal_id && p.principal_id === viewerId) return t('you');
+    return personById.get(p.principal_id || '')?.label || t('memberFallback');
   };
 
   /** The window, said plainly — the same sentence for every participant.
@@ -230,11 +232,11 @@ export function ConversationDetail({
       p.member_kind === 'agent' &&
       p.agent_slug === defaultResponder
     ) {
-      return 'Replies when you don’t say who';
+      return t('defaultResponder');
     }
     return p.visible_from_sequence > 0
-      ? `Joined partway — reads from turn ${p.visible_from_sequence}`
-      : 'Reads the whole conversation';
+      ? t('joinedPartway', { sequence: p.visible_from_sequence })
+      : t('readsAll');
   };
 
   const row = (p: Participant) => {
@@ -271,8 +273,8 @@ export function ConversationDetail({
             disabled={!!busy}
             onClick={() => void remove(p)}
             className="p-1.5 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-destructive transition-colors disabled:opacity-50"
-            aria-label={`Remove ${label(p)}`}
-            title="Remove from this conversation"
+            aria-label={t('remove', { name: label(p) })}
+            title={t('removeTitle')}
           >
             {busy === busyKey ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -292,12 +294,12 @@ export function ConversationDetail({
           type="button"
           onClick={onBack}
           className="p-1 -ml-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Back to the conversation"
+          aria-label={t('back')}
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <span className="min-w-0">
-          <span className="block text-sm font-medium truncate">Details</span>
+          <span className="block text-sm font-medium truncate">{t('title')}</span>
           <span className="block text-[10px] text-muted-foreground truncate">
             {laneName}
           </span>
@@ -307,7 +309,7 @@ export function ConversationDetail({
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="px-3 pt-3 pb-1 flex items-center justify-between">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            {participants.length} in this conversation
+            {t('count', { count: participants.length })}
           </span>
           <div className="relative">
             <button
@@ -316,7 +318,7 @@ export function ConversationDetail({
               className="flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <UserPlus className="w-3 h-3" />
-              Add
+              {t('add')}
             </button>
 
             {adding && (
@@ -327,13 +329,13 @@ export function ConversationDetail({
               >
                 <div className="flex items-center justify-between px-1 pt-0.5 pb-1">
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Add to this conversation
+                    {t('addTitle')}
                   </span>
                   <button
                     type="button"
                     onClick={() => setAdding(false)}
                     className="p-0.5 rounded text-muted-foreground hover:text-foreground"
-                    aria-label="Close"
+                    aria-label={t('close')}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -357,13 +359,13 @@ export function ConversationDetail({
                     checked={shareHistory}
                     onChange={(e) => setShareHistory(e.target.checked)}
                   />
-                  Let them read what came before
+                  {t('shareHistory')}
                 </label>
 
                 {invitablePeople.length > 0 && (
                   <>
                     <p className="px-1 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                      People
+                      {t('people')}
                     </p>
                     {invitablePeople.map((p) => (
                       <button
@@ -400,7 +402,7 @@ export function ConversationDetail({
                 {invitableAgents.length > 0 && (
                   <>
                     <p className="px-1 pt-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                      Agents
+                      {t('agents')}
                     </p>
                     {invitableAgents.map((a) => (
                       <button
@@ -448,12 +450,10 @@ export function ConversationDetail({
                 {invitablePeople.length === 0 && (
                   <div className="px-2 pt-2 pb-1">
                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground/70 pb-1">
-                      People
+                      {t('people')}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      {people.length === 0
-                        ? "You're the only person in this workspace."
-                        : 'Everyone in this workspace is already here.'}
+                      {people.length === 0 ? t('onlyPerson') : t('everyoneHere')}
                     </p>
                     <SurfaceLink
                       to="workspace-settings"
@@ -464,7 +464,7 @@ export function ConversationDetail({
                       params={{ pane: 'members' }}
                       className="mt-1 inline-flex items-center gap-1 text-[11px] text-foreground/80 hover:text-foreground underline underline-offset-2"
                     >
-                      Invite someone to the workspace
+                      {t('inviteToWorkspace')}
                       <ArrowUpRight className="w-3 h-3" />
                     </SurfaceLink>
                   </div>
@@ -472,7 +472,7 @@ export function ConversationDetail({
 
                 {invitableAgents.length === 0 && invitablePeople.length === 0 && (
                   <p className="px-2 pt-2 pb-1 text-[11px] text-muted-foreground">
-                    Every agent is already in this conversation.
+                    {t('everyAgentHere')}
                   </p>
                 )}
               </div>
@@ -489,7 +489,7 @@ export function ConversationDetail({
         {humans.length > 0 && (
           <>
             <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-              People
+              {t('people')}
             </p>
             {humans.map(row)}
           </>
@@ -497,7 +497,7 @@ export function ConversationDetail({
         {castAgents.length > 0 && (
           <>
             <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-              Agents
+              {t('agents')}
             </p>
             {castAgents.map(row)}
           </>
@@ -507,8 +507,7 @@ export function ConversationDetail({
           // answers. Said where the member is looking at the cast, not as an
           // error somewhere else.
           <p className="px-3 py-3 text-[11px] text-muted-foreground">
-            No Agent is in this conversation, so nobody replies automatically —
-            it&apos;s just the people here. Add one and replies begin.
+            {t('noAgent')}
           </p>
         )}
       </div>

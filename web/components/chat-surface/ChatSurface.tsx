@@ -34,6 +34,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Archive, MessageCircle, PanelLeft, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { LanePanel } from './LanePanel';
@@ -113,6 +114,7 @@ interface LaneData {
 }
 
 export function ChatSurface() {
+  const t = useTranslations('chat');
   const [data, setData] = useState<LaneData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -443,7 +445,7 @@ export function ChatSurface() {
       // real counterpart. `laneMemberCount` is the single count both this and
       // the header chip read.
       const n = laneMemberCount(lane);
-      if (n > 2) return `${n} members`;
+      if (n > 2) return t('members', { count: n });
       // A 1:1 names WHAT the counterpart is — for an Agent that is its role +
       // engine (ADR-463 §3: the technical fact stays visible, just not as the
       // headline); for a person there is nothing to spec, so it says the shape
@@ -452,7 +454,7 @@ export function ChatSurface() {
       const others = (lane.participants ?? []).filter(
         (p) => !(p.member_kind === 'human' && p.principal_id === userId),
       );
-      if (others.length === 1 && others[0].member_kind === 'human') return 'Direct chat';
+      if (others.length === 1 && others[0].member_kind === 'human') return t('directChat');
       // ADR-558: the counterpart is read from the CAST, not from `lane.agent`.
       // A colleague JOINS a conversation, so a lane whose cast holds one names
       // that colleague — `role · engine`, the ADR-463 §3 shape (the technical
@@ -643,7 +645,7 @@ export function ChatSurface() {
       // 409 "Lane limit reached" below), so the error keeps its in-surface
       // home — one failure, one channel. The wait is what was missing.
       const lane = await runAction(() => api.lanes.create(choice), {
-        pending: 'Starting the chat…',
+        pending: t('starting'),
       });
       const info: LaneInfo = {
         id: lane.id,
@@ -658,7 +660,7 @@ export function ChatSurface() {
       // SHOW it. This swallowed a live 409 ("Lane limit reached") and the
       // member saw a click that did nothing, with no reason given. The modal
       // renders what we throw.
-      throw e instanceof Error ? e : new Error('Could not start this chat');
+      throw e instanceof Error ? e : new Error(t('errors.start'));
     }
   }, [setParam, runAction]);
 
@@ -670,9 +672,9 @@ export function ChatSurface() {
     async (laneId: string) => {
       try {
         await runAction(() => api.lanes.archive(laneId), {
-          pending: 'Archiving…',
-          success: 'Archived',
-          error: 'Could not archive this chat',
+          pending: t('archiving'),
+          success: t('archived'),
+          error: t('errors.archive'),
         });
       } catch {
         return; // reported; the lane stays in the list, which is the truth
@@ -701,7 +703,7 @@ export function ChatSurface() {
         // what needs the words: without them the pin silently flips back and
         // the member reads it as the app ignoring the click.
         await runAction(() => api.lanes.patch(lane.id, { pinned: next }), {
-          error: next ? 'Could not pin this chat' : 'Could not unpin this chat',
+          error: next ? t('errors.pin') : t('errors.unpin'),
         });
       } catch {
         updateLaneLocal(lane.id, { pinned: lane.pinned });
@@ -720,7 +722,7 @@ export function ChatSurface() {
     try {
       // Optimistic like the pin: the name already changed in the list.
       await runAction(() => api.lanes.patch(laneId, { name }), {
-        error: 'Could not rename this chat',
+        error: t('errors.rename'),
       });
     } catch {
       if (prev) updateLaneLocal(laneId, { name: prev });
@@ -729,7 +731,7 @@ export function ChatSurface() {
 
   if (loading) {
     return (
-      <Working label="Opening chat…" fill />
+      <Working label={t('opening')} fill />
     );
   }
 
@@ -740,7 +742,7 @@ export function ChatSurface() {
       <div className="h-full flex items-center justify-center p-8">
         <div className="max-w-sm text-center space-y-2 text-sm text-muted-foreground">
           <MessageCircle className="w-6 h-6 mx-auto text-muted-foreground/50" />
-          <p className="font-medium text-foreground/80">Chat isn&apos;t available yet</p>
+          <p className="font-medium text-foreground/80">{t('unavailableTitle')}</p>
           {/* §6.10b — this used to name the routing module by its internal
               name and report that it wasn't live: a module name shown to a
               member, asking them to care about an engine.
@@ -758,7 +760,7 @@ export function ChatSurface() {
               This pane has a TITLE slot those two lack, so the title carries
               the "isn't available" half and the body carries only the
               reassurance, rather than saying it twice. */}
-          <p>Your files and agents are unaffected.</p>
+          <p>{t('unavailableBody')}</p>
         </div>
       </div>
     );
@@ -797,7 +799,7 @@ export function ChatSurface() {
         )}
       >
         <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
-          <span className="text-sm font-medium">Chat</span>
+          <span className="text-sm font-medium">{t('title')}</span>
           <div className="flex items-center gap-0.5">
             {/* Hide the rail. Only where it is a COLUMN — at the narrowest rung
                 the rail IS the screen and hiding it would leave nothing. */}
@@ -805,8 +807,8 @@ export function ChatSurface() {
               <button
                 onClick={rail.toggle}
                 className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                aria-label="Hide the chat list"
-                title="Hide the chat list"
+                aria-label={t('hideList')}
+                title={t('hideList')}
                 aria-expanded
               >
                 <PanelLeft className="w-4 h-4" />
@@ -815,8 +817,8 @@ export function ChatSurface() {
             <button
               onClick={() => setCreating((v) => !v)}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="New chat"
-              title="New chat"
+              aria-label={t('newChat')}
+              title={t('newChat')}
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -834,14 +836,14 @@ export function ChatSurface() {
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setQuery('');
               }}
-              placeholder="Search chats…"
+              placeholder={t('search')}
               className="w-full rounded border border-input bg-background pl-7 pr-6 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
             />
             {query && (
               <button
                 onClick={() => setQuery('')}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground"
-                aria-label="Clear search"
+                aria-label={t('clearSearch')}
               >
                 <X className="w-3 h-3" />
               </button>
@@ -862,7 +864,7 @@ export function ChatSurface() {
                   : 'bg-muted text-muted-foreground hover:text-foreground',
               )}
             >
-              All
+              {t('allWho')}
             </button>
             {presentWho.map((m) => (
               <button
@@ -884,22 +886,19 @@ export function ChatSurface() {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {lanes.length === 0 && (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground space-y-1.5">
-              <p className="font-medium text-foreground/80">No chats yet</p>
+              <p className="font-medium text-foreground/80">{t('noChatsTitle')}</p>
               {/* §6.10b — this used to open "a lane is a conversation pinned
                   to a MODEL OF YOUR CHOICE", which is the one question
                   ADR-460 D1 says a member must never be asked. The ADR-411
                   contract it carries (isolation · shared files · attribution)
                   is preserved — only the frame moves from engine to
                   colleague. */}
-              <p>
-                Each chat is with one agent, kept separate from the others.
-                Whatever it makes lands in your workspace files, under your name.
-              </p>
+              <p>{t('noChatsBody')}</p>
             </div>
           )}
           {lanes.length === 0 && query.trim() && (
             <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-              No chats match “{query.trim()}”.
+              {t('noMatches', { query: query.trim() })}
             </div>
           )}
           {lanes.map((lane) =>
@@ -967,8 +966,8 @@ export function ChatSurface() {
                         ? 'text-muted-foreground'
                         : 'text-muted-foreground/0 group-hover:text-muted-foreground',
                     )}
-                    aria-label={lane.pinned ? 'Unpin lane' : 'Pin lane'}
-                    title={lane.pinned ? 'Unpin' : 'Pin'}
+                    aria-label={lane.pinned ? t('unpinLane') : t('pinLane')}
+                    title={lane.pinned ? t('unpin') : t('pin')}
                   >
                     <Pin className={cn('w-3.5 h-3.5', lane.pinned && 'rotate-45')} />
                   </span>
@@ -981,8 +980,8 @@ export function ChatSurface() {
                       setRenameText(lane.name);
                     }}
                     className="p-1 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-foreground transition-colors"
-                    aria-label="Rename chat"
-                    title="Rename"
+                    aria-label={t('renameChat')}
+                    title={t('rename')}
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </span>
@@ -994,8 +993,8 @@ export function ChatSurface() {
                       void archiveLane(lane.id);
                     }}
                     className="p-1 rounded text-muted-foreground/0 group-hover:text-muted-foreground hover:!text-foreground transition-colors"
-                    aria-label="Archive chat"
-                    title="Archive chat"
+                    aria-label={t('archive')}
+                    title={t('archive')}
                   >
                     <Archive className="w-3.5 h-3.5" />
                   </span>
@@ -1039,7 +1038,7 @@ export function ChatSurface() {
           onPointerDown={rail.startResize}
           role="separator"
           aria-orientation="vertical"
-          title="Drag to resize"
+          title={t('resizeRail')}
           className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
         />
       )}
@@ -1103,8 +1102,8 @@ export function ChatSurface() {
                     type="button"
                     onClick={rail.toggle}
                     className="shrink-0 -ml-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    title="Show the chat list"
-                    aria-label="Show the chat list"
+                    title={t('showList')}
+                    aria-label={t('showList')}
                     aria-expanded={false}
                   >
                     <PanelLeft className="h-4 w-4" />
@@ -1272,9 +1271,7 @@ export function ChatSurface() {
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="max-w-sm text-center space-y-2 text-sm text-muted-foreground">
               <MessageCircle className="w-6 h-6 mx-auto text-muted-foreground/50" />
-              <p className="font-medium text-foreground/80">
-                Your conversations
-              </p>
+              <p className="font-medium text-foreground/80">{t('emptyTitle')}</p>
               {/* §6.10b — same re-frame as the two empty states above: a
                   chat is with a COLLEAGUE, not with a chosen engine.
 
@@ -1282,13 +1279,10 @@ export function ChatSurface() {
                   it hidden the sentence pointed at nothing and the surface had
                   no visible way back — an empty state that names an absent
                   affordance reads as a broken product, not a hidden one. */}
-              <p>
-                Each chat is with one agent, kept separate from the others.
-                {railIsColumn
-                  ? ' Pick a chat on the left or start a new one'
-                  : ' Show your chats or start a new one'}
-                {'. '}Whatever it makes lands in your files, under your name.
-              </p>
+              {/* ADR-660 — one WHOLE message per branch. The English version
+                  concatenated three fragments with a leading space, which is a
+                  word order, not a sentence. */}
+              <p>{railIsColumn ? t('emptyBodyWithRail') : t('emptyBodyNoRail')}</p>
               {!isNarrow && !rail.shown && (
                 <button
                   type="button"
@@ -1296,7 +1290,7 @@ export function ChatSurface() {
                   className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-foreground/80 transition-colors hover:bg-muted"
                 >
                   <PanelLeft className="h-3.5 w-3.5" />
-                  Show your chats
+                  {t('showListAction')}
                 </button>
               )}
             </div>
