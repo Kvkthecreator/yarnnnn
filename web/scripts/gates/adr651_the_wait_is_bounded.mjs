@@ -118,6 +118,35 @@ check(
   `got: ${cycle.join(' ')}`,
 );
 
+// A frame that a font may resolve from the COLOR emulation is not the same
+// animation on every platform: U+2733 renders on iOS as a white asterisk on a
+// GREEN rounded square, so the Supervisor's wait was green on a phone and
+// monochrome on a desktop (operator-observed 2026-09-21). This is invisible
+// to a Mac-rendered read of the source, so the gate must decide it by
+// CODEPOINT. Every frame that is in the emoji set must carry U+FE0E
+// (VARIATION SELECTOR-15, text presentation) — and the stylesheet must say
+// the same thing for engines that honour font-variant-emoji.
+const EMOJI_SET_FRAMES = new Set([0x2733, 0x2736, 0x2734, 0x2747, 0x2728, 0x2795, 0x2796, 0x2797]);
+const glyphLiteral = (primitive ?? '').match(/const GLYPHS = \[([^\]]*)\]/)?.[1] ?? '';
+const frames = [...glyphLiteral.matchAll(/'([^']*)'/g)].map((m) => m[1]);
+const unguarded = frames.filter((f) => {
+  const cp = f.codePointAt(0);
+  if (cp === undefined || !EMOJI_SET_FRAMES.has(cp)) return false;
+  return !f.includes('\uFE0E');
+});
+check(
+  '§2 every emoji-set frame carries U+FE0E, so no platform draws it in colour',
+  frames.length > 0 && unguarded.length === 0,
+  frames.length === 0
+    ? 'could not read GLYPHS from the primitive'
+    : `unguarded: ${unguarded.map((f) => 'U+' + f.codePointAt(0).toString(16).toUpperCase()).join(', ')}`,
+);
+check(
+  '§2 the glyph asks for text presentation in CSS too',
+  /\.working-glyph\s*\{[^}]*font-variant-emoji:\s*text/.test(css),
+  'font-variant-emoji: text is missing from .working-glyph',
+);
+
 // ── §3 no hand-drawn wait remains in a block a member reads ─────────────────
 // A wordless full-pane spinner: a centred div whose only child is a lucide
 // spinner. A worded one: a div (not a button — a control acknowledging itself

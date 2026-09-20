@@ -24,8 +24,23 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-/** Claude Code's spinner frames; the cycle runs forward then back. */
-const GLYPHS = ['·', '✢', '✳', '✶', '✻', '✽'] as const;
+/**
+ * Claude Code's spinner frames; the cycle runs forward then back.
+ *
+ * Each frame carries U+FE0E, the VARIATION SELECTOR-15 (text presentation).
+ * Two of the six — U+2733 EIGHT SPOKED ASTERISK and U+2736 SIX POINTED BLACK
+ * STAR — are members of the Unicode emoji set, so a platform whose font stack
+ * prefers emoji resolves them from the COLOR font: on iOS the wait's third
+ * frame came up as ✳️, a white asterisk on a GREEN ROUNDED SQUARE, and the one
+ * wait vocabulary read as a different animation on a phone than on a desktop
+ * (operator-observed on Supervisor, 2026-09-21). VS15 asks for the text
+ * glyph by codepoint, so the frame is monochrome and inherits `currentColor`
+ * on every platform. `font-variant-emoji: text` on `.working-glyph` in
+ * globals.css says the same thing in CSS for engines that honour it; the
+ * selector is what carries it on Safari today. Belt and braces, because the
+ * failure is invisible to every gate that reads the source on a Mac.
+ */
+const GLYPHS = ['·︎', '✢︎', '✳︎', '✶︎', '✻︎', '✽︎'] as const;
 
 /** After this the row says "still working". */
 export const SLOW_MS = 6_000;

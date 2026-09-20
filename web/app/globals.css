@@ -176,6 +176,13 @@ body {
   place-items: center;
   width: 1.25em;
   line-height: 1;
+  /* Two of the six frames (U+2733, U+2736) are in the Unicode emoji set, so a
+     platform that prefers emoji draws them from the COLOR font — on iOS the
+     third frame was ✳️, a white asterisk on a GREEN square, making the one
+     wait vocabulary a different animation on a phone. The frames also carry
+     U+FE0E in Working.tsx, which is what Safari honours today; this says the
+     same thing in CSS for engines that implement it. */
+  font-variant-emoji: text;
 }
 .working-glyph > span {
   grid-area: 1 / 1;
