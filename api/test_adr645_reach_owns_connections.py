@@ -221,8 +221,44 @@ _reach_connected = _read("components/reach/ReachConnected.tsx")
 for comp in ("ManageConnectionSubsurface", "AttachedConnectorSubsurface", "FindConnectorModal"):
     check(f"Reach mounts the moved {comp} (not a copy)",
           f"import {{ {comp} }} from '@/components/settings/{comp}'" in _reach_connected)
-check("Reach owns the connect act (the OAuth round-trip starts here)",
-      "getAuthorizationUrl" in _reach_connected)
+# The connect act moved from ReachConnected into the FINDER (2026-09-20), which
+# Reach mounts — the assertion is still "Reach owns it, not the deleted Settings
+# pane", but the door is now one door for all three lanes. It moved because the
+# roster-level "Available" list rendered AFTER the roster, so a member with zero
+# connections never reached it: the empty state's one button opens the finder,
+# and the finder had no first-party lane. Counted at the CALL, not by `in src`,
+# which an import line alone satisfies.
+_finder_src = _read("components/settings/FindConnectorModal.tsx")
+_finder_code = re.sub(r"/\*[\s\S]*?\*/", "", _finder_src)
+_finder_code = re.sub(r"^\s*//.*$", "", _finder_code, flags=re.M)
+check("Reach owns the connect act (the OAuth round-trip starts in the finder it mounts)",
+      _finder_code.count("api.integrations.getAuthorizationUrl(") >= 1
+      and "FindConnectorModal" in _reach_connected,
+      f"authorize calls={_finder_code.count('api.integrations.getAuthorizationUrl(')}")
+
+# ⭐ THE REACHABILITY ARM (2026-09-20). The defect this closes was invisible to
+# every check above: the "Available" list EXISTED in this file and rendered its
+# avatars, so a presence census was green while the list sat behind an early
+# return that a member with no connections never passed. The click-pass found it
+# by being that member — searching "wordpress" in the only dialog the empty
+# state offers and being told "Nothing matched".
+#
+# So: BOTH finder mount sites must pass `heldProviders`, including the one in the
+# zero-connection branch. A lane the empty state cannot see is the whole bug.
+_mounts = re.findall(r"<FindConnectorModal\b[\s\S]*?/>", _reach_connected)
+check("the finder is mounted in BOTH branches — the empty state included",
+      len(_mounts) == 2, f"{len(_mounts)} mount sites")
+check("…and every mount passes heldProviders, so the first-party lane renders "
+      "for a member holding NOTHING (the 2026-09-20 stranded-lane defect)",
+      all("heldProviders=" in m for m in _mounts),
+      str([("heldProviders=" in m) for m in _mounts]))
+check("the first-party lane is SEARCHABLE — the click-pass found the gap by "
+      "typing a connector's name and being told nothing matched",
+      "m.displayName.toLowerCase().includes(q)" in _finder_code
+      and "m.provider.includes(q)" in _finder_code)
+check("…and 'Nothing matched' counts the first-party lane, or a found "
+      "connector renders under a line saying nothing was found",
+      "firstParty.length === 0" in _finder_code)
 check("Reach owns the disconnect act",
       "api.integrations.disconnect" in _reach_connected)
 check("the OAuth round-trip RETURNS to Reach, not to the deleted pane",
@@ -317,8 +353,14 @@ check("no connector surface fetches a third-party mark (no favicon service, no <
 for name, src, want in (
     # 4 = the curated row · the directory row · and the step header's TWO
     # branches (a curated pick and a directory pick land on different steps).
-    ("the finder's browse rows + step header", _finder, 4),
-    ("the Connected list + Available list", _reach_connected, 2),
+    # 5 = the four above + the first-party lane's row (2026-09-20). yarnnn's own
+    # OAuth connectors wear the SAME face here as they do once connected, which
+    # is the whole point of the shared component.
+    ("the finder's browse rows + step header + first-party lane", _finder, 5),
+    # 1, down from 2: the "Available" list was DELETED from this file when its
+    # lane moved into the finder. One door, one render site — a mirrored list
+    # would be the second write path D3.a refuses.
+    ("the Connected list", _reach_connected, 1),
     ("the attached connection's page", _attached_sub, 1),
 ):
     body = _strip_comments(src)

@@ -306,8 +306,16 @@ check("Reach presents no agent record (ADR-640)", "api.agents" not in _reach_src
 # Settings -> Connectors is deleted. What survives of the old rule is the part
 # that was always right and is asserted above: Reach carries no publish act, no
 # run/pause switch, no agent record. Its acts are CONNECTION acts only.
+# 2026-09-20: the connect act moved from this file into the FINDER that Reach
+# mounts, so all three lanes (first-party OAuth, curated MCP, pasted URL) share
+# one door. The clause is unchanged — Reach owns the connection acts and does
+# not door out to a deleted Settings pane — but the act is now asserted where it
+# lives. Reach still owns disconnect directly.
+_reach_finder = _read("components/settings/FindConnectorModal.tsx")
 check("Reach owns the connection acts (ADR-645 D3 — it no longer doors out)",
-      "getAuthorizationUrl" in _reach_src
+      "api.integrations.getAuthorizationUrl(" in _reach_finder
+      and "FindConnectorModal" in _reach_src
+      and "api.integrations.disconnect" in _reach_src
       and "navigateToSurface('connectors')" not in _reach_src)
 check("the retired Connectors pane is not re-mounted anywhere (Singular Implementation)",
       "ConnectedIntegrationsSection" not in _read("app/(authenticated)/settings/page.tsx"))

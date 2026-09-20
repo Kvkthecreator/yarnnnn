@@ -35,7 +35,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, ChevronRight, FolderOpen, Plug, Plus } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, type StandingSummary } from '@/lib/api/client';
-import { connectorMeta, FRESHNESS_PROVIDERS, OFFERED_CONNECTORS } from '@/lib/connectors/registry';
+import { connectorMeta, FRESHNESS_PROVIDERS } from '@/lib/connectors/registry';
 import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences, useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
@@ -88,7 +88,6 @@ export function ReachConnected() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [finderOpen, setFinderOpen] = useState(false);
-  const [connecting, setConnecting] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   // The drill-in target rides `reach.connector` — window-namespaced (ADR-358
@@ -160,17 +159,10 @@ export function ReachConnected() {
   // gate and the reported failure are the 2026-08-22 streamline (a bare
   // `confirm(` and a silent console.error let the member watch nothing happen).
 
-  const handleConnect = async (provider: string) => {
-    setConnecting(provider);
-    try {
-      const back = REACH_CONNECTED_ROUTE;
-      const { authorization_url } = await api.integrations.getAuthorizationUrl(provider, back);
-      window.location.href = authorization_url;
-    } catch (e) {
-      console.error(`Failed to initiate ${provider} OAuth:`, e);
-      setConnecting(null);
-    }
-  };
+  // `handleConnect` lived here and moved into the finder with the first-party
+  // lane (2026-09-20) — one door, one implementation. Its failure branch was a
+  // silent `console.error`, which left the member watching a button do nothing;
+  // the finder's version reports the failure where the member is standing.
 
   const handleDisconnect = async (provider: string) => {
     const label = connectorMeta(provider)?.displayName ?? provider.replace(/^mcp:/, '');
@@ -266,6 +258,11 @@ export function ReachConnected() {
               reload();
             }}
             attachedUrls={new Set()}
+            // Nothing is held in this branch by definition (rows.length is 0),
+            // so every first-party connector is on offer. This is the branch
+            // the 2026-09-20 click-pass found stranded: its copy named four
+            // connectors and its one button could offer none of them.
+            heldProviders={new Set()}
             redirectTo={REACH_CONNECTED_ROUTE}
           />
         )}
@@ -273,12 +270,10 @@ export function ReachConnected() {
     );
   }
 
-  // Offered but not held. `rows` is the member's connections; a platform with
-  // no active row is connectable.
+  // What the member already holds — passed to the finder so its first-party
+  // lane offers only what is NOT connected. The filtering itself lives there,
+  // beside the rows it draws (this file used to do both).
   const heldActive = new Set(rows.filter((r) => r.status === 'active').map((r) => r.provider));
-  const available = OFFERED_CONNECTORS.filter(
-    (m) => m.authKind === 'oauth' && !heldActive.has(m.provider),
-  );
 
   return (
     <div className="space-y-4">
@@ -451,39 +446,18 @@ export function ReachConnected() {
           );
         })}
       </ul>
-      {/* ADR-645 D3 — first-party platforms not yet connected. The finder below
-          covers ATTACHED (MCP) servers only, so without this section the move
-          would have dropped the ability to connect Slack/Notion/GitHub at all.
-          Offered ← OFFERED_CONNECTORS (live only): a retired connector still
-          renders above if held, but is never offered anew (ADR-494 D2). */}
-      {available.length > 0 && (
-        <div className="space-y-2 pt-2">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Available
-          </h3>
-          <ul className="space-y-2">
-            {available.map((meta) => (
-              <li
-                key={meta.provider}
-                className="flex items-center gap-3 rounded-lg border border-border/60 px-4 py-3"
-              >
-                <ConnectorAvatar size="md" title={meta.displayName} override={meta.brand} />
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                  {meta.displayName}
-                </span>
-                <button
-                  type="button"
-                  disabled={connecting === meta.provider}
-                  onClick={() => handleConnect(meta.provider)}
-                  className="shrink-0 rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
-                >
-                  {connecting === meta.provider ? 'Connecting…' : 'Connect'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* The "Available" list lived here (ADR-645 D3) and is DELETED
+          (2026-09-20). It was the only way to connect Slack/Notion/GitHub/
+          WordPress, and it rendered AFTER the roster — so a member holding no
+          connections never reached it. That member hit the empty state above,
+          whose one button opens the finder, and the finder had no first-party
+          lane: the copy named four connectors and offered none.
+
+          The fix put the lane in the finder, which is the door BOTH branches
+          already open. Keeping this list as well would be two doors to one act
+          drifting apart — the finder is now the single door, so this goes
+          rather than being mirrored. `connecting`/`handleConnect` go with it;
+          the finder owns that state now. */}
 
       {/* ADR-645 D4 — the rule the whole surface embodies, said once. The act
           itself sits at the TOP of the pane (the create affordance a reader
@@ -531,6 +505,7 @@ export function ReachConnected() {
           attachedUrls={new Set(
             rows.filter((r) => r.kind === 'attached').map((r) => r.server_url ?? ''),
           )}
+          heldProviders={heldActive}
           redirectTo={REACH_CONNECTED_ROUTE}
         />
       )}

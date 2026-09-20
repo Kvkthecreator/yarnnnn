@@ -38,6 +38,24 @@
  *
  * Both lanes converge: one POST /connectors/attach, one `mcp:{slug}` row, one
  * per-tool aperture. Curation is a discovery act, never an authority one.
+ *
+ * THE FIRST-PARTY LANE, ABOVE BOTH (2026-09-20). The three lanes above are all
+ * MCP: a URL, an attach, an `mcp:{slug}` row. yarnnn's OWN connectors — Slack,
+ * Notion, GitHub, WordPress — are not that. They are OAuth against a provider
+ * yarnnn registered a client with, they land in `platform_connections`, and
+ * their consumers are kernel code (Blogger's Publish door reads the WordPress
+ * credential; capture reads Slack's), not a per-tool aperture. So they are a
+ * THIRD lane rather than curated entries: `connector_curated.load_curated()`
+ * REFUSES an entry with no URL shape, and rightly — a first-party connector has
+ * no server to point at.
+ *
+ * Why here at all, having lived on Reach: the finder became the only door. The
+ * "Available" list on Reach renders after the roster, so a member with ZERO
+ * connections hit the empty state, whose one button opens this modal — and this
+ * modal could not offer WordPress. The empty state's own copy named four
+ * connectors and offered none of them (click-pass 2026-09-20). A member who has
+ * never connected anything is exactly the member who needs this lane, so the
+ * lane belongs where that member arrives.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -48,12 +66,16 @@ import { api, APIError, type CuratedEntry, type DirectoryEntry } from '@/lib/api
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
+import { OFFERED_CONNECTORS } from '@/lib/connectors/registry';
 
 interface FindConnectorModalProps {
   open: boolean;
   onClose: () => void;
   /** Server URLs already attached — their rows read "Attached", never "Connect". */
   attachedUrls: Set<string>;
+  /** Providers ALREADY held as a first-party connection — they are absent from
+   *  the first-party lane, the way an attached server reads "Attached". */
+  heldProviders: Set<string>;
   /** Where the provider sends the member back to. */
   redirectTo: string;
   /** An attach that completed without a redirect (anonymous / header / key). */
@@ -94,6 +116,7 @@ export function FindConnectorModal({
   open,
   onClose,
   attachedUrls,
+  heldProviders,
   redirectTo,
   onAttached,
 }: FindConnectorModalProps) {
@@ -133,6 +156,24 @@ export function FindConnectorModal({
   const [pickedCurated, setPickedCurated] = useState<CuratedEntry | null>(null);
   /** The one field a shaped URL leaves to the member (e.g. the store name). */
   const [shapeValue, setShapeValue] = useState('');
+
+  /** The first-party connector currently redirecting to its provider. Its own
+   *  state, not `attaching`: this lane does not attach, it LEAVES. */
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
+  /** yarnnn's own OAuth connectors, minus the ones already held. Matched on
+   *  name AND provider slug so "wordpress" and "WordPress" both find it. */
+  const firstParty = OFFERED_CONNECTORS.filter((m) => {
+    if (m.authKind !== 'oauth' || heldProviders.has(m.provider)) return false;
+    const q = query.trim().toLowerCase();
+    return (
+      !q ||
+      m.provider.includes(q) ||
+      m.displayName.toLowerCase().includes(q) ||
+      m.tagline.toLowerCase().includes(q)
+    );
+  });
 
   const searchRef = useRef<HTMLInputElement>(null);
   const { runAction } = useFeedback();
@@ -246,6 +287,33 @@ export function FindConnectorModal({
     setHeaderName(entry.header_name ?? '');
     setHeaderValue('');
     setStep('curated');
+  };
+
+  /** The first-party connect (2026-09-20). No confirm step and no attach: the
+   *  member is sent to the provider's own consent screen, which IS the step
+   *  the other lanes spend a screen collecting. It returns to `redirectTo`,
+   *  where the callback has written the credential.
+   *
+   *  A failure is REPORTED here rather than logged: the member is standing in
+   *  front of a button that did nothing, and `window.location.href` never
+   *  throws late enough for a toast to survive the navigation. */
+  const connectFirstParty = async (provider: string, displayName: string) => {
+    setConnecting(provider);
+    setConnectError(null);
+    try {
+      const { authorization_url } = await api.integrations.getAuthorizationUrl(
+        provider,
+        redirectTo,
+      );
+      window.location.href = authorization_url;
+    } catch (e) {
+      setConnectError(
+        e instanceof APIError
+          ? `${displayName} could not be reached — ${(e.data as { detail?: string })?.detail ?? 'try again.'}`
+          : `${displayName} could not be reached — try again.`,
+      );
+      setConnecting(null);
+    }
   };
 
   /** ADR-657 — the curated attach. It names the ENTRY and the one field the
@@ -405,9 +473,12 @@ export function FindConnectorModal({
             <>
               <div className="space-y-3 border-b border-border px-4 py-3">
                 <p className="text-xs text-muted-foreground">
-                  A few yarnnn has set up, the public directory, or any server you know.
-                  You sign in to it yourself, and nothing is used in a chat until you
-                  choose which of its tools may run.
+                  {/* The per-tool aperture sentence is an MCP fact — a
+                      first-party connector has kernel consumers, not a tool
+                      list — so it is now scoped to the servers it describes. */}
+                  yarnnn&apos;s own connectors, a few it has set up, the public directory,
+                  or any server you know. You sign in to each one yourself; for a server,
+                  nothing is used in a chat until you choose which of its tools may run.
                 </p>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -434,6 +505,46 @@ export function FindConnectorModal({
                     pre-filled category, and a recorded verdict on where the
                     member's work accumulates. Not a ranking and not a store —
                     the list is one entry long by construction (D3). */}
+                {/* ── the first-party lane (2026-09-20) ──────────────────────
+                    yarnnn's own OAuth connectors, above both MCP lanes because
+                    they are the ones yarnnn operates end to end: a kernel
+                    consumer reads each one (Blogger's Publish door reads
+                    WordPress), and the member signs in at the provider rather
+                    than pasting anything. SEARCHABLE, unlike the curated lane
+                    below — the click-pass that found this lane missing found it
+                    by typing "wordpress" and being told nothing matched. */}
+                {firstParty.length > 0 && (
+                  <div className="mb-3 space-y-1">
+                    <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      yarnnn connectors
+                    </p>
+                    {connectError && (
+                      <p role="alert" className="px-1 text-[11px] text-destructive">
+                        {connectError}
+                      </p>
+                    )}
+                    {firstParty.map((meta) => (
+                      <button
+                        key={meta.provider}
+                        type="button"
+                        disabled={connecting !== null}
+                        onClick={() => void connectFirstParty(meta.provider, meta.displayName)}
+                        className="flex w-full items-center gap-3 rounded-md border border-border px-3 py-2 text-left hover:bg-muted disabled:opacity-50"
+                      >
+                        <ConnectorAvatar size="sm" title={meta.displayName} override={meta.brand} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium">{meta.displayName}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {meta.tagline}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {connecting === meta.provider ? 'Connecting…' : 'Connect'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {curated.length > 0 && !query.trim() && (
                   <div className="mb-3 space-y-1">
                     <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -525,7 +636,10 @@ export function FindConnectorModal({
                     );
                   })
                 )}
-                {!loading && query.trim() && results.length === 0 && (
+                {/* "Nothing matched" has to mean NOTHING — it counts the
+                    first-party lane too, or a search that surfaced WordPress
+                    would sit under a line saying it found nothing. */}
+                {!loading && query.trim() && results.length === 0 && firstParty.length === 0 && (
                   <p className="py-2 text-xs text-muted-foreground">
                     Nothing matched. Paste the server&apos;s URL below.
                   </p>
