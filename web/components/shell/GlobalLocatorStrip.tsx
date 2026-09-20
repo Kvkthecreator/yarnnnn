@@ -47,6 +47,7 @@
  * describe a selection within a surface stay in-body (ADR-442 D3).
  */
 
+import { useTranslations } from 'next-intl';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -57,7 +58,7 @@ import {
 } from '@/contexts/BreadcrumbContext';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useViewport } from '@/lib/shell/useViewport';
-import { surfaceTitleFor } from '@/lib/compositor/surfaceTitle';
+import { useSurfaceWords } from '@/lib/compositor/useSurfaceTitle';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
 const ACTION_CLS =
@@ -87,6 +88,8 @@ export function GlobalLocatorStrip() {
   const { foregrounded } = useSurfacePreferences();
   const { getCrumb, getActions, isSelfLocated } = useWindowCrumbRegistry();
   const { data: composition } = useComposition();
+  const words = useSurfaceWords(composition.surfaces);
+  const t = useTranslations('shell.locator');
   const viewport = useViewport();
 
   // 2026-07-14: a surface that renders its OWN locator in its own chrome row
@@ -96,7 +99,7 @@ export function GlobalLocatorStrip() {
   // Declared per-surface via useSelfLocatedSurface (no slug hardcoded here).
   if (foregrounded && isSelfLocated(foregrounded)) return null;
 
-  const title = surfaceTitleFor(composition.surfaces, foregrounded ?? null);
+  const title = words.title(foregrounded ?? null);
   const isEmpty = !foregrounded;
   // Detail segments BELOW the surface name, for the foregrounded slug only.
   const crumb: BreadcrumbSegment[] = foregrounded ? getCrumb(foregrounded) : [];
@@ -114,7 +117,7 @@ export function GlobalLocatorStrip() {
     return (
       <div
         className="flex h-7 shrink-0 items-center gap-1 overflow-hidden bg-background px-3 text-xs font-medium text-foreground/80"
-        aria-label="Location"
+        aria-label={t('label')}
       >
         {leaf &&
           (backToList ? (
@@ -122,7 +125,7 @@ export function GlobalLocatorStrip() {
               type="button"
               onClick={() => backToList()}
               className="flex min-w-0 items-center gap-0.5 text-muted-foreground hover:text-foreground"
-              title={`Back to ${title}`}
+              title={t('backTo', { name: title })}
             >
               <ChevronLeft className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{leaf.label}</span>
@@ -148,7 +151,7 @@ export function GlobalLocatorStrip() {
         'flex h-7 shrink-0 items-center gap-1 overflow-hidden bg-background px-3 text-xs font-medium',
         isEmpty ? 'text-muted-foreground/60' : 'text-foreground/80'
       )}
-      aria-label="Location"
+      aria-label={t('label')}
     >
       {backToList ? (
         // Root is navigational when drilled in — click returns to list mode.
@@ -156,7 +159,7 @@ export function GlobalLocatorStrip() {
           type="button"
           onClick={() => backToList()}
           className="truncate underline-offset-2 hover:text-foreground hover:underline"
-          title={`Back to ${title}`}
+          title={t('backTo', { name: title })}
         >
           {title}
         </button>
@@ -173,7 +176,7 @@ export function GlobalLocatorStrip() {
                 type="button"
                 onClick={() => seg.onClick!()}
                 className="truncate underline-offset-2 hover:text-foreground hover:underline"
-                title={`Back to ${seg.label}`}
+                title={t('backTo', { name: seg.label })}
               >
                 {seg.label}
               </button>

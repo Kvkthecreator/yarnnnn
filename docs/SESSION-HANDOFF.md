@@ -6,15 +6,19 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## Korean: the mechanism shipped, the coverage has not (ADR-660, 2026-09-20)
+## Korean: the shell speaks it, the surfaces do not (ADR-660, 2026-09-20)
 
-The switch, the account preference and the sign-in path are live and driven. **1005 lines of literal copy
-in 104 files are still English** — `LITERAL_COPY_CEILING` in `api/test_adr660_the_interface_speaks_korean.py`
-is the meter; lower it in the commit that lowers the count. Next by measurement: the shell + chat surface
-(115 lines, 15 files), then Studio / billing / connectors where copy concentrates. The meter is a FLOOR —
-it cannot see copy in module-level tables (`toolLabels.ts`, `FAMILY_META`, `ROLE_META`) or toasts.
-Convert a table by holding catalog KEYS and wording them at render (ADR-660 D3). Undecided, ADR §8:
-served strings (136 `HTTPException` details), outbound email, the marketing site, the sign-up stage notice.
+The mechanism, the sign-in path and the SHELL are live and driven (ADR-660 §10 — the served roster is worded
+client-side by slug through `useSurfaceWords`, ruling 1). **972 lines of literal copy in 100 files are still
+English** — `LITERAL_COPY_CEILING` in `api/test_adr660_the_interface_speaks_korean.py` is the meter; lower it
+in the commit that lowers the count. Next by measurement: the chat surface (`ChatSurface` 24, `LanePanel` 21,
+`ConversationDetail` 15, plus `toolLabels.ts`), then `settings/page.tsx`, then Studio / billing / connectors.
+The meter is a FLOOR — it cannot see module-level tables (`toolLabels.ts`, `FAMILY_META`, `ROLE_META`),
+toasts, template literals, or a lowercase DB enum made English by CSS `capitalize` (a role; found by driving,
+not by the meter). Convert a table by holding catalog KEYS and wording them at render (ADR-660 D3).
+`AttentionCenter` still borrows `actorLine` / `proposalLabel` / `proposalQueuedByDialLine`, shared with the
+Notifications and Reach surfaces — translate them with those surfaces, not ahead of them. Undecided, ADR §8:
+served error details (136 `HTTPException`), outbound email, the marketing site, the sign-up stage notice.
 
 ## The local `node_modules` does not match what Vercel installs (found 2026-09-20)
 

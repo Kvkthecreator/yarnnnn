@@ -49,5 +49,166 @@
       "signUp": "Sign up & connect",
       "footer": "Connecting your assistant to your yarnnn memory. You can visit yarnnn.com anytime with the same account."
     }
+  },
+  "surfaces": {
+    "chat": {
+      "title": "Chat",
+      "summary": "Talk with your agents about your work"
+    },
+    "slides": {
+      "title": "Slides",
+      "summary": "Build slide decks from what's in your workspace"
+    },
+    "blogger": {
+      "title": "Blogger",
+      "summary": "Write posts and pages to publish on your blog"
+    },
+    "images": {
+      "title": "Images",
+      "summary": "Design images, layer by layer"
+    },
+    "text": {
+      "title": "Text",
+      "summary": "Write notes, briefs, and documents"
+    },
+    "supervisor": {
+      "title": "Supervisor",
+      "summary": "What is underway, and what needs you"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "summary": "To do, activity, and standing work in one place"
+    },
+    "billing": {
+      "title": "Billing",
+      "summary": "This workspace's plan, seats, and balance"
+    },
+    "usage": {
+      "title": "Usage",
+      "summary": "What this workspace used, and who used it"
+    },
+    "files": {
+      "title": "Files",
+      "summary": "Every file in your workspace, with its history"
+    },
+    "agents": {
+      "title": "Agents",
+      "summary": "Your agents, and the ones you can hire"
+    },
+    "setup": {
+      "title": "Setup",
+      "summary": "Retired. Start in Chat"
+    },
+    "program": {
+      "title": "Program",
+      "summary": "The program this workspace runs"
+    },
+    "reach": {
+      "title": "Reach",
+      "summary": "Your connections, and what comes in or goes out"
+    },
+    "settings": {
+      "title": "User Settings",
+      "summary": "Your account, notifications, and privacy"
+    },
+    "workspace-settings": {
+      "title": "Workspace Settings",
+      "summary": "This workspace's name, members, billing, and usage"
+    },
+    "notification-settings": {
+      "title": "Notifications",
+      "summary": "Which emails this workspace sends you"
+    }
+  },
+  "shell": {
+    "desktop": "Desktop",
+    "launcher": {
+      "open": "Open Launcher",
+      "title": "Launcher",
+      "close": "Close launcher",
+      "search": "Search, or paste a file path",
+      "openFile": "Open",
+      "openFileHint": "Go to this file in Files",
+      "noResults": "No results for “{query}”",
+      "noResultsButFile": "No results for “{query}”. It names a file, above.",
+      "nothingToOpen": "Nothing to open yet",
+      "settingsPane": "{parent} pane",
+      "settingsPaneFallback": "Settings pane",
+      "groups": {
+        "primary": "Workspace",
+        "workspaceConfig": "Workspace Settings",
+        "systemConfig": "User Settings",
+        "composed": "Custom"
+      }
+    },
+    "topBar": {
+      "home": "yarnnn — go to Desktop",
+      "dock": "Workspace dock",
+      "close": "Close",
+      "open": "Open",
+      "removeFromDock": "Remove from Dock",
+      "keepInDock": "Keep in Dock"
+    },
+    "locator": {
+      "label": "Location",
+      "backTo": "Back to {name}"
+    },
+    "userMenu": {
+      "trigger": "User menu",
+      "theme": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System"
+      },
+      "layout": {
+        "label": "Layout",
+        "canvas": "Canvas",
+        "canvasHint": "Canvas: chat beside one window",
+        "desktop": "Desktop",
+        "desktopHint": "Desktop: floating windows"
+      },
+      "workspace": "Workspace",
+      "workspacesFailed": "Couldn't load your workspaces.",
+      "retry": "Retry",
+      "people": "{count, plural, one {# person} other {# people}}",
+      "peopleWithRole": "{people} ({role})",
+      "roles": {
+        "owner": "Owner",
+        "member": "Member",
+        "viewer": "Viewer"
+      },
+      "manageAccess": "Manage access",
+      "billing": "Billing",
+      "balanceLeft": "{tier} · {amount} left",
+      "balanceSpentOwner": "{tier} · balance spent — ask the owner",
+      "balanceLowOwner": "{tier} · balance low — owner-managed",
+      "balanceOwnerManaged": "{tier} · managed by the owner",
+      "connections": "Connections",
+      "sendFeedback": "Send feedback",
+      "userSettings": "User Settings",
+      "signOut": "Sign out"
+    },
+    "attention": {
+      "title": "Notifications",
+      "badge": "Notifications — {count} items",
+      "balanceLow": "Balance is low (${amount}). Work pauses at $0.",
+      "balanceLowOwner": "Balance is low. Work pauses at zero. The owner manages billing.",
+      "toDo": "To do",
+      "mentioned": "{author} mentioned you · {conversation}",
+      "morePending": "+{count} more pending…",
+      "activity": "Activity",
+      "empty": "Nothing yet. To-dos, activity, and balance warnings show up here.",
+      "openNotifications": "Open Notifications →",
+      "settings": "Settings"
+    },
+    "desktopEmpty": {
+      "readyTitle": "Your workspace is ready",
+      "readyBody": "Add a file, or start a chat and say what you're working on. Everything kept here carries a name, and you, your team, and any AI you connect can find it again.",
+      "addFile": "Add your first file",
+      "startChat": "Start a chat",
+      "inviteHint": "Working with others? Invite them from Workspace Settings.",
+      "nothingOpenTitle": "Nothing open",
+      "nothingOpenBody": "Click an icon in the dock, or open the Launcher (the grid icon) to see everything in this workspace."
+    }
   }
 }

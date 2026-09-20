@@ -46,6 +46,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Bell } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { proposalActionLabel } from '@/lib/proposal-labels';
@@ -142,6 +143,7 @@ function writeLastSeen(userId: string, iso: string) {
 
 export function AttentionCenter() {
   const [isOpen, setIsOpen] = useState(false);
+  const t = useTranslations('shell.attention');
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
   const [mentions, setMentions] = useState<MentionRow[]>([]);
   const [activity, setActivity] = useState<PeerActivity[]>([]);
@@ -400,8 +402,8 @@ export function AttentionCenter() {
           // icon treatment); popover-open → muted. windowActive wins.
           windowActive ? 'bg-foreground text-background' : isOpen && 'bg-muted',
         )}
-        title="Notifications"
-        aria-label={`Notifications${badgeCount > 0 ? ` — ${badgeCount} items` : ''}`}
+        title={t('title')}
+        aria-label={badgeCount > 0 ? t('badge', { count: badgeCount }) : t('title')}
         aria-expanded={isOpen}
       >
         <Bell className="w-4 h-4 shrink-0" />
@@ -420,10 +422,10 @@ export function AttentionCenter() {
           style={{ zIndex: Z_POPOVER }}
           className="absolute top-full right-0 mt-1 w-80 max-w-[calc(100vw-1rem)] bg-background border border-border rounded-lg shadow-lg overflow-hidden"
           role="dialog"
-          aria-label="Notifications"
+          aria-label={t('title')}
         >
           <div className="px-3 py-2 border-b border-border bg-muted/30 text-sm font-medium">
-            Notifications
+            {t('title')}
           </div>
 
           <div className="max-h-96 overflow-y-auto">
@@ -434,15 +436,15 @@ export function AttentionCenter() {
                 className="w-full text-left px-3 py-2 text-xs text-amber-700 dark:text-amber-300 hover:bg-muted transition-colors border-b border-border/60"
               >
                 {lowBalanceAuthority
-                  ? `Balance is low ($${lowBalance?.toFixed(2)}). Work pauses at $0.`
-                  : 'Balance is low. Work pauses at zero. The owner manages billing.'}
+                  ? t('balanceLow', { amount: lowBalance?.toFixed(2) ?? '0.00' })
+                  : t('balanceLowOwner')}
               </button>
             )}
 
             {(proposals.length > 0 || mentions.length > 0) && (
               <div className="border-b border-border/60">
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  To do
+                  {t('toDo')}
                 </div>
                 {/* ADR-605 — mentions lead the section: the most personal ask
                     there is. ADR-637: clicking lands IN the conversation, and
@@ -467,7 +469,7 @@ export function AttentionCenter() {
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                   >
                     <span className="block text-foreground truncate">
-                      {m.author} mentioned you · {m.conversation_name}
+                      {t('mentioned', { author: m.author, conversation: m.conversation_name })}
                     </span>
                     <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                       <span className="truncate">{m.excerpt}</span>
@@ -504,7 +506,7 @@ export function AttentionCenter() {
                     onClick={() => goTo('resolve')}
                     className="w-full text-left px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
                   >
-                    +{proposals.length - MAX_ROWS_PER_SECTION} more pending…
+                    {t('morePending', { count: proposals.length - MAX_ROWS_PER_SECTION })}
                   </button>
                 )}
               </div>
@@ -513,7 +515,7 @@ export function AttentionCenter() {
             {peerActivity.length > 0 && (
               <div>
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Activity
+                  {t('activity')}
                 </div>
                 {peerActivity.slice(0, MAX_ROWS_PER_SECTION).map(({ e, who }) => (
                   <button
@@ -540,10 +542,7 @@ export function AttentionCenter() {
               proposals.length === 0 &&
               mentions.length === 0 &&
               peerActivity.length === 0 && (
-                <p className="px-3 py-4 text-xs text-muted-foreground">
-                  Nothing yet. To-dos, activity, and balance warnings show
-                  up here.
-                </p>
+                <p className="px-3 py-4 text-xs text-muted-foreground">{t('empty')}</p>
               )}
           </div>
 
@@ -553,7 +552,7 @@ export function AttentionCenter() {
               onClick={() => goTo('resolve')}
               className="text-left px-3 py-2 text-xs text-primary hover:bg-muted transition-colors"
             >
-              Open Notifications →
+              {t('openNotifications')}
             </button>
             {/* ADR-593 D5 — the management door: the surface this popover IS
                 finally links the settings that govern it. */}
@@ -565,7 +564,7 @@ export function AttentionCenter() {
               }}
               className="px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
-              Settings
+              {t('settings')}
             </button>
           </div>
         </div>

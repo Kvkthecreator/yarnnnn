@@ -45,6 +45,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 // 2026-07-22 — icon vocabulary aligned to the reference account menu
@@ -103,6 +104,7 @@ export function UserMenu({ email }: UserMenuProps) {
   const { isMobile } = useViewport();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
+  const t = useTranslations('shell.userMenu');
 
   // 2026-07-08: the money glance lives in the Budget row below (folded in from
   // the retired top-bar cluster), expressed as usage% not raw dollars (ADR-396).
@@ -154,8 +156,12 @@ export function UserMenu({ email }: UserMenuProps) {
   const humanCount = members.filter(
     (m) => m.role === 'owner' || m.role === 'member' || m.role === 'viewer',
   ).length;
-  const peopleLabel =
-    humanCount > 0 ? `${humanCount} ${humanCount === 1 ? 'person' : 'people'}` : null;
+  const peopleLabel = humanCount > 0 ? t('people', { count: humanCount }) : null;
+  // A role arrives as a lowercase enum (`owner`); the catalog carries its
+  // member-facing word, so nothing relies on CSS `capitalize` to make English
+  // out of a database value.
+  const roleLabel = (role: string) =>
+    t.has(`roles.${role}`) ? t(`roles.${role}`) : role;
 
   const handleSwitchWorkspace = (m: WorkspaceMembershipRow) => {
     if (m.is_active) {
@@ -246,7 +252,7 @@ export function UserMenu({ email }: UserMenuProps) {
           "bg-primary/10 text-primary hover:bg-primary/20",
           isOpen && "ring-2 ring-primary/30"
         )}
-        title={email || 'User menu'}
+        title={email || t('trigger')}
       >
         {initials}
       </button>
@@ -276,7 +282,7 @@ export function UserMenu({ email }: UserMenuProps) {
                       "p-1 rounded transition-colors",
                       theme === 'light' ? "bg-background shadow-sm" : "hover:bg-background/50"
                     )}
-                    title="Light"
+                    title={t('theme.light')}
                   >
                     <Sun className="w-3 h-3" />
                   </button>
@@ -286,7 +292,7 @@ export function UserMenu({ email }: UserMenuProps) {
                       "p-1 rounded transition-colors",
                       theme === 'dark' ? "bg-background shadow-sm" : "hover:bg-background/50"
                     )}
-                    title="Dark"
+                    title={t('theme.dark')}
                   >
                     <Moon className="w-3 h-3" />
                   </button>
@@ -296,7 +302,7 @@ export function UserMenu({ email }: UserMenuProps) {
                       "p-1 rounded transition-colors",
                       theme === 'system' ? "bg-background shadow-sm" : "hover:bg-background/50"
                     )}
-                    title="System"
+                    title={t('theme.system')}
                   >
                     <Monitor className="w-3 h-3" />
                   </button>
@@ -315,7 +321,7 @@ export function UserMenu({ email }: UserMenuProps) {
           {!isMobile && (
             <div className="px-3 py-2 border-b border-border">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-muted-foreground">Layout</span>
+                <span className="text-xs text-muted-foreground">{t('layout.label')}</span>
                 <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5 shrink-0">
                   <button
                     onClick={() => setLayoutMode('canvas')}
@@ -325,10 +331,10 @@ export function UserMenu({ email }: UserMenuProps) {
                         ? 'bg-background shadow-sm'
                         : 'hover:bg-background/50'
                     )}
-                    title="Canvas: chat beside one window"
+                    title={t('layout.canvasHint')}
                   >
                     <Columns2 className="w-3 h-3" />
-                    <span>Canvas</span>
+                    <span>{t('layout.canvas')}</span>
                   </button>
                   <button
                     onClick={() => setLayoutMode('desktop')}
@@ -338,10 +344,10 @@ export function UserMenu({ email }: UserMenuProps) {
                         ? 'bg-background shadow-sm'
                         : 'hover:bg-background/50'
                     )}
-                    title="Desktop: floating windows"
+                    title={t('layout.desktopHint')}
                   >
                     <LayoutGrid className="w-3 h-3" />
-                    <span>Desktop</span>
+                    <span>{t('layout.desktop')}</span>
                   </button>
                 </div>
               </div>
@@ -368,17 +374,17 @@ export function UserMenu({ email }: UserMenuProps) {
           {loaded && (memberships.length > 0 || membershipsFailed) && (
             <div className="border-b border-border py-1">
               <div className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted-foreground">
-                Workspace
+                {t('workspace')}
               </div>
               {membershipsFailed && memberships.length === 0 && (
                 <div className="px-3 py-2 text-[12px] text-muted-foreground">
-                  Couldn&rsquo;t load your workspaces.{' '}
+                  {t('workspacesFailed')}{' '}
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
                     className="underline hover:text-foreground"
                   >
-                    Retry
+                    {t('retry')}
                   </button>
                 </div>
               )}
@@ -403,14 +409,12 @@ export function UserMenu({ email }: UserMenuProps) {
                       {/* People-count only on the active workspace (the only
                           roster we've fetched); inactive rows show the role
                           alone. "3 people (Owner)" / "1 person (Member)". */}
-                      {m.is_active && peopleLabel ? (
-                        <>
-                          {peopleLabel}{' '}
-                          <span className="capitalize">({m.role})</span>
-                        </>
-                      ) : (
-                        <span className="capitalize">{m.role}</span>
-                      )}
+                      {m.is_active && peopleLabel
+                        ? t('peopleWithRole', {
+                            people: peopleLabel,
+                            role: roleLabel(m.role),
+                          })
+                        : roleLabel(m.role)}
                     </span>
                   </span>
                   {m.is_active && <Check className="w-4 h-4 text-primary shrink-0" />}
@@ -429,7 +433,7 @@ export function UserMenu({ email }: UserMenuProps) {
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
               >
                 <UserRoundPlus className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="flex-1">Manage access</span>
+                <span className="flex-1">{t('manageAccess')}</span>
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>
 
@@ -448,7 +452,7 @@ export function UserMenu({ email }: UserMenuProps) {
                       2026-07-10, but kept the older "Budget" label + Wallet
                       glyph from the retired top-bar chip — the label named a
                       surface the click no longer reaches. */}
-                  <span className="block">Billing</span>
+                  <span className="block">{t('billing')}</span>
                   {/* 2026-07-29 — the glance reads the BALANCE, not a "% used"
                       against a self-rebasing anchor window (ADR-490: the pool is
                       prepaid, so the meaningful figure is what's left). */}
@@ -460,7 +464,7 @@ export function UserMenu({ email }: UserMenuProps) {
                           : 'block text-[11px] text-muted-foreground'
                       }
                     >
-                      {tierLabel} · {balanceReadout.remainingLabel} left
+                      {t('balanceLeft', { tier: tierLabel, amount: balanceReadout.remainingLabel })}
                     </span>
                   )}
                   {/* Per-role (2026-07-29): the wallet is billing-authority
@@ -476,10 +480,10 @@ export function UserMenu({ email }: UserMenuProps) {
                       }
                     >
                       {balance.balance_exhausted
-                        ? `${tierLabel} · balance spent — ask the owner`
+                        ? t('balanceSpentOwner', { tier: tierLabel })
                         : balance.balance_low
-                          ? `${tierLabel} · balance low — owner-managed`
-                          : `${tierLabel} · managed by the owner`}
+                          ? t('balanceLowOwner', { tier: tierLabel })
+                          : t('balanceOwnerManaged', { tier: tierLabel })}
                     </span>
                   )}
                 </span>
@@ -494,7 +498,7 @@ export function UserMenu({ email }: UserMenuProps) {
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
               >
                 <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
-                <span className="flex-1">Connections</span>
+                <span className="flex-1">{t('connections')}</span>
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
               </button>
             </div>
@@ -514,7 +518,7 @@ export function UserMenu({ email }: UserMenuProps) {
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >
             <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="flex-1">Send feedback</span>
+            <span className="flex-1">{t('sendFeedback')}</span>
             <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
           </a>
 
@@ -533,7 +537,7 @@ export function UserMenu({ email }: UserMenuProps) {
                 UserCircle duplicated the avatar trigger this menu hangs off; a
                 door labelled Settings wears a gear. */}
             <Settings className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="flex-1">User Settings</span>
+            <span className="flex-1">{t('userSettings')}</span>
             <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
           </button>
 
@@ -544,7 +548,7 @@ export function UserMenu({ email }: UserMenuProps) {
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors text-destructive"
           >
             <LogOut className="w-4 h-4" />
-            <span>Sign out</span>
+            <span>{t('signOut')}</span>
           </button>
         </div>
       )}

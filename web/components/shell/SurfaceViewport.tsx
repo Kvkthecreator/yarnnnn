@@ -42,7 +42,7 @@ import { useViewport } from '@/lib/shell/useViewport';
 import { useShellChrome } from './ShellChromeContext';
 import { isKernelSurfaceSlug } from '@/types/surface';
 import type { KernelSurfaceSlug } from '@/types/surface';
-import { surfaceTitleFor } from '@/lib/compositor/surfaceTitle';
+import { useSurfaceWords } from '@/lib/compositor/useSurfaceTitle';
 import { resolveSurfaceComponent } from './SurfaceRegistry';
 import { Desktop } from './Desktop';
 import { WindowFrame } from './WindowFrame';
@@ -65,6 +65,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     desktopBounds,
   } = useSurfacePreferences();
   const { data: composition } = useComposition();
+  const words = useSurfaceWords(composition.surfaces);
   const viewport = useViewport();
   const { layoutMode } = useShellChrome();
   // ADR-358 — canvas layout mode renders ONE full-bleed surface (chromeless
@@ -128,9 +129,9 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   })();
 
   // Surface-title lookup for the WindowFrame title bar. Shared with the
-  // GlobalLocatorStrip via surfaceTitleFor (Singular Implementation).
-  const titleFor = (slug: string): string =>
-    surfaceTitleFor(composition.surfaces, slug);
+  // GlobalLocatorStrip via useSurfaceWords (Singular Implementation) —
+  // the member's language first, the served title as fallback (ADR-660).
+  const titleFor = (slug: string): string => words.title(slug);
 
   // D17: legacy non-atomic routes (settings, connectors, docs, etc.)
   // pass through to their page render via `children`. The /desktop

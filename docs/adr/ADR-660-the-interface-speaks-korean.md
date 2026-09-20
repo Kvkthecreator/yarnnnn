@@ -1,9 +1,10 @@
 # ADR-660 — The interface speaks Korean: a language is a member's preference, never a workspace's
 
-> **Status**: **Accepted + Implemented — the mechanism and the sign-in path** (2026-09-20, operator: *"consistent
-> request to support korean language as an optionality … industry conventions, just fitting to our service
-> specifics"*). D1–D6 shipped and driven (§9). **Coverage is the open half**: 1005 lines of literal copy
-> across 104 files remain English, held by D4's ratchet; §8 names what is not decided here.
+> **Status**: **Accepted + Implemented — the mechanism, the sign-in path, and the shell** (2026-09-20, operator:
+> *"consistent request to support korean language as an optionality … industry conventions, just fitting to our
+> service specifics"*). D1–D6 shipped and driven (§9); the shell pass and its ruling on served titles in §10.
+> **Coverage is the open half**: 972 lines of literal copy across 100 files remain English, held by D4's
+> ratchet; §8 names what is not decided here.
 > **Date**: 2026-09-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Who** (a preference of the human, not of the commons).
@@ -122,8 +123,9 @@ discipline of §4 applies in translation: a kernel noun does not come back as it
 ## 8. What this ADR does not decide
 
 - **The marketing site in Korean** — indexed pages want `/ko/…` + `hreflang`, a different mechanism (D1).
-- **Served strings** — 136 `HTTPException` details, the served roster, reach sentences. The convention is an
-  error *code* the client words; that is its own pass.
+- **Served error details** — 136 `HTTPException` details, reach sentences. The convention is an
+  error *code* the client words; that is its own pass. (The served *roster* left this list on 2026-09-20 —
+  §10 ruling 1 words it client-side by slug, with no API change.)
 - **Outbound email** — `account_email.py`, `notifications.py`.
 - **The rest of the app.** This ADR ships the mechanism and the path a new member walks first; D4's ratchet
   carries the remainder. By measurement the next pass is the shell and the chat surface (115 lines, 15 files —
@@ -156,3 +158,58 @@ discipline of §4 applies in translation: a kernel noun does not come back as it
   signing out there would have greeted the member in the language they had just left.
 - **Not mine, seen on the way**: `/favicon.ico` answers 500 under `next dev` — `app/favicon.ico` and
   `public/favicon.ico` have collided since January. The production build prerenders it.
+
+---
+
+## 10. The shell pass (2026-09-20)
+
+**Ruling 1 (operator) — a served surface title is worded CLIENT-SIDE by slug.** The Launcher, the Dock, the
+window title bar and the locator crumb all name apps from the composition fetch, whose titles are English
+literals in `api/services/kernel_surfaces.py`. Rather than open the served-strings question §8 defers, the
+shell looks up `surfaces.{slug}.title` and falls back to the served title when the key is absent. One
+resolver, `useSurfaceWords` in `web/lib/compositor/useSurfaceTitle.ts`, wraps the existing
+`surfaceTitleFor`; every consumer goes through it. No API change, and a program surface the kernel never
+heard of still reads as whatever the compositor served.
+
+Summaries come with the titles, because the Launcher **filters** on them: a Korean member typing `파일` has
+to find Files. The filter matches the served English *and* the worded string, so neither language loses a
+surface.
+
+Three app names stay in Latin script — `Blogger`, `Supervisor`, `Reach`. They name things in the workspace,
+not common nouns (`블로거` reads as a person who blogs), which is D6's brand-name rule; they are on the
+gate's `UNTRANSLATED_OK` allowlist and nowhere else.
+
+**Translated**: `UserMenu`, `Desktop`, `Launcher`, `chrome/TopBarSurface`, `AttentionCenter`,
+`GlobalLocatorStrip`, `SurfaceViewport`. Two module-level label tables now hold catalog KEYS per D3 —
+`KERNEL_TIER_GROUPS` (the Launcher's at-rest groups) and the Dock's context menu.
+
+**Found by driving, not by the meter:**
+
+- A workspace row's ROLE rendered a lowercase database enum (`owner`) made English by CSS `capitalize`.
+  A member's role would have stayed Latin in every language. It is a catalog key now.
+- `${n} ${n === 1 ? 'person' : 'people'}` — an English pluralization rule in a template literal. Korean has
+  no plural form, so an ICU `plural` with one `other` arm is the honest shape.
+- The meter saw none of the above, nor the Dock tooltips, nor four `title=` attributes on the theme toggle.
+  It reads JSX text and copy props; a string built in a `useMemo` or a template literal is invisible to it.
+  **The ratchet is a floor, and a pass has to read the file, not the meter.**
+- `useIsFirstTime()` in `Desktop.tsx` has conditional early returns. A `useTranslations` placed there by a
+  careless edit would have been a hooks-order violation; the hook belongs in the component that renders.
+
+**Receipts**: gate **29/29**. Voice guard 0 violations. `npx tsc --noEmit` 0 errors. `npx next build`
+succeeded with **136** prerendered routes (23 `○` + 113 SSG blog paths) — unchanged, every marketing route
+still static. Driven on the `bare-kernel` rig, own headless Chrome, API on :8000:
+`<html lang="ko">`; the Launcher lists 채팅 / 슬라이드 / Blogger / 이미지 / 텍스트 / Supervisor / 파일 /
+에이전트 / Reach with Korean summaries; searching `파일` returns Files; the user menu reads `1명 (소유자)`,
+`접근 권한 관리`, `결제`, `연결`, `의견 보내기`, `사용자 설정`, `로그아웃`; the bell popover and the
+Desktop empty state are Korean; the locator strip reads `데스크톱`. The same rig at `locale: "en"` renders
+`1 person (Owner)` — identical to the pre-pass string. Account restored to no `locale` key afterwards.
+
+**Found while restoring**: `auth.admin.update_user_by_id` **merges** `user_metadata` — omitting a key does
+not remove it. Clearing the rig's locale needed an explicit `{'locale': None}`; the first restore left
+`locale: "en"` behind and read as clean.
+
+**Next by measurement**: the chat surface (`ChatSurface` 24, `LanePanel` 21, `ConversationDetail` 15,
+plus `toolLabels.ts`, which the meter cannot see), then `settings/page.tsx`, then Studio and billing.
+`AttentionCenter` still borrows three shared label layers — `actorLine`, `proposalLabel`,
+`proposalQueuedByDialLine` — that also feed the Notifications and Reach surfaces; they translate with
+those surfaces, not ahead of them.

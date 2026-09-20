@@ -93,7 +93,11 @@ ICU_ARG = re.compile(r"\{\s*(\w+)")
 HANGUL = re.compile(r"[가-힣]")
 # Names that do not translate. A value made ONLY of these (plus punctuation,
 # digits and ICU arguments) is allowed to carry no Hangul.
-UNTRANSLATED_OK = {"yarnnn", "yarnnn.com", "Google", "GitHub", "Notion", "Slack", "MCP", "AI"}
+# `Blogger`, `Supervisor` and `Reach` are the product's OWN app names, which
+# D6 keeps in Latin script the way the product's name is: they name a thing in
+# the workspace, not a common noun ("블로거" would read as a person who blogs).
+UNTRANSLATED_OK = {"yarnnn", "yarnnn.com", "Google", "GitHub", "Notion", "Slack", "MCP", "AI",
+                   "Blogger", "Supervisor", "Reach"}
 
 for loc, flat in CATALOGS.items():
     if loc == DEFAULT:
@@ -234,7 +238,7 @@ print("D4 — coverage")
 # Lines of literal, member-facing copy still in components a scope renders. A
 # METER, not a proof: it counts what it can see (JSX text + copy-bearing props).
 # A pass lowers the ceiling in the commit that lowers the count; nothing raises it.
-LITERAL_COPY_CEILING = 1005  # 2026-09-20 — the first reading, after the sign-in path
+LITERAL_COPY_CEILING = 972  # 2026-09-20 — after the shell pass (was 1005)
 COPY_PROP = re.compile(r"\b(placeholder|title|aria-label|label|alt|subtitle|description)=\"[^\"]*[A-Za-z]{2,}[^\"]*\"")
 INLINE_TEXT = re.compile(r">([^<>{}]*[A-Za-z]{2,}[^<>{}]*)</")
 METERED = [WEB / "app" / "(authenticated)", WEB / "app" / "auth", WEB / "app" / "mcp", WEB / "components"]

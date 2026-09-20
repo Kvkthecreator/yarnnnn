@@ -61,6 +61,7 @@
 
 import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { LayoutGrid } from 'lucide-react';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -74,6 +75,7 @@ import { AttentionCenter } from '../AttentionCenter';
 import { useShellChrome } from '../ShellChromeContext';
 import type { Surface } from '@/lib/compositor/types';
 import { cn } from '@/lib/utils';
+import { useSurfaceWords } from '@/lib/compositor/useSurfaceTitle';
 import { Wordmark } from '@/components/shared/Wordmark';
 
 // 2026-07-22 — the Dock's semantic BANDS. The five primary apps are not five
@@ -99,6 +101,12 @@ export function TopBarSurface() {
   const router = useRouter();
   const pathname = usePathname();
   const { data: composition } = useComposition();
+  const t = useTranslations('shell.topBar');
+  const shellT = useTranslations('shell');
+  const launcherT = useTranslations('shell.launcher');
+  const desktopLabel = shellT('desktop');
+  // ADR-660 ruling 1 — the Dock tooltip is the app's NAME; word it by slug.
+  const words = useSurfaceWords(composition.surfaces);
   const {
     kept,
     open,
@@ -251,6 +259,7 @@ export function TopBarSurface() {
       e.preventDefault();
       setContextMenu({ slug: surface.slug, x: e.clientX, y: e.clientY });
     };
+    const name = words.title(surface.slug, surface.title);
 
     return (
       <div key={surface.slug} className="relative flex flex-col items-center">
@@ -260,8 +269,8 @@ export function TopBarSurface() {
           onContextMenu={handleContextMenu}
           // ADR-629 D1 — the badge is presentation only; on a 9×9 Dock icon
           // the tooltip is the one place a tag fits without chrome noise.
-          title={surface.badge ? `${surface.title} (${surface.badge})` : surface.title}
-          aria-label={surface.badge ? `${surface.title} (${surface.badge})` : surface.title}
+          title={surface.badge ? `${name} (${surface.badge})` : name}
+          aria-label={surface.badge ? `${name} (${surface.badge})` : name}
           aria-current={isForegrounded ? 'page' : undefined}
           className={cn(
             'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
@@ -310,12 +319,12 @@ export function TopBarSurface() {
 
     if (surfaceIsOpen) {
       items.push({
-        label: 'Close',
+        label: t('close'),
         action: () => closeSurface(contextMenu.slug),
       });
     } else {
       items.push({
-        label: 'Open',
+        label: t('open'),
         action: () => {
           // D19.2: foregroundSurface is the singular action; URL is
           // informational add-on, not rewritten on summon.
@@ -328,19 +337,20 @@ export function TopBarSurface() {
 
     if (surfaceIsKept) {
       items.push({
-        label: 'Remove from Dock',
+        label: t('removeFromDock'),
         action: () => release(contextMenu.slug),
         tone: 'muted',
       });
     } else {
       items.push({
-        label: 'Keep in Dock',
+        label: t('keepInDock'),
         action: () => keep(contextMenu.slug),
         tone: 'muted',
       });
     }
 
     return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenu, isOpen, isKept, closeSurface, release, keep, foregroundSurface]);
 
   const hasAnyDockEntries = keptSurfaces.length > 0 || openOnlySurfaces.length > 0;
@@ -374,8 +384,8 @@ export function TopBarSurface() {
       <div className="hidden sm:flex shrink-0 items-center">
         <button
           onClick={navigateToHome}
-          aria-label="yarnnn — go to Desktop"
-          title="Desktop"
+          aria-label={t('home')}
+          title={desktopLabel}
           className="rounded-md px-2 py-1 transition-opacity hover:opacity-70"
         >
           {/* ADR-629 D4 — the ONE Wordmark; the stage annotation rides it. */}
@@ -391,7 +401,7 @@ export function TopBarSurface() {
           flex-1 min-w-0 lets the region claim available width and
           overflow-scroll horizontally when icons exceed it (mobile). */}
       <nav
-        aria-label="Workspace dock"
+        aria-label={t('dock')}
         // D19.5.1 (2026-05-22): scrollbar visually hidden. Pacifico
         // wordmark widened the LEFT region just enough that the
         // CENTER's overflow-x-auto rendered a 1px scrollbar even at
@@ -404,8 +414,8 @@ export function TopBarSurface() {
         <button
           type="button"
           onClick={openLauncher}
-          aria-label="Open Launcher"
-          title="Launcher"
+          aria-label={launcherT('open')}
+          title={launcherT('title')}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <LayoutGrid className="h-4 w-4" />

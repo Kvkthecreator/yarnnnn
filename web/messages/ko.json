@@ -49,5 +49,166 @@
       "signUp": "가입하고 연결",
       "footer": "AI 어시스턴트를 yarnnn 메모리에 연결하는 중이에요. 같은 계정으로 언제든 yarnnn.com을 이용할 수 있어요."
     }
+  },
+  "surfaces": {
+    "chat": {
+      "title": "채팅",
+      "summary": "에이전트와 업무에 대해 이야기해요"
+    },
+    "slides": {
+      "title": "슬라이드",
+      "summary": "워크스페이스에 있는 내용으로 슬라이드를 만들어요"
+    },
+    "blogger": {
+      "title": "Blogger",
+      "summary": "블로그에 올릴 글과 페이지를 써요"
+    },
+    "images": {
+      "title": "이미지",
+      "summary": "레이어를 쌓아 이미지를 디자인해요"
+    },
+    "text": {
+      "title": "텍스트",
+      "summary": "메모, 브리프, 문서를 써요"
+    },
+    "supervisor": {
+      "title": "Supervisor",
+      "summary": "진행 중인 일과 확인이 필요한 일이에요"
+    },
+    "notifications": {
+      "title": "알림",
+      "summary": "할 일, 활동, 상시 작업을 한곳에서 봐요"
+    },
+    "billing": {
+      "title": "결제",
+      "summary": "이 워크스페이스의 플랜, 좌석, 잔액이에요"
+    },
+    "usage": {
+      "title": "사용량",
+      "summary": "이 워크스페이스가 무엇을 얼마나 썼는지 봐요"
+    },
+    "files": {
+      "title": "파일",
+      "summary": "워크스페이스의 모든 파일과 변경 내역이에요"
+    },
+    "agents": {
+      "title": "에이전트",
+      "summary": "내 에이전트와 새로 고용할 수 있는 에이전트예요"
+    },
+    "setup": {
+      "title": "설정 시작",
+      "summary": "지금은 쓰지 않아요. 채팅에서 시작해 주세요"
+    },
+    "program": {
+      "title": "프로그램",
+      "summary": "이 워크스페이스가 실행하는 프로그램이에요"
+    },
+    "reach": {
+      "title": "Reach",
+      "summary": "연결한 곳과 오가는 내용이에요"
+    },
+    "settings": {
+      "title": "사용자 설정",
+      "summary": "계정, 알림, 개인정보예요"
+    },
+    "workspace-settings": {
+      "title": "워크스페이스 설정",
+      "summary": "이 워크스페이스의 이름, 멤버, 결제, 사용량이에요"
+    },
+    "notification-settings": {
+      "title": "알림",
+      "summary": "이 워크스페이스가 보내는 이메일이에요"
+    }
+  },
+  "shell": {
+    "desktop": "데스크톱",
+    "launcher": {
+      "open": "런처 열기",
+      "title": "런처",
+      "close": "런처 닫기",
+      "search": "검색하거나 파일 경로를 붙여넣어 보세요",
+      "openFile": "열기",
+      "openFileHint": "파일에서 이 파일로 이동해요",
+      "noResults": "“{query}” 검색 결과가 없어요",
+      "noResultsButFile": "“{query}” 검색 결과가 없어요. 위에 있는 파일 이름이에요.",
+      "nothingToOpen": "아직 열 수 있는 것이 없어요",
+      "settingsPane": "{parent} 안",
+      "settingsPaneFallback": "설정 안",
+      "groups": {
+        "primary": "워크스페이스",
+        "workspaceConfig": "워크스페이스 설정",
+        "systemConfig": "사용자 설정",
+        "composed": "직접 만든 것"
+      }
+    },
+    "topBar": {
+      "home": "yarnnn — 데스크톱으로 이동",
+      "dock": "워크스페이스 독",
+      "close": "닫기",
+      "open": "열기",
+      "removeFromDock": "독에서 빼기",
+      "keepInDock": "독에 두기"
+    },
+    "locator": {
+      "label": "현재 위치",
+      "backTo": "{name}(으)로 돌아가기"
+    },
+    "userMenu": {
+      "trigger": "사용자 메뉴",
+      "theme": {
+        "light": "라이트",
+        "dark": "다크",
+        "system": "시스템"
+      },
+      "layout": {
+        "label": "레이아웃",
+        "canvas": "캔버스",
+        "canvasHint": "캔버스: 채팅 옆에 창 하나",
+        "desktop": "데스크톱",
+        "desktopHint": "데스크톱: 자유롭게 떠 있는 창"
+      },
+      "workspace": "워크스페이스",
+      "workspacesFailed": "워크스페이스를 불러오지 못했어요.",
+      "retry": "다시 시도",
+      "people": "{count, plural, other {#명}}",
+      "peopleWithRole": "{people} ({role})",
+      "roles": {
+        "owner": "소유자",
+        "member": "멤버",
+        "viewer": "뷰어"
+      },
+      "manageAccess": "접근 권한 관리",
+      "billing": "결제",
+      "balanceLeft": "{tier} · {amount} 남음",
+      "balanceSpentOwner": "{tier} · 잔액을 다 썼어요 — 소유자에게 문의해 주세요",
+      "balanceLowOwner": "{tier} · 잔액이 얼마 남지 않았어요 — 소유자가 관리해요",
+      "balanceOwnerManaged": "{tier} · 소유자가 관리해요",
+      "connections": "연결",
+      "sendFeedback": "의견 보내기",
+      "userSettings": "사용자 설정",
+      "signOut": "로그아웃"
+    },
+    "attention": {
+      "title": "알림",
+      "badge": "알림 — {count}건",
+      "balanceLow": "잔액이 얼마 남지 않았어요 (${amount}). $0이 되면 작업이 멈춰요.",
+      "balanceLowOwner": "잔액이 얼마 남지 않았어요. 0이 되면 작업이 멈춰요. 결제는 소유자가 관리해요.",
+      "toDo": "할 일",
+      "mentioned": "{author}님이 회원님을 언급했어요 · {conversation}",
+      "morePending": "+{count}건 더 기다리고 있어요…",
+      "activity": "활동",
+      "empty": "아직 아무것도 없어요. 할 일, 활동, 잔액 알림이 여기에 표시돼요.",
+      "openNotifications": "알림 열기 →",
+      "settings": "설정"
+    },
+    "desktopEmpty": {
+      "readyTitle": "워크스페이스가 준비됐어요",
+      "readyBody": "파일을 올리거나, 채팅을 시작해 어떤 일을 하고 있는지 말해 주세요. 여기에 둔 것은 모두 이름을 갖고, 회원님과 팀, 연결한 AI가 다시 찾을 수 있어요.",
+      "addFile": "첫 파일 올리기",
+      "startChat": "채팅 시작",
+      "inviteHint": "함께 일하는 사람이 있나요? 워크스페이스 설정에서 초대해 보세요.",
+      "nothingOpenTitle": "열려 있는 창이 없어요",
+      "nothingOpenBody": "독에 있는 아이콘을 누르거나, 런처(격자 아이콘)를 열어 이 워크스페이스에 있는 것을 모두 확인해 보세요."
+    }
   }
 }

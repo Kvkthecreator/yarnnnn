@@ -29,6 +29,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { LayoutGrid, FileText, MessageSquare, ArrowRight } from 'lucide-react';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -70,6 +71,7 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
   const { layoutMode } = useShellChrome();
   const { setDesktopBounds, foregrounded, navigateToSurface, hydrated } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
+  const t = useTranslations('shell.desktopEmpty');
   const ref = useRef<HTMLDivElement>(null);
   // ADR-358 — in CANVAS the window area is NOT a desktop with a floating
   // window on wallpaper; it is ONE primary surface filling the column. So
@@ -125,13 +127,9 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
                   <FileText className="h-5 w-5" />
                 </div>
                 <h2 className="text-lg font-medium text-foreground mb-1">
-                  Your workspace is ready
+                  {t('readyTitle')}
                 </h2>
-                <p className="text-sm text-muted-foreground">
-                  Add a file, or start a chat and say what you&rsquo;re working on.
-                  Everything kept here carries a name, and you, your team, and
-                  any AI you connect can find it again.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('readyBody')}</p>
                 <div className="mt-5 flex items-center justify-center gap-2">
                   <button
                     type="button"
@@ -139,7 +137,7 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
                     className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                   >
                     <FileText className="h-3.5 w-3.5" />
-                    Add your first file
+                    {t('addFile')}
                     <ArrowRight className="h-3 w-3" />
                   </button>
                   <button
@@ -148,11 +146,11 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
                     className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/30 transition-colors"
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
-                    Start a chat
+                    {t('startChat')}
                   </button>
                 </div>
                 <p className="mt-4 text-[11px] text-muted-foreground/70">
-                  Working with others? Invite them from Workspace Settings.
+                  {t('inviteHint')}
                 </p>
               </>
             ) : (
@@ -161,12 +159,9 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
                   <LayoutGrid className="h-5 w-5" />
                 </div>
                 <h2 className="text-lg font-medium text-foreground mb-1">
-                  Nothing open
+                  {t('nothingOpenTitle')}
                 </h2>
-                <p className="text-sm text-muted-foreground">
-                  Click an icon in the dock, or open the Launcher (the grid
-                  icon) to see everything in this workspace.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('nothingOpenBody')}</p>
               </>
             )}
           </div>

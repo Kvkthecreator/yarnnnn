@@ -48,6 +48,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { FileText, Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
@@ -55,6 +56,7 @@ import { Z_LAUNCHER_OVERLAY } from '@/lib/shell/z-tiers';
 import { isKernelSurfaceSlug } from '@/types/surface';
 import { parseFileReference, toWorkspacePath } from '@/lib/interop/fileHandle';
 import { cn } from '@/lib/utils';
+import { useSurfaceWords, type SurfaceWords } from '@/lib/compositor/useSurfaceTitle';
 
 interface LauncherProps {
   open: boolean;
@@ -80,7 +82,10 @@ interface SurfaceGroup {
 // class. `search-only` surfaces never appear at rest. Kernel surfaces
 // missing a tier (a registry omission) fall to Utilities — never
 // silently drop a surface from the index.
-const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
+// ADR-660 D3 — this table is evaluated at module load, before any member's
+// language is known, so it holds catalog KEYS; the component words them at
+// render (`shell.launcher.groups.*`).
+const KERNEL_TIER_GROUPS: { key: string; labelKey: string; tier: string }[] = [
   // ADR-349 (2026-06-19) — the launcher IA re-sort (closes ADR-340 §9). At
   // rest = the standing loop + two settings doors. The mirrors (Feed/Queue/
   // Recurrence) the Notifications composition fronts go search-only (summon by
@@ -90,13 +95,13 @@ const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   // (D4): Workspace Settings (the operation) above User Settings (the account /
   // the human, user_id-scoped — renamed from "System Settings" 2026-07-08 so
   // its label matches its billing/usage/account content + the UserMenu item).
-  { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
-  { key: 'kernel:workspace-config', label: 'Workspace Settings', tier: 'workspace-config' },
+  { key: 'kernel:primary', labelKey: 'primary', tier: 'primary' },
+  { key: 'kernel:workspace-config', labelKey: 'workspaceConfig', tier: 'workspace-config' },
   // ADR-454 D4 (2026-07-13) — the ADR-426 third settings door ("Freddie System
   // Agent", tier `system-agent-config`) is REVERSED (the ambient steward): the
   // dials re-home to Workspace Settings → System; the registry row is hidden.
   // Two settings doors again.
-  { key: 'kernel:system-config', label: 'User Settings', tier: 'system-config' },
+  { key: 'kernel:system-config', labelKey: 'systemConfig', tier: 'system-config' },
   // 2026-07-04 — Notifications' at-rest group (added 2026-07-01) is deleted:
   // the top-bar bell is the always-present door to that window on every
   // screen size (ADR-349 "one name, two zooms"), so any launcher tile was
@@ -104,7 +109,7 @@ const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   // — summon by name via flat search.
 ];
 
-function kernelTierGroupFor(s: Surface): { key: string; label: string } | null {
+function kernelTierGroupFor(s: Surface): { key: string; labelKey: string } | null {
   if (s.launcher_tier === 'search-only') return null;
   // ADR-349: an un-tiered navigable surface is hidden at rest (treated like
   // search-only) — a registry omission should not invent a tile in a dead
@@ -115,7 +120,8 @@ function kernelTierGroupFor(s: Surface): { key: string; label: string } | null {
 
 function groupSurfaces(
   surfaces: Surface[],
-  bundleTitleBySlug: Record<string, string>
+  bundleTitleBySlug: Record<string, string>,
+  groupLabelFor: (key: string) => string
 ): SurfaceGroup[] {
   const groups = new Map<string, SurfaceGroup>();
 
@@ -126,10 +132,10 @@ function groupSurfaces(
       const g = kernelTierGroupFor(s);
       if (!g) return; // search-only: hidden at rest (found via flat search)
       groupKey = g.key;
-      groupLabel = g.label;
+      groupLabel = groupLabelFor(g.labelKey);
     } else if (s.tier === 'composed') {
       groupKey = 'composed';
-      groupLabel = 'Custom';
+      groupLabel = groupLabelFor('composed');
     } else {
       // tier="program:{slug}"
       const slug = (s.tier as string).slice('program:'.length);
@@ -166,6 +172,11 @@ export function Launcher({
 }: LauncherProps) {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const t = useTranslations('shell.launcher');
+  // ADR-660 ruling 1 — the served roster is English; the shell words it by
+  // slug. Filtering runs over the WORDED strings, so a Korean member finds a
+  // surface by its Korean name.
+  const words = useSurfaceWords(surfaces);
 
   // Focus search on open; reset query on close.
   useEffect(() => {
@@ -207,9 +218,10 @@ export function Launcher({
   const parentTitleBySlug = useMemo(() => {
     const map: Record<string, string> = {};
     surfaces.forEach((s) => {
-      map[s.slug] = s.title;
+      map[s.slug] = words.title(s.slug, s.title);
     });
     return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surfaces]);
 
   // ADR-587 — quick-open by path. The Launcher already plays Spotlight for
@@ -237,12 +249,17 @@ export function Launcher({
   const filtered = useMemo(() => {
     if (!query.trim()) return navigableSurfaces;
     const q = query.toLowerCase();
-    return navigableSurfaces.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.summary.toLowerCase().includes(q) ||
-        s.slug.toLowerCase().includes(q)
+    return navigableSurfaces.filter((s) =>
+      [
+        s.title,
+        s.summary,
+        s.slug,
+        // The member's language too, so "파일" finds Files (ADR-660).
+        words.title(s.slug, s.title),
+        words.summary(s.slug, s.summary),
+      ].some((candidate) => candidate.toLowerCase().includes(q)),
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigableSurfaces, query]);
 
   // ADR-340 P3 two modes: at rest → act-tier groups (search-only hidden);
@@ -251,7 +268,8 @@ export function Launcher({
   const isSearching = query.trim().length > 0;
 
   const grouped = useMemo(
-    () => groupSurfaces(filtered, bundleTitleBySlug),
+    () => groupSurfaces(filtered, bundleTitleBySlug, (key) => t(`groups.${key}`)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filtered, bundleTitleBySlug]
   );
 
@@ -295,7 +313,7 @@ export function Launcher({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Launcher"
+      aria-label={t('title')}
     >
       <div
         className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-background shadow-2xl"
@@ -309,13 +327,13 @@ export function Launcher({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search, or paste a file path"
+            placeholder={t('search')}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close launcher"
+            aria-label={t('close')}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -338,10 +356,10 @@ export function Launcher({
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-foreground">
-                    Open <span className="font-mono">{quickOpen.rel}</span>
+                    {t('openFile')} <span className="font-mono">{quickOpen.rel}</span>
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    Go to this file in Files
+                    {t('openFileHint')}
                   </span>
                 </span>
               </button>
@@ -351,8 +369,8 @@ export function Launcher({
             filtered.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
                 {quickOpen
-                  ? `No results for “${query}”. It names a file, above.`
-                  : `No results for “${query}”`}
+                  ? t('noResultsButFile', { query })
+                  : t('noResults', { query })}
               </div>
             ) : (
               <div className="py-2">
@@ -375,7 +393,7 @@ export function Launcher({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium">
-                          {surface.title}
+                          {words.title(surface.slug, surface.title)}
                           {surface.badge && (
                             // ADR-629 D1 — presentation only: the tag beside
                             // the name (Claude Design's Beta chip shape).
@@ -389,13 +407,13 @@ export function Launcher({
                             // Workspace Settings, or Recurrence (ADR-340 D8).
                             <span className="ml-2 text-xs font-normal text-muted-foreground">
                               {parentTitleBySlug[surface.pane_of]
-                                ? `${parentTitleBySlug[surface.pane_of]} pane`
-                                : 'Settings pane'}
+                                ? t('settingsPane', { parent: parentTitleBySlug[surface.pane_of] })
+                                : t('settingsPaneFallback')}
                             </span>
                           )}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">
-                          {surface.summary}
+                          {words.summary(surface.slug, surface.summary)}
                         </div>
                       </div>
                     </button>
@@ -405,7 +423,7 @@ export function Launcher({
             )
           ) : grouped.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              Nothing to open yet
+              {t('nothingToOpen')}
             </div>
           ) : (
             grouped.map((group) => (
@@ -432,7 +450,7 @@ export function Launcher({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium">
-                          {surface.title}
+                          {words.title(surface.slug, surface.title)}
                           {surface.badge && (
                             // ADR-629 D1 — presentation only.
                             <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
@@ -441,7 +459,7 @@ export function Launcher({
                           )}
                         </div>
                         <div className="truncate text-xs text-muted-foreground">
-                          {surface.summary}
+                          {words.summary(surface.slug, surface.summary)}
                         </div>
                       </div>
                     </button>
