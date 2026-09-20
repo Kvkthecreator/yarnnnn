@@ -271,7 +271,7 @@ export default function SettingsPage() {
       // reported its failure correctly; routing it through runAction keeps the
       // one error channel and puts the call inside the census like every peer.
       await runAction(() => api.memberState.put('notification_prefs', next), {
-        error: "Couldn't save that setting",
+        error: t("notifications.saveFailed"),
       });
     } catch {
       setNotificationPrefs(previous);
@@ -301,47 +301,37 @@ export default function SettingsPage() {
     const ok = await confirm(
       action === "reset"
         ? {
-            title: "Full Account Reset?",
+            title: t("reset.title"),
             danger: true,
-            confirmLabel: "Reset Account",
+            confirmLabel: t("reset.confirm"),
             body: (
               <>
-                <p className="mb-2">
-                  Are you sure you want to <strong>reset your entire account</strong>? This will delete:
-                </p>
+                <p className="mb-2">{t("reset.lead")}</p>
                 <ul className="list-disc list-inside text-sm space-y-1">
-                  <li>{dangerStats?.workspace_files} workspace files</li>
-                  <li>All scheduled work</li>
-                  <li>{dangerStats?.platform_connections} platform connections</li>
-                  <li>{dangerStats?.chat_sessions} chat sessions</li>
-                  <li>All memories, documents, activity, and sync data</li>
+                  <li>{t("reset.files", { count: dangerStats?.workspace_files ?? 0 })}</li>
+                  <li>{t("reset.scheduled")}</li>
+                  <li>{t("reset.connections", { count: dangerStats?.platform_connections ?? 0 })}</li>
+                  <li>{t("reset.chats", { count: dangerStats?.chat_sessions ?? 0 })}</li>
+                  <li>{t("reset.everythingElse")}</li>
                 </ul>
-                <p className="mt-2 text-sm">
-                  Your account stays active with a freshly reset workspace
-                  (the default agents and behind-the-scenes setup restored; scheduled
-                  work and context start empty).
-                </p>
+                <p className="mt-2 text-sm">{t("reset.after")}</p>
               </>
             ),
           }
         : {
-            title: "Delete Account Permanently?",
+            title: t("deactivate.title"),
             danger: true,
-            confirmLabel: "Deactivate Account",
+            confirmLabel: t("deactivate.confirm"),
             body: (
               <>
-                <p className="font-medium text-destructive mb-2">
-                  This action is PERMANENT and cannot be undone.
-                </p>
-                <p className="mb-2">All your data will be permanently deleted:</p>
+                <p className="font-medium text-destructive mb-2">{t("deactivate.permanent")}</p>
+                <p className="mb-2">{t("deactivate.lead")}</p>
                 <ul className="list-disc list-inside text-sm space-y-1">
-                  <li>All agents, memories, documents, and chat history</li>
-                  <li>All platform connections and synced content</li>
-                  <li>Your account will be removed from the system</li>
+                  <li>{t("deactivate.all")}</li>
+                  <li>{t("deactivate.platforms")}</li>
+                  <li>{t("deactivate.removed")}</li>
                 </ul>
-                <p className="mt-2 text-sm">
-                  You will be logged out immediately. To use yarnnn again, you would need to create a new account.
-                </p>
+                <p className="mt-2 text-sm">{t("deactivate.after")}</p>
               </>
             ),
           },
@@ -352,9 +342,9 @@ export default function SettingsPage() {
     try {
       if (action === "reset") {
         await runAction(() => api.account.resetAccount(), {
-          pending: "Resetting your account…",
-          success: "Account reset — a fresh workspace is ready.",
-          error: "Reset failed — nothing was deleted. Try again.",
+          pending: t("reset.pending"),
+          success: t("reset.success"),
+          error: t("reset.error"),
         });
         // Backend re-scaffolds transactionally (ADR-140/151/161/164
         // invariants); this call is a harmless safety net.
@@ -366,9 +356,9 @@ export default function SettingsPage() {
         await loadDangerZoneStats();
       } else {
         await runAction(() => api.account.deactivateAccount(), {
-          pending: "Deleting your account…",
-          success: "Account deleted. Signing you out…",
-          error: "Deletion failed — your account is untouched. Try again.",
+          pending: t("deactivate.pending"),
+          success: t("deactivate.success"),
+          error: t("deactivate.error"),
         });
         const supabase = createClient();
         await supabase.auth.signOut();
@@ -404,15 +394,15 @@ export default function SettingsPage() {
         <section className="mb-8">
           <PaneHeader
             icon={Shield}
-            title="Data & Privacy"
-            subtitle="Your own connections, account reset, and deactivation. Workspace content lives in Workspace Settings."
+            title={t("account.title")}
+            subtitle={t("account.subtitle")}
             bordered={false}
             action={
               <button
                 onClick={loadDangerZoneStats}
                 disabled={isLoadingDangerStats}
                 className="p-2 text-muted-foreground hover:text-foreground"
-                title="Refresh stats"
+                title={t("account.refresh")}
               >
                 <RefreshCw className={`w-4 h-4 ${isLoadingDangerStats ? "animate-spin" : ""}`} />
               </button>
@@ -420,7 +410,7 @@ export default function SettingsPage() {
           />
 
           {isLoadingDangerStats ? (
-            <Working label="Loading…" fill className="py-8" />
+            <Working label={t("account.loading")} fill className="py-8" />
           ) : dangerStats ? (
             <>
               {/* ADR-476 D3 — workspace-scoped destruction (clear history, clear
@@ -437,23 +427,24 @@ export default function SettingsPage() {
                   looking for the clears must be pointed across; duplicating the
                   cards (or their counts) is what made the two doors disagree. */}
               <p className="text-xs text-muted-foreground mb-6">
-                Clearing work history or the whole workspace affects every
-                member&apos;s work, so it lives in{" "}
-                <SurfaceLink
-                  to="workspace-settings"
-                  params={{ pane: "danger" }}
-                  className="underline"
-                >
-                  Workspace Settings → Danger Zone
-                </SurfaceLink>
-                .
+                {t.rich("account.clearsElsewhere", {
+                  link: (chunks) => (
+                    <SurfaceLink
+                      to="workspace-settings"
+                      params={{ pane: "danger" }}
+                      className="underline"
+                    >
+                      {chunks}
+                    </SurfaceLink>
+                  ),
+                })}
               </p>
 
               {/* Danger Zone */}
               <div className="border-t border-destructive/30 pt-6 mb-6">
                 <h3 className="text-sm font-medium text-destructive mb-3 uppercase tracking-wide flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  Danger Zone
+                  {t("account.dangerZone")}
                 </h3>
                 <div className="space-y-3 border border-destructive/40 rounded-lg p-4">
                   {/* Full Data Reset */}
@@ -462,17 +453,17 @@ export default function SettingsPage() {
                       <div>
                         <div className="font-medium flex items-center gap-2">
                           <RefreshCw className="w-4 h-4" />
-                          Full Data Reset
+                          {t("account.resetTitle")}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Delete everything but keep your account active
+                          {t("account.resetBody")}
                         </div>
                       </div>
                       <button
                         onClick={() => initiateDangerAction("reset")}
                         className="px-4 py-2 text-destructive text-sm font-medium hover:underline"
                       >
-                        Reset Account
+                        {t("account.resetAction")}
                       </button>
                     </div>
                   </div>
@@ -483,17 +474,17 @@ export default function SettingsPage() {
                       <div>
                         <div className="font-medium flex items-center gap-2">
                           <LogOut className="w-4 h-4" />
-                          Delete Account
+                          {t("account.deleteTitle")}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Permanently delete account and all data
+                          {t("account.deleteBody")}
                         </div>
                       </div>
                       <button
                         onClick={() => initiateDangerAction("deactivate")}
                         className="px-4 py-2 text-destructive text-sm font-medium hover:underline"
                       >
-                        Deactivate
+                        {t("account.deleteAction")}
                       </button>
                     </div>
                   </div>
@@ -501,7 +492,7 @@ export default function SettingsPage() {
               </div>
             </>
           ) : (
-            <div className="text-muted-foreground">Failed to load account stats</div>
+            <div className="text-muted-foreground">{t("account.loadFailed")}</div>
           )}
 
           {/* ADR-593 D5: the Email Notifications section MOVED OUT to its own
@@ -520,24 +511,26 @@ export default function SettingsPage() {
         <section className="mb-8">
           <PaneHeader
             icon={Bell}
-            title="Notifications"
+            title={t("notifications.title")}
             subtitle={
               activeWorkspaceLabel
-                ? `How ${activeWorkspaceLabel} reaches you. Each workspace remembers its own settings.`
-                : "How this workspace reaches you. Each workspace remembers its own settings."
+                ? t("notifications.subtitleNamed", { workspace: activeWorkspaceLabel })
+                : t("notifications.subtitle")
             }
             bordered={false}
           />
           <p className="mb-4 text-xs text-muted-foreground">
-            In-app notifications (the bell and the{" "}
-            <SurfaceLink to="notifications" className="text-primary hover:underline">
-              Notifications window
-            </SurfaceLink>
-            ) are always on. These settings control{" "}
-            <span className="font-medium">email</span>.
+            {t.rich("notifications.inAppNote", {
+              link: (chunks) => (
+                <SurfaceLink to="notifications" className="text-primary hover:underline">
+                  {chunks}
+                </SurfaceLink>
+              ),
+              b: (chunks) => <span className="font-medium">{chunks}</span>,
+            })}
           </p>
           {isLoadingNotifications ? (
-            <Working label="Loading your preferences…" fill className="py-4" />
+            <Working label={t("notifications.loading")} fill className="py-4" />
           ) : notificationPrefs && notificationKinds ? (
             <div className="space-y-3">
               {notificationKinds.map((k) => (
@@ -565,39 +558,43 @@ export default function SettingsPage() {
                        consent-by-relationship (a welcome cannot be opt-in), so
                        the row states the fact instead of offering a select. */
                     <span className="shrink-0 text-right text-[11px] leading-snug text-muted-foreground">
-                      Always sent
+                      {t("notifications.alwaysSent")}
                     </span>
                   ) : k.email_default ? (
                     <select
                       value={notificationPrefs.email[k.key] ?? k.email_default}
                       onChange={(e) => handleNotificationChange(k.key, e.target.value as EmailDial)}
                       disabled={isSavingNotifications}
-                      aria-label={`${k.label} emails`}
+                      aria-label={t("notifications.dialLabel", { kind: k.label })}
                       className="h-8 shrink-0 rounded-md border border-border bg-background px-2 text-xs text-foreground"
                     >
                       {/* `reports` and `mentions` are plain on/off — an
                           "urgent only" tier would be a promise nothing
                           grades, so it isn't offered (ADR-593/605). */}
                       {!["reports", "mentions"].includes(k.key) && (
-                        <option value="high">Urgent only</option>
+                        <option value="high">{t("notifications.urgentOnly")}</option>
                       )}
                       <option value="all">
-                        {k.key === "reports" ? "On" : k.key === "mentions" ? "Every mention" : "Every action"}
+                        {k.key === "reports"
+                          ? t("notifications.on")
+                          : k.key === "mentions"
+                            ? t("notifications.everyMention")
+                            : t("notifications.everyAction")}
                       </option>
-                      <option value="none">{k.key === "reports" ? "Off" : "Never"}</option>
+                      <option value="none">
+                        {k.key === "reports" ? t("notifications.off") : t("notifications.never")}
+                      </option>
                     </select>
                   ) : (
                     <span className="shrink-0 max-w-[14rem] text-right text-[11px] leading-snug text-muted-foreground">
-                      {k.email_note ?? "Email coming soon"}
+                      {k.email_note ?? t("notifications.emailSoon")}
                     </span>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">
-              Couldn&apos;t load notification settings — reload to try again.
-            </div>
+            <div className="text-sm text-muted-foreground">{t("notifications.loadFailed")}</div>
           )}
         </section>
       )}

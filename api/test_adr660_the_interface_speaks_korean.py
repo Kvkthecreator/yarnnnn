@@ -147,8 +147,13 @@ for top in SCOPED_DIRS:
         translated_files.add(path)
         namespaces = [ns for _, ns in bindings]
         for var, ns in bindings:
+            # `t(…)` AND its methods: `t.rich(…)` embeds components, `t.has(…)`
+            # / `t.raw(…)` read the same catalog. Requiring a bare `t(` left a
+            # broken `t.rich` key green (found 2026-09-20, the settings pane).
             for dq_key, sq_key in re.findall(
-                rf"(?<![\w.]){re.escape(var)}\(\s*(?:\"([^\"]+)\"|'([^']+)')", src
+                rf"(?<![\w.]){re.escape(var)}(?:\.(?:rich|has|raw|markup))?\("
+                rf"\s*(?:\"([^\"]+)\"|'([^']+)')",
+                src,
             ):
                 key = dq_key or sq_key
                 calls += 1
@@ -278,7 +283,7 @@ print("D4 — coverage")
 # Lines of literal, member-facing copy still in components a scope renders. A
 # METER, not a proof: it counts what it can see (JSX text + copy-bearing props).
 # A pass lowers the ceiling in the commit that lowers the count; nothing raises it.
-LITERAL_COPY_CEILING = 898  # 2026-09-20 — after the chat surface (1005 → 972 → 898)
+LITERAL_COPY_CEILING = 875  # 2026-09-20 — after the settings pane (1005 → 972 → 898 → 875)
 COPY_PROP = re.compile(r"\b(placeholder|title|aria-label|label|alt|subtitle|description)=\"[^\"]*[A-Za-z]{2,}[^\"]*\"")
 INLINE_TEXT = re.compile(r">([^<>{}]*[A-Za-z]{2,}[^<>{}]*)</")
 METERED = [WEB / "app" / "(authenticated)", WEB / "app" / "auth", WEB / "app" / "mcp", WEB / "components"]

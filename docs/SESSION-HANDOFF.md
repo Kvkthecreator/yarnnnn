@@ -6,23 +6,30 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## Korean: the shell and chat speak it, the rest does not (ADR-660, 2026-09-20)
+## Korean: the shell, chat and the account door speak it (ADR-660, 2026-09-20)
 
-The mechanism, the sign-in path, the SHELL (§10) and the CHAT SURFACE (§11) are live and driven.
-**898 lines of literal copy in 93 files are still English** — `LITERAL_COPY_CEILING` in
+The mechanism, the sign-in path, the SHELL (§10), the CHAT SURFACE (§11) and the ACCOUNT DOOR (§12) are live
+and driven. **875 lines of literal copy in 93 files are still English** — `LITERAL_COPY_CEILING` in
 `api/test_adr660_the_interface_speaks_korean.py` is the meter; lower it in the commit that lowers the count.
-Next by measurement: `app/(authenticated)/settings/page.tsx` (25), then `StudioDesignTab` (61),
-`SubscriptionCard` (46), `ManageConnectionSubsurface` (38), `FindConnectorModal` (35),
-`WorkspaceMembersCard` (32), `TextEditor` (31).
+Next by measurement: `StudioDesignTab` (61), `SubscriptionCard` (46), `ManageConnectionSubsurface` (38),
+`FindConnectorModal` (35), `WorkspaceMembersCard` (32), `TextEditor` (31), `StudioSurface` (29),
+`AgentsSurface` (26).
+
+⚠️ **The shared confirm shell is the next blocker, and it is a MOUNT problem.** `FeedbackContext`'s Cancel
+button is English; `FeedbackProvider` mounts in `AuthenticatedLayout` (in scope) **and**
+`app/admin/layout.tsx` (out of scope), so translating it as-is throws at render on `/admin`. Decide first:
+an `IntlScope` on the admin layout, or a locale-free shell.
 
 The meter is a FLOOR — it cannot see module-level tables, toasts, template literals, or a lowercase DB enum
 made English by CSS `capitalize`. **Read the file, not the meter.** Convert a table by holding catalog KEYS
 and wording at render (D3); convert a `verb + subject` concatenation into a whole ICU message, because the
 join order is English grammar.
 
-⚠️ **The gate's `USE` regex matched a double-quoted namespace only until 2026-09-20** — it was green over 17
-of 22 bindings. Fixed, but the lesson stands: a source-reading gate is only as wide as its syntax
-assumptions. Dynamic keys (`t(`${name}.doing`)`) are checked by two dedicated arms, not the scan.
+⚠️ **The gate's key arm was found narrow TWICE on 2026-09-20**: first it bound only a double-quoted
+namespace (17 of 22 bindings unchecked, green over a shipped commit), then it still required a bare `t(`, so
+`t.rich`/`t.has`/`t.raw` keys went unchecked. Both fixed and falsified in place. The lesson stands: a
+source-reading gate is only as wide as its syntax assumptions, and finding one narrowing is a reason to look
+for the next. Dynamic keys (`` t(`${name}.doing`) ``) can never be scanned — they have two dedicated arms.
 
 Two shared label layers still need their own pass, each reaching many surfaces: `actorLine` /
 `proposalLabel` / `proposalQueuedByDialLine` (AttentionCenter + Notifications + Reach) and

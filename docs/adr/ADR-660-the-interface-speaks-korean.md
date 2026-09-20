@@ -3,8 +3,8 @@
 > **Status**: **Accepted + Implemented — the mechanism, the sign-in path, and the shell** (2026-09-20, operator:
 > *"consistent request to support korean language as an optionality … industry conventions, just fitting to our
 > service specifics"*). D1–D6 shipped and driven (§9); the shell pass and its ruling on served titles in §10.
-> **Coverage is the open half**: 898 lines of literal copy across 93 files remain English, held by D4's
-> ratchet; §8 names what is not decided here. §11 is the chat-surface pass.
+> **Coverage is the open half**: 875 lines of literal copy across 93 files remain English, held by D4's
+> ratchet; §8 names what is not decided here. §10 shell · §11 chat · §12 the account door.
 > **Date**: 2026-09-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Who** (a preference of the human, not of the commons).
@@ -268,3 +268,39 @@ pass of its own, not ahead of them.
 **Next by measurement**: `app/(authenticated)/settings/page.tsx` (25), then `StudioDesignTab` (61),
 `SubscriptionCard` (46), `ManageConnectionSubsurface` (38), `FindConnectorModal` (35),
 `WorkspaceMembersCard` (32), `TextEditor` (31).
+
+---
+
+## 12. The account door (2026-09-20)
+
+`app/(authenticated)/settings/page.tsx` — the Data & Privacy pane, both destructive confirms, and the
+Notifications pane. **875 lines across 93 files** remain (898 → 875; the file itself 25 → 2, and those 2 are
+the meter reading `link: (chunks) => (`).
+
+A sentence carrying a **link** moved to `t.rich` with a `<link>` tag, not a concatenation: "it lives in
+{link}" would have fixed the clause order, and the link sits mid-sentence in Korean
+(`…워크스페이스 설정 → 위험 구역에 있어요`).
+
+**⭐ The same arm was blind a second way.** After the quote-style repair of §11, the call-site regex still
+required a bare `t(` — so `t.rich("…")`, `t.has("…")` and `t.raw("…")` were unchecked. A broken `t.rich` key
+stayed green; proven by breaking one in place. The regex now accepts `t`, `t.rich`, `t.has`, `t.raw` and
+`t.markup`, and both method forms were falsified RED in place and restored byte-identical. **Two blind spots
+in one arm in one day: when a regex-backed gate is found narrow, look for the next narrowing before trusting
+it again.**
+
+**Receipts**: gate **32/32**. Voice guard 0. `tsc` 0. `next build` 136 prerendered, marketing all static.
+Driven on the `bare-kernel` rig, Korean: the Notifications pane reads
+`My workspace이(가) 회원님에게 알리는 방식이에요`, the in-app note renders its embedded link, and every dial
+option is Korean (`중요한 것만` · `작업할 때마다` · `받지 않기` · `받기` · `언급될 때마다` · `항상 보내요`).
+Both destructive confirms render fully in Korean with live counts (`워크스페이스 파일 38개`, `채팅 3개`) and
+**both were cancelled, never confirmed**. 0 page errors.
+
+**Named, not done — the shared confirm shell.** The confirm's Cancel button still reads English: it is
+`FeedbackContext`'s own chrome, and `FeedbackProvider` mounts in **two** places — `AuthenticatedLayout`
+(inside the scope) and `app/admin/layout.tsx` (outside it, since the console is not under
+`(authenticated)`). Translating it as-is would throw at render on `/admin`, which is the `AuthForm` hazard
+of §4 exactly. It needs its own decision — an `IntlScope` on the admin layout, or a locale-free shell — and
+the gate's one-level import check does cover it, because `app/admin/layout.tsx` imports the context
+directly.
+
+Still served, so still §8: the notification kinds' labels and descriptions (the backend registry).
