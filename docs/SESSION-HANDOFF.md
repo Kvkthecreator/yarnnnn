@@ -6,6 +6,25 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## NFC fix is committed but NOT PUSHED, and migration 259 is NOT APPLIED (2026-09-21)
+
+Two actions were denied by the session's production-deploy guard and need the operator:
+
+1. **`git push`** — `b05c08b` (the NFC fix + gate) and `ce0f418` (the pgroonga measurement) are
+   committed LOCALLY and sitting `ahead 2`. Nothing is deployed and no other session can see them.
+2. **`scripts/db/run-migration.sh supabase/migrations/259_nfc_one_unicode_spelling_for_a_path.sql`**
+   — dry-run is clean (UPDATE 6 on `workspace_file_versions`, UPDATE 2 on `workspace_files`, then
+   ROLLBACK) and its collision guard was falsified by inserting the NFC twin inside a rolled-back
+   transaction. **Production still holds 2 + 6 non-NFC rows.**
+
+The code fix is forward-safe on its own: new paths are minted NFC at both doors, so the split cannot
+widen. The migration only moves the 8 rows that predate it. Order does not matter between them.
+
+**Search (N1) is now costed, not guessed** — the design is a HYBRID, not a replacement: pgroonga
+alone regresses English (`reports` 181 → 103, no stemming) while the OR of both beats either
+(187 / 412) and takes the Korean failures 0 → 1. Cost ~90MB of index for ~8.6MB of content.
+Awaiting the operator's call on that ratio.
+
 ## Korean beyond the interface — five rulings awaited (audit 2026-09-21)
 
 `docs/analysis/korean-beyond-the-interface-2026-09-21.md` (`64b7dd1`). Audit only, nothing built.
