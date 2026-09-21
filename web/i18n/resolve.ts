@@ -4,11 +4,14 @@ import { getRequestUser } from "@/lib/supabase/server";
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
-  LOCALE_METADATA_KEY,
   isLocale,
   negotiateLocale,
   type Locale,
 } from "./config";
+// The account step is ONE reader, shared with the client chain
+// (`resolve-client.ts`, ADR-661 §8 step 2) so "what counts as the account's
+// preference" cannot answer differently on the two builds.
+import { accountLocaleFrom } from "./resolve-client";
 
 /**
  * ADR-660 D2 — the ONE resolution chain. A language belongs to the human, so
@@ -25,8 +28,8 @@ import {
  */
 export async function resolveLocale(): Promise<Locale> {
   const user = await getRequestUser();
-  const account = user?.user_metadata?.[LOCALE_METADATA_KEY];
-  if (isLocale(account)) return account;
+  const account = accountLocaleFrom(user?.user_metadata);
+  if (account) return account;
 
   const cookieStore = await cookies();
   const device = cookieStore.get(LOCALE_COOKIE)?.value;
@@ -39,6 +42,5 @@ export async function resolveLocale(): Promise<Locale> {
 /** The account's own preference, or null — the adoption effect needs to tell "unset" from "en". */
 export async function accountLocale(): Promise<Locale | null> {
   const user = await getRequestUser();
-  const account = user?.user_metadata?.[LOCALE_METADATA_KEY];
-  return isLocale(account) ? account : null;
+  return accountLocaleFrom(user?.user_metadata);
 }
