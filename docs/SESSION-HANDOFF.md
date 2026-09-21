@@ -6,54 +6,55 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## A member's workspace pin is wiped with no 403 — the join is real, the binding is not (2026-09-21)
+## A member's workspace pin does not survive the first landing — CAUSE STILL OPEN (2026-09-21)
 
 **Driven on production** with the declared rig pair (`kvkthecreator@yarnnn.com` owner of
-`bf5b25a9`, `testacct@yarnnn.com` as the joiner). The JOIN ITSELF IS SOUND — receipted:
-a fresh `principal_grants` row `role=member / status=active /
-granted_by=invite:67c5c637… / scopes=null`, and the invite flipped to `accepted` with the
-right `accepted_principal_id` and `accepted_at`. Roster, role badge, counts (1명 → 2명, the
-AI principal correctly excluded) and the owner-only hint all render correctly, in Korean.
+`bf5b25a9`, `testacct@yarnnn.com` joining). THE JOIN ITSELF IS SOUND — receipted: a fresh
+`principal_grants` row `role=member / status=active / granted_by=invite:67c5c637… /
+scopes=null`, and the invite flipped to `accepted` with the right principal and timestamp.
+Roster, role badge, counts (1명 → 2명, AI excluded), the owner-only hint and revoke all render
+correctly, in Korean.
 
-**THE DEFECT**: `yarnnn.active-workspace` (the `X-Workspace-Id` pin) is set correctly by the
-switcher — verified immediately after the click — and is then **cleared to `null` during the
-landing page load**, dropping the member silently into their OWN workspace. Reproduced on
-`/chat` and on `/files`.
+**THE SYMPTOM**: a member holding TWO workspaces picks the other one in the switcher, lands in
+its chat, and a later full page load silently puts them back in their OWN workspace —
+`yarnnn.active-workspace` is `null` again. Seen on `/chat` and on `/files`.
 
-⚠️ **It is NOT the ADR-499 stale-pin self-heal, and that is the whole point.** The heal is
-gated on `isStaleWorkspacePin` = a 403 whose detail starts `"No active grant into workspace"`.
-On the `/files` repro **all 24 XHR/fetch requests returned 200** — captured — and the page
-still reloaded (the duplicated `recent-revisions`/`nav`/`roots`/`tree` pairs are the reload)
-with the pin gone. So a second, undocumented path clears the pin. Do not "fix" the 403
-predicate; find the writer. Trapping `Storage.prototype.removeItem` catches only a
-same-document clear — the wipe happens across the load, so instrument earlier (a `storage`
-event listener, or log inside `setActiveWorkspace`/`clearActiveWorkspace` themselves).
+⚠️ **CORRECTION to this entry's first version (same day).** It claimed "cleared with NO 403,
+so a second undocumented path clears the pin". **That was an artifact of the instrument.** The
+self-heal RETRIES the failed call without the header and returns the retry, so the devtools
+network panel lists only the successful 200 — the 403 that triggered the heal is not in the
+list (`lib/api/client.ts:445` — "the in-flight retry runs FIRST and its result is returned").
+Verified by pinning a workspace the caller genuinely has no grant to: the pin cleared and the
+page reloaded with **all 25 requests showing 200**, in a case where healing is CORRECT. So the
+ADR-499 mechanism is working, and "no 403 was observed" must never again be read as "no 403
+occurred" on this path.
 
-**It is a RACE, not deterministic** — one hard load of `/chat` with the pin pre-set survived
-intact. Client-side navigation (dock buttons, settings→chat→back) ALWAYS survives. So the
-window is the first-paint fan-out on a full document load.
+**WHAT REMAINS UNEXPLAINED — and it is the actual bug.** During the two-account run the pin was
+wiped while the member's grant WAS valid (with the pin set by hand immediately afterwards,
+every rig surface rendered correctly as 멤버 and the pin then persisted). So a 403 fired against
+a workspace the member could reach. Most likely a RACE between the freshly-minted grant and the
+first fan-out after `setActiveWorkspace` + `window.location.assign('/chat')` — a read that
+resolves before the grant is visible to it. That would also explain why it is intermittent
+(one hard load of `/chat` with the pin pre-set survived intact) and why client-side navigation
+(dock buttons, settings→chat→back) ALWAYS survives.
 
-**Consequence for a multi-workspace member**: they pick the other workspace in the switcher,
-land in its chat, and every subsequent surface may silently show their own workspace instead.
-Workspace Settings was the surface where this was first seen (it read "My workspace ·
-내 역할: 소유자" for a member who had just switched to the rig).
+**How to finish this**: log inside `clearActiveWorkspace`/`healStaleWorkspacePin` (not the
+network panel — see above), capture the endpoint and the server's detail string at the moment
+of the heal, and check `get_user_client`'s grant read for a staleness/replica window right
+after an invite-accept. A heal that fires against a VALID grant is the defect; the heal itself
+is not.
 
-**SEVERITY BOUND — measured 2026-09-21, and it is why this is NOT release-blocking.** The pin
-is `null` for a single-workspace user by design (the owner default), so there is nothing to
-wipe and the defect is UNREACHABLE for them. Of 22 human principals holding an active grant,
-exactly **2 hold more than one workspace — `kvkthecreator@gmail.com` and `seulkim88@gmail.com`,
-both operator-controlled**. No real external user can reach this today. It becomes live the
-moment a second real person holds two grants, which an onboarding of any invited user who
-already owns a workspace produces — so fix it before that, not before the demo.
+**SEVERITY BOUND — measured, and why this is NOT release-blocking.** The pin is `null` for a
+single-workspace user by design, so there is nothing to wipe and the defect is UNREACHABLE for
+them. Of 22 human principals with an active grant, exactly **2 hold more than one workspace —
+`kvkthecreator@gmail.com` and `seulkim88@gmail.com`, both operator-controlled**. No real
+external user can reach this today. It goes live the moment a second real person holds two
+grants, which onboarding any invited user who already owns a workspace produces.
 
-A second, quieter consequence when it does fire: `shellStateSuffix` (`lib/shell/
+A second, quieter consequence when it fires: `shellStateSuffix` (`lib/shell/
 surface-preferences.ts:186-196`) keys ALL persisted shell state on the pin, so a mid-session
-flip reads and writes window/dock/attention state under the wrong key. Already visible in
-live localStorage — the same user carries keys under both `owner:<uid>` and `<wsid>:<uid>`.
-
-**Verified NOT the cause**: the grant (valid — with the pin set by hand, every rig surface
-renders correctly as 멤버 and the pin then persists); the switcher (`UserMenu.tsx:195` pins,
-ADR-548 D9, confirmed in the live DOM); a 403 (none observed).
+flip reads and writes window/dock/attention state under the wrong key. Already visible in live
+localStorage — one user carries keys under both `owner:<uid>` and `<wsid>:<uid>`.
 
 ## Members roster: three owner-gated controls are shown to a member (2026-09-21)
 
