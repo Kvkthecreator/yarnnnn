@@ -151,6 +151,41 @@ platform-divergent APIs there are, so that ADR scopes ONE platform at a time.
 ⚠️ `docs/analysis/src_claudeCC/` is a vendored copy of Claude Code's own source (untracked,
 gitignored). **22 of 28 "computer use" matches under `docs/` are that tree, not canon.**
 
+## Text: create ASCII-folds a Korean name, rename does not (2026-09-21)
+
+Driven in Korean on production, Text app, as a real member. **The substrate itself is fine** —
+this is a door inconsistency, not a storage limit.
+
+- **Create** (`NameDocumentModal`) runs the typed name through `slugify` →
+  `services/naming.py::path_slug`, which ASCII-folds by design: `투자자 미팅 노트` →
+  `operation/untitled.md`, titled "Untitled". The canon documents this deliberately
+  (`한글 문서` → `untitled`, made safe by `disambiguate`'s `untitled-2`, `untitled-3`, …), and
+  the typed name is carried verbatim into the H1 — which it is.
+- **Rename**, on the very same file, accepts a Hangul path with no folding at all:
+  `operation/투자자 미팅 노트.md`, and the stored path is correctly **NFC** (migration 259's
+  guarantee verified live on a freshly-minted path). Rename never calls `path_slug`.
+
+So a member can HAVE a Korean filename; they just cannot create one directly. Two doors to a
+path, two different rules — the same shape as the seat-cap finding one level down. **Not fixed
+here**: which rule is right is a ruling, not a bug fix. If Hangul paths are acceptable (rename
+proves the substrate, Postgres and the export path all handle them), `path_slug` at creation is
+a constraint the product no longer needs and ADR-469 should be revisited. If the ASCII key is
+load-bearing for something not yet named (git export filenames? a connector?), then RENAME is
+the door that is wrong and should fold too. Do not "fix" one door before that is decided.
+
+**Fixed in passing** (`ca4169a` + follow-up): the create dialog's lede promised "the file takes
+a matching name", which was simply false for any non-Latin name — reworded in en/ko to say the
+name is what you see and the path below is its ASCII key (the path preview was honest all
+along). A THIRD hand-rolled slugifier in `NameDocumentModal` (no NFKD fold, so `Café notes` →
+`caf-notes` — the defect ADR-469 already fixed elsewhere) was collapsed into the shared
+`slugify`, now in `artifactNaming.ts`. And the first revision's change note was the literal
+`create .md` for a Korean name (the old local slug returned ""), so the timeline named no file
+at all; it now reads `Created {the name the member typed}`.
+
+⚠️ **Still open, cosmetic but visible**: with a folded path the window title and the Properties
+header both read "Untitled" / `untitled.md` while the member's name sits in the 개요 field two
+lines below. The title should prefer the document's own name over its path stem.
+
 ## The upload door is open — two owed follow-ups (ADR-395 am.1, 2026-09-21)
 
 Shipped: the intake door drops its format allowlist (D8), a file with no projection is retained

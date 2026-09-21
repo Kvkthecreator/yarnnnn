@@ -89,7 +89,13 @@ export function NameDocumentModal({
     try {
       // The document is born with its own name as the H1 — the member typed
       // it once; retyping it into the body would be the ceremony Docs avoids.
-      await api.workspace.editFile(path, `# ${typed}\n\n`, undefined, `create ${slug}.md`);
+      // The change note names what the MEMBER made, not the ASCII key. It was
+      // `create ${slug}.md`, which for a Korean name produced the literal
+      // `create .md` on the first revision (the old local slugifier returned an
+      // empty string for a name with no Latin characters) — a timeline entry
+      // naming no file at all. The slug is a path key; the note is prose a
+      // person reads on their own history, so it carries the typed name.
+      await api.workspace.editFile(path, `# ${typed}\n\n`, undefined, `Created ${typed}`);
       onError?.(null);
       onCreated(path);
     } catch (e) {
