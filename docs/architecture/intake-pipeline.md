@@ -182,7 +182,7 @@ Whether a lane distils is a decision, and the reason must be stated:
 | Lane | Derives? | Why |
 |---|---|---|
 | `web` | **yes** | RSS/Atom is machine-shaped; unusable until distilled |
-| `uploads` | **yes** | `system:extract` → `derivation` (text out of blobs) |
+| `uploads` | **yes** | `system:extract` → `derivation` (text out of blobs) — or a MARKER when there is no text; see below |
 | `mcp` | **no** | an MCP write is already meaningful authored prose — there is nothing to distil |
 | `slack` / `notion` / `github` | **via standing work** (ADR-594 D3 / ADR-639) | landed files are member-visible without any distil; a member who wants a maintained prose view declares a kept md file with `connector:` sources in its `_standing.yaml` (the digest, generalized — ADR-580's module is superseded and deleted). Contract: [connectors.md](connectors.md) |
 
@@ -190,6 +190,20 @@ Whether a lane distils is a decision, and the reason must be stated:
 closed by [ADR-580](../adr/ADR-580-the-connector-derive-step.md); the brief
 that framed it ([`connector-reach-and-the-commons.md`](connector-reach-and-the-commons.md))
 is retained as the discourse record.
+
+**The `uploads` derive always writes something (ADR-395 am.1 D9).** The
+derive-registry (`registry_strategy`) decides what: a `text` format gets the
+extracted projection; a format with no strategy, or a text-family file whose
+extraction came back empty (a scanned PDF, a chart-only deck), gets a **marker**
+— same path, same `derived_from` citation, a NOTE stating the file is retained
+and not yet machine-readable, and no fabricated content. Media is the one
+exception: it carries neither, because a player already shows what it is.
+
+This matters because the upload door itself **no longer refuses on format**
+(am.1 D8 — acceptance is conformance to `public.data`, the DAG root). Anything
+lands. So "can a model read this?" moved entirely into the derive stage, where
+the honest answer is a file the agent can read rather than a rejection the
+member has to interpret.
 
 This is why the contract binds stages 1 and 4 but not 2–3: a rule that every
 lane must derive would make `mcp`'s correct shape a defect.

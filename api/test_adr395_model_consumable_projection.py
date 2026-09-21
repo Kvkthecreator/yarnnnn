@@ -18,9 +18,14 @@ rows (Defect 1), and the derive-registry verdicts are correct.
 """
 
 import asyncio
+import io
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+#: The api/ root — the amendment-1 source checks read from here (ADR-395 am.1).
+ROOT = Path(__file__).resolve().parent
 
 
 # ── DB/storage boundary mocks ──────────────────────────────────────────────
@@ -261,8 +266,12 @@ def test_second_upload_same_name_does_not_clobber():
 
 @pytest.mark.parametrize("ft,expected", [
     ("pdf", "text"), ("docx", "text"), ("txt", "text"), ("md", "text"), ("csv", "text"),
+    ("html", "text"),  # ADR-530 D1
+    # ADR-395 am.1 D10 — xlsx/pptx LEAVE the deferred set (openpyxl / python-pptx,
+    # in-process; no sandbox). These two lines were `deferred` before the amendment.
+    ("xlsx", "text"), ("pptx", "text"),
     ("png", "passthrough"), ("jpg", "passthrough"),
-    ("xlsx", "deferred"), ("pptx", "deferred"), ("zip", "deferred"), ("mp3", "deferred"),
+    ("zip", "deferred"), ("mp3", "deferred"),
     ("wat-is-this", "deferred"),  # unknown = retained-not-consumable, never a break
     (None, "deferred"),
 ])
@@ -343,3 +352,256 @@ def test_is_upload_projection_is_narrow_and_symmetric(path, hidden):
     plumbing into the tree."""
     from services.documents import is_upload_projection
     assert is_upload_projection(path) is hidden
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ADR-395 Amendment 1 (2026-09-21) — the door opens, and nothing is dropped
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_am1_d8_no_format_allowlist_survives_at_the_intake_door():
+    """D8 — `_DOC_MIMES` is DELETED, and acceptance is conformance to public.data.
+
+    A widened allowlist is the same defect with a longer list, so this asserts
+    the NAME is gone rather than that it contains more entries. Reads the source
+    with comments stripped: the amendment's own comment names `_DOC_MIMES` to
+    explain the deletion, and a substring check would match that prose (the
+    ADR-588 lesson — a gate assertion can match its own comment).
+    """
+    import re
+    src = (ROOT / "routes" / "documents.py").read_text(encoding="utf-8")
+    code = "\n".join(
+        re.sub(r"#.*$", "", line) for line in src.splitlines()
+    )
+    assert "_DOC_MIMES" not in code, "the format allowlist is back"
+    assert 'conforms_to(mime, "public.data")' in code, \
+        "the intake verdict no longer asks the public.data question"
+
+
+def test_am1_d8_intake_verdict_accepts_every_format():
+    """D8 driven — the verdict itself, over formats that were refused before."""
+    from routes.documents import _intake_verdict
+
+    # xlsx/pptx were rejected by _DOC_MIMES; the zip magic is what they carry.
+    zip_magic = b"PK\x03\x04" + b"\x00" * 20
+    for name, expect_ft in [
+        ("q3.xlsx", "xlsx"), ("deck.pptx", "pptx"), ("brief.docx", "docx"),
+    ]:
+        mime, ft, is_media = _intake_verdict(name, zip_magic)
+        assert mime is not None, f"{name} refused at the door"
+        assert ft == expect_ft, (name, ft)
+        assert is_media is False
+
+    # A format nobody has ever registered still lands (retained, not consumable),
+    # and keeps its own extension. TRUE binary bytes: `b"\x00\x01\x02\x03"` is
+    # valid utf-8 (control chars), so it exercises the utf-8 fallback rather than
+    # the binary one — the weak fixture that hid this during implementation.
+    for head in (b"\xff\xd8\xab\xcd\x00\x91", b"8BPS\x00\x01\x00\x00"):
+        mime, ft, is_media = _intake_verdict("model.sketch", head)
+        assert mime is not None, "an unknown format is refused — the door is not open"
+        assert ft == "sketch", (
+            "the derived MIME beat the extension — an unsignatured head that "
+            "decodes as utf-8 would send binary bytes to the TEXT extractor"
+        )
+
+
+def test_am1_d9_deferred_write_marks_rather_than_logs():
+    """D9 — a retained-not-consumable file gets a MARKER file citing its raw.
+
+    The pre-amendment branch returned after a log line, so an agent saw a file
+    it could not open with no explanation anywhere it could read.
+    """
+    from services.primitives.extract_text_from_blob import handle_extract_text_from_blob
+
+    written = {}
+
+    def _fake_write(db, *, user_id, path, content=None, **kw):
+        written["path"] = path
+        written["content"] = content
+        written["derived_from"] = kw.get("derived_from")
+        written["kind"] = kw.get("revision_kind")
+        return {"id": "rev1"}
+
+    class _Auth:
+        user_id = "u"
+        client = object()
+        caller_identity = "system:extract"
+
+    import services.authored_substrate as sub
+    with patch.object(sub, "write_revision", _fake_write):
+        out = asyncio.run(handle_extract_text_from_blob(_Auth(), {
+            "raw_path": "/workspace/inbound/uploads/archive.zip",
+            "write_to": "/workspace/inbound/uploads/archive.extracted.md",
+            "file_type": "zip",
+            "source_filename": "archive.zip",
+            "embed": False,
+        }))
+
+    assert out["success"] is True
+    assert out["strategy"] == "deferred"
+    assert out["projection_path"] == "/workspace/inbound/uploads/archive.extracted.md", \
+        "the deferred branch wrote no marker — the anti-silent-drop clause is only a log line"
+    assert written["derived_from"] == ["/workspace/inbound/uploads/archive.zip"], \
+        "the marker does not cite its raw"
+    assert written["kind"] == "derivation"
+    body = written["content"]
+    assert "derived_from: /workspace/inbound/uploads/archive.zip" in body
+    assert "NOTE:" in body and "retained in full" in body
+    # Never fabricate: the marker states the gap, it does not invent contents.
+    assert "zip" in body.lower()
+
+
+def test_am1_d9_empty_extraction_marks_instead_of_failing_the_upload():
+    """D9 — a text-family file that yields no text still lands, and says so.
+
+    The scanned-PDF case. Before the amendment a 50-char floor in
+    `process_document` returned success:False and the BYTES NEVER LANDED.
+    """
+    from services.primitives.extract_text_from_blob import handle_extract_text_from_blob
+
+    written = {}
+
+    def _fake_write(db, *, user_id, path, content=None, **kw):
+        written["content"] = content
+        return {"id": "rev1"}
+
+    class _Auth:
+        user_id = "u"
+        client = object()
+        caller_identity = "system:extract"
+
+    import services.authored_substrate as sub
+    with patch.object(sub, "write_revision", _fake_write):
+        out = asyncio.run(handle_extract_text_from_blob(_Auth(), {
+            "raw_path": "/workspace/inbound/uploads/scan.pdf",
+            "write_to": "/workspace/inbound/uploads/scan.extracted.md",
+            "text": "   \n  ",          # extractor found nothing
+            "file_type": "pdf",
+            "source_filename": "scan.pdf",
+            "embed": False,
+        }))
+
+    assert out["success"] is True, "an unreadable PDF failed the upload"
+    assert out["strategy"] == "deferred"
+    assert "No text could be read" in written["content"], \
+        "the empty-extraction marker does not distinguish itself from an unknown format"
+
+
+def test_am1_d9_the_rejection_floor_is_gone_from_process_document():
+    """D9 — the 50-char floor that failed the whole upload no longer exists."""
+    import re
+    src = (ROOT / "services" / "documents.py").read_text(encoding="utf-8")
+    code = "\n".join(re.sub(r"#.*$", "", line) for line in src.splitlines())
+    assert "No text could be extracted from document" not in code, \
+        "the extraction floor still rejects the upload"
+    assert "registry_strategy(file_type)" in code, \
+        "process_document no longer asks the registry what is owed"
+
+
+def test_am1_d10_docx_extraction_keeps_tables_and_headers():
+    """D10 — the repaired docx extractor, DRIVEN over a real table-bearing file.
+
+    The pre-amendment extractor walked `doc.paragraphs` only and returned just
+    "Intro paragraph." for this document: the table and the header were dropped
+    with no error and no log line. A contract or spec sheet is mostly tables, so
+    this was live data loss that read as a successful upload.
+    """
+    docx = pytest.importorskip("docx")
+    from services.documents import extract_text
+
+    d = docx.Document()
+    d.add_paragraph("Intro paragraph.")
+    t = d.add_table(rows=2, cols=2)
+    t.cell(0, 0).text = "Term"
+    t.cell(0, 1).text = "Value"
+    t.cell(1, 0).text = "Payment"
+    t.cell(1, 1).text = "Net 30"
+    d.add_paragraph("Closing paragraph.")
+    d.sections[0].header.paragraphs[0].text = "ACME CONFIDENTIAL"
+    buf = io.BytesIO()
+    d.save(buf)
+
+    text, blocks = asyncio.run(extract_text(buf.getvalue(), "docx"))
+
+    assert "Net 30" in text, "the table was dropped — the am.1 D10 data loss is back"
+    assert "Term\tValue" in text, "table rows are not tab-separated"
+    assert "ACME CONFIDENTIAL" in text, "the header was dropped"
+    assert "Intro paragraph." in text and "Closing paragraph." in text
+    # Document order: the table sits BETWEEN the two paragraphs, and only the
+    # body's XML child order records that.
+    assert text.index("Intro paragraph.") < text.index("Net 30") < text.index("Closing paragraph.")
+    assert blocks >= 4
+
+
+def test_am1_d10_xlsx_extraction_reads_every_sheet():
+    """D10 — xlsx joins the text family, driven over a real workbook."""
+    openpyxl = pytest.importorskip("openpyxl")
+    from services.documents import extract_text
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Q3"
+    ws.append(["Region", "Revenue"])
+    ws.append(["EMEA", 1200])
+    wb.create_sheet("Notes").append(["renewal risk"])
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    text, sheets = asyncio.run(extract_text(buf.getvalue(), "xlsx"))
+
+    assert "## Q3" in text and "## Notes" in text, "a sheet is missing"
+    assert "EMEA\t1200" in text, "rows are not tab-separated"
+    assert "renewal risk" in text, "the second sheet was dropped"
+    assert sheets == 2
+
+
+def test_am1_d10_pptx_extraction_reads_slides_and_notes():
+    """D10 — pptx joins the text family, with speaker notes kept."""
+    pptx = pytest.importorskip("pptx")
+    from services.documents import extract_text
+
+    prs = pptx.Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[1])
+    slide.shapes.title.text = "Roadmap"
+    slide.placeholders[1].text = "Ship intake"
+    slide.notes_slide.notes_text_frame.text = "Do not promise dates"
+    buf = io.BytesIO()
+    prs.save(buf)
+
+    text, slides = asyncio.run(extract_text(buf.getvalue(), "pptx"))
+
+    assert "## Slide 1" in text
+    assert "Roadmap" in text and "Ship intake" in text
+    assert "Speaker notes: Do not promise dates" in text, \
+        "speaker notes dropped — the argument the slide only gestures at"
+    assert slides == 1
+
+
+def test_am1_d8_zip_expansion_no_longer_filters_on_the_parser_table():
+    """D8 — a .xlsx inside a .zip is expanded, and a nested archive is not.
+
+    `_expand_zip` filtered entries on `_MIME_EXTS.values()` — the EXTRACTOR
+    table doing duty as a gate, so an office file inside an envelope was
+    dropped without a word.
+    """
+    import zipfile
+    from routes.documents import _expand_zip
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("sheet.xlsx", b"PK\x03\x04payload")
+        zf.writestr("deck.pptx", b"PK\x03\x04payload")
+        zf.writestr("notes.md", b"# hi")
+        zf.writestr("model.sketch", b"\x00\x01")
+        zf.writestr("nested.zip", b"PK\x03\x04nested")
+        zf.writestr("__MACOSX/._x", b"junk")
+        zf.writestr(".hidden", b"junk")
+
+    names = [n for n, _ in _expand_zip(buf.getvalue())]
+
+    assert "sheet.xlsx" in names and "deck.pptx" in names, \
+        "office files inside a .zip are still filtered out"
+    assert "model.sketch" in names, "an unknown format inside a .zip is dropped"
+    assert "notes.md" in names
+    assert "nested.zip" not in names, "a nested archive was expanded recursively"
+    assert not any(n.startswith(".") for n in names)

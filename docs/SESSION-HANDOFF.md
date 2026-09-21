@@ -6,6 +6,34 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## The upload door is open — two owed follow-ups (ADR-395 am.1, 2026-09-21)
+
+Shipped: the intake door drops its format allowlist (D8), a file with no projection is retained
+with a legible marker instead of failing the upload (D9), `xlsx`/`pptx` join the text family and
+the `docx` extractor is repaired of silent table/header loss (D10). Gate 42/42, falsified six ways.
+
+1. **NOT CLICK-PASSED.** Every receipt is a driven unit path (real generated docx/xlsx/pptx through
+   `extract_text`; a real `.xlsx` through `_intake_verdict`) plus `next build` exit 0. Nobody has
+   dragged an `.xlsx` onto the Files canvas in a browser and watched the raw + projection land, or
+   uploaded a scanned PDF and read the marker in the UI. The FE `accept` attributes were REMOVED,
+   so the picker now offers every file — that is the visible change to check first.
+2. **`python-pptx` is a new dependency and must reach BOTH services.** `requirements.txt` carries it;
+   confirm `yarnnn-api` AND `yarnnn-unified-scheduler` rebuilt (the scheduler runs the capture lane,
+   which can invoke the same derive). An extractor missing there fails as a marker, not a crash —
+   which is the honest degradation but would read as "we can't parse pptx".
+
+Two pre-existing defects were found and fixed in passing (both unrelated to the amendment):
+`test_adr621` monkeypatched `execute_primitive` at module import and never restored it, turning
+three ADR-395 arms RED on run ORDER alone; and `test_resend_webhooks.py` is DEAD — it imports
+`_map_resend_event_to_delivery_status`, which no longer exists in `routes/webhooks.py`, so it errors
+at collection. The second is NOT fixed — it needs someone to decide whether that gate still has a
+subject.
+
+**Suite baseline for the next session**: 45 failed / 593 passed across the 76 collectible gates
+(`for f in test_*.py; do grep -q 'sys\.exit' "$f" || echo "$f"; done`). The 45 are pre-existing —
+measured identical against stashed changes. The other ~318 gates are script-shaped (`sys.exit`) and
+abort pytest collection, so a whole-suite run is not possible today.
+
 ## NFC fix is committed but NOT PUSHED, and migration 259 is NOT APPLIED (2026-09-21)
 
 Two actions were denied by the session's production-deploy guard and need the operator:

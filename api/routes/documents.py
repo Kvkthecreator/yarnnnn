@@ -119,13 +119,18 @@ class DownloadResponse(BaseModel):
 
 # ADR-427 Phase 3: the intake gate is a CONFORMANCE question (D5), not a
 # stored-MIME allowlist. The type is DERIVED from magic bytes + extension
-# (services/content_types.py — the single source), and acceptance asks "does
-# the derived type conform to a base yarnnn declares?" — public.image /
-# public.movie / public.audio / public.text, plus the concrete document set.
-_DOC_MIMES = {
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-}
+# (services/content_types.py — the single source).
+#
+# ADR-395 am.1 D8: acceptance is conformance to `public.data` — the DAG's root,
+# which everything conforms to. The door no longer asks what FORMAT this is; it
+# asks only about size and authority, which is what a filesystem's door is for.
+#
+# `_DOC_MIMES` (pdf + docx) was DELETED, not widened. A widened allowlist is the
+# same defect with a longer list: it is a second home for a decision the
+# derive-registry owns, and it is why `.xlsx` was refused at the door while
+# `content_types.py` had known its MIME all along. What a model can READ is the
+# registry's question (`registry_strategy`), asked after the bytes are safely
+# landed — never a reason to refuse them.
 _MEDIA_BASES = ("public.image", "public.movie", "public.audio")
 
 MAX_FILE_SIZE = 25 * 1024 * 1024        # 25MB — documents/images
@@ -155,16 +160,30 @@ _MIME_EXTS = {
 def _intake_verdict(filename: str, head: bytes) -> tuple[Optional[str], Optional[str], bool]:
     """The conformance-DAG intake check (ADR-427 D5 / Phase 3).
 
-    Returns (mime, file_type, is_media) — mime None means rejected."""
+    Returns (mime, file_type, is_media) — mime None means rejected.
+
+    ADR-395 am.1 D8: nothing is rejected HERE on format any more. The size and
+    emptiness gates in `_process_single_upload` still refuse, and they are the
+    real limits. The verdict survives because callers need `file_type`
+    (which extractor) and `is_media` (whether a text projection is owed)."""
     from services.content_types import conforms_to, derive_content_type
 
     mime = derive_content_type(filename, head)
     is_media = any(conforms_to(mime, b) for b in _MEDIA_BASES)
-    accepted = is_media or mime in _DOC_MIMES or conforms_to(mime, "public.text")
-    if not accepted:
+    if not conforms_to(mime, "public.data"):   # the root — ADR-395 am.1 D8
         return None, None, False
     ext = (filename or "").rsplit(".", 1)[-1].lower() if "." in (filename or "") else ""
-    file_type = _MIME_EXTS.get(mime) or ext or "bin"
+    # ADR-395 am.1 D8 — the member's EXTENSION wins over the derived MIME here.
+    #
+    # `_MIME_EXTS.get(mime) or ext` read the parser table first, which was safe
+    # while the allowlist admitted only formats that table knew. With the door
+    # open it is not: `derive_content_type` falls back to `text/markdown` for any
+    # unsignatured head that happens to be utf-8-decodable (a NUL-padded binary
+    # header often is), so `design.sketch` resolved to file_type `md` and its
+    # bytes would be handed to the TEXT extractor — DP34's own diagnostic test,
+    # failing. The extension is what the member and the registry both name a
+    # format by; the MIME table is consulted only when there is no extension.
+    file_type = ext or _MIME_EXTS.get(mime) or "bin"
     return mime, file_type, is_media
 
 
@@ -222,8 +241,8 @@ async def _process_single_upload(
     # ADR-427 Phase 3: derive the type from the bytes + name (D5) and gate by
     # conformance, never by the caller-declared content_type.
     mime, file_type, is_media = _intake_verdict(filename, content[:64])
-    if mime is None:
-        return _fail("Unsupported file type — images, video, audio, PDF, DOCX, and text conform")
+    if mime is None:  # unreachable while public.data is the bar (am.1 D8); kept honest
+        return _fail("Unsupported file type")
     from services.content_types import conforms_to
     cap = MAX_MEDIA_SIZE if conforms_to(mime, "public.movie") or conforms_to(mime, "public.audio") else MAX_FILE_SIZE
     if len(content) > cap:
@@ -285,11 +304,14 @@ def _expand_zip(content: bytes) -> List[tuple]:
                 # Skip hidden / macOS resource-fork / system entries
                 if not base or base.startswith(".") or name.startswith("__MACOSX/"):
                     continue
-                # ADR-427 Phase 3: entries face the same conformance verdict
-                # as direct uploads (extension-only here — bytes are checked
-                # again in _process_single_upload after read).
-                ext = base.rsplit(".", 1)[-1].lower() if "." in base else ""
-                if ext not in _MIME_EXTS.values():
+                # ADR-395 am.1 D8: entries face the same (now open) verdict as
+                # direct uploads — the bytes are checked in
+                # _process_single_upload after read. This filtered on
+                # `_MIME_EXTS.values()`, which is the EXTRACTOR table: a parser
+                # lookup doing duty as a gate, so a .xlsx inside a .zip was
+                # dropped without a word. A nested archive is still skipped —
+                # the envelope is expanded once, never recursively (zip-bomb).
+                if base.lower().endswith((".zip", ".gz", ".tgz", ".7z", ".rar")):
                     continue
                 # Guard against zip-bomb single entries before reading.
                 if info.file_size > MAX_MEDIA_SIZE:
@@ -370,7 +392,7 @@ async def upload_documents(
     if not work:
         raise HTTPException(
             status_code=400,
-            detail="No supported files. Allowed: PDF, DOCX, TXT, MD (or a .zip of those).",
+            detail="No files received.",
         )
 
     results: List[UploadResultItem] = []

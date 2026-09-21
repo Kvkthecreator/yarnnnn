@@ -1,6 +1,6 @@
 # ADR-395 — The Model-Consumable Projection: upload intake conformance (retain raw · derive projection · host-gated raw reference)
 
-> **Status**: **Accepted** (canon ratified 2026-07-01 — **Phase 0 done**: FOUNDATIONS Derived Principle 34 landed at v9.14 + the DP32 cross-reference sentence. **Phase 1 (A+B) shipped to main 2026-07-01** [commit `542740e`/merge `d45d0b0`]: raw blob lands at `inbound/uploads/{principal}/{slug}.{ext}` via `content_url` [stable `/api/documents/blob` redirect]; `ExtractTextFromBlob` primitive derives the co-located `.extracted.md` text projection citing the raw via `derived_from`, invoked INLINE [refined from "capture-lane hook" — an upload is one-shot, zero-LLM in-request]. **Phase-1 completeness closeout (2026-07-02)**: an audit found two shipped defects the initial land missed — (i) the projection landed at `inbound/uploads/*.extracted.md`, a lane that was NOT embed-eligible (roots were `operation/`+`uploads/` only) AND outside `QueryKnowledge`'s hard `/workspace/operation/` search prefix, so the projection was never embedded and was unreachable by `recall` — the §4-Piece-B "closes the searchability gap" claim was aspirational, not real. Fixed: `inbound/uploads/` added to `_EMBED_ELIGIBLE_ROOTS` + a shared `is_searchable_root` predicate, and `handle_query_knowledge`'s default (no-domain) sweep now spans the searchable surface (unscoped RPC + post-filter to searchable roots) rather than locking to `operation/`. (ii) `GET /documents/{path}/download` read `storage_path` only from frontmatter, which the new raw rows don't carry (storage is in `content_url`), so Download 404'd for every new upload — fixed to resolve `storage_path` from `content_url` first, legacy-frontmatter fallback retained. A dedicated `test_adr395_model_consumable_projection.py` gate now drives the real `process_document`+`ExtractTextFromBlob` path and asserts the projection is embed-eligible+recall-reachable — the regression guard the ADR-331 gate (which mocks `process_document`) could not provide. **Embedding-over-reach correction (2026-07-02)**: an OpenAI-quota outage (surfaced by live E2E validation) exposed that the intake path had drifted toward embedding-first coupling, against ADR-325's ratified discipline (*embedding is enrichment; the mechanical floor is load-bearing*). Two corrections, per the operator's re-derivation: (i) **recall is now mechanical-first** — `handle_query_knowledge` runs the free BM25 full-text path first and escalates to the paid semantic embed ONLY when BM25 comes up empty (confines the un-metered embedding COGS — the pricing carve's B′ line — to genuinely-fuzzy queries, and keeps the recall hot path off the external rate-limited API); (ii) **the upload embed is now DEFERRED** — `ExtractTextFromBlob` gains an `embed` flag (default true); `process_document` passes `embed=False` + reports `embed_pending`, and the upload route schedules the embed via FastAPI `BackgroundTasks` AFTER the response, so a rate-limited/slow OpenAI call never blocks or breaks the upload (the projection is BM25-searchable the instant the response returns; the embedding enrichment catches up). ADR-325's upload auto-embed exception (D6, operator-initiated, not Reviewer-gated) is PRESERVED — only its *timing* moves from synchronous to deferred. Gate 21/21 (adds deferred-embed + mechanical-first assertions). **Phase 2 [C: host-gated MCP raw reference] + Phase 3 [registry expansion: xlsx/pptx/zip/audio] remain.**). Ratifies **FOUNDATIONS Derived Principle 34** (the model-consumable projection — the consumption member of the perception cycle) and conforms the **human-upload** transport to it — the last context-in transport DP32 named but the code never fixed. **Substrate + Channel dimensions** (Axiom 1 — how an uploaded file is retained + derived; Axiom 6 — how a substrate object egresses to a model). Adds **one new primitive** (`ExtractTextFromBlob`), **one new capability flag** on the host profile, and **populates an existing-but-unused column** (`workspace_files.content_url`). Changes **no** existing write gate and **no** attribution taxonomy.
+> **Status**: **Accepted** (canon ratified 2026-07-01 — **Phase 0 done**: FOUNDATIONS Derived Principle 34 landed at v9.14 + the DP32 cross-reference sentence. **Phase 1 (A+B) shipped to main 2026-07-01** [commit `542740e`/merge `d45d0b0`]: raw blob lands at `inbound/uploads/{principal}/{slug}.{ext}` via `content_url` [stable `/api/documents/blob` redirect]; `ExtractTextFromBlob` primitive derives the co-located `.extracted.md` text projection citing the raw via `derived_from`, invoked INLINE [refined from "capture-lane hook" — an upload is one-shot, zero-LLM in-request]. **Phase-1 completeness closeout (2026-07-02)**: an audit found two shipped defects the initial land missed — (i) the projection landed at `inbound/uploads/*.extracted.md`, a lane that was NOT embed-eligible (roots were `operation/`+`uploads/` only) AND outside `QueryKnowledge`'s hard `/workspace/operation/` search prefix, so the projection was never embedded and was unreachable by `recall` — the §4-Piece-B "closes the searchability gap" claim was aspirational, not real. Fixed: `inbound/uploads/` added to `_EMBED_ELIGIBLE_ROOTS` + a shared `is_searchable_root` predicate, and `handle_query_knowledge`'s default (no-domain) sweep now spans the searchable surface (unscoped RPC + post-filter to searchable roots) rather than locking to `operation/`. (ii) `GET /documents/{path}/download` read `storage_path` only from frontmatter, which the new raw rows don't carry (storage is in `content_url`), so Download 404'd for every new upload — fixed to resolve `storage_path` from `content_url` first, legacy-frontmatter fallback retained. A dedicated `test_adr395_model_consumable_projection.py` gate now drives the real `process_document`+`ExtractTextFromBlob` path and asserts the projection is embed-eligible+recall-reachable — the regression guard the ADR-331 gate (which mocks `process_document`) could not provide. **Embedding-over-reach correction (2026-07-02)**: an OpenAI-quota outage (surfaced by live E2E validation) exposed that the intake path had drifted toward embedding-first coupling, against ADR-325's ratified discipline (*embedding is enrichment; the mechanical floor is load-bearing*). Two corrections, per the operator's re-derivation: (i) **recall is now mechanical-first** — `handle_query_knowledge` runs the free BM25 full-text path first and escalates to the paid semantic embed ONLY when BM25 comes up empty (confines the un-metered embedding COGS — the pricing carve's B′ line — to genuinely-fuzzy queries, and keeps the recall hot path off the external rate-limited API); (ii) **the upload embed is now DEFERRED** — `ExtractTextFromBlob` gains an `embed` flag (default true); `process_document` passes `embed=False` + reports `embed_pending`, and the upload route schedules the embed via FastAPI `BackgroundTasks` AFTER the response, so a rate-limited/slow OpenAI call never blocks or breaks the upload (the projection is BM25-searchable the instant the response returns; the embedding enrichment catches up). ADR-325's upload auto-embed exception (D6, operator-initiated, not Reviewer-gated) is PRESERVED — only its *timing* moves from synchronous to deferred. Gate 21/21 (adds deferred-embed + mechanical-first assertions). **Phase 2 [C] is CLOSED by ADR-621** (§4/§7 — the medium reason does not expire). **Phase 3 SHIPPED 2026-09-21 as Amendment 1 (§8)**: the intake door drops its format allowlist entirely (D8 — acceptance is conformance to `public.data`), a file with no projection is RETAINED and carries a legible marker instead of failing the upload (D9), and `xlsx`/`pptx` join the text family while the `docx` extractor is REPAIRED of silent table/header loss (D10). §8.7 scopes the sandbox horizon without adopting it. Gate 42/42, falsified six ways.). Ratifies **FOUNDATIONS Derived Principle 34** (the model-consumable projection — the consumption member of the perception cycle) and conforms the **human-upload** transport to it — the last context-in transport DP32 named but the code never fixed. **Substrate + Channel dimensions** (Axiom 1 — how an uploaded file is retained + derived; Axiom 6 — how a substrate object egresses to a model). Adds **one new primitive** (`ExtractTextFromBlob`), **one new capability flag** on the host profile, and **populates an existing-but-unused column** (`workspace_files.content_url`). Changes **no** existing write gate and **no** attribution taxonomy.
 > **Date**: 2026-07-01
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Discourse base**: the operator's escalation of the upload-`.md`-not-`.pdf` observation to first principles — *"start outside YARNNN, the overall LLM handling: can LLMs via MCP receive URL links, read them, other formats — such that a pure reference-our-URL MCP tool works? If not, is text derivation necessary + does file-variety (pptx/xlsx/images/zips) need deeper consideration?"* Verified against the **MCP spec 2025-06-18** + **Anthropic Files/PDF platform docs (2026-07)**. Two analysis docs: [the-model-consumable-projection-axiom](../analysis/the-model-consumable-projection-axiom-2026-07-01.md) (the axiom) + [dumb-intake-and-the-referenceable-raw-lane](../analysis/dumb-intake-and-the-referenceable-raw-lane-2026-07-01.md) (the intake gap it grew from).
@@ -150,3 +150,227 @@ Ordered so each phase is independently shippable and search never breaks:
 2. **On-arrival trigger** — an upload is one-shot, not cadenced; confirm the derive fires via a substrate-event hook (ADR-296 wake source) on `inbound/uploads/` writes, dispatched to the capture lane's mechanical dispatch (zero-LLM), NOT the judgment wake funnel.
 3. **`can_fetch_signed_urls` initial set** — ship Phase 2 with the flag **off for all hosts** (pure dark launch), then verify ChatGPT/claude.ai fetch+auth behavior empirically before flipping any on. *(Lean: yes — default-deny, verify-then-enable, exactly the `renders_widgets` rollout shape.)*
 4. **Backfill** — leave existing extracted-text `uploads/*.md` as-is (valid substrate), or re-shape them to raw+projection? *(Lean: leave as-is — they are already consumable; new uploads take the new shape. No destructive migration.)*
+
+---
+
+## 8. Amendment 1 (2026-09-21) — Phase 3 lands, and the door opens to everything
+
+> **Status**: **Accepted + Implemented** (2026-09-21). Operator-directed from
+> pre-trial colleague feedback: *"they want to use it but it doesn't accommodate
+> their existing files"*, then the frame — *"what if we allow upload of the file
+> types, in fact open that up as much as possible. really become THE file system
+> native."*
+
+### 8.1 Context — the deferral was never exercised, because the door refused first
+
+Phase 3 ("registry expansion: xlsx/pptx/zip/audio, demand-gated", §5.4) was
+written as though a deferred format would *arrive and be marked*. The audit found
+it never could. Three gates sat in front of the registry, and the file died at the
+first:
+
+| Gate | Site | Verdict on `.xlsx` |
+|---|---|---|
+| FE `accept` | `UploadButton.tsx:37`, `LanePanel.tsx:1823` | not offered in the picker |
+| `_DOC_MIMES` allowlist | `routes/documents.py:124` | **rejected** — "Unsupported file type" |
+| the 50-char floor | `services/documents.py:221` | **whole upload fails** — "No text could be extracted" |
+
+So `registry_strategy("xlsx") == "deferred"` was true and **unreachable**. The
+anti-silent-drop clause — *"a format with no registered strategy is
+retained-but-not-yet-consumable, legibly marked, never silently dropped"* — had
+no production path on the upload door. It was not a silent drop; it was a loud
+refusal, which is a different defect and a worse one: the bytes never landed at
+all.
+
+⭐ **The generalizable lesson**: a degradation path that no input can reach is not
+a degradation path. D3's marker (ADR-530) worked on the SHARE door because a
+deferred file could already be *in* the substrate; on the UPLOAD door nothing
+could get in to degrade.
+
+### 8.2 D8 — acceptance is conformance to `public.data`, and that is everything
+
+The intake verdict (§D5 / ADR-427 Phase 3) stops enumerating a document set. It
+asks the one conformance question the DAG already answers:
+
+```python
+accepted = conforms_to(mime, "public.data")   # the root — always True
+```
+
+`_DOC_MIMES` is **deleted**, not widened. A widened allowlist is the same defect
+with a longer list, and it is the shape that produced this bug: every new format
+needs a person to remember a second place. `content_types.py` already declares
+`xlsx`/`pptx` in `_ZIP_EXT_MIMES` and already conforms them to `public.data` —
+the kernel knew these formats before the door did.
+
+The FE `accept` attributes are **removed entirely** rather than widened, for the
+same reason: they were a third home for a decision the registry owns, and they
+had already drifted from each other (the Files picker offered `.zip`; the chat
+composer did not).
+
+**What still refuses**, and why each is a real limit rather than a taste:
+
+- **size** — `MAX_FILE_SIZE` 25MB / `MAX_MEDIA_SIZE` 100MB, unchanged.
+- **emptiness** — under 10 bytes, unchanged.
+- **placement** — `operator_can_organize` (ADR-555 D2), unchanged.
+
+Acceptance is no longer a statement about format. It is a statement about size
+and authority, which is what a filesystem's door is actually for.
+
+### 8.3 D9 — a file with no projection is RETAINED, and says so
+
+The 50-char extraction floor fails the whole upload. That floor was correct when
+every accepted format had a text strategy; with the door open it is the exact
+inversion of DP34's anti-silent-drop clause, so it is **removed as a rejection**
+and re-expressed as a projection outcome.
+
+The pipeline splits what the floor conflated — *"can I read this?"* and
+*"should this file exist?"*:
+
+- `strategy == "text"` **and** text extracted → raw + `.extracted.md` projection,
+  as today.
+- `strategy == "passthrough"` (image) → raw only, as today.
+- `strategy == "deferred"`, **or** a text-family file whose extraction came back
+  empty → **the raw lands**, and a co-located `.extracted.md` carries the
+  ADR-530 D3 marker: `derived_from`, the filename, and a NOTE stating the format
+  is retained and not yet machine-readable. **No fabricated content.**
+
+The marker is the same shape ADR-530 D3 established on the share door, so there
+is one spelling of "retained-not-consumable" in the codebase, not two.
+
+⭐ **An extraction failure is now a property of the projection, never a verdict on
+the file.** A scanned PDF that yields no text is a real file the member can see,
+open, download, move and share — it is simply not yet readable by a model, and it
+says so in a file the agent can read.
+
+### 8.4 D10 — the registry grows by three, in-process, no sandbox
+
+`xlsx` and `pptx` leave `_DEFERRED_FORMATS` and join `_TEXT_FORMATS`:
+
+- **`xlsx`** — `openpyxl` (already in `requirements.txt`, previously used only by
+  `routes/admin.py`). Each sheet becomes `## {sheet name}` + tab-separated rows.
+  Formulas read as their cached values; empty trailing rows/columns are trimmed.
+- **`pptx`** — `python-pptx` (new dependency). Each slide becomes `## Slide {n}`
+  + every shape's text frame in document order + speaker notes.
+- **`docx`** — the extractor is **repaired, not added**. It walked
+  `doc.paragraphs` only, which silently drops **tables, headers and footers**. A
+  contract or spec sheet is mostly tables; this was live data loss dressed as a
+  successful upload, and it is the likeliest cause of the colleague feedback that
+  opened this amendment. It now walks the body in document order (paragraphs and
+  tables interleaved, via the underlying XML child order) plus per-section
+  headers and footers.
+
+**Why a library and not a sandbox.** The frontier platforms handle `.xlsx` by
+running Python in a code interpreter; the container never reaches the model. That
+is DP34 confirmed from outside, not a different architecture — but their
+mechanism is arbitrary code execution, which yarnnn does not have and is not
+acquiring here. Deterministic extraction is a **library call**, and the
+precedent is ADR-417 §2c, which ruled compose *"moves in-API as a library, NOT
+retired"*. The sandbox question — pivot tables, chart rendering, "reformat this
+deck" — is real, has genuine security weight, and belongs in its own ADR. It is
+NOT smuggled in as a skill import: an imported `xlsx` skill would instruct an
+agent to execute Python it cannot execute, and a skill's failure is silent.
+
+### 8.5 What this does NOT do
+
+- **No round-trip.** Edits land in the `.extracted.md` projection; the `.docx`
+  is never rewritten. Office formats are read-in, not edited-in-place.
+- **No outbound `.docx`/`.pptx` writer.** ADR-417 §2b's ruling stands — if
+  downloadable export returns it is an in-API library call, demand-gated, and
+  nobody has asked.
+- **No Google Drive.** A Google Doc has no bytes to upload; that is a connector
+  question under ADR-657's two lanes, and ADR-131 sunset the Google tools for
+  reasons that need re-reading before anyone proposes them again.
+- **No sandbox / code interpreter.** §8.4.
+- **No schema change, no new primitive, no write-gate change.** The registry is
+  three entries and one predicate.
+
+### 8.6 Gate
+
+`test_adr395_model_consumable_projection.py`, extended: the format matrix asserts
+`xlsx`/`pptx` are `text` and reachable through the real door; `_DOC_MIMES` is
+asserted absent; the deferred-marker branch is driven over an unknown extension
+and asserts the raw landed AND the marker cites it; the docx extractor is driven
+over a real table-bearing document and asserts the table text survives.
+
+### 8.7 The sandbox horizon — scoped, NOT adopted (operator-directed, 2026-09-21)
+
+§8.4 rules that deterministic extraction is a library call and that the sandbox
+question belongs in its own ADR. This section records **what that question is**
+and **what it would cost**, so a future session inherits the analysis rather than
+re-deriving it. It changes nothing decided above. **Nothing here is adopted, no
+vendor is chosen, and no work is authorized by this section.**
+
+#### What a sandbox would buy that a library cannot
+
+The library ceiling is *read the file's text*. Everything past that needs code
+execution against the bytes:
+
+| Capability | Library | Sandbox |
+|---|---|---|
+| Read a sheet's values | ✅ am.1 D10 | ✅ |
+| Read slide text + notes | ✅ am.1 D10 | ✅ |
+| Read a table in a contract | ✅ am.1 D10 | ✅ |
+| Pivot / aggregate / recompute a workbook | ❌ | ✅ |
+| Render a chart from a sheet | ❌ (ADR-417 §2a retired generation) | ✅ |
+| OCR a scanned PDF (today: am.1 D9 marker) | ❌ | ✅ |
+| Author a real `.docx`/`.pptx` back out | ❌ (ADR-417 §2b) | ✅ |
+| Arbitrary member-directed file work | ❌ | ✅ |
+
+This is the same split the frontier platforms live on: their `xlsx`/`pptx`/`docx`
+skills are **instructions for driving a code interpreter**, not model knowledge.
+Importing such a skill without the interpreter ships instructions that cannot
+execute, and a skill's failure is silent — which is why §8.4 refuses that route.
+
+#### The candidate shape, and one concrete price
+
+`boat.dev` (by ASCII, YC-backed) was the operator's reference point, read
+2026-09-21. It is representative of the category rather than a selection:
+persistent Ubuntu VMs, SSH/SCP, Docker inside, snapshot + disk-level fork,
+per-second billing, CLI + HTTP API + Python/TS SDKs, `--json` on every command.
+Published price **$0.036/hour** for 4 vCPU / 8 GB against a **$20/month minimum**
+(≈555 hours); 100–2,000 concurrent sandboxes by plan; **EU-only regions**
+(Germany, Finland, France); default TTL 1 hour, overrideable; sandboxes can be
+created `no-env` so they carry none of the account's secrets. Peers named on
+their own comparison page: E2B, Daytona, Modal, Vercel Sandbox, Cloudflare,
+Codespaces, Runloop, Freestyle, Blaxel, Novita, exe.dev, Islo.
+
+**These figures are the vendor's own marketing claims, read once and unverified
+by us.** They are recorded to make the order of magnitude concrete — the monthly
+floor is a rounding error against one seat of lane spend, so **cost is not what
+makes this hard.**
+
+#### What actually makes it hard — and what a future ADR must answer
+
+1. **It is a new execution boundary, and the kernel has none today.** Every
+   primitive runs in-process under the caller's grant. A sandbox is the first
+   place where *arbitrary code runs on a member's bytes*, so the whole of
+   ADR-405's grant model has to be re-asked in a context it was never written
+   for. This is the real cost, and it is not measured in dollars.
+2. **Render parity breaks.** CLAUDE.md fixes three services and states *"all
+   execution is inline: no worker, no Redis."* An external sandbox is a fourth
+   execution home and the first one outside Render. ADR-417 decommissioned
+   `yarnnn-render` precisely to stop paying for a standing service; re-adding one
+   needs to answer why this is not that mistake repeated. (Per-second billing on
+   an ephemeral VM is a genuinely different shape from a standing service — but
+   the argument has to be made, not assumed.)
+3. **Data residency becomes a stated property.** Member bytes would leave
+   Supabase for a third party in a named jurisdiction. Today the workspace's
+   answer to "where is my data" is one sentence; this makes it two.
+4. **Attribution must survive the boundary.** ADR-209 says every mutation is
+   attributed and parent-pointered through `write_revision`. Work done inside a
+   sandbox has to come back as an attributed revision by a named principal, not
+   as an anonymous blob — and the sandbox is outside the process that holds the
+   grant.
+5. **Sandbox output is untrusted input.** Anything returning from it is data,
+   never instruction, and must not reach a lane frame as though it were
+   substrate.
+
+#### The trigger to revisit
+
+Not cost, and not capability envy. **A member asking, more than once, for
+something that needs execution** — recompute this sheet, OCR this scan, give me
+this back as a deck. Until then the am.1 D9 marker is the honest answer: the file
+is retained, it is not yet readable, and the product says so.
+
+⭐ **Recorded so it is not re-derived, and not so it is picked up.** The cheap
+half (§8.2–8.4) ships now and covers the observed feedback; the expensive half
+has a named trigger and an ADR of its own when that trigger fires.

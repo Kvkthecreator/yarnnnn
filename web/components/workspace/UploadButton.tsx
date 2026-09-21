@@ -33,8 +33,12 @@ import { useTranslations } from 'next-intl';
 import { Upload, Loader2, X, ArrowDownToLine, FileText } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
-// ADR-331 D5: .zip accepted as a transport envelope (expanded server-side).
-const ACCEPT = '.pdf,.docx,.txt,.md,.zip';
+// ADR-395 am.1 D8: NO accept filter. The picker offers every file, because the
+// substrate takes every file — acceptance is size + authority, decided at the
+// one door (routes/documents.py), never restated here. This was
+// '.pdf,.docx,.txt,.md,.zip', a third home for a decision the derive-registry
+// owns, and it had already drifted from the chat composer's copy.
+// ADR-331 D5: a .zip is still a transport envelope, expanded server-side.
 
 /**
  * Finder-parity refactor (2026-07-09): the "Add Files" verb is no longer a
@@ -193,7 +197,6 @@ export function UploadModal({
           <input
             ref={inputRef}
             type="file"
-            accept={ACCEPT}
             multiple
             onChange={onBrowseChange}
             className="hidden"

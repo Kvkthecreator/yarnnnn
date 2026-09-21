@@ -16,6 +16,7 @@ orjson>=3.9  # litellm>=1.80 imports it unconditionally (proxy http_parsing_util
 python-multipart>=0.0.9
 pypdf2>=3.0.0
 python-docx>=1.1.0
+python-pptx>=0.6.23  # ADR-395 am.1 D10 — the pptx text projection (openpyxl, below, is the xlsx half)
 
 # Utilities
 pydantic>=2.5.0
@@ -43,6 +44,6 @@ pytz>=2024.1
 # Observability (ADR-250)
 sentry-sdk[fastapi]>=2.0.0
 
-# Excel export
+# Excel — the /admin export, and the ADR-395 am.1 D10 xlsx text projection
 openpyxl>=3.1.0
 PyJWT>=2.8.0  # JWT signature verification on the auth path (2026-08-03 security)

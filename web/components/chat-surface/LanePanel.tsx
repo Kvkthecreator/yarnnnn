@@ -1820,11 +1820,6 @@ export function LanePanel({
             ref={fileInputRef}
             type="file"
             multiple
-            accept={
-              visionCapable
-                ? 'image/png,image/jpeg,image/webp,image/gif,.pdf,.docx,.txt,.md'
-                : '.pdf,.docx,.txt,.md'
-            }
             className="hidden"
             onChange={(e) => {
               const files = Array.from(e.target.files ?? []);

@@ -161,19 +161,14 @@ import services.mcp_composition as m  # noqa: E402
 m.mint_binary_url = lambda auth, sha: "https://example.test/cas/deadbeef?sig=x"
 
 
-async def _no_primitive(auth, name, payload):
-    return {"revisions": []}
-
-
-m.__dict__.setdefault("_orig_exec", None)
-
-
-def _patch_primitive():
-    import services.primitives.registry as reg
-    reg.execute_primitive = _no_primitive
-
-
-_patch_primitive()
+# REMOVED 2026-09-21 (found during ADR-395 am.1): this file used to stub
+# `services.primitives.registry.execute_primitive` at MODULE IMPORT TIME and
+# never restore it — a permanent global mutation. Nothing in this file calls the
+# registry (it never exercises `process_document`), so the stub had no local
+# purpose; it only leaked. Any gate importing after this one saw a registry that
+# answers `{"revisions": []}` to everything, which turned three ADR-395 arms RED
+# on run ORDER alone: green run alone, red in a suite. ⭐A module-level patch is
+# a fixture with no teardown and the whole session as its scope.
 
 auth = _Auth()
 

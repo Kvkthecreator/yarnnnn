@@ -37,15 +37,145 @@ async def extract_text_from_pdf(file_content: bytes) -> tuple[str, int]:
         return "", 0
 
 
+def _docx_table_text(table) -> str:
+    """One table as tab-separated rows — the shape a model reads as a table."""
+    rows = []
+    for row in table.rows:
+        cells = [c.text.strip().replace("\t", " ") for c in row.cells]
+        if any(cells):
+            rows.append("\t".join(cells))
+    return "\n".join(rows)
+
+
 async def extract_text_from_docx(file_content: bytes) -> tuple[str, int]:
-    """Extract text from DOCX. Returns (text, paragraph_count)."""
+    """Extract text from DOCX — body in document order, plus headers/footers.
+
+    ADR-395 am.1 D10: this walked `doc.paragraphs` only, which silently DROPS
+    tables, headers and footers. A contract or a spec sheet is mostly tables,
+    so a successful upload could carry almost none of the document's substance
+    — live data loss that read as success.
+
+    `doc.paragraphs` and `doc.tables` are each flat lists in their own order, so
+    zipping them cannot recover interleaving. The body's XML child order is the
+    only record of "this table sits between these two paragraphs", so we walk
+    that. Returns (text, block_count).
+    """
     try:
         import docx
+        from docx.table import Table
+        from docx.text.paragraph import Paragraph
+
         doc = docx.Document(io.BytesIO(file_content))
-        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-        return "\n\n".join(paragraphs), len(paragraphs)
+        blocks: list[str] = []
+
+        body = doc.element.body
+        for child in body.iterchildren():
+            tag = child.tag.rsplit("}", 1)[-1]
+            if tag == "p":
+                text = Paragraph(child, doc).text.strip()
+                if text:
+                    blocks.append(text)
+            elif tag == "tbl":
+                table = _docx_table_text(Table(child, doc))
+                if table:
+                    blocks.append(table)
+
+        # Headers/footers live per-section, outside the body entirely. A letterhead,
+        # a document title, a confidentiality notice and a page footer all live here.
+        for section in doc.sections:
+            for part in (section.header, section.footer):
+                if part is None:
+                    continue
+                for para in part.paragraphs:
+                    text = para.text.strip()
+                    if text and text not in blocks:
+                        blocks.append(text)
+                for table in part.tables:
+                    table_text = _docx_table_text(table)
+                    if table_text and table_text not in blocks:
+                        blocks.append(table_text)
+
+        return "\n\n".join(blocks), len(blocks)
     except Exception as e:
         logger.error(f"DOCX extraction failed: {e}")
+        return "", 0
+
+
+async def extract_text_from_xlsx(file_content: bytes) -> tuple[str, int]:
+    """Extract text from XLSX — one `## sheet` section per sheet, TSV rows.
+
+    ADR-395 am.1 D10. `data_only=True` reads the cached formula RESULT: a model
+    reading `=SUM(B2:B9)` learns nothing, and we have no evaluator. A file saved
+    by a tool that never computed the cache yields None there — the cell reads
+    empty, which is honest (we do not fabricate a value we do not have).
+    Returns (text, sheet_count).
+    """
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True, read_only=True)
+        sections: list[str] = []
+        for ws in wb.worksheets:
+            rows: list[str] = []
+            for row in ws.iter_rows(values_only=True):
+                cells = ["" if v is None else str(v).replace("\t", " ") for v in row]
+                while cells and not cells[-1].strip():   # trim trailing empties
+                    cells.pop()
+                if cells:
+                    rows.append("\t".join(cells))
+            if rows:
+                sections.append(f"## {ws.title}\n\n" + "\n".join(rows))
+        wb.close()
+        return "\n\n".join(sections), len(sections)
+    except Exception as e:
+        logger.error(f"XLSX extraction failed: {e}")
+        return "", 0
+
+
+async def extract_text_from_pptx(file_content: bytes) -> tuple[str, int]:
+    """Extract text from PPTX — one `## Slide N` section per slide, plus notes.
+
+    ADR-395 am.1 D10. Shapes are walked in the slide's own order (including
+    inside group shapes, which hold the text in most designed decks); a table
+    shape reads as TSV, matching the docx table spelling. Speaker notes are the
+    argument the slide only gestures at, so they are kept and labelled.
+    Returns (text, slide_count).
+    """
+    try:
+        from pptx import Presentation
+
+        def shape_text(shape) -> list[str]:
+            out: list[str] = []
+            if getattr(shape, "shape_type", None) is not None and shape.shape_type == 6:  # GROUP
+                for member in shape.shapes:
+                    out.extend(shape_text(member))
+                return out
+            if getattr(shape, "has_table", False):
+                for row in shape.table.rows:
+                    cells = [c.text.strip().replace("\t", " ") for c in row.cells]
+                    if any(cells):
+                        out.append("\t".join(cells))
+                return out
+            if getattr(shape, "has_text_frame", False):
+                text = shape.text_frame.text.strip()
+                if text:
+                    out.append(text)
+            return out
+
+        prs = Presentation(io.BytesIO(file_content))
+        sections: list[str] = []
+        for n, slide in enumerate(prs.slides, start=1):
+            lines: list[str] = []
+            for shape in slide.shapes:
+                lines.extend(shape_text(shape))
+            if slide.has_notes_slide:
+                notes = (slide.notes_slide.notes_text_frame.text or "").strip()
+                if notes:
+                    lines.append(f"Speaker notes: {notes}")
+            if lines:
+                sections.append(f"## Slide {n}\n\n" + "\n\n".join(lines))
+        return "\n\n".join(sections), len(sections)
+    except Exception as e:
+        logger.error(f"PPTX extraction failed: {e}")
         return "", 0
 
 
@@ -60,12 +190,22 @@ async def extract_text_from_txt(file_content: bytes) -> tuple[str, int]:
 
 
 async def extract_text(file_content: bytes, file_type: str) -> tuple[str, int]:
-    """Dispatch text extraction by file type. Returns (text, unit_count)."""
+    """Dispatch text extraction by file type. Returns (text, unit_count).
+
+    Reached only for a format the derive-registry calls `text`
+    (`registry_strategy`, ADR-395 D2) — the registry is the gate, this is the
+    parser table behind it. An empty return is a legible outcome, not a
+    failure: ADR-395 am.1 D9 lands the raw and marks the projection.
+    """
     file_type = file_type.lower().strip(".")
     if file_type == "pdf":
         return await extract_text_from_pdf(file_content)
     elif file_type in ("docx", "doc"):
         return await extract_text_from_docx(file_content)
+    elif file_type == "xlsx":
+        return await extract_text_from_xlsx(file_content)
+    elif file_type == "pptx":
+        return await extract_text_from_pptx(file_content)
     else:
         return await extract_text_from_txt(file_content)
 
@@ -212,15 +352,26 @@ async def process_document(
     is_media = any(
         conforms_to(mime, b) for b in ("public.image", "public.movie", "public.audio")
     )
-    if is_media:
+    # ADR-395 am.1 D9: the registry decides whether a projection is OWED, and an
+    # extraction that comes back empty is a property of the PROJECTION — never a
+    # verdict on the file. This branch used to `return success: False` under a
+    # 50-character floor, which failed the WHOLE upload: the bytes never landed,
+    # so DP34's "retained-but-not-yet-consumable, legibly marked" had no
+    # reachable path on this door. A scanned PDF, a chart-only deck and a
+    # formula-only sheet are all real files a member can see, open, download and
+    # share — they are simply not yet readable by a model, and they say so.
+    from services.primitives.extract_text_from_blob import registry_strategy
+
+    strategy = registry_strategy(file_type)
+    if is_media or strategy == "passthrough":
         # Media carries no text projection — the raw IS the substance; a
         # vision model reads an image via a minted URL at turn time (Phase A);
         # movie/audio are retained-not-yet-consumable (DP34).
         text, unit_count = "", 0
-    else:
+    elif strategy == "text":
         text, unit_count = await extract_text(file_content, file_type)
-        if not text or len(text.strip()) < 50:
-            return {"success": False, "error": "No text could be extracted from document"}
+    else:
+        text, unit_count = "", 0
 
     slug = _filename_to_slug(filename)
     # 2. RETAIN — land the raw as a VERSIONED BINARY revision (ADR-427 Phase 3):
@@ -261,10 +412,15 @@ async def process_document(
         logger.error(f"[DOCUMENTS] Failed to write raw upload {raw_path}: {e}")
         return {"success": False, "error": f"Failed to write workspace file: {e}"}
 
-    if is_media:
+    if is_media or strategy == "passthrough":
         # No projection to derive — the raw is retained + attributed (DP32);
-        # consumption is visual (vision content parts / a minted URL) or
-        # retained-not-yet-consumable for movie/audio (DP34).
+        # consumption is visual (vision content parts / a minted URL).
+        #
+        # ADR-395 am.1 D9: movie/audio stay here rather than taking a marker.
+        # They are `is_media`, so every surface already presents them as a
+        # playable thing — a .md sibling saying "not readable" would add a file
+        # to the member's folder to explain something the player already shows.
+        # The marker exists for a file that otherwise looks like a dead end.
         logger.info(f"[DOCUMENTS] Uploaded {raw_path} (raw media {mime}, no projection)")
         return {
             "success": True,
@@ -314,7 +470,8 @@ async def process_document(
         logger.warning(f"[DOCUMENTS] Projection derive raised for {raw_path}: {e}")
 
     word_count = len(text.split())
-    logger.info(f"[DOCUMENTS] Uploaded {raw_path} (raw) + {projection_path} (projection, {word_count} words)")
+    kind = "projection" if word_count else "marker"   # am.1 D9
+    logger.info(f"[DOCUMENTS] Uploaded {raw_path} (raw) + {projection_path} ({kind}, {word_count} words)")
 
     return {
         "success": True,

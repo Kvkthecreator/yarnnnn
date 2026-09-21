@@ -8,9 +8,9 @@ primitive is that derive step: read the blob, extract text, write a searchable
 projection that CITES the raw via `derived_from` (DP32), and embed it.
 
 Zero LLM, deterministic. The FIRST entry of the derive-registry (ADR-395 D2):
-MIME→strategy is `{pdf,docx,txt,md,csv}→text`; image/* is already
-model-consumable (pass-through, no projection needed); `{xlsx,pptx,zip,audio}`
-are named-deferred (retained-but-not-yet-consumable until a strategy is added).
+MIME→strategy is `{pdf,docx,xlsx,pptx,txt,md,csv,html}→text`; image/* is already
+model-consumable (pass-through, no projection needed); `{zip,audio}` and any
+unrecognised format are named-deferred (retained-but-not-yet-consumable).
 
 Trigger-agnostic (ADR-395 refined): the upload path invokes it INLINE on
 arrival (a one-shot); a future cadenced caller could invoke it from the capture
@@ -51,9 +51,17 @@ logger = logging.getLogger(__name__)
 # HTML (the Studio authoring apps emit it), and its markup is NOT what a model
 # reads — DP34. The extraction lives in `html_text.py`; see ADR-530 D2 for why
 # extraction is not sanitization and never licenses inlining.
-_TEXT_FORMATS = {"pdf", "docx", "doc", "txt", "md", "csv", "html", "htm"}
+#
+# ADR-395 am.1 D10: `xlsx`/`pptx` LEAVE the deferred set and join the text
+# family — deterministic, in-process, no sandbox (openpyxl / python-pptx, the
+# ADR-417 §2c "a library, not a service" shape). Their extractors live beside
+# the pdf/docx ones in `services/documents.py`.
+_TEXT_FORMATS = {"pdf", "docx", "doc", "txt", "md", "csv", "html", "htm", "xlsx", "pptx"}
 _PASSTHROUGH_FORMATS = {"png", "jpg", "jpeg", "gif", "webp"}  # already model-consumable
-_DEFERRED_FORMATS = {"xlsx", "pptx", "zip", "mp3", "wav", "m4a"}
+#: Named-deferred: retained, legibly marked, never silently dropped (D3/am.1 D9).
+#: NOT the gate — `registry_strategy` defers anything it does not recognise, so
+#: this set is documentation of the formats we have MET and not yet read.
+_DEFERRED_FORMATS = {"zip", "mp3", "wav", "m4a"}
 
 
 def registry_strategy(file_type: Optional[str]) -> str:
@@ -71,6 +79,29 @@ def registry_strategy(file_type: Optional[str]) -> str:
     return "deferred"
 
 
+def _deferred_note(file_type: Optional[str], *, had_strategy: bool) -> str:
+    """The retained-not-consumable sentence (ADR-395 am.1 D9 / ADR-530 D3).
+
+    Says which of the two things happened, because they have different remedies:
+    a format we cannot read yet may become readable; a file that yielded no text
+    is likely scanned or purely visual, and the member may want to act on it.
+    Never fabricates content and never guesses at what the file contains.
+    """
+    ft = (file_type or "").lower().lstrip(".") or "this file"
+    if had_strategy:
+        return (
+            f"NOTE: No text could be read from this {ft} file. It is retained in full "
+            f"and can be opened, downloaded and shared — but its contents are not "
+            f"available to an agent. A scanned document or an image-only file reads "
+            f"this way."
+        )
+    return (
+        f"NOTE: This is a {ft} file. It is retained in full and can be opened, "
+        f"downloaded and shared — but yarnnn cannot yet read its contents, so its "
+        f"text is not available to an agent."
+    )
+
+
 EXTRACT_TEXT_FROM_BLOB_TOOL = {
     "name": "ExtractTextFromBlob",
     "description": """Derive a model-consumable TEXT projection from a retained raw blob, citing the raw (ADR-395 / DP34).
@@ -81,9 +112,9 @@ the text projection: extract text from the blob and write a searchable
 derivation that carries `derived_from: <raw_path>` (DP32) and is embedded for
 recall. Zero LLM, deterministic.
 
-The first entry of the derive-registry: {pdf,docx,txt,md,csv}→text; images are
-already model-consumable (pass-through); {xlsx,pptx,zip,audio} are deferred
-(retained-but-not-yet-consumable — a known gap, never a silent drop).
+The derive-registry: {pdf,docx,xlsx,pptx,txt,md,csv,html}→text; images are
+already model-consumable (pass-through); {zip,audio} and anything unrecognised
+are deferred (retained-but-not-yet-consumable — marked, never a silent drop).
 
 Typical usage — invoked INLINE by the upload path on arrival (a one-shot),
 passing the already-extracted text so the blob is not re-parsed:
@@ -163,10 +194,50 @@ async def handle_extract_text_from_blob(auth: Any, input: dict) -> dict:
     if strategy == "passthrough":
         # An image is already model-consumable — no text projection needed.
         return {"success": True, "projection_path": None, "word_count": 0, "strategy": "passthrough"}
-    if strategy == "deferred":
-        # DP34: retained-but-not-yet-consumable. Legible known gap, not a drop.
-        logger.info("[EXTRACT] %s: no derive strategy for '%s' — retained-not-consumable", raw_path, file_type)
-        return {"success": True, "projection_path": None, "word_count": 0, "strategy": "deferred"}
+    # ADR-395 am.1 D9 — the anti-silent-drop clause, WRITTEN rather than logged.
+    #
+    # `deferred` used to return here after a log line, so a retained-not-
+    # consumable file left no trace an agent could read: it saw a file it could
+    # not open and had no explanation. DP34 says such a file is "legibly
+    # marked"; a log line is legible to no principal in the system.
+    #
+    # A text-family file whose extraction came back EMPTY lands in the same
+    # place — a scanned PDF, a chart-only deck, a formula-only sheet. The
+    # distinction that matters to a reader is not "which parser ran" but "is
+    # there anything here for me", so both write the same marker.
+    if strategy == "deferred" or (strategy == "text" and text is not None and not text.strip()):
+        note = _deferred_note(file_type, had_strategy=(strategy == "text"))
+        logger.info("[EXTRACT] %s: retained-not-consumable (%s) — marking", raw_path, file_type)
+        marker = (
+            f"derived_from: {raw_path}\n\n"
+            f"# {source_filename}\n\n"
+            f"{note}\n"
+        )
+        try:
+            from services.authored_substrate import write_revision
+            write_revision(
+                db_client,
+                user_id=user_id,
+                path=write_to,
+                content=marker,
+                authored_by=getattr(auth, "caller_identity", None) or "system:extract",
+                message=f"retained, not yet readable: {source_filename}",
+                lifecycle="active",
+                revision_kind="derivation",
+                derived_from=[raw_path],
+            )
+        except Exception as e:  # noqa: BLE001
+            # Non-fatal by design: the RAW is already landed and is the file
+            # that matters. A missing marker is a missing explanation, not a
+            # missing file.
+            logger.warning("[EXTRACT] marker write failed for %s: %s", write_to, e)
+            return {"success": True, "projection_path": None, "word_count": 0, "strategy": "deferred"}
+        # No embed: a marker carries no content to rank, and embedding it would
+        # put a sentence we wrote into recall as though it were the member's.
+        return {
+            "success": True, "projection_path": write_to, "word_count": 0,
+            "strategy": "deferred", "embed_pending": False,
+        }
 
     # strategy == "text": get the text (reuse pre-extracted, else fetch+extract).
     if not text:
