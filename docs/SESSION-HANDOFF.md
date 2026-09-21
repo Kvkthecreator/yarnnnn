@@ -34,26 +34,31 @@ subject.
 measured identical against stashed changes. The other ~318 gates are script-shaped (`sys.exit`) and
 abort pytest collection, so a whole-suite run is not possible today.
 
-## NFC fix is committed but NOT PUSHED, and migration 259 is NOT APPLIED (2026-09-21)
+## Korean substrate: BOTH migrations applied (2026-09-21)
 
-Two actions were denied by the session's production-deploy guard and need the operator:
+Migrations **259** (NFC paths) and **260** (Korean search) are **APPLIED to production** and verified
+on the live object, not on the runner's exit code.
 
-1. **`git push`** — `b05c08b` (the NFC fix + gate) and `ce0f418` (the pgroonga measurement) are
-   committed LOCALLY and sitting `ahead 2`. Nothing is deployed and no other session can see them.
-2. **`scripts/db/run-migration.sh supabase/migrations/259_nfc_one_unicode_spelling_for_a_path.sql`**
-   — dry-run is clean (UPDATE 6 on `workspace_file_versions`, UPDATE 2 on `workspace_files`, then
-   ROLLBACK) and its collision guard was falsified by inserting the NFC twin inside a rolled-back
-   transaction. **Production still holds 2 + 6 non-NFC rows.**
+**259 — one Unicode spelling for a path.** 0 non-NFC rows in `workspace_files` and
+`workspace_file_versions`; all 4 Hangul paths intact; every Hangul head matches a version-chain row;
+the two files that were previously unfindable by their composed name now resolve.
+⚠️ The doors that MINT a path fold to NFC (`services/naming.py::nfc` at the upload slug and at
+`parse_file_reference`, plus the TS twin). **Reads are deliberately NOT normalized** — folding a read
+would orphan a legacy row by its own stored spelling. Gate `test_nfc_one_unicode_spelling.py` 17/17.
 
-The code fix is forward-safe on its own: new paths are minted NFC at both doors, so the split cannot
-widen. The migration only moves the 8 rows that predate it. Order does not matter between them.
+**260 — search speaks Korean.** `pgroonga` installed; a third tier below 246's strict/loose ladder,
+firing only on a double miss. `본문` and `삭제` went 0 → 1, labelled `match_mode='korean'`; every
+English query is byte-identical. ⚠️**pgroonga is ADDED, never substituted** — alone it regresses
+English (`reports` 185 → 106, it does not stem). ⚠️A `korean` row grades **WEAK** like `loose`; a
+substring hit reported as precise is the inverse of the 2026-08-22 false-miss defect.
+⚠️`pg_relation_size` reads **0** for a pgroonga index — measure cost by `pg_database_size` delta
+(this one is ~90MB for ~8.6MB of content). Gate `test_search_speaks_korean.py` 20/20 against the
+LIVE database; it SKIPS loudly without a DB URL rather than passing over nothing.
 
-**Search (N1) is now costed, not guessed** — the design is a HYBRID, not a replacement: pgroonga
-alone regresses English (`reports` 181 → 103, no stemming) while the OR of both beats either
-(187 / 412) and takes the Korean failures 0 → 1. Cost ~90MB of index for ~8.6MB of content.
-Awaiting the operator's call on that ratio.
+⚠️ **Only `SUPABASE_DB_URL` (superuser) is configured locally** — `_RO` and `_MIGRATE` from
+ACCESS.md were never created. Any "read-only" probe in this repo is actually running as superuser.
 
-## Korean marketing: phase 1 COMPLETE (2026-09-21)
+## Korean marketing:## Korean marketing: phase 1 COMPLETE (2026-09-21)
 
 ADR-660 §14. **Seven** page pairs ship Korean: `/`, `/pricing`, `/how-it-works`, `/faq`, `/about`,
 `/developers`, `/support`, each with a `/ko/...` twin. The toggle swaps IN PLACE both directions — a

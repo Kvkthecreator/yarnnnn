@@ -219,7 +219,11 @@ could not check this and §7 below listed it as unverified. Now driven:
   i.e. **~90 MB of index for ~8.6 MB of content (~10×)**. Not free; `pg_relation_size` reads 0 because
   pgroonga stores outside the Postgres relation, so measure by database-size delta, not relation size.
 
-**Severity: HIGH — blocks real Korean use.** This is the one that cannot be retrofitted by any
+**Severity: HIGH — blocks real Korean use.** — ✅ **CLOSED 2026-09-21, migration 260.** The hybrid
+shipped and is verified on the live object: `본문` and `삭제` now return 1 each (labelled
+`match_mode='korean'`), every English query is byte-identical, and all four filters hold through the
+new tier. The grader caps a substring hit at WEAK. Gate `api/test_search_speaks_korean.py` 20/20
+against the live database, falsified both ways. This is the one that cannot be retrofitted by any
 translation effort and degrades silently.
 
 ### 3.3 Unicode normalization (NFC/NFD) — NEW FINDING, already in production. 🔴
@@ -272,7 +276,9 @@ the UI, and `write_revision()`'s parent-pointer chain would treat them as unrela
 Export inherits it: `_repo_rel` preserves bytes verbatim (correct for git), so NFC and NFD export as
 **two different tree entries** that can collide or duplicate on a macOS checkout.
 
-**Severity: HIGH, low incidence today.** Only 4 files, and the collision needs the same name typed
+**Severity: HIGH, low incidence today.** — ✅ **CLOSED 2026-09-21, migration 259.** Applied: 0
+non-NFC rows remain in either table, all 4 Hangul paths intact, every head matches its version chain,
+and the two previously-unfindable files now resolve by their composed name. Only 4 files, and the collision needs the same name typed
 two ways. But it is silent, it is in the substrate's primary key, and the fix is cheapest now while
 4 rows exist rather than after Korean adoption. Note the one mercy: `path_slug` ASCII-folds, so
 *generated* slugs are immune (`slug(NFC) == slug(NFD) == 'untitled'`) — this only bites paths where
