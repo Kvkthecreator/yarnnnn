@@ -25,21 +25,27 @@ alone regresses English (`reports` 181 → 103, no stemming) while the OR of bot
 (187 / 412) and takes the Korean failures 0 → 1. Cost ~90MB of index for ~8.6MB of content.
 Awaiting the operator's call on that ratio.
 
-## Korean marketing: phase 1 done, three pages rostered but not built (2026-09-21)
+## Korean marketing: phase 1 COMPLETE (2026-09-21)
 
-ADR-660 §14. The landing page speaks Korean at `/ko`; IP geolocation was REFUSED (D9) and the
-mechanism is a URL prefix with a link toggle (D10). 24 static routes, gate 41 checks, voice 0.
+ADR-660 §14. Four page pairs ship Korean: `/`, `/pricing`, `/how-it-works`, `/faq`, each with a
+`/ko/...` twin. The toggle swaps IN PLACE both directions — a reader who clicks 한국어 on /pricing
+lands on /ko/pricing, not the homepage. 27 static routes, gate **46/0**, voice 0, tsc 0.
 
-**`TRANSLATED_PATHS` holds `/` only.** It must never run ahead of the routes: a rostered path with
-no `app/ko/.../page.tsx` becomes a 404 reachable in one click from the header, the footer and the
-hero. That shipped for about ten minutes and was caught by driving; `localePath` now REFUSES to
-prefix an unrostered path, and the gate pairs roster against route (falsified RED in place).
-Add a path there in the SAME commit that adds its `/ko` route. Next pass: `/pricing`,
-`/how-it-works`, `/faq`.
+⚠️ **`TRANSLATED_PATHS` must never run ahead of the routes.** A rostered path with no
+`app/ko/.../page.tsx` becomes a 404 reachable from the header, footer and hero. `localePath` refuses
+to prefix an unrostered path and the gate pairs roster against route — add a path there in the SAME
+commit that adds its route.
 
-⚠️ `TraceCard` and `CompoundsStepper` render INSIDE BLOG POSTS via `lib/blog-embeds.tsx`. They must
-stay hook-free (words as props). A translation hook in either breaks 2 posts' prerender while tsc
-and every gate stay green.
+⚠️ **`TraceCard` and `CompoundsStepper` must stay hook-free** (words as props). They render inside
+blog posts via `lib/blog-embeds.tsx`, outside every scope; a translation hook in either breaks 2
+posts' prerender while tsc and every gate stay green.
+
+**Prices are never translated** — they arrive as ICU arguments from `PRICE_COPY` so ADR-445 §6's
+single source survives translation.
+
+**Still English by ruling**: the blog (113 posts — a content project), `/privacy` + `/terms` (a
+mistranslated clause is a liability; wants a professional translation), `/invest`, `/developers`,
+`/about`, `/engines`, `/support`.
 
 ## Korean beyond the interface — five rulings awaited (audit 2026-09-21)
 
