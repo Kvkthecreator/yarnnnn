@@ -34,10 +34,9 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, ChevronRight, MessageSquare, Plus } from 'lucide-react';
-import { StartMark } from '@/components/supervisor/StartMark';
+import { AlertTriangle, MessageSquare, Plus } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
-import { StandingRow, lowerFirst } from '@/components/standing/StandingRow';
+import { StandingRow } from '@/components/standing/StandingRow';
 import type { StandingStart, StandingSummary } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -163,64 +162,33 @@ function WorkSection({ work }: { work: WorkBand }) {
   }
 
   if (work.rows.length === 0) {
-    // ⭐ THE HIGHEST-LEVERAGE SCREEN IN THE APP (ADR-658 D7). Not "No items":
-    // the next step, pre-shaped from what the member has already connected.
-    // With nothing connected, the step is Reach — the door that makes a
-    // connection — and the web-page start is still offered.
+    // ⭐ THE EMPTY STATE NAMES THE NEXT STEP, AND NOTHING ELSE (VOICE §2 —
+    // title ≤ 4 words + one sentence).
+    //
+    // ⚠️ IT USED TO RENDER THE FULL LIST OF STARTS, which is now the picker's
+    // job: opening the door showed a member the SAME five cards a second time,
+    // stacked over the ones they had just clicked. Two copies of one list is
+    // two things to keep in step and one of them is always wrong. The list
+    // lives in the modal; this screen is the door to it.
     return (
-      <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-5 py-6">
+      <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-5 py-8 text-center">
         <p className="text-[15px] font-semibold text-foreground">{t('workEmptyTitle')}</p>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+        <p className="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">
           {connectorStarts.length > 0 ? t('workEmptyWithStarts') : t('workEmptyNoStarts')}
         </p>
-        {/* ⭐ THE STARTS STAY HERE AT MINUTE ZERO. ADR-658 D7 rules this
-            screen shows the next step pre-shaped, so an empty workspace must
-            not hide its starts behind a button. Clicking one opens the SAME
-            door the header opens, already on its second step — one creation
-            path, two entrances. Once a member has work, the header's door
-            (and its picker) is the only entrance, because this screen is gone.
-
-            Each start wears its connector's real registry brand through the
-            shared `StartMark`, and the chevron says it opens something rather
-            than doing something. */}
-        <ul className="mt-4 space-y-2">
-          {work.starts.map((s) => (
-            <li key={`${s.kind}-${s.connector ?? 'url'}`}>
-              <button
-                type="button"
-                onClick={() => work.onNew(s)}
-                className="group flex w-full items-center gap-3 rounded-lg border border-border/70 bg-background px-3.5 py-3 text-left transition-colors hover:border-border hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
-              >
-                <StartMark start={s} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-foreground">{s.title}</span>
-                  <span className="block truncate text-[12px] text-muted-foreground">
-                    {s.kind === 'connector'
-                      ? t('startConnector', {
-                          name: s.name,
-                          reads: s.reads ? lowerFirst(s.reads) : t('startConnectorFallback'),
-                        })
-                      : t('startPage')}
-                  </span>
-                </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-muted-foreground" />
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
             onClick={() => work.onNew(null)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
+            className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
           >
-            <Plus className="h-3.5 w-3.5" /> {t('setUpFromScratch')}
+            <Plus className="h-3.5 w-3.5" /> {t('newStandingWork')}
           </button>
           {connectorStarts.length === 0 && (
             <button
               type="button"
               onClick={work.onOpenReach}
-              className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
             >
               {t('openReach')}
             </button>

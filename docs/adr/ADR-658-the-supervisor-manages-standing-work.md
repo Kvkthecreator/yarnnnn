@@ -681,3 +681,50 @@ reads as literal copy once `{…}` is stripped, leaving bare identifiers. Hoisti
 `const` above the JSX fixes the reading without changing a rendered byte. Recorded because it will
 recur: **the meter measures JSX text shape, not English**, and the fix is always the hoist, never a
 raised ceiling. 274 → 262, the ceiling held.
+
+---
+
+## Amendment 4 (2026-09-21) — one list, one place; and the copy cut to its slots
+
+**Status**: implemented. Gate **132/132** (two arms rewritten and proven RED), ADR-660 47/47 with the
+literal-copy ceiling **ratcheted 262 → 258**, voice clean, build clean, driven.
+
+### A4.1 — ⚠️ THE STARTS WERE RENDERED TWICE
+
+am.3 put the starts in the picker and left them in the empty state, reasoning that D7 rules that screen
+shows the next step pre-shaped. Driven, that reads as a defect: the empty state listed all five cards,
+and clicking one opened a modal showing **the same five cards again**, stacked over the ones just
+clicked. Two copies of one list are two things to keep in step, and one of them is always wrong.
+
+**The list lives in the picker. The empty state is the door to it** — a real empty state now: title, one
+sentence, one primary action (plus Reach when nothing is connected). D7 is still satisfied, because the
+next step is still named and still one click from pre-shaped starts; it simply is not transcribed twice.
+Removing the duplicate took 4 lines off the ADR-660 meter, and the ceiling ratcheted with it.
+
+### A4.2 — The copy, cut to its slots (VOICE §1–§2)
+
+The surface had grown the house style's two failure modes: an empty-state title over budget, and hints
+that stacked a second clause explaining a mechanism. Measured against VOICE §2 and cut:
+
+| | was | now |
+|---|---|---|
+| empty title (≤ 4 words) | "Nothing runs on its own yet." (5) | **"Nothing runs yet"** (3) |
+| empty body | "Pick a start below. It runs on a schedule and keeps one file current." | "Set up work that keeps a file current on a schedule." |
+| work intro | "Files kept current on a schedule. Open one to see its runs and instructions." | "Open one to see its runs and instructions." — the heading already says the rest |
+| door subtitle | "One file, kept current on a schedule. The first run starts within a few minutes." | "The first run starts within a few minutes." |
+| where hint | "A folder of its own. New or existing, one piece of standing work per folder." | "A folder of its own, new or existing." |
+| instructions hint | "Saved next to the file. Every run follows it, and you can change it any time." | "Every run follows this. Change it any time." |
+| retire confirm | 113 chars, three clauses | "The file and its history stay. You can set it up again later." |
+| `sources_invalid` · `source_cycle` · `missing_target` | 69–111 chars with parentheticals | 54–77, one idea per sentence |
+
+Both locales moved together; Korean was rewritten rather than trimmed, since a clause cut in English is
+not a clause cut in Korean.
+
+### A4.3 — ⭐ A GATE THAT PINS PROSE LOSES AN ARGUMENT WITH THE STYLE GUIDE
+
+The empty-state arm asserted the exact string `"Nothing runs on its own yet."`, so it failed on an edit
+that made the title **shorter and correct**. Rewritten to assert the PROMISE D7 actually rules — the
+screen names the next step (a door, and Reach when nothing is connected) and never says "No items" —
+plus a new arm measuring the title against its **slot budget** (≤ 4 words) rather than its wording.
+The same lesson as am.2's blind copy checks, from the other direction: there the gate could not see the
+copy, here it saw it too precisely.

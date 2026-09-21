@@ -646,8 +646,19 @@ check("an unknown kind still renders the honest miss", "<SectionMiss" in _defaul
 _sec_words = _words("web/components/supervisor/SupervisorSection.tsx")
 check("the resting copy reassures; `No items` never appears",
       "Nothing is waiting on you." in _sec_words and "No items" not in _sec_words)
+# ⚠️ ASSERT THE PROMISE, NOT THE SENTENCE. This arm pinned the exact string
+# "Nothing runs on its own yet." and so failed on a copy edit that made the
+# title SHORTER and better (VOICE §2: an empty-state title is ≤ 4 words). A
+# gate that forbids editing prose is a gate that loses an argument with the
+# style guide. What ADR-658 D7 rules is that the screen names the NEXT STEP:
+# a door into creation, and — with nothing connected — Reach.
 check("the work band's empty state names the next step, not an absence",
-      "Nothing runs on its own yet." in _sec_words)
+      "No items" not in _sec_words
+      and re.search(r"workEmptyTitle", _sec) is not None
+      and "newStandingWork" in _sec and "openReach" in _sec)
+_empty_title = _catalog_get("supervisor.section.workEmptyTitle") or ""
+check("the empty-state title fits its slot budget (\u2264 4 words)",
+      0 < len(_empty_title.split()) <= 4, _empty_title)
 check("with nothing connected, the empty state points at Reach", "Reach" in _sec_words)
 
 _surf = _code_only_ts(_read("web/components/supervisor/SupervisorSurface.tsx"))
@@ -721,8 +732,12 @@ check("the header's door opens the PICKER, never a blank form directly",
 _mark = _code_only_ts(_read("web/components/supervisor/StartMark.tsx"))
 check("a start's face resolves through the connector REGISTRY, not the empty key table",
       "connectorMeta(" in _mark and "override=" in _mark)
-check("the picker and the empty state render the SAME mark component",
-      "<StartMark" in _picker and "<StartMark" in _sec)
+# ⭐ ONE LIST, ONE PLACE (am.4). The empty state used to render the full list
+# of starts, so opening the door showed a member the SAME five cards a second
+# time, stacked over the ones they had just clicked. The list lives in the
+# picker; the empty state is the door to it and renders no start of its own.
+check("the starts are listed in the picker ONLY — the empty state does not repeat them",
+      "<StartMark" in _picker and "<StartMark" not in _sec and "starts.map(" not in _sec)
 check("the door names the chosen start and wears its mark",
       "<StartMark" in _door and "start.title" in _door)
 

@@ -423,7 +423,7 @@ print("D4 — coverage")
 # So the honest reading is: coverage is DONE, and this ceiling now guards
 # against NEW literal copy rather than measuring remaining work. A future pass
 # that adds a surface should still see it fall.
-LITERAL_COPY_CEILING = 262  # 2026-09-21 — full coverage (226 of these are meter noise; see above)
+LITERAL_COPY_CEILING = 258  # 2026-09-21 — ratcheted with the Supervisor's duplicate start list (ADR-658 am.4)
 COPY_PROP = re.compile(r"\b(placeholder|title|aria-label|label|alt|subtitle|description)=\"[^\"]*[A-Za-z]{2,}[^\"]*\"")
 INLINE_TEXT = re.compile(r">([^<>{}]*[A-Za-z]{2,}[^<>{}]*)</")
 METERED = [WEB / "app" / "(authenticated)", WEB / "app" / "auth", WEB / "app" / "mcp", WEB / "components"]

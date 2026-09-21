@@ -1579,15 +1579,15 @@
       "miss": "This app asks for a {kind} section, which this workspace cannot show yet.",
       "missNameless": "nameless",
       "workUnreadable": "Couldn't read your standing work just now.",
-      "workEmptyTitle": "Nothing runs on its own yet.",
-      "workEmptyWithStarts": "Pick a start below. It runs on a schedule and keeps one file current.",
-      "workEmptyNoStarts": "Connect Slack, Notion or GitHub in Reach to start from what they read, or start from a web page.",
+      "workEmptyTitle": "Nothing runs yet",
+      "workEmptyWithStarts": "Set up work that keeps a file current on a schedule.",
+      "workEmptyNoStarts": "Connect Slack, Notion or GitHub first, or start from a web page.",
       "startConnector": "{name} · reads {reads}",
       "startConnectorFallback": "what you chose",
       "startPage": "Name a page. Its summary stays current.",
       "setUpFromScratch": "Set up from scratch",
       "openReach": "Open Reach",
-      "workIntro": "Files kept current on a schedule. Open one to see its runs and instructions.",
+      "workIntro": "Open one to see its runs and instructions.",
       "newStandingWork": "New standing work",
       "needsYouEmpty": "Nothing is waiting on you.",
       "noteEmpty": "Nothing written down yet."
@@ -1612,12 +1612,12 @@
       "resumeTitle": "Let it run on its schedule again"
     },
     "problem": {
-      "missing_target": "No file named. The instructions don't say which file to keep current.",
+      "missing_target": "The instructions don't say which file to keep current.",
       "invalid_target": "The file to keep current must be in the same folder as the instructions.",
       "unsupported_format": "Only md, csv, json and txt files can be kept current.",
-      "sources_invalid": "The sources aren't valid. A data file (csv or json) takes exactly one source, and a file rather than a folder.",
+      "sources_invalid": "A csv or json file takes exactly one source, and a file rather than a folder.",
       "app_invalid": "The instructions name an app that can't keep a file current.",
-      "source_cycle": "This is part of a loop: it is kept from a file that is kept from it. Neither will run until one source changes."
+      "source_cycle": "This is kept from a file that is kept from it. Neither will run."
     },
     "lastRun": {
       "noChange": "Ran. Nothing changed",
@@ -1677,7 +1677,7 @@
     },
     "detail": {
       "back": "All standing work",
-      "gone": "This standing work is no longer here. It may have been retired.",
+      "gone": "This is no longer here. It may have been retired.",
       "loading": "Loading…",
       "openInFiles": "Open in Files",
       "noFileNamed": "(no file named)",
@@ -1709,7 +1709,7 @@
       "derivedFrom": "from {paths}",
       "derivedFromMore": "from {paths} and {count, plural, one {# more} other {# more}}",
       "retireConfirmTitle": "Stop keeping {target} current?",
-      "retireConfirmBody": "The file and its history stay. Only the schedule and its instructions are retired, and you can set them up again.",
+      "retireConfirmBody": "The file and its history stay. You can set it up again later.",
       "keepRunning": "Keep it running",
       "retire": "Retire",
       "retireHint": "Retiring stops the updates. The file stays.",
@@ -1740,11 +1740,11 @@
     },
     "newWork": {
       "title": "New standing work",
-      "subtitle": "One file, kept current on a schedule. The first run starts within a few minutes.",
+      "subtitle": "The first run starts within a few minutes.",
       "whereLabel": "Where",
       "folderPlaceholder": "team-brief",
       "choose": "Choose…",
-      "whereHint": "A folder of its own. New or existing, one piece of standing work per folder.",
+      "whereHint": "A folder of its own, new or existing.",
       "targetLabel": "The file it keeps",
       "targetPlaceholder": "brief.md",
       "formatBad": "Only md, csv, json and txt files can be kept current.",
@@ -1765,7 +1765,7 @@
       "urlPlaceholder": "https://…",
       "instructionsLabel": "Instructions",
       "instructionsPlaceholder": "What this file is, and what it must stay true to.",
-      "instructionsHint": "Saved next to the file. Every run follows it, and you can change it any time.",
+      "instructionsHint": "Every run follows this. Change it any time.",
       "cancel": "Cancel",
       "start": "Start",
       "couldNotSetUp": "Could not set this up.",
@@ -2032,7 +2032,7 @@
     },
     "startPicker": {
       "title": "What should it keep current?",
-      "subtitle": "Pick where its updates come from. You name the file on the next step.",
+      "subtitle": "You name the file on the next step.",
       "cancel": "Cancel"
     }
   },
