@@ -422,3 +422,90 @@ here" for `.sketch` (which yarnnn genuinely cannot read) as for `.xlsx` (which i
 now reads well). The distinction exists in the substrate — one has a marker, the
 other a projection — and is not surfaced. That is a Files-viewer question, not an
 intake one.
+
+---
+
+## 9. Amendment 1, D11 (2026-09-21) — a member can tell "unreadable" from "read fine"
+
+> Operator-directed, closing the §8.8 "owed" item in the same arc.
+
+### 9.1 The defect the click-pass named
+
+`.sketch` and `.xlsx` both terminate at `DownloadTerminal` and, before this,
+read **identically**: *"Preview not available inline · Open or download this
+file…"*. That sentence is true of both and answers neither. The two files are in
+opposite states — yarnnn cannot read the `.sketch` at all, and reads the `.xlsx`
+perfectly well (D10) — and the member had no way to tell.
+
+⭐ **The viewer was asked a question it cannot answer.** A renderer's question is
+*"can I DRAW this?"*, and for every binary the answer is no. The member's
+question is *"does my agent know what is in this file?"* — which is the
+**derive-registry's** question, not the renderer's. Two different questions
+wearing one sentence.
+
+### 9.2 D11 — the server answers, the client renders
+
+`readable_state()` in `api/services/documents.py` is the single resolver, beside
+the registry it consults. Three values:
+
+| Value | Meaning | Example |
+|---|---|---|
+| `read` | a projection exists and carries the file's words | `.xlsx` · `.pptx` · `.docx` · a text PDF |
+| `unread` | retained in full; yarnnn cannot read it | `.sketch` · a scanned PDF · `.zip` |
+| `native` | the file IS its own content — nothing owed, nothing missing | `.png` · `.mp4` · `.md` |
+
+It ships as `FileResponse.readable`, decorated at `GET /api/workspace/file` by
+`_readable_or_none`. **Same contract as `access` (ADR-643 D3): the server
+decides, the client reads, and `None`/`undefined` means UNKNOWN — the viewer
+then says nothing rather than guessing.**
+
+**Why not in the client.** Deciding this in TypeScript means a second copy of
+`registry_strategy` — and a second home for that rule is precisely the split
+that let the upload door and the derive-registry disagree for months (§8.1). The
+gate asserts the viewer consumes `file.readable` and **names no format**, so a
+future session cannot quietly rebuild the registry there.
+
+**The marker is the discriminator.** A projection and a D9 marker are both
+`.extracted.md` rows citing the same raw; what separates them is the marker's
+`NOTE:` token. That token is `_MARKER_TOKEN`, held beside the writer that emits
+it, and the gate feeds `_deferred_note()`'s **real** output through the resolver
+rather than inventing marker text of its own — a gate that writes its own
+fixture passes while the real writer drifts.
+
+**The conservative default.** No projection in hand → `unread`. Telling a member
+their agent can read a file it cannot is the failure that matters; the reverse
+is merely modest.
+
+**Cost**: one indexed lookup on a path that is a pure function of the raw's
+(`upload_projection_path`), and only for a file that could owe a projection —
+prose, images and media answer `native` without touching the database. The
+decoration never raises: a failure degrades to `None`, never to a 500 on a read.
+
+### 9.3 Driven
+
+Resolver over the six real files from §8.8: `.xlsx`/`.pptx`/`.docx` → `read`,
+`.sketch` → `unread`, `.png`/`.md` → `native`. In the browser, the two files
+that read identically yesterday now say opposite and true things —
+*"에이전트가 이 파일의 내용을 읽을 수 있어요"* on the `.xlsx`,
+*"그대로 보관했어요 — 다만 이 형식은 아직 에이전트가 읽지 못해요"* on the
+`.sketch`. A `.png` routes to the image viewer and never reaches this line, so
+`native` adds nothing by construction.
+
+Gate: `test_adr395` **54/54** (5 new arms), falsified four ways — the marker
+token stops discriminating · no-projection defaults to `read` · the viewer
+re-derives from a format name · the route drops the decoration. ADR-660 47/47,
+voice 0, affected set 97/97, `next build` exit 0.
+
+### 9.4 Also corrected — the blueprint disagreed with the services it describes
+
+Verifying "does `python-pptx` reach both services" found `render.yaml`'s cron
+block wrong in two ways against the LIVE `crn-d604uqili9vc73ankvag`: schedule
+`*/5` where live runs `*/1`, and **no `buildCommand` at all** where live has
+always carried one. Nothing was broken in production — both services deploy from
+the repo on `main`, not from the blueprint — but a redeploy *from this file*
+would have produced a scheduler with no dependencies installed. Both reconciled.
+
+The dependency question itself is **closed with a receipt, not an inference**:
+both services run `pip install -r api/requirements.txt`, and both build logs
+show `python-pptx-1.0.2` installed on `d5c3ac5`. ⭐A build command is not proof
+that a package installed; the build log is.

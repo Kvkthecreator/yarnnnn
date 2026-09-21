@@ -261,6 +261,15 @@ export const TableViewer: ViewerApp = ({ file, compact }) => {
 // ---------------------------------------------------------------------------
 export const DownloadTerminal: ViewerApp = ({ file }) => {
   const t = useTranslations('files.viewers');
+  // ADR-395 am.1 D11 — two files land here for OPPOSITE reasons, and before
+  // this line they read identically: a .sketch yarnnn genuinely cannot read,
+  // and an .xlsx it reads perfectly well (am.1 D10) but cannot DRAW. "No
+  // preview" is true of both and answers neither; the member's question is
+  // whether their agent knows what is in the file.
+  //
+  // The verdict is the SERVER's (`documents.readable_state`) — undefined means
+  // unknown, and an unknown says nothing rather than guessing.
+  const readable = file.readable;
   return (
     <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center">
       <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
@@ -268,6 +277,12 @@ export const DownloadTerminal: ViewerApp = ({ file }) => {
       <p className="text-xs text-muted-foreground mt-1">
         {file.content_url ? t('openExternally') : t('noBytes')}
       </p>
+      {readable === 'read' && (
+        <p className="mt-3 text-xs text-muted-foreground">{t('agentCanRead')}</p>
+      )}
+      {readable === 'unread' && (
+        <p className="mt-3 text-xs text-muted-foreground">{t('agentCannotRead')}</p>
+      )}
     </div>
   );
 };

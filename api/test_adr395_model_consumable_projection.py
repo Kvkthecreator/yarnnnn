@@ -605,3 +605,96 @@ def test_am1_d8_zip_expansion_no_longer_filters_on_the_parser_table():
     assert "notes.md" in names
     assert "nested.zip" not in names, "a nested archive was expanded recursively"
     assert not any(n.startswith(".") for n in names)
+
+
+# ── am.1 D11 — a member can tell "not readable" from "read fine" ────────────
+
+
+@pytest.mark.parametrize("path,ct,projection,expected", [
+    # A real projection carries the file's own words.
+    ("/w/q3.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     "derived_from: /w/q3.xlsx\n\n# q3.xlsx\n\n## Q3\n\nEMEA\t1200", "read"),
+    ("/w/deck.pptx", None, "derived_from: /w/deck.pptx\n\n# deck.pptx\n\n## Slide 1\n\nRoadmap", "read"),
+    ("/w/brief.docx", None, "derived_from: /w/brief.docx\n\n# brief.docx\n\nTerms follow.", "read"),
+    # A D9 MARKER is not a projection, however much it looks like one.
+    ("/w/design.sketch", "application/octet-stream",
+     "derived_from: /w/design.sketch\n\n# design.sketch\n\nNOTE: This is a sketch file. It is retained in full…",
+     "unread"),
+    ("/w/scan.pdf", None,
+     "derived_from: /w/scan.pdf\n\n# scan.pdf\n\nNOTE: No text could be read from this pdf file…",
+     "unread"),
+    # Native — the file IS its own content, so nothing is owed or missing.
+    ("/w/photo.png", "image/png", None, "native"),
+    ("/w/clip.mp4", "video/mp4", None, "native"),
+    ("/w/notes.md", "text/markdown", None, "native"),
+])
+def test_am1_d11_readable_state_separates_the_three_cases(path, ct, projection, expected):
+    """D11 — `read` / `unread` / `native`, the member's question not the viewer's.
+
+    The viewer asks "can I DRAW this"; both a .sketch and an .xlsx answer no.
+    The member asks "does my agent know what is in it", and those two answer
+    oppositely. This is that second question.
+    """
+    from services.documents import readable_state
+    got = readable_state(
+        path, content_type=ct, projection_content=projection,
+        has_projection=projection is not None,
+    )
+    assert got == expected, f"{path} → {got}, expected {expected}"
+
+
+def test_am1_d11_no_projection_is_unread_not_read():
+    """D11 — the conservative default. Claiming readability we do not have is
+    the failure that matters; the reverse is merely modest."""
+    from services.documents import readable_state
+    assert readable_state("/w/mystery.bin", content_type="application/octet-stream") == "unread"
+    assert readable_state("/w/q3.xlsx", has_projection=False) == "unread"
+
+
+def test_am1_d11_marker_and_projection_are_told_apart_by_the_writers_token():
+    """D11 — the discriminator matches what `_deferred_note` actually emits.
+
+    A gate that invents its own marker text would pass while the real writer
+    drifted. This asserts the REAL note, produced by the real function.
+    """
+    from services.documents import readable_state
+    from services.primitives.extract_text_from_blob import _deferred_note
+
+    for had_strategy in (True, False):
+        note = _deferred_note("xlsx", had_strategy=had_strategy)
+        body = f"derived_from: /w/a.xlsx\n\n# a.xlsx\n\n{note}\n"
+        assert readable_state("/w/a.xlsx", projection_content=body) == "unread", \
+            f"a real marker (had_strategy={had_strategy}) was read as a projection"
+
+
+def test_am1_d11_the_client_never_re_derives_the_rule():
+    """D11 — the verdict is the SERVER's, like `access` (ADR-643 D3).
+
+    A second copy of `registry_strategy` in TypeScript is the split that let the
+    upload door and the derive-registry disagree in the first place (§8.1), so
+    the FE must consume `file.readable` and never compute it.
+    """
+    import re
+    web = ROOT.parent / "web"
+    viewer = (web / "components" / "workspace" / "viewers" / "index.tsx").read_text(encoding="utf-8")
+    code = re.sub(r"//.*$", "", viewer, flags=re.MULTILINE)
+    code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
+
+    assert "file.readable" in code, "the viewer does not read the served verdict"
+    # The FE must not rebuild the registry: no format list deciding readability.
+    for spelling in ("'xlsx'", '"xlsx"', "'pptx'", '"pptx"'):
+        assert spelling not in code, \
+            f"the viewer names {spelling} — the derive-registry is being re-derived client-side"
+
+
+def test_am1_d11_the_route_decorates_the_read():
+    """D11 — the decoration is wired, and degrades to None rather than a 500."""
+    import re
+    src = (ROOT / "routes" / "workspace.py").read_text(encoding="utf-8")
+    code = "\n".join(re.sub(r"#.*$", "", line) for line in src.splitlines())
+    assert "readable=_readable_or_none(" in code, "the file read is not decorated"
+    assert "def _readable_or_none(" in code
+    # A decoration that can 500 a read is worse than no decoration.
+    helper = code.split("def _readable_or_none(", 1)[1].split("\ndef ", 1)[0]
+    assert "except Exception" in helper and "return None" in helper, \
+        "the decoration does not degrade to None on failure"

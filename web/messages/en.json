@@ -1363,7 +1363,9 @@
       "previewTruncated": "Preview truncated to first {count} rows",
       "noInlinePreview": "Preview not available inline",
       "openExternally": "Open or download this file to inspect it in a native viewer.",
-      "noBytes": "This file has no bytes to show yet."
+      "noBytes": "This file has no bytes to show yet.",
+      "agentCanRead": "Your agents can read this file's contents.",
+      "agentCannotRead": "Kept in full — but your agents can't read this format yet."
     },
     "revisions": {
       "title": "Revision history",

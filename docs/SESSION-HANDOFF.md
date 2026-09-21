@@ -19,15 +19,13 @@ marker. It found one defect no gate could: **the drop-zone caption still read "P
 MD · ZIP"** after D8 deleted the `accept` filters, and its sibling "Your agents can read these
 files" had become a false promise. Both reworded in `en.json`/`ko.json`.
 
-1. **`python-pptx` is a new dependency and must reach BOTH services.** `requirements.txt` carries it;
-   confirm `yarnnn-api` AND `yarnnn-unified-scheduler` rebuilt (the scheduler runs the capture lane,
-   which can invoke the same derive). An extractor missing there fails as a marker, not a crash —
-   which is the honest degradation but would read as "we can't parse pptx".
-2. **A member cannot tell "not readable" from "read fine".** The Files viewer shows the same
-   "can't preview here" for `.sketch` (genuinely unreadable) and `.xlsx` (now read well). The
-   distinction is in the substrate — marker vs projection — and is not surfaced. A Files-viewer
-   question, not an intake one.
-3. **The add-file menu is English inside a Korean interface** — "New Folder" / "Add Files…" are
+Both follow-ups are CLOSED (2026-09-21): `python-pptx` verified installed on BOTH services from
+their live build logs (not inferred — they share `pip install -r api/requirements.txt`), and the
+member distinction shipped as **D11** (§9): `readable_state()` → `read`/`unread`/`native`, served
+as `FileResponse.readable`, driven in the browser. `render.yaml`'s cron block was reconciled against
+the live service in the same pass (it had no `buildCommand` and the wrong schedule).
+
+1. **The add-file menu is English inside a Korean interface** — "New Folder" / "Add Files…" are
    unlocalized while everything around them is Korean. Noticed during the click-pass; belongs to
    ADR-660's coverage, not here.
 

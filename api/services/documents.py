@@ -601,6 +601,76 @@ def upload_projection_path(raw_path: str) -> str:
     return f"{base}.extracted.md"
 
 
+#: The marker's opening token (ADR-395 am.1 D9). A marker and a projection are
+#: both `.extracted.md` rows citing the same raw; this is what tells them apart
+#: without re-running an extractor. Kept beside the writer that emits it.
+_MARKER_TOKEN = "NOTE:"
+
+
+def readable_state(
+    path: str,
+    *,
+    content_type: Optional[str] = None,
+    projection_content: Optional[str] = None,
+    has_projection: bool = False,
+) -> str:
+    """Can an agent read this file's contents? — ADR-395 am.1 D11.
+
+    Returns one of:
+      `read`     — a text projection exists and carries the file's words.
+      `unread`   — the file is retained in full, and yarnnn cannot read it.
+      `native`   — the file IS its own content (prose, an image, a video):
+                   nothing is owed and nothing is missing.
+
+    ── Why the SERVER answers this ───────────────────────────────────────────
+
+    The viewer showed the same "can't preview here" for a `.sketch` (genuinely
+    unreadable) and an `.xlsx` (read perfectly well since am.1 D10). Both are
+    binaries with no inline preview, so the VIEWER's question — "can I draw
+    this?" — cannot separate them. The member's question is different: *does my
+    agent know what is in this file?* That is the derive-registry's question,
+    and the registry lives here.
+
+    ⭐ Answering it in the client would mean re-deriving `registry_strategy` in
+    TypeScript — a second home for the rule, and the exact shape that let the
+    upload door and the derive-registry disagree in the first place (am.1 §8.1).
+    So this ships like `access` (ADR-643 D3): the server decides, the client
+    reads, and an absent value means UNKNOWN rather than a guess.
+
+    `projection_content` distinguishes a real projection from a D9 MARKER. A
+    caller that has not fetched the sibling passes `has_projection` alone and
+    gets the conservative answer for a binary: `unread` unless the words are in
+    hand. Saying "your agent can read this" when it cannot is the failure that
+    matters; the reverse is merely modest.
+    """
+    from services.primitives.extract_text_from_blob import registry_strategy
+    from services.content_types import conforms_to
+
+    mime = content_type or ""
+    # Media and prose are their own content — an image IS what a vision model
+    # reads, and a .md IS its own text. Neither is owed a projection, so neither
+    # can be missing one.
+    if mime and (
+        conforms_to(mime, "public.image")
+        or conforms_to(mime, "public.movie")
+        or conforms_to(mime, "public.audio")
+        or conforms_to(mime, "public.text")
+    ):
+        return "native"
+
+    ext = path.rsplit(".", 1)[-1].lower() if "." in path.rsplit("/", 1)[-1] else ""
+    if registry_strategy(ext) == "passthrough":
+        return "native"
+
+    if projection_content is not None:
+        body = projection_content.strip()
+        # A marker states the gap and carries no extracted words. A projection
+        # carries the file's own text. Both open with `derived_from:` + a title.
+        return "unread" if _MARKER_TOKEN in body else "read"
+
+    return "read" if has_projection else "unread"
+
+
 def is_upload_projection(
     path: str,
     content: Optional[str] = None,

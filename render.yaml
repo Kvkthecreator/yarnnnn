@@ -68,9 +68,21 @@ services:
 crons:
   # Unified Scheduler (ADR-017 + ADR-018)
   # Processes: recurring deliverables, proactive reviews, import jobs, memory extraction
-  # Runs every 5 minutes to catch due items
+  # Runs every minute to catch due items
   - name: unified-scheduler
-    schedule: "*/5 * * * *"
+    # RECONCILED 2026-09-21 against the LIVE cron `crn-d604uqili9vc73ankvag`
+    # (ADR-395 am.1). Two drifts, both corrected here:
+    #   - schedule was "*/5 * * * *"; live is "*/1 * * * *"
+    #   - buildCommand was MISSING entirely; live has always carried it, so a
+    #     redeploy from this blueprint would have produced a scheduler with NO
+    #     dependencies installed.
+    # The blueprint is not what deploys (both services are wired to the repo
+    # with autoDeploy on `main`), so nothing was broken in production — but a
+    # blueprint that disagrees with the service it describes is documentation
+    # that lies, and it is the file someone reaches for in a rebuild.
+    # ⭐Verify against `get_service`, never against this file.
+    schedule: "*/1 * * * *"
+    buildCommand: pip install -r api/requirements.txt
     command: cd api && python -m jobs.unified_scheduler
     region: singapore
     envVars:

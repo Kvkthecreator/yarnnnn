@@ -1363,7 +1363,9 @@
       "previewTruncated": "미리보기는 처음 {count}행까지만 보여요",
       "noInlinePreview": "여기서는 미리 볼 수 없어요",
       "openExternally": "이 파일을 열거나 내려받아 기본 뷰어에서 확인하세요.",
-      "noBytes": "아직 보여줄 내용이 없어요."
+      "noBytes": "아직 보여줄 내용이 없어요.",
+      "agentCanRead": "에이전트가 이 파일의 내용을 읽을 수 있어요.",
+      "agentCannotRead": "그대로 보관했어요 — 다만 이 형식은 아직 에이전트가 읽지 못해요."
     },
     "revisions": {
       "title": "버전 기록",

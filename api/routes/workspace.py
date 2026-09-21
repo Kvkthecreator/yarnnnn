@@ -53,6 +53,13 @@ class FileResponse(BaseModel):
     # reads it; it never re-derives the rule. Optional because a decoration
     # failure must degrade to "ask the server", never to a 500 on a read.
     access: Optional[dict] = None
+    # ADR-395 am.1 D11: can an agent read this file's contents? `read` ·
+    # `unread` · `native` (see `documents.readable_state`). The viewer draws the
+    # difference between "yarnnn cannot read this" and "read fine, just not
+    # previewable here" — a distinction the RENDERER cannot make, because both
+    # are binaries it cannot draw. Same contract as `access`: the server
+    # decides, the client reads, and None means UNKNOWN (say nothing).
+    readable: Optional[str] = None
 
 
 class FileEditRequest(BaseModel):
@@ -710,6 +717,51 @@ def _may_place(auth, folder: str) -> bool:
         return True
 
 
+def _readable_or_none(auth, path: str, content_type: Optional[str]) -> Optional[str]:
+    """`readable` for one file (ADR-395 am.1 D11), or None if it cannot be told.
+
+    Reads the co-located `.extracted.md` sibling, whose path is a PURE FUNCTION
+    of the raw's (`upload_projection_path`), so this is one indexed lookup and
+    never a scan. Only a raw that could OWE a projection is looked up — prose,
+    media and images answer `native` without touching the database.
+
+    Never raises: a decoration failure degrades to None (the viewer then says
+    nothing about readability), never to a 500 on a read.
+    """
+    from services.documents import readable_state, upload_projection_path
+
+    try:
+        # A projection describing itself is noise — the member never opens one
+        # (it is hidden, ADR-554 D2), and "is this readable" is a question about
+        # the RAW.
+        if path.endswith(".extracted.md"):
+            return None
+
+        verdict = readable_state(path, content_type=content_type)
+        if verdict == "native":
+            return verdict
+
+        sibling = upload_projection_path(path)
+        row = (
+            auth.client.table("workspace_files")
+            .select("content")
+            .eq(*_substrate_scope_filter(auth))
+            .eq("path", sibling)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not row:
+            return "unread"
+        return readable_state(
+            path,
+            content_type=content_type,
+            projection_content=row[0].get("content") or "",
+        )
+    except Exception as exc:  # noqa: BLE001 — a decoration never breaks a read
+        logger.warning("[WORKSPACE_API] readable decoration failed for %s: %s", path, exc)
+        return None
+
+
 def _access_or_none(auth, path: str) -> Optional[dict]:
     """The viewer's decision for one path, or None if it could not be taken.
 
@@ -1143,6 +1195,7 @@ async def get_workspace_file(
             metadata=row.get("metadata"),
             head_version_id=row.get("head_version_id"),
             access=_access_or_none(auth, row["path"]),
+            readable=_readable_or_none(auth, row["path"], row.get("content_type")),
         )
 
     except HTTPException:

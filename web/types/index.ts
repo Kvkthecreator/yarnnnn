@@ -429,6 +429,22 @@ export interface WorkspaceFile {
    * to asking, never to a 500 on a read.
    */
   access?: AccessDecision | null;
+  /**
+   * ADR-395 am.1 D11 — can an agent read this file's contents?
+   *
+   *   'read'   — a text projection exists and carries the file's words
+   *   'unread' — retained in full, and yarnnn cannot read it
+   *   'native' — the file IS its own content (prose, image, video)
+   *
+   * Served by the derive-registry (`documents.readable_state`), never
+   * re-derived here: a second copy of that rule in TypeScript is exactly the
+   * split that let the upload door and the registry disagree (am.1 §8.1).
+   *
+   * ⚠️ `undefined` means UNKNOWN, so the viewer says NOTHING about
+   * readability rather than guessing. Claiming "your agent can read this"
+   * when it cannot is the failure that matters.
+   */
+  readable?: 'read' | 'unread' | 'native' | null;
 }
 
 /** ADR-209 Phase 4 + ADR-266 D7: minimal revision metadata surfaced in
