@@ -19,11 +19,19 @@ marker. It found one defect no gate could: **the drop-zone caption still read "P
 MD · ZIP"** after D8 deleted the `accept` filters, and its sibling "Your agents can read these
 files" had become a false promise. Both reworded in `en.json`/`ko.json`.
 
-Both follow-ups are CLOSED (2026-09-21): `python-pptx` verified installed on BOTH services from
-their live build logs (not inferred — they share `pip install -r api/requirements.txt`), and the
-member distinction shipped as **D11** (§9): `readable_state()` → `read`/`unread`/`native`, served
-as `FileResponse.readable`, driven in the browser. `render.yaml`'s cron block was reconciled against
-the live service in the same pass (it had no `buildCommand` and the wrong schedule).
+**THE TOPIC IS CLOSED** (2026-09-21). Inbound office formats work end to end: the door takes every
+file (D8), nothing is silently dropped (D9), xlsx/pptx/docx are read correctly (D10), a member can
+tell readable from not (D11), sees the extracted words (D12) and can save the file from the panel
+that tells them to (D13). All driven in a browser; `python-pptx` verified on BOTH services from
+their live build logs. `render.yaml`'s cron block was reconciled against the live service on the
+way (no `buildCommand`, wrong schedule) — ⭐verify infra against `get_service`, never against that
+file.
+
+Deliberately NOT built, each with its reason in the ADR: round-trip editing · an outbound
+`.docx`/`.pptx` writer (ADR-417 §2b stands) · Google Drive (a connector question — ⚠️**ADR-131
+sunset the Google tools**, read why before re-proposing) · a visual/thumbnail preview and the
+sandbox behind it (§8.7 scopes it with a named trigger: a member asking twice for something that
+needs code execution).
 
 1. **The add-file menu is English inside a Korean interface** — "New Folder" / "Add Files…" are
    unlocalized while everything around them is Korean. Noticed during the click-pass; belongs to

@@ -509,3 +509,96 @@ The dependency question itself is **closed with a receipt, not an inference**:
 both services run `pip install -r api/requirements.txt`, and both build logs
 show `python-pptx-1.0.2` installed on `d5c3ac5`. ⭐A build command is not proof
 that a package installed; the build log is.
+
+---
+
+## 10. Amendment 1, D12–D13 (2026-09-21) — the terminal shows the words, and opens the door
+
+> Operator question, from a screenshot of a `.pptx`: *"how do we render or even
+> not-show that which we don't have a dedicated render or preview for?"*
+> (The screenshot's own error was a dead local dev server — `ContentViewer`'s
+> generic network branch, not a format fault.)
+
+### 10.1 Neither render nor hide — a third answer
+
+**Hiding is wrong on this ADR's own terms.** ADR-621 fought to make a binary
+answer as a real file: found, typed, sized, attributed, fetchable. A member who
+uploaded a deck must see it exists and get it back. An empty screen would
+recreate the "32 files reported as empty" defect from the other direction.
+
+**Rendering is premature.** Drawing `.docx`/`.xlsx`/`.pptx` in-browser means a
+heavy client-side parser or an image-conversion service — the latter being the
+sandbox §8.7 just scoped and declined. And it buys a picture of content we
+**already extracted the text of**.
+
+⭐ **The third answer: we cannot DRAW your deck, so we show what it SAYS.** The
+projection is already sitting beside the raw. Serving it is the honest preview —
+no parser, no conversion service, no sandbox.
+
+### 10.2 D13 — the panel that gives the instruction gets the door
+
+`DownloadTerminal` read *"Open or download this file to inspect it"* and offered
+**neither**. Download lived only in the Files right-click menu and Properties,
+neither reachable from the panel giving the instruction. **Advice without a
+door** — the same shape as the ADR-427/510 defect where a null resolver meant
+the menu entry simply did not render.
+
+The button routes through `resolveDownload` — the ONE resolver, shared with the
+menu and Properties, which spans the text and CAS lanes and carries the
+substrate's own filename. Rebuilding the href here is precisely the bug that
+module exists to fix, so the gate asserts the terminal calls the resolver and
+never reaches for `blobUrl`. Minted object URLs are revoked on unmount.
+
+**Also deleted: `needsBlob`.** Declared on `AppRegistration`, set on all eight
+rows, and **read by nothing** — every renderer decides for itself through
+`useSignedBlobUrl`. ⭐A field every row must keep correct and no code consults is
+a fact waiting to go stale.
+
+### 10.3 D12 — the extracted text rides the file read
+
+`GET /workspace/file` already fetches the projection row to answer D11, so its
+text returns with the verdict rather than costing a second round trip:
+`projection_preview` + `projection_truncated` beside `readable`.
+
+Three decisions worth recording:
+
+- **The header is stripped.** A projection opens with `derived_from: <raw>` and
+  a `# <filename>` title — both written for the reference edge (ADR-448), both
+  noise to a member looking at that very file. ⭐The stripper stops at the first
+  real line rather than FILTERING `# ` lines, because a heading lower in the
+  document is content: filtering would silently delete a deck's slide titles.
+  The gate asserts exactly that.
+- **Only a `read` file carries one.** `unread` carries none — its NOTE is
+  already the sentence the viewer shows, and serving it as a "preview" would
+  print the same fact twice. `native` carries none: the file is its own preview.
+- **Bounded at 4000 chars**, cut on a paragraph break when one is near the end.
+  A 200-page PDF's projection has no business inflating every file read; the
+  whole text stays reachable through recall and the sibling row.
+
+### 10.4 Driven
+
+`.pptx` → download button + "이 파일의 내용" showing the slide text and speaker
+notes; the download resolved **200 OK** through the shared resolver.
+`.docx` → the contract's **table and header visible to the member** — the exact
+content the pre-am.1 extractor silently dropped, which closes the loop on the
+feedback that opened this amendment. `.sketch` → button, and **no preview
+section**, because there are no words to show.
+
+Gate `test_adr395` **60/60** (6 new arms), falsified four ways — the stripper
+filters every `# ` line · the preview is served for every verdict · the terminal
+loses its download · `needsBlob` returns. The D11 route arm was **re-cut, not
+routed around**: it pinned the exact call spelling, which D12 changed while
+making it more correct (the ADR-658 am.4 lesson — a gate that pins prose loses an
+argument with the product); it now pins the mechanism. ADR-660 47/47, voice 0,
+affected set 98/98, `next build` exit 0.
+
+### 10.5 The topic closes here
+
+Inbound office formats are done: the door takes everything (D8), nothing is
+silently dropped (D9), xlsx/pptx/docx are read correctly (D10), the member can
+tell readable from not (D11), sees the words (D12) and can save the file (D13).
+
+**Still deliberately not built**, each with its reason above: no round-trip
+editing · no outbound `.docx`/`.pptx` writer (ADR-417 §2b) · no Google Drive
+(a connector question; ADR-131 sunset the Google tools — read why first) · no
+visual/thumbnail preview and no sandbox (§8.7, with a named trigger).

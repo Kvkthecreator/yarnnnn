@@ -692,9 +692,111 @@ def test_am1_d11_the_route_decorates_the_read():
     import re
     src = (ROOT / "routes" / "workspace.py").read_text(encoding="utf-8")
     code = "\n".join(re.sub(r"#.*$", "", line) for line in src.splitlines())
-    assert "readable=_readable_or_none(" in code, "the file read is not decorated"
+    # Pin the MECHANISM, not the call's spelling: D12 widened the decoration to
+    # return three fields, so an exact-call assertion would fail on a correct
+    # change (the ADR-658 am.4 lesson — a gate that pins prose loses an argument
+    # with the product).
+    assert "_readable_fields(auth, row[" in code, "the file read is not decorated"
     assert "def _readable_or_none(" in code
+    assert '"readable": verdict' in code, "the decoration no longer carries the verdict"
     # A decoration that can 500 a read is worse than no decoration.
     helper = code.split("def _readable_or_none(", 1)[1].split("\ndef ", 1)[0]
     assert "except Exception" in helper and "return None" in helper, \
         "the decoration does not degrade to None on failure"
+
+
+# ── am.1 D12/D13 — the terminal shows the words, and offers the door ────────
+
+
+def test_am1_d12_projection_header_is_stripped_from_the_preview():
+    """D12 — the member sees the file's words, not the substrate's plumbing.
+
+    A projection opens with `derived_from:` + a `# <filename>` title, both
+    written for the reference edge (ADR-448) and both noise to a member looking
+    at that very file.
+    """
+    from routes.workspace import _strip_projection_header
+
+    body = (
+        "derived_from: /workspace/inbound/uploads/q3.xlsx\n\n"
+        "# q3.xlsx\n\n"
+        "## Q3 Forecast\n\nRegion\tRevenue\nEMEA\t1200\n"
+    )
+    out = _strip_projection_header(body)
+    assert not out.startswith("derived_from"), "the reference edge leaked into the preview"
+    assert "# q3.xlsx" not in out, "the filename title is repeated at the member"
+    assert out.startswith("## Q3 Forecast"), out[:40]
+    assert "EMEA\t1200" in out, "the content was eaten with the header"
+
+
+def test_am1_d12_a_heading_inside_the_body_survives():
+    """D12 — the stripper stops at the first real line, it does not filter.
+
+    A `#` heading LOWER in a document is content. Dropping every `# ` line
+    would quietly delete a deck's slide titles.
+    """
+    from routes.workspace import _strip_projection_header
+
+    body = (
+        "derived_from: /w/deck.pptx\n\n# deck.pptx\n\n"
+        "## Slide 1\n\nRoadmap\n\n# A Heading In The Deck\n\nmore\n"
+    )
+    out = _strip_projection_header(body)
+    assert "# A Heading In The Deck" in out, "a heading inside the body was stripped"
+
+
+def test_am1_d12_preview_is_bounded_and_says_when_it_is_cut():
+    """D12 — a 200-page PDF's projection must not inflate every file read."""
+    from routes.workspace import _PROJECTION_PREVIEW_CHARS, _strip_projection_header
+
+    assert 500 <= _PROJECTION_PREVIEW_CHARS <= 20000, \
+        f"the preview bound is not a preview: {_PROJECTION_PREVIEW_CHARS}"
+    # The stripper itself must not truncate — bounding is the caller's job, so
+    # the two concerns stay separable.
+    long_body = "derived_from: /w/a.pdf\n\n# a.pdf\n\n" + ("word " * 20000)
+    assert len(_strip_projection_header(long_body)) > _PROJECTION_PREVIEW_CHARS
+
+
+def test_am1_d12_only_a_read_file_carries_a_preview():
+    """D12 — `unread` carries none (its NOTE is already the sentence shown),
+    and `native` carries none (the file is its own preview). Serving a marker's
+    text as a 'preview' would print the same fact twice."""
+    import re
+    src = (ROOT / "routes" / "workspace.py").read_text(encoding="utf-8")
+    code = "\n".join(re.sub(r"#.*$", "", line) for line in src.splitlines())
+    helper = code.split("def _readable_or_none(", 1)[1].split("\ndef ", 1)[0]
+    assert 'if verdict != "read":' in helper, \
+        "the preview is not gated on the `read` verdict"
+    assert "_strip_projection_header(" in helper
+
+
+def test_am1_d13_the_terminal_offers_the_download_it_names():
+    """D13 — the panel that says "open or download this file" now has a door.
+
+    Download lived ONLY in the Files right-click menu and Properties, neither
+    reachable from this panel: advice without an affordance.
+    """
+    import re
+    web = ROOT.parent / "web"
+    src = (web / "components" / "workspace" / "viewers" / "index.tsx").read_text(encoding="utf-8")
+    code = re.sub(r"//.*$", "", src, flags=re.MULTILINE)
+    code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
+
+    terminal = code.split("export const DownloadTerminal", 1)[1]
+    assert "resolveDownload(" in terminal, "the terminal offers no download"
+    # ONE resolver: rebuilding the href here is the exact defect
+    # `lib/workspace/download.ts` exists to fix (it silently returned null for
+    # all 39 live binaries).
+    assert "blobUrl(" not in terminal, \
+        "the terminal rebuilds the download instead of using the one resolver"
+    assert "revokeObjectURL" in terminal, "minted object URLs are never revoked"
+
+
+def test_am1_d13_needsblob_is_gone_and_stays_gone():
+    """D13 cleanup — a field every row had to keep correct and nothing read."""
+    web = ROOT.parent / "web"
+    src = (web / "lib" / "file-types" / "apps.tsx").read_text(encoding="utf-8")
+    import re
+    code = re.sub(r"//.*$", "", src, flags=re.MULTILINE)
+    code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
+    assert "needsBlob" not in code, "the dead registry field is back"

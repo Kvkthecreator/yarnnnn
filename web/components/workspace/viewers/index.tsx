@@ -21,8 +21,10 @@
  * branch inside a mount.
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { FileText } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
+import { resolveDownload } from '@/lib/workspace/download';
 import type { WorkspaceFile } from '@/types';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { InferenceContentView } from '@/components/context/InferenceContentView';
@@ -259,7 +261,7 @@ export const TableViewer: ViewerApp = ({ file, compact }) => {
 // Download Terminal — not an app; the resolver's binary terminal (ADR-436 §1).
 // Where a future Open-With / redirect-launch (App(principal)) will surface.
 // ---------------------------------------------------------------------------
-export const DownloadTerminal: ViewerApp = ({ file }) => {
+export const DownloadTerminal: ViewerApp = ({ file, compact }) => {
   const t = useTranslations('files.viewers');
   // ADR-395 am.1 D11 — two files land here for OPPOSITE reasons, and before
   // this line they read identically: a .sketch yarnnn genuinely cannot read,
@@ -270,6 +272,43 @@ export const DownloadTerminal: ViewerApp = ({ file }) => {
   // The verdict is the SERVER's (`documents.readable_state`) — undefined means
   // unknown, and an unknown says nothing rather than guessing.
   const readable = file.readable;
+  const preview = readable === 'read' ? file.projection_preview : null;
+
+  // ADR-395 am.1 D13 — the terminal SAYS "open or download this file" and,
+  // before this, offered no way to do either: Download lived only in the Files
+  // right-click menu and Properties, neither of them reachable from the panel
+  // giving the instruction. Advice without a door.
+  const [saving, setSaving] = useState(false);
+  const objectUrls = useRef<string[]>([]);
+  useEffect(
+    () => () => {
+      objectUrls.current.forEach((u) => URL.revokeObjectURL(u));
+      objectUrls.current = [];
+    },
+    [],
+  );
+  const onDownload = useCallback(async () => {
+    setSaving(true);
+    try {
+      // ONE resolver, shared with the menu and Properties (ADR-427/510): it
+      // spans the text and CAS lanes and carries the substrate's own filename.
+      // Rebuilding the href here is the exact bug that module exists to fix.
+      const resolved = await resolveDownload(
+        { path: file.path, name: file.path.split('/').pop() || 'file', isFile: true },
+        (href) => objectUrls.current.push(href),
+      );
+      if (!resolved) return;
+      const a = document.createElement('a');
+      a.href = resolved.href;
+      a.download = resolved.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      setSaving(false);
+    }
+  }, [file.path]);
+
   return (
     <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center">
       <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
@@ -282,6 +321,35 @@ export const DownloadTerminal: ViewerApp = ({ file }) => {
       )}
       {readable === 'unread' && (
         <p className="mt-3 text-xs text-muted-foreground">{t('agentCannotRead')}</p>
+      )}
+
+      <button
+        type="button"
+        onClick={onDownload}
+        disabled={saving}
+        className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-60"
+      >
+        <Download className="h-3.5 w-3.5" />
+        {saving ? t('downloading') : t('download')}
+      </button>
+
+      {/* D12 — the words we already extracted. This is the honest preview of a
+          format we cannot draw: no parser, no conversion service, no sandbox.
+          Left-aligned because it is a document, not a caption. */}
+      {preview && !compact && (
+        <div className="mt-5 text-left">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            {t('extractedTextTitle')}
+          </p>
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background/60 p-3 text-left font-sans text-xs leading-relaxed text-muted-foreground">
+            {preview}
+          </pre>
+          {file.projection_truncated && (
+            <p className="mt-1.5 text-[11px] text-muted-foreground/70">
+              {t('extractedTextTruncated')}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

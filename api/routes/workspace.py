@@ -60,6 +60,13 @@ class FileResponse(BaseModel):
     # are binaries it cannot draw. Same contract as `access`: the server
     # decides, the client reads, and None means UNKNOWN (say nothing).
     readable: Optional[str] = None
+    # ADR-395 am.1 D12: for a `read` file, the text yarnnn extracted — the
+    # honest preview of a format it cannot DRAW. Truncated at
+    # `_PROJECTION_PREVIEW_CHARS`; `projection_truncated` says when there is
+    # more. None for `unread` (the NOTE is already the sentence) and `native`
+    # (the file is its own preview).
+    projection_preview: Optional[str] = None
+    projection_truncated: bool = False
 
 
 class FileEditRequest(BaseModel):
@@ -717,16 +724,53 @@ def _may_place(auth, folder: str) -> bool:
         return True
 
 
-def _readable_or_none(auth, path: str, content_type: Optional[str]) -> Optional[str]:
-    """`readable` for one file (ADR-395 am.1 D11), or None if it cannot be told.
+#: How much of a projection rides the file read (ADR-395 am.1 D12). A preview,
+#: not a delivery: the whole text is already reachable through recall and the
+#: sibling row, and a 200-page PDF's projection has no business inflating every
+#: `GET /workspace/file`. Cut on a paragraph boundary when one is near the end.
+_PROJECTION_PREVIEW_CHARS = 4000
+
+
+def _strip_projection_header(body: str) -> str:
+    """The projection's text, without the plumbing its file carries.
+
+    A projection opens with `derived_from: <raw>` + a `# <filename>` title —
+    both written for the substrate (the reference edge, ADR-448) and both noise
+    to a member who is looking at that very file. The words start after them.
+    """
+    lines = body.splitlines()
+    out: list[str] = []
+    skipping = True
+    for line in lines:
+        if skipping:
+            st = line.strip()
+            if not st or st.startswith("derived_from:") or st.startswith("# "):
+                continue
+            skipping = False
+        out.append(line)
+    return "\n".join(out).strip()
+
+
+def _readable_or_none(
+    auth, path: str, content_type: Optional[str]
+) -> tuple[Optional[str], Optional[str], bool]:
+    """`(readable, preview, truncated)` for one file — ADR-395 am.1 D11 + D12.
 
     Reads the co-located `.extracted.md` sibling, whose path is a PURE FUNCTION
     of the raw's (`upload_projection_path`), so this is one indexed lookup and
     never a scan. Only a raw that could OWE a projection is looked up — prose,
     media and images answer `native` without touching the database.
 
-    Never raises: a decoration failure degrades to None (the viewer then says
-    nothing about readability), never to a 500 on a read.
+    D12: the sibling's row is ALREADY in hand to answer D11, so its text rides
+    back with the verdict rather than costing a second round trip. The member
+    asking "what is in this file?" gets the words yarnnn actually extracted,
+    which is the honest preview for a format we cannot draw — no parser, no
+    conversion service, no sandbox. A marker carries no preview: its NOTE is
+    already said by the `unread` sentence, and repeating it would be the same
+    fact twice.
+
+    Never raises: a decoration failure degrades to (None, None, False) — the
+    viewer then says nothing about readability, never a 500 on a read.
     """
     from services.documents import readable_state, upload_projection_path
 
@@ -735,11 +779,11 @@ def _readable_or_none(auth, path: str, content_type: Optional[str]) -> Optional[
         # (it is hidden, ADR-554 D2), and "is this readable" is a question about
         # the RAW.
         if path.endswith(".extracted.md"):
-            return None
+            return None, None, False
 
         verdict = readable_state(path, content_type=content_type)
         if verdict == "native":
-            return verdict
+            return verdict, None, False
 
         sibling = upload_projection_path(path)
         row = (
@@ -751,15 +795,40 @@ def _readable_or_none(auth, path: str, content_type: Optional[str]) -> Optional[
             .execute()
         ).data or []
         if not row:
-            return "unread"
-        return readable_state(
-            path,
-            content_type=content_type,
-            projection_content=row[0].get("content") or "",
-        )
+            return "unread", None, False
+
+        body = row[0].get("content") or ""
+        verdict = readable_state(path, content_type=content_type, projection_content=body)
+        if verdict != "read":
+            return verdict, None, False
+
+        text = _strip_projection_header(body)
+        if not text:
+            # A projection with a header and nothing under it is not readable
+            # content, whatever its strategy said.
+            return "unread", None, False
+        if len(text) <= _PROJECTION_PREVIEW_CHARS:
+            return verdict, text, False
+        cut = text[:_PROJECTION_PREVIEW_CHARS]
+        # Prefer a paragraph break near the end so the preview does not stop
+        # mid-sentence; fall back to the hard cut when there is none.
+        brk = cut.rfind("\n\n")
+        if brk > _PROJECTION_PREVIEW_CHARS // 2:
+            cut = cut[:brk]
+        return verdict, cut.rstrip(), True
     except Exception as exc:  # noqa: BLE001 — a decoration never breaks a read
         logger.warning("[WORKSPACE_API] readable decoration failed for %s: %s", path, exc)
-        return None
+        return None, None, False
+
+
+def _readable_fields(auth, path: str, content_type: Optional[str]) -> dict:
+    """The three D11/D12 response fields, from the one decoration call."""
+    verdict, preview, truncated = _readable_or_none(auth, path, content_type)
+    return {
+        "readable": verdict,
+        "projection_preview": preview,
+        "projection_truncated": truncated,
+    }
 
 
 def _access_or_none(auth, path: str) -> Optional[dict]:
@@ -1195,7 +1264,7 @@ async def get_workspace_file(
             metadata=row.get("metadata"),
             head_version_id=row.get("head_version_id"),
             access=_access_or_none(auth, row["path"]),
-            readable=_readable_or_none(auth, row["path"], row.get("content_type")),
+            **_readable_fields(auth, row["path"], row.get("content_type")),
         )
 
     except HTTPException:

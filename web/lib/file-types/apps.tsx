@@ -63,8 +63,10 @@ interface AppRegistration {
   ownsTypes: ViewerApplication[];
   /** The frame-agnostic renderer component. */
   renderer: ViewerApp;
-  /** True if the app reads the blob (`content_url`) not the text column. */
-  needsBlob: boolean;
+  // `needsBlob` was DELETED 2026-09-21 (ADR-395 am.1). It was declared here and
+  // set on all 8 rows, and READ BY NOTHING — each renderer decides for itself
+  // whether it needs the blob, through `useSignedBlobUrl`. A field every row
+  // must keep correct and no code consults is a fact waiting to go stale.
 }
 
 /**
@@ -72,19 +74,19 @@ interface AppRegistration {
  * party's app would be an additional row of the exact same shape.
  */
 export const APPS: Record<AppId, AppRegistration> = {
-  'text.viewer': { id: 'text.viewer', label: 'Preview', ownsTypes: ['text'], renderer: TextViewer, needsBlob: false },
+  'text.viewer': { id: 'text.viewer', label: 'Preview', ownsTypes: ['text'], renderer: TextViewer },
   // ADR-571: markdown's EDITOR is no longer an inline app here — editing
   // prose is the Text app (a surface, claimed in `APP_SURFACES`), the way
   // editing an .html artifact is Docs/Studio. This row renders it; the
   // surface edits it.
-  'markdown.viewer': { id: 'markdown.viewer', label: 'Preview', ownsTypes: ['markdown'], renderer: MarkdownViewer, needsBlob: false },
-  'web.viewer': { id: 'web.viewer', label: 'Preview', ownsTypes: ['html'], renderer: WebViewer, needsBlob: false },
-  'image.viewer': { id: 'image.viewer', label: 'Preview', ownsTypes: ['image'], renderer: ImageViewer, needsBlob: false },
-  'media.player': { id: 'media.player', label: 'Preview', ownsTypes: ['video', 'audio'], renderer: MediaPlayer, needsBlob: true },
-  'pdf.viewer': { id: 'pdf.viewer', label: 'Preview', ownsTypes: ['pdf'], renderer: PdfViewer, needsBlob: true },
-  'table.viewer': { id: 'table.viewer', label: 'Preview', ownsTypes: ['csv'], renderer: TableViewer, needsBlob: false },
+  'markdown.viewer': { id: 'markdown.viewer', label: 'Preview', ownsTypes: ['markdown'], renderer: MarkdownViewer },
+  'web.viewer': { id: 'web.viewer', label: 'Preview', ownsTypes: ['html'], renderer: WebViewer },
+  'image.viewer': { id: 'image.viewer', label: 'Preview', ownsTypes: ['image'], renderer: ImageViewer },
+  'media.player': { id: 'media.player', label: 'Preview', ownsTypes: ['video', 'audio'], renderer: MediaPlayer },
+  'pdf.viewer': { id: 'pdf.viewer', label: 'Preview', ownsTypes: ['pdf'], renderer: PdfViewer },
+  'table.viewer': { id: 'table.viewer', label: 'Preview', ownsTypes: ['csv'], renderer: TableViewer },
   // The download terminal (not a viewer app — the resolver's binary terminal).
-  'download.terminal': { id: 'download.terminal', label: 'Download', ownsTypes: ['download'], renderer: DownloadTerminal, needsBlob: true },
+  'download.terminal': { id: 'download.terminal', label: 'Download', ownsTypes: ['download'], renderer: DownloadTerminal },
 };
 
 /**

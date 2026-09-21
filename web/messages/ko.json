@@ -1365,7 +1365,11 @@
       "openExternally": "이 파일을 열거나 내려받아 기본 뷰어에서 확인하세요.",
       "noBytes": "아직 보여줄 내용이 없어요.",
       "agentCanRead": "에이전트가 이 파일의 내용을 읽을 수 있어요.",
-      "agentCannotRead": "그대로 보관했어요 — 다만 이 형식은 아직 에이전트가 읽지 못해요."
+      "agentCannotRead": "그대로 보관했어요 — 다만 이 형식은 아직 에이전트가 읽지 못해요.",
+      "download": "내려받기",
+      "downloading": "내려받는 중…",
+      "extractedTextTitle": "이 파일의 내용",
+      "extractedTextTruncated": "앞부분만 보여드려요 — 에이전트는 전체를 읽어요."
     },
     "revisions": {
       "title": "버전 기록",

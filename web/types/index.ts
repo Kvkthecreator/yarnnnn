@@ -445,6 +445,17 @@ export interface WorkspaceFile {
    * when it cannot is the failure that matters.
    */
   readable?: 'read' | 'unread' | 'native' | null;
+  /**
+   * ADR-395 am.1 D12 — for a `read` file, the text yarnnn extracted from it.
+   *
+   * The honest preview of a format we cannot DRAW: no parser, no conversion
+   * service, no sandbox — we already have the words, so we show them. Absent
+   * for `unread` (the NOTE is already the sentence the viewer shows) and
+   * `native` (the file is its own preview).
+   */
+  projection_preview?: string | null;
+  /** True when the projection is longer than the served preview. */
+  projection_truncated?: boolean;
 }
 
 /** ADR-209 Phase 4 + ADR-266 D7: minimal revision metadata surfaced in
