@@ -741,6 +741,43 @@ check("the starts are listed in the picker ONLY — the empty state does not rep
 check("the door names the chosen start and wears its mark",
       "<StartMark" in _door and "start.title" in _door)
 
+# ── am.5 — SOURCES ARE A LIST ──────────────────────────────────────────────
+# ⚠️ The kernel has always taken many: `_MAX_SOURCES_PROSE` is 12 and
+# `_reach_connector_sources` groups selectors PER PLATFORM and loops. The door
+# wrote a ONE-element array from three exclusive tabs, and seeded
+# `selectors[0]` — so a member who chose four channels at the aperture got a
+# brief that read one. ADR-658's own example ("my team's channelS") was
+# unbuildable through the only door that builds it.
+_srclist = _code_only_ts(_read("web/components/supervisor/SourceList.tsx"))
+check("the source list component exists", "export function AddSource" in _srclist
+      and "export function SourceRow" in _srclist)
+check("the client mirrors the server's prose cap (12)",
+      re.search(r"MAX_SOURCES_PROSE\s*=\s*12", _srclist) is not None)
+_py = _read("api/services/standing_work.py")
+_server_cap = re.search(r"_MAX_SOURCES_PROSE\s*=\s*(\d+)", _py)
+check("the mirrored cap AGREES with the server's — drift here is a refusal a member cannot predict",
+      _server_cap is not None
+      and re.search(rf"MAX_SOURCES_PROSE\s*=\s*{_server_cap.group(1)}\b", _srclist) is not None,
+      f"server={_server_cap.group(1) if _server_cap else '?'}")
+check("a structured target still maps EXACTLY ONE source (the server rule, mirrored)",
+      "isStructured" in _srclist and "isStructured" in _door
+      and re.search(r"maxSources\s*=\s*structured\s*\?\s*1\s*:", _door) is not None
+      and re.search(r"isStructured\([^)]*\)\s*\?\s*s\.selectors\.slice\(0,\s*1\)", _door) is not None)
+check("the door holds a LIST of sources, never three exclusive fields",
+      "StandingSource[]" in _door and "sourceKind" not in _door)
+check("a connector start seeds EVERY slice the member chose, not the first",
+      "s.selectors.slice(" in _door and "selectors[0]" not in _door)
+check("the door posts every source it holds",
+      re.search(r"sources:\s*sources\.map\(", _door) is not None)
+# ⭐ Driven 2026-09-21: the slice `<select>` falls back to `free[0]` for
+# display while STATE kept the previous connection's selector, so switching
+# Slack → Notion and pressing Add re-added a Slack channel. What is shown
+# selected must be what is added.
+check("the add control adds the slice it DISPLAYS, not a stale stored one",
+      "effectiveSelector" in _srclist
+      and re.search(r"selector:\s*effectiveSelector", _srclist) is not None)
+check("a slice already in the list is not offered twice", "taken" in _srclist and "free" in _srclist)
+
 # The nested folder picker must OUTRANK and dim the door it was opened from;
 # sharing `Z_CONFIRM_*` leaves the form at full contrast behind it.
 check("the door's folder picker is marked nested, so it dims the door",
@@ -761,6 +798,9 @@ check("the detail can retire, and its confirm says the file stays",
 check("the detail edits the instructions as the FILE they are (editFile), never a second door",
       "api.workspace.editFile(" in _detail)
 check("the detail can pause and run now", "api.standing.update(" in _detail and "api.standing.run(" in _detail)
+check("the detail can CHANGE the sources, not only show them",
+      "editingSources" in _detail and "api.standing.update(" in _detail
+      and re.search(r"sources:\s*draft\.map\(", _detail) is not None)
 
 _client = _code_only_ts(_read("web/lib/api/client.ts"))
 for _verb in ("create", "get", "retire", "starts"):

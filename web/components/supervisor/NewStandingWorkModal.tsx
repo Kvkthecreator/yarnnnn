@@ -22,15 +22,28 @@
  * offered, because the kernel could not read it.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
-import { APIError, api, type StandingStart, type StandingSummary } from '@/lib/api/client';
+import {
+  APIError,
+  api,
+  type StandingSource,
+  type StandingStart,
+  type StandingSummary,
+} from '@/lib/api/client';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { StartMark } from '@/components/supervisor/StartMark';
+import {
+  AddSource,
+  MAX_SOURCES_PROSE,
+  SourceRow,
+  isStructured,
+  nextSourceId,
+} from '@/components/supervisor/SourceList';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
-import { lowerFirst, useStandingWords } from '@/components/standing/StandingRow';
+import { useStandingWords } from '@/components/standing/StandingRow';
 
 const FORMATS = ['md', 'csv', 'json', 'txt'];
 
@@ -75,18 +88,18 @@ export function NewStandingWorkModal({
 }) {
   const t = useTranslations('supervisor');
   const { describeSchedule } = useStandingWords();
-  const connectorStarts = useMemo(() => starts.filter((s) => s.kind === 'connector'), [starts]);
   const [folder, setFolder] = useState('');
   const [target, setTarget] = useState('');
   const [preset, setPreset] = useState<string>(PRESETS[0].cron);
   const [customCron, setCustomCron] = useState('');
-  const [sourceKind, setSourceKind] = useState<'connector' | 'path' | 'url'>('url');
-  const [connector, setConnector] = useState<string>('');
-  const [selector, setSelector] = useState<string>('');
-  const [url, setUrl] = useState('');
+  // ⭐ SOURCES ARE A LIST (am.5). The kernel takes up to 12 for a prose file
+  // and groups connector slices per platform, so one brief may read several
+  // Slack channels, a Notion page and a web page. This door used to write a
+  // ONE-element array from three mutually-exclusive tabs, which made the ADR's
+  // own worked example — "a brief of my team's channelS" — unbuildable.
+  const [sources, setSources] = useState<StandingSource[]>([]);
   // ADR-659 D4 — a workspace path. The folders are what the workspace already
   // HAS (`getRoots`, filesystem-literal): offered, never asked for from memory.
-  const [path, setPath] = useState('');
   const [folders, setFolders] = useState<Array<{ path: string; label: string }>>([]);
   const [contract, setContract] = useState('');
   const [pickingFolder, setPickingFolder] = useState(false);
@@ -129,22 +142,25 @@ export function NewStandingWorkModal({
       setPreset('custom');
       setCustomCron(cron);
     }
+    // ⭐ A CONNECTOR START SEEDS EVERY SLICE THE MEMBER ALREADY CHOSE, not the
+    // first one. `selectors` is what they picked at the connection's aperture
+    // in Reach — "the channels I care about" — and seeding `selectors[0]` was
+    // the silent narrowing: they chose four channels, Reach said four, and the
+    // brief read one. A structured target still takes exactly one (the server
+    // rule), so the seed is capped to the first there.
     if (s?.kind === 'connector' && s.connector) {
-      setSourceKind('connector');
-      setConnector(s.connector);
-      setSelector(s.selectors[0] ?? '');
-    } else if (s?.kind === 'path') {
-      setSourceKind('path');
+      const ext = (s.suggested_target ?? '').split('.').pop()?.toLowerCase() ?? '';
+      const picked = isStructured(ext) ? s.selectors.slice(0, 1) : s.selectors.slice(0, MAX_SOURCES_PROSE);
+      const seeded: StandingSource[] = [];
+      for (const sel of picked) {
+        seeded.push({ id: nextSourceId(sel, seeded), connector: s.connector, selector: sel });
+      }
+      setSources(seeded);
     } else {
-      const first = connectorStarts[0];
-      setSourceKind(first && !s ? 'connector' : 'url');
-      setConnector(first?.connector ?? '');
-      setSelector(first?.selectors[0] ?? '');
+      setSources([]);
     }
-    setUrl('');
-    setPath('');
     setContract(s?.contract_seed ?? '');
-  }, [open, start, connectorStarts]);
+  }, [open, start]);
 
   // ⚠️ ESCAPE CLOSES — the house idiom on ~20 modals (FindConnectorModal,
   // RenameModal, ShareDialog…), and this door shipped without it, so the one
@@ -165,16 +181,15 @@ export function NewStandingWorkModal({
 
   if (!open) return null;
 
-  const chosenStart = connectorStarts.find((s) => s.connector === connector) ?? null;
   const schedule = preset === 'custom' ? customCron.trim() : preset;
   const ext = target.includes('.') ? target.split('.').pop()!.toLowerCase() : '';
   const formatOk = FORMATS.includes(ext);
   const folderSlug = slugify(folder);
-  const sourceOk = sourceKind === 'url'
-    ? /^https?:\/\//.test(url.trim())
-    : sourceKind === 'path'
-      ? Boolean(path.trim().replace(/^\/+/, ''))
-      : Boolean(connector && selector);
+  // The server's rule, mirrored (`_classify_sources`): a structured target
+  // maps EXACTLY ONE source to the leaf; prose takes 1..12.
+  const structured = isStructured(ext);
+  const maxSources = structured ? 1 : MAX_SOURCES_PROSE;
+  const sourceOk = sources.length >= 1 && sources.length <= maxSources;
   const canCreate = Boolean(folderSlug && target.trim() && formatOk && schedule && sourceOk && contract.trim()) && !busy;
 
   /** What is still missing, named in the order the fields appear — so a member
@@ -188,12 +203,10 @@ export function NewStandingWorkModal({
         ? t('newWork.blockedFormat')
         : !schedule
           ? t('newWork.blockedSchedule')
-          : !sourceOk
-            ? sourceKind === 'connector'
-              ? t('newWork.blockedConnector')
-              : sourceKind === 'path'
-                ? t('newWork.blockedPath')
-                : t('newWork.blockedUrl')
+          : sources.length === 0
+            ? t('newWork.blockedSource')
+            : sources.length > maxSources
+              ? t('newWork.blockedTooMany', { max: maxSources })
             : !contract.trim()
               ? t('newWork.blockedInstructions')
               : '';
@@ -208,11 +221,12 @@ export function NewStandingWorkModal({
         target: target.trim(),
         schedule,
         contract: contract.trim(),
-        sources: sourceKind === 'url'
-          ? [{ id: 'page', url: url.trim() }]
-          : sourceKind === 'path'
-            ? [{ id: slugify(path.replace(/\/+$/, '').split('/').pop() ?? '') || 'source', path: path.trim() }]
-            : [{ id: slugify(selector) || 'source', connector, selector }],
+        sources: sources.map((x) => ({
+          id: x.id,
+          ...(x.connector ? { connector: x.connector, selector: x.selector ?? undefined } : {}),
+          ...(x.path ? { path: x.path } : {}),
+          ...(x.url ? { url: x.url } : {}),
+        })),
       });
       onCreated(created);
     } catch (e) {
@@ -328,91 +342,39 @@ export function NewStandingWorkModal({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground">{t('newWork.sourceLabel')}</label>
-              <div className="mt-1 flex gap-2">
-                {connectorStarts.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSourceKind('connector')}
-                    className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'connector' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
-                  >
-                    {t('newWork.sourceConnection')}
-                  </button>
+              <div className="flex items-baseline justify-between gap-3">
+                <label className="block text-xs font-medium text-muted-foreground">{t('newWork.sourceLabel')}</label>
+                {!structured && sources.length > 0 && (
+                  <span className="text-[11px] text-muted-foreground">
+                    {t('newWork.sourceCount', { count: sources.length, max: MAX_SOURCES_PROSE })}
+                  </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setSourceKind('path')}
-                  className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'path' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
-                >
-                  {t('newWork.sourceWorkspace')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSourceKind('url')}
-                  className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'url' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
-                >
-                  {t('newWork.sourceWebPage')}
-                </button>
               </div>
-              {sourceKind === 'connector' ? (
-                <div className="mt-2 space-y-2">
-                  <select
-                    value={connector}
-                    onChange={(e) => {
-                      const next = connectorStarts.find((s) => s.connector === e.target.value);
-                      setConnector(e.target.value);
-                      setSelector(next?.selectors[0] ?? '');
-                    }}
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
-                  >
-                    {connectorStarts.map((s) => (
-                      <option key={s.connector ?? ''} value={s.connector ?? ''}>{s.name}</option>
-                    ))}
-                  </select>
-                  {chosenStart && chosenStart.selectors.length > 0 ? (
-                    <select
-                      value={selector}
-                      onChange={(e) => setSelector(e.target.value)}
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
-                    >
-                      {chosenStart.selectors.map((id) => (
-                        <option key={id} value={id}>{id}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                      {t('newWork.nothingChosen')}
-                    </p>
-                  )}
-                  {chosenStart?.reads && (
-                    <p className="text-[11px] text-muted-foreground">{t('newWork.itReads', { reads: lowerFirst(chosenStart.reads) })}</p>
-                  )}
-                </div>
-              ) : sourceKind === 'path' ? (
-                <div className="mt-2 space-y-1">
-                  <input
-                    value={path}
-                    onChange={(e) => setPath(e.target.value)}
-                    list="standing-source-folders"
-                    placeholder={t('newWork.pathPlaceholder')}
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-foreground/30"
-                  />
-                  <datalist id="standing-source-folders">
-                    {folders.map((f) => (
-                      <option key={f.path} value={f.path}>{f.label}</option>
-                    ))}
-                  </datalist>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t('newWork.pathHint')}
-                  </p>
-                </div>
-              ) : (
-                <input
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder={t('newWork.urlPlaceholder')}
-                  className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
+              {sources.length > 0 && (
+                <ul className="mt-1.5 space-y-1.5">
+                  {sources.map((src) => (
+                    <SourceRow
+                      key={src.id}
+                      source={src}
+                      starts={starts}
+                      onRemove={() => setSources((xs) => xs.filter((x) => x.id !== src.id))}
+                    />
+                  ))}
+                </ul>
+              )}
+              <div className="mt-2">
+                <AddSource
+                  starts={starts}
+                  existing={sources}
+                  folders={folders}
+                  disabled={sources.length >= maxSources}
+                  onAdd={(x) => setSources((xs) => [...xs, x])}
                 />
+              </div>
+              {/* A structured target maps exactly ONE source to the leaf — the
+                  server's rule, said before a refusal rather than after. */}
+              {structured && sources.length >= 1 && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">{t('newWork.oneSourceOnly')}</p>
               )}
             </div>
 

@@ -728,3 +728,62 @@ screen names the next step (a door, and Reach when nothing is connected) and nev
 plus a new arm measuring the title against its **slot budget** (≤ 4 words) rather than its wording.
 The same lesson as am.2's blind copy checks, from the other direction: there the gate could not see the
 copy, here it saw it too precisely.
+
+---
+
+## Amendment 5 (2026-09-21) — sources are a LIST, as the kernel always allowed
+
+**Status**: implemented. Gate **142/142**, five new arms proven RED on the real regressions. Driven:
+four channels seeded, a cross-platform mix built, a structured target held to one.
+
+### A5.1 — ⚠️ THE DOOR NARROWED WHAT THE KERNEL HAD ALWAYS ACCEPTED
+
+Operator question: *"the set-up seems to orient towards one intake — one Slack, to one output.
+shouldn't it be multi?"* Audited, and the answer is that **it already was, everywhere except the door**:
+
+| | |
+|---|---|
+| `_MAX_SOURCES_PROSE = 12` | a prose file may declare up to twelve sources |
+| `_reach_connector_sources` | groups selectors **per platform** and loops — cross-platform by construction |
+| `sources` in `DECLARATION_KEYS` | PATCHable since ADR-658 D6 |
+| `StandingSummary.sources` | a list; the detail pane already `.map`ped it |
+
+The narrowing was three mutually-exclusive tabs each composing a **one-element array**, and a prefill
+that seeded `selectors[0]`. A member picks four channels at the connection's aperture in Reach, Reach
+says four, and the brief reads **one** — a silent narrowing of their own stated choice. ADR-658's own
+worked example, *"keep a weekly brief of my team's channel**s**"*, was unbuildable through the only door
+that builds it.
+
+`SourceList.tsx` makes sources a list in both places that own them: the door composes 1..N, and the
+detail can **change** them (they were read-only, so a mis-picked channel had no repair short of retiring
+the work and building it again).
+
+### A5.2 — The server's rules, mirrored — never invented
+
+`_classify_sources` is the authority and refuses BY NAME; the client's job is only to keep a member from
+reaching a refusal they could not have predicted:
+
+- **md** — 1..12, any mix of connection · path · page.
+- **csv · json · txt** — **exactly one**, and a file rather than a folder. So a structured target seeds
+  one slice (not four), hides the count, disables *Add a source*, and says why **before** the refusal.
+
+⭐ The mirrored cap has a gate arm that reads `_MAX_SOURCES_PROSE` **out of the Python** and asserts the
+TypeScript agrees. A constant copied across a language boundary drifts, and the drift's symptom is a
+refusal a member cannot predict from the UI they were shown.
+
+### A5.3 — ⭐ DRIVEN: a control that lied about its own selection
+
+The slice `<select>` displayed `free[0]` whenever the stored selector was not in the current
+connection's free list — but the **state kept the old value**. Switching Slack → Notion and pressing Add
+therefore re-added *a Slack channel already in the list*: the control showed "Roadmap" and added
+"#general". Found by driving the real flow and reading the rendered list, not the counter — the count
+went 4 → 5, which looks exactly like success.
+
+`effectiveSelector` is now what the control displays AND what it adds. **What a member sees selected is
+what gets added; anything else is a lie the control tells about itself.**
+
+### A5.4 — What was NOT changed
+
+No server change: the composer, the parser and the validator were already list-shaped, and one of them
+becoming two is the drift `DECLARATION_KEYS` exists to end. The structured-format rule is kept exactly,
+not relaxed — it is a rule, not a limitation to route around.

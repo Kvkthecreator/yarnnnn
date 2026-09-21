@@ -20,10 +20,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, CalendarClock, FolderOpen, Loader2, Pause, Play, Trash2, Zap } from 'lucide-react';
-import { api, type StandingDetailData, type StandingRun } from '@/lib/api/client';
+import {
+  api,
+  type StandingDetailData,
+  type StandingRun,
+  type StandingSource,
+  type StandingStart,
+} from '@/lib/api/client';
+import { AddSource, MAX_SOURCES_PROSE, SourceRow, isStructured } from '@/components/supervisor/SourceList';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { Working } from '@/components/shared/Working';
-import { lowerFirst, useStandingWords } from '@/components/standing/StandingRow';
+import { useStandingWords } from '@/components/standing/StandingRow';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { formatLedgerTime } from '@/lib/formatting';
@@ -78,6 +85,12 @@ export function StandingDetail({
   const [editingText, setEditingText] = useState(false);
   const [text, setText] = useState('');
   const [confirmRetire, setConfirmRetire] = useState(false);
+  // am.5 — the sources, editable. `starts` and `folders` are what the ADD
+  // control offers; both degrade to empty rather than blocking the pane.
+  const [editingSources, setEditingSources] = useState(false);
+  const [draft, setDraft] = useState<StandingSource[]>([]);
+  const [starts, setStarts] = useState<StandingStart[]>([]);
+  const [folders, setFolders] = useState<Array<{ path: string; label: string }>>([]);
 
   const load = useCallback(async () => {
     try {
@@ -90,6 +103,28 @@ export function StandingDetail({
   }, [topic]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Read independently of the detail itself: an unreadable roster leaves the
+  // sources editable by path or page, never a broken pane.
+  useEffect(() => {
+    let live = true;
+    api.standing.starts().then(
+      (st) => { if (live) setStarts(Array.isArray(st) ? st : []); },
+      () => { if (live) setStarts([]); },
+    );
+    api.workspace.getRoots().then(
+      (roots) => {
+        if (!live) return;
+        setFolders(
+          roots
+            .filter((r) => r.exists && r.name !== 'system' && r.name !== 'agents')
+            .map((r) => ({ path: `${r.name}/`, label: r.display_name || r.name })),
+        );
+      },
+      () => { if (live) setFolders([]); },
+    );
+    return () => { live = false; };
+  }, []);
 
   if (missing) {
     return (
@@ -109,6 +144,9 @@ export function StandingDetail({
   const kept = s.target_path ?? `/workspace/${s.topic}/${s.target}`;
   const minder = minderLine(s);
   const currentCron = Array.isArray(s.schedule) ? s.schedule[0] ?? '' : String(s.schedule ?? '');
+  // The server's rule, mirrored (`_classify_sources`): a structured target maps
+  // exactly ONE source to the leaf; prose takes up to 12.
+  const maxSources = isStructured(s.format ?? '') ? 1 : MAX_SOURCES_PROSE;
 
   // Worded here rather than inline: a multi-line ternary inside JSX reads to
   // the ADR-660 meter as literal copy even when every branch is a `t()` call.
@@ -170,6 +208,31 @@ export function StandingDetail({
       setEditingSchedule(false);
     } catch {
       /* reported */
+    } finally {
+      setBusy(false);
+      void load();
+      onChanged();
+    }
+  };
+
+  const saveSources = async () => {
+    if (busy || draft.length === 0) return;
+    setBusy(true);
+    try {
+      await runAction(
+        () => api.standing.update(s.topic, {
+          sources: draft.map((x) => ({
+            id: x.id,
+            ...(x.connector ? { connector: x.connector, selector: x.selector ?? undefined } : {}),
+            ...(x.path ? { path: x.path } : {}),
+            ...(x.url ? { url: x.url } : {}),
+          })),
+        }),
+        { success: t('detail.sourcesChanged'), error: t('detail.couldNotChangeSources') },
+      );
+      setEditingSources(false);
+    } catch {
+      /* reported by name; the reload restores the true state */
     } finally {
       setBusy(false);
       void load();
@@ -294,18 +357,63 @@ export function StandingDetail({
             <dd className="mt-0.5 text-foreground">{nextLine}</dd>
           </div>
           <div className="sm:col-span-2">
-            <dt className="text-muted-foreground">{t('detail.sourcesLabel')}</dt>
-            <dd className="mt-0.5 text-foreground">
-              {s.sources.length === 0 ? t('detail.noSources') : (
-                <ul className="space-y-0.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">{t('detail.sourcesLabel')}</dt>
+              {!editingSources && (
+                <button
+                  type="button"
+                  onClick={() => { setDraft(s.sources); setEditingSources(true); }}
+                  className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                >
+                  {t('detail.change')}
+                </button>
+              )}
+            </div>
+            <dd className="mt-1 text-foreground">
+              {/* ⭐ EDITABLE (am.5). The sources were rendered read-only, so a
+                  member who mis-picked one channel — or wanted a second one —
+                  had no repair short of retiring the work and building it
+                  again. `sources` has always been PATCHable and the server
+                  refuses an invalid set BY NAME. */}
+              {editingSources ? (
+                <div className="space-y-2">
+                  {draft.length > 0 && (
+                    <ul className="space-y-1.5">
+                      {draft.map((src) => (
+                        <SourceRow
+                          key={src.id}
+                          source={src}
+                          starts={starts}
+                          onRemove={() => setDraft((xs) => xs.filter((x) => x.id !== src.id))}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                  <AddSource
+                    starts={starts}
+                    existing={draft}
+                    folders={folders}
+                    disabled={draft.length >= maxSources}
+                    onAdd={(x) => setDraft((xs) => [...xs, x])}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setEditingSources(false)} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">{t('detail.cancel')}</button>
+                    <button
+                      type="button"
+                      onClick={() => void saveSources()}
+                      disabled={busy || draft.length === 0 || draft.length > maxSources}
+                      className="rounded-md bg-foreground px-2.5 py-1 text-xs text-background disabled:opacity-40"
+                    >
+                      {t('detail.save')}
+                    </button>
+                  </div>
+                </div>
+              ) : s.sources.length === 0 ? (
+                t('detail.noSources')
+              ) : (
+                <ul className="space-y-1.5">
                   {s.sources.map((src) => (
-                    <li key={src.id} className="truncate">
-                      {src.connector
-                        ? <><span className="font-medium">{src.connector}</span>{src.selector ? ` · ${src.selector}` : ''}{src.reads ? <span className="text-muted-foreground">{t('row.readsSuffix', { reads: lowerFirst(src.reads) })}</span> : null}</>
-                        : src.path
-                          ? <><span className="font-mono">{src.path}</span><span className="text-muted-foreground"> — {src.path.endsWith('/') ? t('detail.sourceFolder') : t('detail.sourceFile')}</span></>
-                          : <span className="font-mono">{src.url}</span>}
-                    </li>
+                    <SourceRow key={src.id} source={src} starts={starts} />
                   ))}
                 </ul>
               )}

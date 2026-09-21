@@ -1721,7 +1721,9 @@
       "retireHint": "Retiring stops the updates. The file stays.",
       "retired": "{target} is no longer kept current. The file stays.",
       "couldNotRetire": "Could not retire this",
-      "blocked": "Not until it's fixed"
+      "blocked": "Not until it's fixed",
+      "sourcesChanged": "Sources changed.",
+      "couldNotChangeSources": "Couldn't change the sources."
     },
     "runLine": {
       "write": "Update",
@@ -1786,7 +1788,11 @@
       "blockedConnector": "Choose what it reads in Reach first.",
       "blockedPath": "Name a folder or file in your workspace.",
       "blockedUrl": "Paste the address of a web page.",
-      "blockedInstructions": "Write what the file must stay true to."
+      "blockedInstructions": "Write what the file must stay true to.",
+      "blockedSource": "Add at least one source.",
+      "blockedTooMany": "{max, plural, one {# source} other {# sources}} at most.",
+      "sourceCount": "{count} of {max}",
+      "oneSourceOnly": "A csv, json or txt file reads exactly one source."
     },
     "notifications": {
       "standingIntro": "Files kept current on a schedule. Set one up in Supervisor, or ask an agent in chat.",
@@ -2040,6 +2046,14 @@
       "title": "What should it keep current?",
       "subtitle": "You name the file on the next step.",
       "cancel": "Cancel"
+    },
+    "sources": {
+      "add": "Add a source",
+      "remove": "Remove",
+      "folder": "Folder",
+      "file": "File",
+      "page": "Web page",
+      "allAdded": "Everything you chose is already added."
     }
   },
   "studio": {
