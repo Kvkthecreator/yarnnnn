@@ -64,6 +64,8 @@ Driven against `5fa373f`, receipts in `web/`:
 
 **D2 — The port is a client-form change.** No API change, no schema change, no primitive change, no new env var on any Render service.
 
+**D4 — One codebase, N build targets.** The desktop shell is a **build target of `web/`**, never a fork and never a second component tree: one component tree, one app registry, one surface roster, one copy catalog, with a host directory (`src-tauri/`) beside it and a second build script. This is the industry-default shape for this class of app — a web product with a thin native host — and the reason to name it as a ruling rather than leave it to taste is drift: a second tree is how a hand-kept list diverges from a derived truth, which is ADR-592's failure class (*"a hand-kept list beside a derived truth drifts, and the drift reads as success"*). A platform difference is expressed as a **capability seam the host fills**, never as a branch in a surface.
+
 ---
 
 ## 4. What the shell costs
@@ -165,6 +167,16 @@ This is the condition that distinguishes what we would build from what a lab shi
 **7.4 It does not widen reach, authority or scheduling.** No new grant shape, no credential change, no fourth Render service. §6.1 keeps the unattended path exactly as toolless as it is today.
 
 **7.5 It does not build anything yet.** One cleanup landed with this document: `@supabase/ssr` and `@supabase/auth-helpers-react` were declared dependencies with **zero source imports**, removed from `web/package.json`. `@supabase/ssr` is precisely what a desktop port would reach for; declared-but-unused is the ambiguity this ADR exists to prevent.
+
+**7.6 It does not design against Windows — and does not design for it either.** The shell ships macOS first because that is where the operator and the first members are, not because the client assumes a platform. Audited at `67dda80`, it does not:
+
+- **Zero runtime platform detection.** No `navigator.platform`, no `userAgent` branching anywhere in `web/`. There is nothing to unwind.
+- **Every key handler is already cross-platform.** The house idiom is `e.metaKey || e.ctrlKey` — Cmd and Ctrl accepted identically — in `projection.ts`, `TextEditor.tsx`, `PagedNavigator.tsx`, `AuthenticatedLayout.tsx` and `SurfaceLink.tsx`. **This is the rule, and it stays the rule**: a handler never branches on the platform.
+- **macOS is vocabulary, not binding.** Dock, zoom, minimize, Finder (ADR-297 D19.1/D19.3, `surface-preferences.ts`) are design metaphors in comments and docs. They constrain no runtime behaviour.
+
+The one exception was **copy**, and it was a live web defect rather than a desktop one: three strings hardcoded `⌘` in both catalogs, so a Windows member on yarnnn.com read a key their keyboard does not have. Fixed in `26a7360` — `lib/shell/modifier-key.ts` is the ONE place the product decides which glyph to print, passed to the catalogs as the `mod` ICU argument so word order stays theirs (ADR-660). ⭐ **The separator belongs to the key name, not the catalog**: Apple prints `⌘Z` closed up, Windows prints `Ctrl+Z`, so a bare `Ctrl` against `"{mod}Z"` renders `CtrlZ`. That was the first cut, and **tsc was clean across it** — it was caught by rendering all twelve arms through the real ICU formatter.
+
+**Windows is therefore a build-target question, not an architecture question**, and it stays out of scope until there is a member asking. Both Tauri and Electron cross-compile; the port is days *provided no Mac-only assumption accumulates*, which §9's arm now enforces. ⚠️ **The exception is local hands (§5).** Screen capture and synthetic input are the most platform-divergent APIs in the OS — ScreenCaptureKit and its permission model have no Windows equivalent. That implementation ADR scopes **one platform at a time** and says which; it does not get to assume the second is free.
 
 ---
 

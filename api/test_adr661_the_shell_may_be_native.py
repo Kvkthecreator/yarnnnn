@@ -242,6 +242,70 @@ check(
     "the LIVE auth client was removed — the cleanup overshot",
 )
 
+# ------------------------------------------------- §7.6 the client is neutral
+print("\n§7.6 the client does not design against a platform")
+
+WEB_SRC = [WEB / d for d in ("lib", "components", "hooks", "app", "contexts")]
+
+
+def web_sources():
+    for root in WEB_SRC:
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*")):
+            if path.suffix in {".ts", ".tsx"} and path.is_file():
+                yield path
+
+
+# A HANDLER must never branch on the platform: the house idiom is
+# `e.metaKey || e.ctrlKey`, which accepts both. `lib/shell/modifier-key.ts` is
+# the ONE exception — it decides a NAME to print, never a behaviour — so it is
+# the single allowed reader of the platform.
+MODIFIER_HELPER = WEB / "lib" / "shell" / "modifier-key.ts"
+platform_readers: list[str] = []
+for path in web_sources():
+    if path == MODIFIER_HELPER:
+        continue
+    body = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+    if re.search(r"navigator\s*\.\s*(platform|userAgent|userAgentData)", body):
+        platform_readers.append(str(path.relative_to(REPO)))
+
+check(
+    "no runtime platform detection outside the one helper",
+    not platform_readers,
+    f"a surface branched on the platform: {platform_readers[:3]} "
+    "— a handler takes metaKey||ctrlKey; only a printed NAME may differ",
+)
+
+check(
+    "the modifier helper exists and is the one decider",
+    MODIFIER_HELPER.exists(),
+    "lib/shell/modifier-key.ts is gone — the ⌘/Ctrl+ decision lost its home",
+)
+
+# Member-facing copy must not name one platform's key. The catalogs are the
+# whole surface: a hardcoded glyph there reaches every member on every OS.
+glyph_hits: list[str] = []
+for loc in ("en", "ko"):
+    cat = WEB / "messages" / f"{loc}.json"
+    if not cat.exists():
+        continue
+
+    def walk(node, path=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, f"{path}.{k}" if path else k)
+        elif isinstance(node, str) and re.search(r"⌘|⌥|Cmd\b", node):
+            glyph_hits.append(f"{loc}:{path}")
+
+    walk(json.loads(cat.read_text(encoding="utf-8")))
+
+check(
+    "no catalog string hardcodes a mac-only modifier",
+    not glyph_hits,
+    f"copy names one platform's key: {glyph_hits[:3]} — pass {{mod}} instead",
+)
+
 # --------------------------------------------------- §9.6 the vendored tree
 print("\n§9.6 the vendored Claude Code source stays out of the repo")
 

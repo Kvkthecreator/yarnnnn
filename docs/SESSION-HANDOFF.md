@@ -35,6 +35,13 @@ whether or not the shell ships:
 a capability appears first; the implementation ADR retires it. Do not start before the shell is
 real: §6.4's standard cannot be met against a shell that does not exist.
 
+**Windows** is a build-target question, not an architecture question (§7.6): the client has
+**zero runtime platform detection** and every key handler is already `e.metaKey || e.ctrlKey`.
+Keep both properties — the gate enforces them. The ONE place a platform may be read is
+`web/lib/shell/modifier-key.ts`, and it decides a NAME to print, never a behaviour.
+⚠️ The exception is local hands: screen capture and synthetic input are the most
+platform-divergent APIs there are, so that ADR scopes ONE platform at a time.
+
 ⚠️ `docs/analysis/src_claudeCC/` is a vendored copy of Claude Code's own source (untracked,
 gitignored). **22 of 28 "computer use" matches under `docs/` are that tree, not canon.**
 
