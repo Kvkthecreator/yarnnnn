@@ -1,138 +1,16 @@
-import Link from "next/link";
-// ADR-445 §6 — prices interpolate from the single source (lib/subscription/usage.ts).
-import { PRICE_COPY } from "@/lib/subscription/usage";
-import LandingHeader from "@/components/landing/LandingHeader";
-import LandingFooter from "@/components/landing/LandingFooter";
-import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
-import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { BRAND, getMarketingMetadata } from "@/lib/metadata";
-import { CTA } from "@/lib/cta";
+import type { Metadata } from "next";
+import { getMarketingMetadata } from "@/lib/metadata";
+import { MarketingIntlScope } from "@/components/marketing/MarketingIntlScope";
+import { FaqPageBody } from "@/components/marketing/FaqPageBody";
 
-interface FaqItem {
-  question: string;
-  answer: string;
-}
+/** The English FAQ — `/faq`, unprefixed and unmoved. Korean twin at `/ko/faq`. */
 
-interface FaqSection {
-  category: string;
-  items: FaqItem[];
-}
-
-// SITE-COPY-SPEC-v1 §4 sets ≤12; ADR-561 raises it to 15 for the "Your data"
-// category. The spec predates the data-handling audit, which found the FAQ
-// asserted "we never train on it" with nothing behind it. Two entries is the
-// smallest honest answer to "where does my work go" and "what can a connected
-// AI do" — the second retracts an understatement, so it is not optional.
-const faqSections: FaqSection[] = [
-  {
-    category: "The difference",
-    items: [
-      {
-        question: "How is this different from ChatGPT or Claude's memory?",
-        answer:
-          "Their memory is walled to their own app — you can't read inside it, version it, or take it with you. yarnnn is a shared workspace that lives outside any single AI: every model you connect works in the same files you do, every change is signed and dated — human or not — and it's all yours to export. Write it with Claude, and it's there when you open ChatGPT.",
-      },
-      {
-        question: "Is my data mine?",
-        answer:
-          "Yes. Every file is attributed, every version is kept, and the whole thing exports as a plain git repo with its history intact. We never train on it — and nothing here deletes itself on a timer.",
-      },
-      {
-        question: "What is 'trace'?",
-        answer:
-          "Trace shows how any fact changed over time — who changed it, when, and what it was before. It's the thing a plain storage connector or an app's built-in memory can't show you: the full history behind what your AI knows.",
-      },
-      {
-        question: "Does it work across my team, not just me?",
-        answer:
-          "Yes — share a link or invite by email and a teammate lands in the same shared workspace. You, your people, and your AIs all work in the same files, every change signed with its author's name, and you can narrow or revoke anyone's access at any time. Two people work free.",
-      },
-    ],
-  },
-  {
-    category: "The work",
-    items: [
-      {
-        question: "How do I put things in, and get them out?",
-        answer:
-          "Tell any connected AI to remember something, upload your files and notes, or connect the tools you already use (Slack, Notion). Any other AI — or teammate — can then recall it on the next session — no copy-paste, no re-explaining who you are.",
-      },
-      {
-        question: "Which AI models does it work with?",
-        answer:
-          "Any that speak MCP — ChatGPT, Claude, and others. It's neutral on purpose: it isn't tied to any one model, which is exactly why it can sit across all of them.",
-      },
-    ],
-  },
-  {
-    category: "Your data",
-    items: [
-      {
-        question: "Where does my work go when I ask an AI to do something?",
-        answer:
-          "To the model provider running that task — Anthropic, OpenAI, Google, or DeepSeek, depending on which model is picked. They process it to answer, and under their API terms none of them train on it by default. File text also goes to OpenAI to build the search index that makes your workspace findable. The full list of everyone who can receive your data is on the data page.",
-      },
-      {
-        question: "What can a connected AI actually do in my workspace?",
-        answer:
-          "The same things you can: read, write, move, delete, and share files. It connects through OAuth you approve and can revoke, and every change it makes is signed with its name — so you can always see what it did and walk it back. Connect assistants you trust.",
-      },
-    ],
-  },
-  {
-    category: "Pricing & lifecycle",
-    items: [
-      {
-        question: "What does it cost?",
-        answer:
-          `Your memory is free for two people — your files, your context, reachable from any AI. Pricing has two axes: seats and usage. The first two seats (you and a teammate) are free; each person from the 3rd onward is a paid seat (${PRICE_COPY.seat}/mo), and AI connections are always free — never a seat. Usage is pay-as-you-go from one shared balance the owner funds; top up any amount from ${PRICE_COPY.topUpMin} (top-ups never expire). Every workspace starts with a ${PRICE_COPY.signupGrant} balance to feel the loop before you spend a cent.`,
-      },
-      {
-        question: "Can I cap what it spends?",
-        answer:
-          "Yes. Spend is bounded by the balance itself — usage is pay-as-you-go, so nothing can draw more than you've put in, and the hard stop at zero pauses the work without losing anything. On a team, the owner can additionally set a per-member spend cap on the shared balance.",
-      },
-      {
-        question: "What if my balance runs out, or I turn the assistant off?",
-        answer:
-          "Nothing is deleted. When the balance is spent, the assistant pauses — top up to resume. Turn it off and it simply stops drawing usage. Either way, your memory and every file stay yours, free.",
-      },
-    ],
-  },
-  {
-    category: "Getting started",
-    items: [
-      {
-        question: "How do I start?",
-        answer:
-          "Start free. Connect an AI tool over MCP (or upload files, or just start typing), tell it something worth keeping, and watch it show up in the next AI you open — with the full history intact.",
-      },
-      {
-        question: "What's the best first move?",
-        answer:
-          "Connect the two AIs you use most, and save one thing in one of them. Open the other and recall it. That round-trip — write once, there everywhere, fully traceable — is the whole idea in about thirty seconds.",
-      },
-      // ADR-629 D4 — derived from the ONE stage declaration; gone when it is.
-      ...(BRAND.stage
-        ? [
-            {
-              question: `Is ${BRAND.name} in ${BRAND.stage}?`,
-              answer:
-                "Yes. It works and we run our own work on it every day, but it will keep changing, and some things will break along the way. None of that touches your files: every version is kept, every change is signed, and the whole workspace exports as a plain git repo whenever you like. If something breaks or confuses you, use Send feedback in your account menu.",
-            },
-          ]
-        : []),
-    ],
-  },
-];
-
-const allFaqItems = faqSections.flatMap((s) => s.items);
-
-export const metadata = getMarketingMetadata({
+export const metadata: Metadata = getMarketingMetadata({
   title: "FAQ — your true AI-first workspace",
   description:
     "How yarnnn differs from ChatGPT and Claude's built-in memory, what 'trace' is, how co-work with your AIs and your team actually lands, pricing, and how to get started.",
   path: "/faq",
+  locale: "en",
   keywords: [
     "yarnnn faq",
     "shared ai memory faq",
@@ -143,81 +21,9 @@ export const metadata = getMarketingMetadata({
 });
 
 export default function FaqPage() {
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: allFaqItems.map((item) => ({
-      "@type": "Question",
-      name: item.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: item.answer,
-      },
-    })),
-  };
-
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#0f1419] text-white overflow-x-hidden">
-      <GrainOverlay variant="dark" />
-      <ShaderBackgroundDark />
-
-      <div className="relative z-10 flex flex-col min-h-screen">
-        <LandingHeader inverted />
-
-        <main className="flex-1">
-          <section className="max-w-3xl mx-auto px-6 py-24 md:py-32">
-            <h1 className="text-4xl md:text-5xl font-medium mb-4 tracking-tight leading-[1.1]">
-              Frequently asked questions
-            </h1>
-            <p className="text-white/50 mb-16 max-w-xl">
-              The difference, the work, pricing and lifecycle, and how to get started.
-            </p>
-
-            <div className="space-y-16">
-              {faqSections.map((section) => (
-                <div key={section.category}>
-                  <h2 className="text-xs text-white/30 uppercase tracking-widest mb-8">{section.category}</h2>
-
-                  <div className="space-y-8">
-                    {section.items.map((item) => (
-                      <div key={item.question} className="border-b border-white/5 pb-8 last:border-0">
-                        <h3 className="text-lg font-medium mb-3">{item.question}</h3>
-                        <p className="text-white/50 leading-relaxed">{item.answer}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-24 text-center">
-              <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Start free — save one thing in one AI and watch it show up in the next.</p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link
-                  href={CTA.signup}
-                  className="inline-block px-8 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
-                >
-                  Start free
-                </Link>
-                <a
-                  href="mailto:admin@yarnnn.com"
-                  className="inline-block px-8 py-3 border border-white/20 text-white font-medium rounded-full hover:bg-white/10 transition-colors"
-                >
-                  Contact us
-                </a>
-              </div>
-            </div>
-          </section>
-        </main>
-
-        <LandingFooter inverted />
-      </div>
-
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
-    </div>
+    <MarketingIntlScope locale="en">
+      <FaqPageBody locale="en" />
+    </MarketingIntlScope>
   );
 }

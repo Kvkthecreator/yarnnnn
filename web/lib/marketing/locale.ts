@@ -77,6 +77,7 @@ export function localePath(path: string, locale: Locale): string {
  */
 export const TRANSLATED_PATHS = [
   "/",
+  "/faq",
 ] as const;
 
 /**
