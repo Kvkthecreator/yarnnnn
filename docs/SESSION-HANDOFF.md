@@ -6,6 +6,27 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## Korean beyond the interface — five rulings awaited (audit 2026-09-21)
+
+`docs/analysis/korean-beyond-the-interface-2026-09-21.md` (`64b7dd1`). Audit only, nothing built.
+**Read `docs/analysis/language-support-korean-feasibility-2026-09-16.md` alongside it** — it ranked
+the work behaviour → search → chrome five days before ADR-660 shipped the chrome, and no ADR cites it.
+
+**Two findings block real Korean use:**
+- **Search** silently under-returns. Driven through the real RPC on a real Korean file already in the
+  substrate: bare nouns hit, particle-bearing and conjugated forms return **0**, English returns 20.
+  `pgroonga` 3.2.5 **is available on Supabase and not installed** — that is the unlock.
+- **NFC/NFD** — 4 Hangul paths in production, 2 NFC and 2 NFD, each findable only in its stored form.
+  No write path normalizes. This is `(workspace_id, path)`, the substrate's binding unit.
+
+**Already ruled — do not re-report as gaps**: ADR-660 D5 (verified holding), ADR-469 (Korean
+filenames), `80b9874` (IME, 15 importers). Layout is measured clean — Korean is 0.86× English width.
+
+**Awaiting an operator ruling (never ruled, not deferred):** search under Korean; NFC normalization;
+whether to write down the unattended-language behaviour that is currently correct by silence; whether
+skills stay English and whether their ceiling should be characters/tokens rather than bytes (Korean
+needs ~6.6KB against 4000); whether English email to a Korean member is acceptable or merely unbuilt.
+
 ## Korean: coverage is COMPLETE (ADR-660 §13, 2026-09-21)
 
 The interface speaks Korean. 2330 keys / 17 namespaces; every member-facing surface reads the catalog.
