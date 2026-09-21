@@ -92,6 +92,18 @@ app.add_middleware(
         "https://www.yarnnn.com",
         "https://yarnnnn.vercel.app",
         "https://www.yarnnnn.vercel.app",
+        # ADR-661 §8 step 4 — the packaged desktop shell. A Tauri window serves
+        # the exported app from disk under its own scheme, so its requests
+        # carry one of these Origins rather than a yarnnn.com one. Without them
+        # every API call from the shell fails CORS while the app itself loads
+        # fine — a whole-product failure that looks like a backend outage.
+        # (Measured during the §8 click-pass: a dev origin off this list could
+        # not reach the API at all.)
+        #   macOS/iOS webview
+        "tauri://localhost",
+        
+        #   Linux/Windows webview (Tauri v2 serves over http on these)
+        "http://tauri.localhost",
     ],
     allow_origin_regex=r"https://yarnnnn-.*\.vercel\.app",  # Vercel preview URLs (includes git branch deployments)
     allow_credentials=True,

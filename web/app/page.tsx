@@ -1,42 +1,19 @@
-import type { Metadata } from "next";
-import { getMarketingMetadata } from "@/lib/metadata";
-import { MarketingIntlScope } from "@/components/marketing/MarketingIntlScope";
-import { LandingPageBody } from "@/components/marketing/LandingPageBody";
+import { redirect } from 'next/navigation';
+import { HOME_ROUTE } from '@/lib/routes';
 
 /**
- * The English landing page — `/`, unprefixed and unmoved.
+ * The shell's root (ADR-661 §8 step 4).
  *
- * The page itself is `components/marketing/LandingPageBody`, rendered here in
- * English and at `/ko` in Korean. One component, two routes: the CANON-LOCK
- * hero arc cannot drift between languages because there is only one of it.
+ * On the web `/` is the marketing landing page (`page.web.tsx`), which the
+ * shell does not ship: a member who opened the app has already arrived, and a
+ * pitch is what they came through, not what they came for.
  *
- * English stays at the bare path deliberately (see `lib/marketing/locale.ts`):
- * no live URL moves, so no redirect is introduced and no ranking is disturbed.
+ * So the shell's root is transport to the authenticated boot route. Pure
+ * `redirect()` per ADR-308 — never a client `useEffect`, which would paint one
+ * orphaned frame inside the OS shell before moving. `AuthGate` takes it from
+ * there: a member with no session lands on sign-in, one with a session lands
+ * on their desktop.
  */
-
-export const metadata: Metadata = getMarketingMetadata({
-  title: "your true AI-first workspace | yarnnn",
-  description:
-    "One workspace for you, your people, and the AI you already use. Nothing to set up — and every change signed by whoever made it, human or not.",
-  path: "/",
-  locale: "en",
-  keywords: [
-    "ai workspace",
-    "ai-first workspace",
-    "shared ai workspace",
-    "co-work with ai",
-    "work with chatgpt and claude together",
-    "shared workspace for ai and humans",
-    "ai collaboration workspace",
-    "ai workspace you own",
-    "cross-llm workspace",
-  ],
-});
-
-export default function LandingPage() {
-  return (
-    <MarketingIntlScope locale="en">
-      <LandingPageBody locale="en" />
-    </MarketingIntlScope>
-  );
+export default function ShellRoot() {
+  redirect(HOME_ROUTE);
 }

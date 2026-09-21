@@ -58,7 +58,23 @@ def flatten(node, prefix="") -> dict[str, str]:
 
 
 def read(rel: str) -> str:
-    return (WEB / rel).read_text(encoding="utf-8")
+    """Read a web-tree file, following the ADR-661 §8 step 4 rename.
+
+    The shell build excludes web-only routes by EXTENSION: `page.web.tsx` is a
+    route only where `web.tsx` is a listed `pageExtension` (the web build), so
+    a file this gate knows as `page.tsx` may now live at `page.web.tsx`. The
+    subject is the same file; only its route-visibility changed. Resolving the
+    twin here keeps every call site in this gate stating the CONCEPTUAL path
+    rather than tracking which build a route belongs to.
+    """
+    path = WEB / rel
+    if not path.exists():
+        stem, dot, ext = rel.rpartition(".")
+        if dot:
+            twin = WEB / f"{stem}.web.{ext}"
+            if twin.exists():
+                return twin.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8")
 
 
 def strip_comments(src: str) -> str:
@@ -258,14 +274,29 @@ check("the root layout imports nothing from next-intl or the locale resolver",
 # because it mounts `FeedbackProvider`, whose confirm shell IS member-facing
 # copy. A shared component's MOUNTS decide where a scope is needed, never the
 # route's own audience.
+# ADR-661 §8 step 4 renamed the web build's layouts to `layout.web.tsx` (a
+# route extension only the WEB build lists) and added shell twins that mount
+# `ShellIntlScope` — the same ADR-660 D2 chain resolved in the client, because
+# a build with no request cannot read a cookie. `/mcp/auth` and `/admin` are
+# web-only and have no twin.
+#
+# So a scope is satisfied by EITHER provider: the question this arm asks is
+# "does this route mount a scope", not "which one". A route that mounts
+# neither still fails, which is the defect that matters (`useTranslations`
+# throws outside a provider).
 SCOPES = [
-    "app/(authenticated)/layout.tsx",
-    "app/auth/login/layout.tsx",
-    "app/mcp/auth/layout.tsx",
-    "app/admin/layout.tsx",
+    ["app/(authenticated)/layout.web.tsx", "app/(authenticated)/layout.tsx"],
+    ["app/auth/login/layout.web.tsx", "app/auth/login/layout.tsx"],
+    ["app/mcp/auth/layout.web.tsx"],
+    ["app/admin/layout.web.tsx"],
 ]
-for rel in SCOPES:
-    check(f"{rel} mounts the scope", "<IntlScope>" in strip_comments(read(rel)))
+for variants in SCOPES:
+    for rel in variants:
+        body = strip_comments(read(rel))
+        check(
+            f"{rel} mounts the scope",
+            "<IntlScope>" in body or "<ShellIntlScope>" in body,
+        )
 
 # ── The FIFTH scope is per-PAGE, not per-layout (the marketing pass) ────────
 # `/` and `/ko` each wrap their body in `<MarketingIntlScope locale=…>`, which
@@ -280,7 +311,7 @@ for rel in SCOPES:
 # doing the right thing. It is checked by CONTENT, not by path: a page that
 # renders a translated component without providing the scope still fails.
 PAGE_SCOPE = "<MarketingIntlScope"
-scope_dirs = [(WEB / rel).parent for rel in SCOPES]
+scope_dirs = [(WEB / rel).parent for variants in SCOPES for rel in variants]
 
 
 def resolve_import(spec: str, importer: Path) -> Path | None:
@@ -320,7 +351,11 @@ check("the marketing scope takes its locale as an argument, never from a cookie"
 check("the marketing scope pins `now` and `timeZone`",
       "now=" in _mkt and "timeZone=" in _mkt,
       "left to the request config, the provider opts the route into dynamic rendering")
-for _rel in ("app/page.tsx", "app/ko/page.tsx"):
+# ADR-661 §8 step 4: the marketing landing pages are web-only, and
+# `app/page.tsx` is now the SHELL root (a redirect stub). Name the marketing
+# files exactly — the `read` fallback cannot help here, because a file DOES
+# exist at the old path and it is a different subject.
+for _rel in ("app/page.web.tsx", "app/ko/page.web.tsx"):
     check(f"{_rel} provides the marketing scope",
           PAGE_SCOPE in strip_comments(read(_rel)))
 # The shared chrome renders on marketing pages that stay English by ruling, so
@@ -332,9 +367,15 @@ for _rel in ("app/page.tsx", "app/ko/page.tsx"):
 _loc_src = read("lib/marketing/locale.ts")
 _roster = re.findall(r'"(/[^"]*)"', _loc_src.split("TRANSLATED_PATHS = [")[1].split("]")[0])
 check("the roster names something", bool(_roster))
+# ADR-661 §8 step 4: a marketing route is web-only, so its file is
+# `page.web.tsx`. Accept either spelling — the question is whether the ROUTE
+# exists, not which build serves it.
 _missing = [
     p for p in _roster
-    if not (WEB / "app" / "ko" / (p.strip("/") or "") / "page.tsx").exists()
+    if not any(
+        (WEB / "app" / "ko" / (p.strip("/") or "") / name).exists()
+        for name in ("page.tsx", "page.web.tsx")
+    )
 ]
 check("every rostered path HAS its /ko route (a roster ahead of the routes is a 404)",
       not _missing, f"rostered with no app/ko route: {_missing}")

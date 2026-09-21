@@ -11,9 +11,73 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 // the catalogs) from here. No i18n routing: the app carries no locale in its URLs.
 const withNextIntl = require("next-intl/plugin")("./i18n/request.ts");
 
+// ADR-661 §8 step 4 — the shell build. `YARNNN_SHELL=1` switches this config to
+// a static export of the authenticated app, which is what the packaged desktop
+// host serves from disk. The WEB build is untouched when the flag is absent, so
+// one config serves both targets (D4: one codebase, N build targets — never a
+// fork).
+//
+// The export drops what only a server can do, and each of those is deliberate:
+//   - `rewrites`/`redirects` below warn and do nothing. They are bookmark
+//     transport for URLs that exist on the web; a desktop app has no inherited
+//     bookmarks (§7.3), so their absence costs nothing.
+//   - the six marketing/SEO route handlers and the three legacy dynamic stubs
+//     are EXCLUDED from the shell build rather than made static — they belong
+//     to the web product (§7.3).
+//   - `middleware.ts` does not run. `AuthGate` (§8 step 1) is the gate there,
+//     which is why it is mounted unconditionally on both builds.
+const SHELL = process.env.YARNNN_SHELL === "1";
+
+// WHICH ROUTES ARE IN WHICH BUILD, declared rather than moved.
+//
+// Six marketing/SEO route handlers and three legacy dynamic stubs cannot be
+// exported (`force-dynamic`, or a `[param]` with no `generateStaticParams`)
+// and must not be: they are the WEB product (§7.3 — a stub exists for bookmark
+// continuity, and a desktop app has no inherited bookmarks).
+//
+// `pageExtensions` is the lever because it is DECLARATIVE: one tree, nothing
+// copied or moved per target (D4). Next matches a route file as
+// `page.<ext>` / `route.<ext>` EXACTLY, so `route.web.ts` is a route only
+// where `web.ts` is a listed extension — the WEB build. The shell build keeps
+// Next's default list and therefore cannot see those files at all.
+//
+// ⚠️ Verified by building, not assumed: the first cut had this backwards
+// (giving the SHELL the extra extension), and a `page.web.tsx` probe was
+// invisible to BOTH builds — a route silently missing everywhere.
+const WEB_ONLY_EXTENSIONS = ["web.tsx", "web.ts"];
+const DEFAULT_EXTENSIONS = ["tsx", "ts", "jsx", "js"];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Vercel handles SSR natively
+  pageExtensions: SHELL
+    ? DEFAULT_EXTENSIONS
+    : [...WEB_ONLY_EXTENSIONS, ...DEFAULT_EXTENSIONS],
+  ...(SHELL
+    ? {
+        output: "export",
+        // The host serves files from disk, so every route needs its own
+        // directory + index.html rather than an extensionless file.
+        trailingSlash: true,
+        // No server means no image optimizer.
+        images: { unoptimized: true },
+        distDir: ".next-shell",
+        // WHICH ROUTES ARE IN THE SHELL, declared rather than moved.
+        //
+        // Six marketing/SEO route handlers and three legacy dynamic stubs
+        // cannot be exported (`force-dynamic`, or a `[param]` with no
+        // `generateStaticParams`) and must not be: they are the WEB product
+        // (§7.3). A stub exists for bookmark continuity, and a desktop app has
+        // no inherited bookmarks.
+        //
+        // `pageExtensions` is the lever because it is DECLARATIVE — the shell
+        // build simply does not see a file named `*.web.tsx` as a route, so
+        // the two builds share one tree and nothing is copied, moved or
+        // deleted per target (D4). The web build keeps the default list and
+        // therefore keeps every route it has today.
+
+      }
+    : {}),
 
   // Bookmark-safety for retired legacy surface URLs. Lineage: `feed` (ADR-370)
   // → folded into `context` → renamed `channels` (ADR-385) → DISSOLVED

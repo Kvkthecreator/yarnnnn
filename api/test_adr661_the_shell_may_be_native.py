@@ -247,6 +247,57 @@ check(
     "the LIVE auth client was removed — the cleanup overshot",
 )
 
+# --------------------------------------------------- §8 step 4 the shell target
+print("\n§8 step 4 the shell is a build target, not a fork")
+
+TAURI = REPO / "src-tauri"
+check(
+    "the host crate exists",
+    (TAURI / "Cargo.toml").exists() and (TAURI / "src" / "main.rs").exists(),
+    "src-tauri/ is gone — the shell has no host",
+)
+
+conf_path = TAURI / "tauri.conf.json"
+conf = json.loads(conf_path.read_text(encoding="utf-8")) if conf_path.exists() else {}
+
+# D4: ONE codebase. The host must build the web tree, never carry its own copy.
+before = (conf.get("build") or {}).get("beforeBuildCommand", "")
+check(
+    "the shell builds from web/, never its own tree",
+    "cd web" in before and "YARNNN_SHELL=1" in before,
+    f"beforeBuildCommand does not build the shared tree: {before!r}",
+)
+
+# The API must accept the shell's Origin, or every call fails CORS while the
+# app itself loads fine — a whole-product failure that reads as a backend
+# outage. Measured during the §8 click-pass.
+main_py = read("api/main.py")
+check(
+    "the API allows the shell's origins",
+    "tauri://localhost" in main_py and "http://tauri.localhost" in main_py,
+    "the shell would load and then fail every API call on CORS",
+)
+
+# §5/§6: the capability roster is the audit surface for what the host exposes.
+# Local hands would add a permission HERE, in their own ADR — so the roster
+# staying small is what makes that addition visible.
+cap_path = TAURI / "capabilities" / "default.json"
+caps = json.loads(cap_path.read_text(encoding="utf-8")) if cap_path.exists() else {}
+perms = set(caps.get("permissions") or [])
+check(
+    "the host grants only what the product needs today",
+    perms and perms <= {"core:default", "opener:allow-open-url"},
+    f"the capability roster grew without an ADR: {sorted(perms)}",
+)
+
+# The shell build must not ship Hat-B tooling or the marketing site.
+for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
+    check(
+        f"{rel.split('/', 1)[1]} is web-only",
+        (REPO / rel).exists(),
+        "a web-only route lost its .web suffix and would enter the shell build",
+    )
+
 # ------------------------------------------ §4.3/§4.4 leaving the product
 print("\n§4.3/§4.4 leaving the product goes through one door")
 

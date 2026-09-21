@@ -244,6 +244,35 @@ authenticated tree needs `next/image` or `next/font` work.
 
 ---
 
+## 7b. Step 4 — the shell exists (2026-09-21, driven)
+
+**A `.app` was built and run.** Rust 1.98.1 → `cargo tauri build` → `yarnnn.app`, 15MB, launched, stable at 102MB RSS with live WebKit content processes.
+
+**The mechanism: one tree, two builds, selected by file extension.** `YARNNN_SHELL=1` switches `next.config.js` to `output: 'export'`. Which routes exist in which build is declared through `pageExtensions`: the WEB build lists `web.tsx`/`web.ts` as route extensions, the shell build does not, so a file named `page.web.tsx` is a route on the web and invisible to the shell. Nothing is copied, moved or deleted per target — **D4 satisfied by construction**, and the web build's route table is byte-identical through the whole change (28 static / 52 dynamic, before and after).
+
+⚠️ **Verified by building, not assumed.** The first cut had the direction backwards — it gave the SHELL the extra extension — and a `page.web.tsx` probe was then invisible to **both** builds: a route that silently does not exist anywhere. Next matches a route file as `page.<ext>` EXACTLY.
+
+**What the shell excludes, and why each is right** (§7.3): the six marketing/SEO route handlers · the three legacy dynamic stubs · `/orchestrator` and `/team` (the two `searchParams` stubs) · `/admin` (Hat B) · `/mcp/auth` + `/mcp/authorize` (a browser OAuth flow for third-party clients) · the whole marketing surface. The shell's `/` is a redirect stub to `HOME_ROUTE`, because a member who opened the app has already arrived.
+
+**The layout pair.** `layout.web.tsx` (web) and `layout.tsx` (shell) differ in exactly two things, both forced by the absence of a request: no `getRequestUser()` (a `cookies()` read that made all 41 authenticated routes un-exportable — patching this ONE file cleared all 41 at once), and `ShellIntlScope` instead of `IntlScope`. The shell scope runs the same ADR-660 D2 chain from `resolveLocaleClient` (§8 step 2) with both catalogs bundled.
+
+**The session moves stores** (§4.1a). `lib/supabase/client.ts` branches once: the web keeps `createClientComponentClient` (cookie, rotated server-side by `updateSession` — unchanged), the shell uses plain supabase-js over `localStorage` with `autoRefreshToken`. `AuthGate` is indifferent — it asks `getSession()` — which is why the gate ported unchanged and the seam is a two-line branch.
+
+**The proof it works end to end.** Run against a dev server so the requests are observable:
+
+```
+GET /                                   307   ← the shell root redirect fired
+GET /desktop/                           200   ← the authenticated boot route
+GET /auth/login/?next=%2Fdesktop%2F     200   ← AuthGate ran IN THE NATIVE WINDOW,
+                                                found no session, bounced with ?next=
+```
+
+Steps 1, 2 and 4 in one trace, inside the packaged app.
+
+**Owed, and not done here**: the DMG bundle step fails (`bundle_dmg.sh` needs Finder scripting, unavailable headless) — the `.app` itself bundles fine; notarization and auto-update are step 5; the OAuth deep-link back into the app is not wired, so sign-in currently completes in the browser.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

@@ -1,12 +1,10 @@
 import { Suspense } from 'react';
 import type { Metadata } from "next";
-import { getTranslations } from 'next-intl/server';
-import { getRequestUser } from '@/lib/supabase/server';
-import { IntlScope } from '@/components/i18n/IntlScope';
+import { ShellIntlScope } from '@/components/i18n/ShellIntlScope';
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
 import { AuthGate } from '@/components/shell/AuthGate';
 import { Wordmark } from '@/components/shared/Wordmark';
-import { Working } from '@/components/shared/Working';
+import { FallbackWait } from '@/components/shell/FallbackWait';
 
 export const metadata: Metadata = {
   title: {
@@ -23,52 +21,64 @@ export const metadata: Metadata = {
 };
 
 /**
- * ADR-023: Supervisor Desk Architecture
+ * The authenticated layout for the SHELL build (ADR-661 §8 step 4).
  *
- * Layout for authenticated routes:
- * - Single desk view (one surface at a time)
- * - TP always present at bottom
- * - Domain browser as escape hatch
+ * `layout.web.tsx` beside this file is the WEB build's layout and is the one
+ * that changes when product behaviour changes; the `.web` suffix is a route
+ * extension only the web build lists (`pageExtensions` in `next.config.js`),
+ * so exactly one of the two exists in any given build. They are a PAIR and
+ * must stay one: the difference between them is only where two facts come
+ * from, never what the shell renders.
  *
- * Auth gating: TWO halves, and both are always mounted (ADR-661 §8 step 1).
- * `middleware.ts` (updateSession) gates the WEB build server-side, before this
- * layout renders. `AuthGate` gates the build that has no middleware — the
- * packaged desktop shell (ADR-661 D1/D2) — by resolving the session before
- * rendering children. On the web the gate is a fast no-op (the session is in
- * the cookie the middleware just refreshed), so first paint is unchanged.
+ * The two differences, and both are forced by the absence of a request:
  *
- * `AuthGate` REPLACES the sign-out listener that lived in AuthenticatedLayout:
- * it owns both the gate and the live invalidation, so there is one auth
- * mechanism in the client rather than two. We still read the user here
- * (server-side, zero client round-trip) only to hand userEmail to the chrome.
+ * 1. **No `getRequestUser()`.** The web layout reads the user server-side to
+ *    hand `userEmail` to the chrome. That is a `cookies()` read, which made
+ *    all 41 authenticated routes un-exportable (measured). Here the chrome
+ *    gets its email from the session the client already holds — `UserMenu`
+ *    reads it through the shell's own context rather than a prop.
+ *
+ * 2. **`ShellIntlScope`, not `IntlScope`.** Same reason: `IntlScope` awaits
+ *    `getLocale()`, which runs ADR-660 D2's chain through `cookies()` and
+ *    `headers()`. The shell scope runs the same chain from
+ *    `resolveLocaleClient` (§8 step 2).
+ *
+ * Everything else — the Suspense boundary, `AuthGate`, the fallback, the
+ * component tree below — is identical by construction, because it is the same
+ * components in the same order.
+ *
+ * ⚠️ A change to the web layout's TREE belongs here too. The gate
+ * (`api/test_adr661_*.py`) asserts both mount `AuthGate` and a scope, which
+ * catches the drift that matters most; it cannot catch every divergence, so
+ * treat the pair as one file with two heads.
  */
-export default async function Layout({ children }: { children: React.ReactNode }) {
-  // Request-cached and shared with the locale resolver (ADR-660 D2): one fetch.
-  const user = await getRequestUser();
-  // ADR-660 — the fallback's word is resolved HERE, not inside it: a Suspense
-  // fallback must render synchronously, so it cannot be an async component
-  // that awaits its own translations.
-  const t = await getTranslations('shell');
-
+export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <IntlScope>
-      <Suspense fallback={<LayoutFallback loading={t('loading')} />}>
-        <AuthGate fallback={<LayoutFallback loading={t('loading')} />}>
-          <AuthenticatedLayout userEmail={user?.email ?? undefined}>
-            {children}
-          </AuthenticatedLayout>
+    <ShellIntlScope>
+      <Suspense fallback={<LayoutFallback />}>
+        <AuthGate fallback={<LayoutFallback />}>
+          <AuthenticatedLayout>{children}</AuthenticatedLayout>
         </AuthGate>
       </Suspense>
-    </IntlScope>
+    </ShellIntlScope>
   );
 }
 
-function LayoutFallback({ loading }: { loading: string }) {
+/**
+ * The fallback's word comes from the catalog like every other (ADR-660), but
+ * it cannot be resolved the way the web layout resolves it: there `t('loading')`
+ * is awaited on the SERVER, and a Suspense fallback must render synchronously.
+ *
+ * So this is a client component that reads the hook, and it sits INSIDE
+ * `ShellIntlScope` — which is what makes the hook legal here. `useTranslations`
+ * throws outside a provider, and the scope is mounted above this boundary.
+ */
+function LayoutFallback() {
   return (
     <div className="h-screen flex items-center justify-center bg-background">
       <div className="text-center">
         <h1 className="mb-2"><Wordmark className="text-xl" /></h1>
-        <Working label={loading} className="text-sm" />
+        <FallbackWait />
       </div>
     </div>
   );

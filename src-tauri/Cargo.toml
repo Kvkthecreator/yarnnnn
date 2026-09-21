@@ -1,0 +1,26 @@
+# ADR-661 §8 step 4 — the desktop host.
+#
+# This crate is the SHELL, not the product: it opens a window, serves the
+# exported web app from disk, and owns the two things a browser tab cannot do
+# (a real window, and handing an external URL to the system browser). Product
+# behaviour stays in `web/` — D4, one codebase, N build targets.
+[package]
+name = "yarnnn"
+version = "0.1.0"
+description = "yarnnn — shared memory for AI + human work"
+authors = ["yarnnn"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# The system-browser handoff (ADR-661 §4.3). `openExternal` in the web bundle
+# calls window.open(_blank); this plugin is what makes that leave the app.
+tauri-plugin-opener = "2"
+
+[features]
+# Tauri's own; kept as generated.
+custom-protocol = ["tauri/custom-protocol"]
