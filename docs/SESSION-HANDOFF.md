@@ -106,6 +106,29 @@ The fix belongs in `ensure_principal_grant`, the one function both doors call.
   The file's own comment warns that a roster cannot promise coldness — it happened anyway.
   Re-mint a cold instrument before any first-run pass, and correct these two lines.
 
+## ADR-661 — the Mac shell EXISTS; steps 5–6 remain (2026-09-21)
+
+**Steps 1–4 are SHIPPED and driven.** A `.app` was built, launched, and proven end to end
+(`GET /` 307 → `/desktop/` 200 → `/auth/login/?next=` 200, inside the native window).
+Build it: `cd src-tauri && cargo tauri build`. Gate `test_adr661_*.py` **30/30**.
+
+⚠️ **Rust is now a build dependency** for the shell only. The web build is untouched and
+does not need it.
+
+**Owed:**
+1. **The DMG step fails** — `bundle_dmg.sh` needs Finder scripting, unavailable headless.
+   The `.app` bundles fine; run `cargo tauri build` from a normal session to get the DMG.
+2. **The OAuth deep-link is not wired** — sign-in completes in the system browser and does
+   not hand back to the app. Needs a custom scheme registered + `tauri-plugin-deep-link`.
+   Until then the shell can only be signed into by a session already in its store.
+3. **Step 5** — notarization + auto-update (needs an Apple Developer ID).
+4. **Step 6** — local hands (§5/§6), its own implementation ADR, four conditions, driven
+   trace. NOT before the shell is stable.
+
+⚠️ **The two-build mechanism**: `page.web.tsx` is a route on the WEB build only
+(`pageExtensions`). A new route defaults to BOTH builds — rename it `.web.tsx` if it must
+not ship in the shell. The ADR-660 gate's `read()` follows the twin automatically.
+
 ## ADR-661 — the Mac shell is authorized and unbuilt (2026-09-21)
 
 Phase 0 is the ADR only. **Nothing is built.** Gate `test_adr661_the_shell_may_be_native.py`
