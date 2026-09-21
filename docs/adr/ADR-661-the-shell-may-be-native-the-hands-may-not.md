@@ -275,6 +275,34 @@ Steps 1, 2 and 4 in one trace, inside the packaged app.
 
 ---
 
+## 7c. Step 5 — the return leg, and a publishable build (2026-09-21, driven)
+
+**The deep link closes the loop.** §4.3 sends OAuth to the system browser, which is right; without a way back it is one-way, and the shell could only ever use a session already in its store. The host registers `yarnnn://`, forwards an incoming URL as an app-wide event, and `DeepLinkBridge` converts it to in-app navigation. It parses no token and touches no Supabase client: `app/auth/callback` already handles every shape the provider sends, earned against production, and must keep exactly one home.
+
+Driven, against a logging static server so the navigation was observable:
+
+```
+yarnnn://auth/callback?next=%2Ffiles     → host received it
+  → GET /auth/callback?next=%2Ffiles     → the bridge navigated the app
+  → GET /auth/login?error=no_session     → the callback ran its real logic
+                                            (correct: the probe URL carried no token)
+```
+
+⭐⭐⭐ **Two bugs, and the second was invisible without instrumenting both halves.**
+
+1. **The bridge was mounted below the auth boundary.** It sat in the authenticated layout — but a member completing sign-in is on `/auth/login`, *outside* that group. The listener did not exist at the one moment it is needed. It now mounts in the ROOT layout, which is safe under ADR-660 D3 because it reads no cookie and no request state. The symptom was the app waking on the link and never navigating.
+2. **`win.emit` and `listen()` are different scopes.** The host emitted to the window; the web layer subscribes app-wide. The host logged the URL, the page never heard it, and every static check was green. Found only by instrumenting the Rust side and the JS side at once.
+
+**A publishable build needs three things, not one.** `scripts/release-shell.sh` signs, notarizes and staples, then asks Gatekeeper directly whether a stranger could open the result — because the real question is not "did the commands succeed". Its preflight refuses early with an actionable sentence.
+
+⚠️ **The preflight itself failed silently at first**: with no certificate, `grep` matches nothing, exits 1, and `set -e` killed the script *before* the message explaining what to do. A helpful check defeated by its own strictness — exit 1, no output. `|| true` on the capture.
+
+**The entitlements are load-bearing.** Notarization requires the hardened runtime, which denies the webview's JIT by default: a notarized build without `com.apple.security.cs.allow-jit` launches to a blank window. The roster is two entries and is an audit surface, like the Tauri capability file.
+
+**Owed, and named**: this machine has no Developer ID, so the sign → notarize → staple chain is **configured and gate-asserted but never executed**. Everything else in step 5 is driven. The operator's four setup steps and the verification that matters — driving a quarantined DMG on a machine that never built it — are in [publishing-the-mac-app.md](../infrastructure/publishing-the-mac-app.md). Auto-update is deliberately not built: it has its own key management, and one unversioned build is the smaller first step.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

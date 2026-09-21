@@ -40,6 +40,7 @@ in place.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -286,7 +287,7 @@ caps = json.loads(cap_path.read_text(encoding="utf-8")) if cap_path.exists() els
 perms = set(caps.get("permissions") or [])
 check(
     "the host grants only what the product needs today",
-    perms and perms <= {"core:default", "opener:allow-open-url"},
+    perms and perms <= {"core:default", "opener:allow-open-url", "deep-link:default"},
     f"the capability roster grew without an ADR: {sorted(perms)}",
 )
 
@@ -297,6 +298,63 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         (REPO / rel).exists(),
         "a web-only route lost its .web suffix and would enter the shell build",
     )
+
+# ------------------------------------------------ §8 step 5 the return leg
+print("\n§8 step 5 the shell can be signed, and can be returned to")
+
+# §4.3 sends OAuth to the system browser. Without a way BACK the handoff is
+# one-way: the member signs in, the browser holds the session, the app never
+# hears. The scheme must be declared in BOTH halves or the link goes nowhere.
+conf_plugins = (conf.get("plugins") or {}).get("deep-link") or {}
+schemes = set((conf_plugins.get("desktop") or {}).get("schemes") or [])
+check(
+    "the host registers the yarnnn:// scheme",
+    "yarnnn" in schemes,
+    f"no scheme to return to: {sorted(schemes)}",
+)
+
+bridge = strip_comments(read("web/components/shell/DeepLinkBridge.tsx"))
+check(
+    "the bridge listens for the host's event",
+    "deep-link" in bridge and "router" in bridge,
+    "the web half of the return leg is gone",
+)
+
+# The listener must sit ABOVE the auth boundary: a member completing sign-in is
+# on /auth/login, OUTSIDE the authenticated group. Mounted inside it, the
+# bridge does not exist at the one moment it is needed — measured, the app woke
+# on the link and never navigated.
+root_layout = strip_comments(read("web/app/layout.tsx"))
+check(
+    "the bridge is mounted at the ROOT, above the auth boundary",
+    "<DeepLinkBridge" in root_layout,
+    "a bridge below /auth/login cannot hear the link that completes sign-in",
+)
+
+# A downloaded build that is not notarized says "yarnnn is damaged" — which
+# reads as malware. The script is what makes a publishable build reachable.
+release = REPO / "scripts" / "release-shell.sh"
+release_src = read("scripts/release-shell.sh")
+check(
+    "the release script exists and is executable",
+    release.exists() and os.access(release, os.X_OK),
+    "publishing would need someone to remember the steps by hand",
+)
+check(
+    "the release script signs, notarizes AND staples",
+    all(k in release_src for k in ("codesign", "notarytool", "stapler")),
+    "a build missing any one of the three is unusable when downloaded",
+)
+
+# Notarization requires the hardened runtime, which denies the webview's JIT
+# unless the entitlement is present — the app would launch and render nothing.
+ents = read("src-tauri/entitlements.plist")
+check(
+    "the entitlements keep the webview working under the hardened runtime",
+    "com.apple.security.cs.allow-jit" in ents
+    and "com.apple.security.network.client" in ents,
+    "a notarized build would launch to a blank window",
+)
 
 # ------------------------------------------ §4.3/§4.4 leaving the product
 print("\n§4.3/§4.4 leaving the product goes through one door")

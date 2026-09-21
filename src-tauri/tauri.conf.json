@@ -27,7 +27,19 @@
     "category": "Productivity",
     "shortDescription": "Shared memory for AI + human work",
     "macOS": {
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null,
+      "entitlements": "entitlements.plist"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "mobile": [],
+      "desktop": {
+        "schemes": [
+          "yarnnn"
+        ]
+      }
     }
   }
 }

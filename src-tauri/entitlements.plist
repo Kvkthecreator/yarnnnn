@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- ADR-661 §8 step 5 — what the HARDENED RUNTIME must still allow.
+       Notarization requires the hardened runtime, which denies these by
+       default, so each entry here is a capability the shell genuinely needs
+       and nothing more. The roster is an audit surface, like the Tauri
+       capability file: local hands (§5/§6) would argue for an addition in
+       their own ADR, not quietly. -->
+
+  <!-- The webview's JIT. Without it the app launches and renders nothing. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+
+  <!-- The API, Supabase and the auth endpoints are all remote; the shell is a
+       client of the same services the web build talks to. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>

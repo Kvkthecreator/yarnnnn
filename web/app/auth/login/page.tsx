@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getSafeNextPath } from "@/lib/auth/redirect";
+import { authCallbackUrl } from "@/lib/shell/deep-link";
 import { HOME_ROUTE } from "@/lib/routes";
 import { AuthForm } from "@/components/auth/AuthForm";
 import Link from "next/link";
@@ -18,10 +19,11 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [initialError, setInitialError] = useState<string | null>(null);
   const nextPath = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
-  const callbackRedirect =
-    typeof window === "undefined"
-      ? ""
-      : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+  // ADR-661 §8 step 4 — the return address depends on which build is asking.
+  // On the web it is this origin; in the shell it is the `yarnnn://` scheme,
+  // the only address that reaches a running desktop app. One helper so the two
+  // cannot drift, and so the Supabase allowlist has a single spelling to hold.
+  const callbackRedirect = authCallbackUrl(nextPath);
 
   // Show OAuth callback errors
   useEffect(() => {
