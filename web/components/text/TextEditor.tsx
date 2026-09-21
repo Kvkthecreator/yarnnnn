@@ -103,6 +103,7 @@ import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 import { isSubmitKey } from '@/lib/shell/submit-key';
 import { Working, WorkingGlyph } from '@/components/shared/Working';
+import { webOrigin } from '@/lib/shell/external-navigation';
 
 type LanesEnv = Awaited<ReturnType<typeof api.lanes.list>>;
 type LaneRow = LanesEnv['lanes'][number];
@@ -722,7 +723,7 @@ export function TextEditor({
 
   /** The member-facing deep link to this document — Docs' own grammar. */
   const copyLink = useCallback(() => {
-    const url = `${window.location.origin}/desktop?text.file=${encodeURIComponent(relPath(path))}`;
+    const url = `${webOrigin()}/desktop?text.file=${encodeURIComponent(relPath(path))}`;
     void navigator.clipboard.writeText(url);
   }, [path]);
 

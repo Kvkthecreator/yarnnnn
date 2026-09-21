@@ -68,6 +68,7 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
 import { OFFERED_CONNECTORS } from '@/lib/connectors/registry';
+import { openExternal } from '@/lib/shell/external-navigation';
 
 interface FindConnectorModalProps {
   open: boolean;
@@ -300,7 +301,7 @@ export function FindConnectorModal({
         provider,
         redirectTo,
       );
-      window.location.href = authorization_url;
+      openExternal(authorization_url);
     } catch (e) {
       setConnectError(
         e instanceof APIError
@@ -344,7 +345,7 @@ export function FindConnectorModal({
         },
       );
       if (res.authorization_url) {
-        window.location.href = res.authorization_url;
+        openExternal(res.authorization_url);
         return;
       }
       onAttached(res.slug);
@@ -397,7 +398,7 @@ export function FindConnectorModal({
         },
       );
       if (res.authorization_url) {
-        window.location.href = res.authorization_url;
+        openExternal(res.authorization_url);
         return;
       }
       onAttached(res.slug);

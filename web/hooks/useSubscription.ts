@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api, APIError } from "@/lib/api/client";
 import { useFeedback } from "@/contexts/FeedbackContext";
 import type { BalanceEntry, SubscriptionStatus, SubscriptionTier } from "@/types";
+import { openExternal } from '@/lib/shell/external-navigation';
 
 export function useSubscription() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
@@ -97,7 +98,10 @@ export function useSubscription() {
           error: (e) => toUserError(e, "Couldn't start that top-up").message,
         },
       );
-      window.location.href = checkout_url;
+      // In the shell the member stays put while checkout opens in their
+      // browser, so the loading state must be cleared here — on the web the
+      // page is going away and it does not matter (ADR-661 §4.3).
+      if (!openExternal(checkout_url)) setIsLoading(false);
     } catch {
       // Reported by the toast.
       setIsLoading(false);
@@ -116,7 +120,10 @@ export function useSubscription() {
           error: (e) => toUserError(e, "Couldn't start that plan").message,
         },
       );
-      window.location.href = checkout_url;
+      // In the shell the member stays put while checkout opens in their
+      // browser, so the loading state must be cleared here — on the web the
+      // page is going away and it does not matter (ADR-661 §4.3).
+      if (!openExternal(checkout_url)) setIsLoading(false);
     } catch {
       // Reported by the toast.
       setIsLoading(false);
@@ -134,7 +141,7 @@ export function useSubscription() {
       setIsLoading(true);
       setError(null);
       const { portal_url } = await api.subscription.getPortal();
-      window.location.href = portal_url;
+      if (!openExternal(portal_url)) setIsLoading(false);
     } catch (err) {
       setError(toUserError(err, "Failed to open payment methods"));
       setIsLoading(false);

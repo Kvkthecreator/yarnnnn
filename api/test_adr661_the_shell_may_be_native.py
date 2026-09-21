@@ -9,6 +9,9 @@
           effect visible only on the far side
     §6.4  no local-hands capability ships BEFORE its own implementation ADR —
           a tripwire on the evidence standard, not a ban on the capability
+    §4.3  leaving the product goes through ONE door — a raw in-place
+          navigation to an external URL strands a member in a native window
+    §4.4  a share link names the canonical WEB origin, never the window's
     §7a.1 the eight export-fragile surfaces keep their Suspense boundary, and
           no hook above them re-opens the bailout on every route
     §7.5  the two dead Supabase packages stay gone
@@ -242,6 +245,52 @@ check(
     "@supabase/auth-helpers-nextjs is still declared",
     "@supabase/auth-helpers-nextjs" in deps,
     "the LIVE auth client was removed — the cleanup overshot",
+)
+
+# ------------------------------------------ §4.3/§4.4 leaving the product
+print("\n§4.3/§4.4 leaving the product goes through one door")
+
+EXT = WEB / "lib" / "shell" / "external-navigation.ts"
+check(
+    "the external-navigation helper exists",
+    EXT.exists(),
+    "openExternal/webOrigin are gone — 11 call sites lose their one door",
+)
+
+# An OAuth consent screen or a checkout page navigated IN PLACE strands a
+# member in a native window with no address bar and no back button. These are
+# the seven sites; a new one must use the helper, not the raw assignment.
+EXTERNAL_NAV_FILES = [
+    "web/hooks/useSubscription.ts",
+    "web/components/settings/FindConnectorModal.tsx",
+    "web/components/settings/ManageConnectionSubsurface.tsx",
+]
+raw_nav = [
+    rel
+    for rel in EXTERNAL_NAV_FILES
+    if re.search(r"window\.location\.href\s*=", strip_comments(read(rel)))
+]
+check(
+    "no raw in-place navigation to an external URL",
+    not raw_nav,
+    f"would strand a member in a native window: {raw_nav}",
+)
+
+# A share link is pasted into someone ELSE's chat. Built from
+# window.location.origin it names the custom scheme and is dead everywhere.
+SHARE_LINK_FILES = [
+    "web/components/authoring/StudioSurface.tsx",
+    "web/components/text/TextEditor.tsx",
+]
+origin_links = [
+    rel
+    for rel in SHARE_LINK_FILES
+    if "${window.location.origin}" in strip_comments(read(rel))
+]
+check(
+    "share links are built from the canonical web origin",
+    not origin_links,
+    f"a pasted link would be dead: {origin_links} — use webOrigin()",
 )
 
 # ------------------------------------------- §7a.1 the export stays reachable

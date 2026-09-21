@@ -143,6 +143,7 @@ import {
   type OpResult,
 } from './artifactOps';
 import { isSubmitKey } from '@/lib/shell/submit-key';
+import { webOrigin } from '@/lib/shell/external-navigation';
 
 /**
  * One step of the member's own edit lineage (ADR-523 D1).
@@ -2324,7 +2325,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const menuCopyBlockLink = useCallback(() => {
     const id = ctxMenu?.blockId;
     if (!id || !artifactPath) return;
-    const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(
+    const url = `${webOrigin()}/desktop?${app.slug}.file=${encodeURIComponent(
       relPath(artifactPath),
     )}&studio.block=${encodeURIComponent(id)}`;
     void navigator.clipboard.writeText(url);
@@ -3558,7 +3559,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // is multi-member; distinct from the ADR-437 Share origin).
   const copyArtifactLink = useCallback(() => {
     if (!artifactPath) return;
-    const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(relPath(artifactPath))}`;
+    const url = `${webOrigin()}/desktop?${app.slug}.file=${encodeURIComponent(relPath(artifactPath))}`;
     void navigator.clipboard.writeText(url);
   }, [artifactPath]);
   // Share — OPENS THE SHARED DIALOG (ADR-529 D1). Studio no longer owns a
@@ -4832,7 +4833,7 @@ function StudioStart({
   });
   // Copy link / Duplicate are surface-specific extras (ADR-455 extraItems).
   const copyRecentLink = useCallback((path: string) => {
-    const url = `${window.location.origin}/desktop?${app.slug}.file=${encodeURIComponent(relPath(path))}`;
+    const url = `${webOrigin()}/desktop?${app.slug}.file=${encodeURIComponent(relPath(path))}`;
     void navigator.clipboard.writeText(url);
   }, []);
   // ADR-514 D1: duplicate is the KERNEL's verb. The pre-514 body here read the

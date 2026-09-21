@@ -47,6 +47,7 @@ import { formatRelativeTime } from "@/lib/formatting";
 import type { ConnectorMeta } from "@/lib/connectors/registry";
 import { SurfaceLink } from "@/components/shell/SurfaceLink";
 import { Working } from '@/components/shared/Working';
+import { openExternal } from '@/lib/shell/external-navigation';
 
 type SelectableProvider = "slack" | "notion" | "github";
 
@@ -308,7 +309,7 @@ export function ManageConnectionSubsurface({
       // returns to THIS drill-in (`reach.connector` selects it).
       const back = `/reach?reach.pane=connected&reach.connector=${provider}`;
       const result = await api.integrations.getAuthorizationUrl(provider, back);
-      window.location.href = result.authorization_url;
+      openExternal(result.authorization_url);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("reauthError"));
     }
