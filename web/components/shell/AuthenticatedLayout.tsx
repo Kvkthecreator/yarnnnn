@@ -10,7 +10,9 @@
  * surface registry, and the shell becomes structural only.
  *
  * What this file owns after D11 (+ Phase 3 legacy-desk deletion):
- *   - Auth check + loading state
+ *   - Provider stack and chrome mount. The AUTH check moved out to
+ *     `AuthGate` (ADR-661 §8 step 1), which owns the gate and the live
+ *     sign-out invalidation together — one auth mechanism, not two.
  *   - Provider stack (BreadcrumbProvider · SurfacePreferencesProvider
  *     · ShellChromeProvider). The legacy DeskProvider was deleted in
  *     ADR-297 Phase 3 — the window manager (SurfacePreferencesProvider)
@@ -30,7 +32,6 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import { FeedbackProvider } from '@/contexts/FeedbackContext';
 import { ShellCompositor } from './ShellCompositor';
@@ -45,35 +46,14 @@ import {
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
   /**
-   * Resolved server-side in app/(authenticated)/layout.tsx. The shell no
-   * longer fetches the user client-side or blocks first paint on it —
-   * middleware.ts is the gate. This prop just feeds the chrome (UserMenu).
+   * Resolved server-side in app/(authenticated)/layout.tsx. Display only —
+   * the gate is `AuthGate` in the client and `middleware.ts` on the web
+   * (ADR-661 §8 step 1). This prop just feeds the chrome (UserMenu).
    */
   userEmail?: string;
 }
 
 export default function AuthenticatedLayout({ children, userEmail }: AuthenticatedLayoutProps) {
-  const router = useRouter();
-  const supabase = createClient();
-
-  // Live sign-out invalidation only — NOT an auth gate. Middleware already
-  // refreshed + gated the session server-side before this component rendered;
-  // re-checking with getUser() here only added a redundant round-trip behind a
-  // full-screen spinner. We keep the listener so a sign-out in another tab (or
-  // an expired session surfaced by onAuthStateChange) bounces to login live.
-  useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        const next = `${window.location.pathname}${window.location.search}`;
-        router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [router, supabase.auth]);
-
   return (
     <FeedbackProvider>
       <BreadcrumbProvider>
