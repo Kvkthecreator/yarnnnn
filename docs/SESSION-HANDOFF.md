@@ -117,12 +117,24 @@ AppleScript and failed once then succeeded unchanged — **retry before calling 
 ⚠️ **Rust is now a build dependency** for the shell only. The web build is untouched and
 does not need it.
 
+**Steps 1–5 are SHIPPED.** The deep link closes the OAuth loop (`yarnnn://auth/callback` →
+the bridge → the real callback page, driven). `./scripts/release-shell.sh` signs, notarizes
+and staples.
+
+**The ONE thing only the operator can do:** enrol in the Apple Developer Program ($99/yr) and
+create a Developer ID certificate. Until then the sign → notarize → staple chain is configured
+and gate-asserted but **never executed**, and a downloaded build says *"yarnnn is damaged"* —
+which reads as malware. Four setup steps + the verification that matters (drive a QUARANTINED
+DMG on a machine that never built it) are in
+[publishing-the-mac-app.md](infrastructure/publishing-the-mac-app.md).
+
+⚠️ **Also needed before publishing**: add `yarnnn://auth/callback` to the Supabase redirect
+allowlist, or a member reaches the consent screen and lands on an error they cannot act on.
+
 **Owed:**
-1. **The OAuth deep-link is not wired** — sign-in completes in the system browser and does
-   not hand back to the app. Needs a custom scheme registered + `tauri-plugin-deep-link`.
-   Until then the shell can only be signed into by a session already in its store.
-2. **Step 5** — notarization + auto-update (needs an Apple Developer ID).
-3. **Step 6** — local hands (§5/§6), its own implementation ADR, four conditions, driven
+1. **Auto-update** — deliberately not built; it has its own key management, and one
+   unversioned build is the smaller first step.
+2. **Step 6** — local hands (§5/§6), its own implementation ADR, four conditions, driven
    trace. NOT before the shell is stable.
 
 ⚠️ **The two-build mechanism**: `page.web.tsx` is a route on the WEB build only
