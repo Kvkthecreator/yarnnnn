@@ -5,6 +5,8 @@
 > service specifics"*). D1–D6 shipped and driven (§9); the shell pass and its ruling on served titles in §10.
 > **Coverage is DONE** (2026-09-21, §13). Every member-facing surface reads the catalog; what stays English
 > is what the operator ruled stays English. §10 shell · §11 chat · §12 the account door · §13 the rest.
+> **The marketing site speaks Korean at `/ko`** (2026-09-21, §14) — D9 refuses IP, D10 adds a fifth scope
+> whose locale is an argument so every marketing route stays static.
 > **Date**: 2026-09-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Who** (a preference of the human, not of the commons).
@@ -122,7 +124,9 @@ discipline of §4 applies in translation: a kernel noun does not come back as it
 
 ## 8. What this ADR does not decide
 
-- **The marketing site in Korean** — indexed pages want `/ko/…` + `hreflang`, a different mechanism (D1).
+- ~~**The marketing site in Korean**~~ — **CLOSED for the landing page by §14** (D9/D10): `/ko` +
+  `hreflang`, IP refused. `/pricing`, `/how-it-works` and `/faq` are rostered and are the next pass;
+  the blog and the legal pages stay English, each for a stated reason.
 - **Served error details** — 136 `HTTPException` details, reach sentences. The convention is an
   error *code* the client words; that is its own pass. (The served *roster* left this list on 2026-09-20 —
   §10 ruling 1 words it client-side by slug, with no API change.)
@@ -416,3 +420,91 @@ notification-kind registry, connector titles, `HTTPException` details, the lane'
 messages (substrate data, ADR-209), and `blockLabels` (the served block vocabulary, ADR-544 D4). Brand and
 app names in Latin script per D6. `lib/formatting.ts`'s relative times, which are a shared layer on 15
 surfaces and translate with their own pass.
+
+---
+
+## 14. The marketing site (2026-09-21)
+
+§8 deferred `/ko` + `hreflang` as "a different mechanism (D1)". This ships that mechanism for the
+landing page. Occasion: the operator asked whether the visitor's **IP** could pick the language, or
+failing that a header toggle. Analysis: `docs/analysis/korean-marketing-site-2026-09-21.md`.
+
+### D9 — IP is refused; the language is the ADDRESS
+
+**IP geolocation is rejected**, on three independent grounds, any one sufficient:
+
+1. **It breaks the SEO the marketing site exists for.** Googlebot crawls predominantly from US IPs,
+   so serving two languages at one URL means Google indexes English and never discovers the Korean
+   page — removing the only reason to write it.
+2. **Location is not language.** Diaspora, expats and English-preferring Koreans all get a language
+   they did not ask for. `Accept-Language` carries what the visitor *configured*; it is a
+   declaration, not an inference, and it is already negotiated (D2 step 3, driven in §9).
+3. **D2 already ruled it.** A guess is never written down. An IP guess is a weaker guess than the
+   one the request already carries.
+
+So English stays **unprefixed** at `/` and Korean lives at **`/ko`**. English URLs do not move: no
+redirect is introduced, and no existing ranking is disturbed. This is D1's other half — D1 excluded
+the *app* from prefixes and said in the same breath that *"URL-prefixed locales are the convention
+for indexed pages"*. `lib/marketing/locale.ts` encodes the asymmetry once, and `TRANSLATED_PATHS` is
+the single roster deciding which paths may be prefixed; a link to an English-only page (the blog,
+the legal pages, `/invest`, `/developers`) stays bare rather than 404ing under `/ko`.
+
+### D10 — a FIFTH scope, whose locale is an argument and not a lookup
+
+The four D3/D7 scopes resolve a locale by reading a cookie and the account. **That read is what makes
+a route dynamic**, and it is why the provider was kept out of the root layout. Marketing cannot pay
+it: every marketing route is statically prerendered, an invariant this ADR guarded on the build's
+route table four times.
+
+So `MarketingIntlScope` takes `locale` as a **prop** — the route already knows it, because the locale
+is in the path — and imports the catalog directly rather than through `getMessages()`.
+
+⭐ **The static guarantee nearly died, and a build receipt caught it.** A first pass rendered the
+provider in a server component and `/` fell from `○` to `ƒ`. Isolated by bisecting down to a bare
+page: `NextIntlClientProvider` asks the request config for `now`/`timeZone`, and a server-side
+`useTranslations` reads it too. Both are avoided — `now`/`timeZone` are pinned explicitly and the
+page body renders as a **client** component — so no request state is consulted at all. The gate now
+asserts each of those three properties rather than the outcome alone.
+
+### ⭐ The D8 hazard, reached through an embed
+
+`TraceCard` and `CompoundsStepper` are rendered **inside blog posts** via `lib/blog-embeds.tsx`
+(`<!-- embed:TraceCard -->`, 2 posts). The blog stays English by ruling and renders outside every
+scope, so converting those two to `useTranslations` **broke the prerender of both posts while `tsc`,
+the type check and every other arm stayed clean** — D8's failure shape, arriving through an indirection
+no reading of the landing page would surface. They take **words as a prop** with English defaults now,
+which is what `LandingHeader` and `LandingFooter` already do for the same reason: shared chrome renders
+on untranslated marketing pages too.
+
+Two more found only by driving: `MarketingLanguageToggle` was a server component imported by a client
+one (the whole chrome failed to prerender), and `/ko`'s title read `… | yarnnn | yarnnn` because a
+nested route inherits the root layout's `title.template` while the root page does not.
+
+### The toggle is a link, not a switch
+
+`components/i18n/LanguageSwitcher.tsx` stays as it is — signed in, a language is a property of the
+human (D2), so it writes the account and refreshes. On marketing the language is the address, so
+`MarketingLanguageToggle` renders two anchors: no client state, a crawler follows it to the Korean
+page, and it cannot record a guess as a choice.
+
+### Scope — phase 1 is the decision path
+
+Translated: the landing page and the shared chrome. **Deliberately NOT translated**, each for a reason:
+the blog (113 posts — translating a post is a content project, and a machine-drafted post is published
+prose), `/privacy` and `/terms` (legal text; a mistranslated clause is a liability, so these want a
+professional translation or nothing), `/invest` and `/developers` (those audiences read English).
+`/pricing`, `/how-it-works` and `/faq` are in `TRANSLATED_PATHS` and are the next pass.
+
+### Receipts
+
+- **Build**: **24 static routes** (23 baseline + `/ko`); every pre-existing marketing route still `○`;
+  `/blog/[slug]` still 113 SSG paths; **0 prerender errors**.
+- **Gate 41 checks** (36 → 41): five arms for the fifth scope — it takes its locale as an argument and
+  never calls `resolveLocale`/`getLocale`, it pins `now` and `timeZone`, both pages provide it, and the
+  shared chrome imports no `next-intl`.
+- **Voice guard 0**, allowlist unchanged — it found `principal` and `attributed` in copy that JSX had
+  hidden and the catalog exposed (the §13 effect again); both reworded in both languages.
+- **`tsc` 0**. Driven at 390px in both languages: 0 clipped Hangul nodes, no horizontal scroll;
+  `/ko` carries `hreflang` en/ko/x-default, a self-canonical, and `og:locale: ko_KR`.
+- Known RED, not ours: the literal-copy ceiling (268 > 262), measured identically in a clean worktree
+  at HEAD — another session's, and this pass's delta is zero.

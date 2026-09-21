@@ -25,6 +25,20 @@ alone regresses English (`reports` 181 → 103, no stemming) while the OR of bot
 (187 / 412) and takes the Korean failures 0 → 1. Cost ~90MB of index for ~8.6MB of content.
 Awaiting the operator's call on that ratio.
 
+## Korean marketing: phase 1 done, three pages rostered but not built (2026-09-21)
+
+ADR-660 §14. The landing page speaks Korean at `/ko`; IP geolocation was REFUSED (D9) and the
+mechanism is a URL prefix with a link toggle (D10). 24 static routes, gate 41 checks, voice 0.
+
+**Rostered in `TRANSLATED_PATHS` but with NO `/ko` route yet** — `/pricing`, `/how-it-works`,
+`/faq`. The roster is deliberately ahead of the routes so the header/footer links already point
+where those pages will live; until they exist those `/ko/...` links 404. Either build the three
+pages or trim the roster — do not leave it half-way for long.
+
+⚠️ `TraceCard` and `CompoundsStepper` render INSIDE BLOG POSTS via `lib/blog-embeds.tsx`. They must
+stay hook-free (words as props). A translation hook in either breaks 2 posts' prerender while tsc
+and every gate stay green.
+
 ## Korean beyond the interface — five rulings awaited (audit 2026-09-21)
 
 `docs/analysis/korean-beyond-the-interface-2026-09-21.md` (`64b7dd1`). Audit only, nothing built.
