@@ -27,9 +27,16 @@ Awaiting the operator's call on that ratio.
 
 ## Korean marketing: phase 1 COMPLETE (2026-09-21)
 
-ADR-660 §14. Four page pairs ship Korean: `/`, `/pricing`, `/how-it-works`, `/faq`, each with a
-`/ko/...` twin. The toggle swaps IN PLACE both directions — a reader who clicks 한국어 on /pricing
-lands on /ko/pricing, not the homepage. 27 static routes, gate **46/0**, voice 0, tsc 0.
+ADR-660 §14. **Seven** page pairs ship Korean: `/`, `/pricing`, `/how-it-works`, `/faq`, `/about`,
+`/developers`, `/support`, each with a `/ko/...` twin. The toggle swaps IN PLACE both directions — a
+reader who clicks 한국어 on /pricing lands on /ko/pricing, not the homepage. 30 static routes, gate
+**47/0**, voice 0, tsc 0.
+
+⚠️ **The toggle assumes exactly TWO languages** (it shows "the other one"). A third locale must turn
+it into a menu; the gate asserts `len(LOCALES) == 2` so that day names the file.
+
+⚠️ **On `/developers`, identifiers are never translated** — verb names, `files:read`, `GET /llms.txt`
+and every URL are the contract a client types. Only the sentences around them are worded.
 
 ⚠️ **`TRANSLATED_PATHS` must never run ahead of the routes.** A rostered path with no
 `app/ko/.../page.tsx` becomes a 404 reachable from the header, footer and hero. `localePath` refuses
@@ -44,8 +51,8 @@ posts' prerender while tsc and every gate stay green.
 single source survives translation.
 
 **Still English by ruling**: the blog (113 posts — a content project), `/privacy` + `/terms` (a
-mistranslated clause is a liability; wants a professional translation), `/invest`, `/developers`,
-`/about`, `/engines`, `/support`.
+mistranslated clause is a liability; wants a professional translation), `/invest`, `/engines`,
+`/privacy-architecture`.
 
 ## Korean beyond the interface — five rulings awaited (audit 2026-09-21)
 

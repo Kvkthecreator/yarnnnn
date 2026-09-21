@@ -487,13 +487,35 @@ human (D2), so it writes the account and refreshes. On marketing the language is
 `MarketingLanguageToggle` renders two anchors: no client state, a crawler follows it to the Korean
 page, and it cannot record a guess as a choice.
 
-### Scope — phase 1 is the decision path
+### Scope — seven page pairs
 
-Translated: the landing page and the shared chrome. **Deliberately NOT translated**, each for a reason:
-the blog (113 posts — translating a post is a content project, and a machine-drafted post is published
-prose), `/privacy` and `/terms` (legal text; a mistranslated clause is a liability, so these want a
-professional translation or nothing), `/invest` and `/developers` (those audiences read English).
-`/pricing`, `/how-it-works` and `/faq` are the next pass.
+**Translated** (2026-09-21, complete): `/`, `/pricing`, `/how-it-works`, `/faq`, `/about`,
+`/developers`, `/support`, plus the shared chrome. The toggle swaps in place on every one.
+
+**Deliberately NOT translated**, each for a reason: the blog (113 posts — translating a post is a
+content project, and a machine-drafted post is published prose), `/privacy` and `/terms` (legal text;
+a mistranslated clause is a liability, so these want a professional translation or nothing),
+`/invest` (that audience reads English), `/engines` and `/privacy-architecture`.
+
+**On `/developers`, identifiers are not copy.** The verb names (`whoami`, `request_upload`), the
+scope strings (`files:read`), the HTTP lines (`GET /llms.txt`) and every URL stay exactly as a client
+must type them; only the sentences describing them are worded per locale. A translated identifier is
+a bug report waiting to happen, so `llms.txt` is on the gate's `UNTRANSLATED_OK` list as a filename
+rather than a word.
+
+### D11 — the language control is ONE link, and that assumes two languages
+
+The first control rendered every locale (`English · 한국어`) with the current one inert. In a nav
+already carrying five links plus Sign In it read as two more nav items, and it made the reader work
+out which of the two they were already in. It is now a single bordered pill — a globe plus the
+endonym of the language the reader is **not** in — which is what two-language sites converge on. The
+globe carries the meaning when the label is in a script the reader cannot read, and `aria-label`
+names the link so a screen reader set to the current language does not mispronounce it.
+
+**That shape is only coherent while there are exactly two languages.** With three, "the other one"
+stops being a thing and this must become a menu. The gate asserts `len(LOCALES) == 2`, so the day a
+third locale joins the roster, `MarketingLanguageToggle` is named rather than silently hiding a
+language.
 
 ⭐ **The roster must not run ahead of the routes.** They were rostered first, so the header, footer
 and both hero CTAs pointed at `/ko/pricing` and `/ko/how-it-works` — **three 404s reachable in one
@@ -507,7 +529,7 @@ gate arm pairs each rostered path with its route, falsified RED in place.
 
 - **Build**: **24 static routes** (23 baseline + `/ko`); every pre-existing marketing route still `○`;
   `/blog/[slug]` still 113 SSG paths; **0 prerender errors**.
-- **Gate 41 checks** (36 → 41): five arms for the fifth scope — it takes its locale as an argument and
+- **Gate 47 checks** (36 → 47): five arms for the fifth scope — it takes its locale as an argument and
   never calls `resolveLocale`/`getLocale`, it pins `now` and `timeZone`, both pages provide it, and the
   shared chrome imports no `next-intl`.
 - **Voice guard 0**, allowlist unchanged — it found `principal` and `attributed` in copy that JSX had
