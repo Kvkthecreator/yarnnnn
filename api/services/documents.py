@@ -103,7 +103,13 @@ def _filename_to_slug(filename: str) -> str:
     """
     # Strip extension
     name = filename.rsplit(".", 1)[0] if "." in filename else filename
-    slug = name.strip().lower()
+    # NFC first, before anything measures or compares this name. macOS sends a
+    # DECOMPOSED filename, so `배출증` off a Finder upload and the same name
+    # typed in the browser are different bytes that print identically — and
+    # `\w` below happily preserves either, so both reached `path` verbatim.
+    # Two production rows were created that way (see `services/naming.py::nfc`).
+    from services.naming import nfc
+    slug = nfc(name).strip().lower()
     # Replace anything that is NOT a Unicode word char (letters/digits/_ of any
     # script) or a dash with a dash. `re.UNICODE` is default in Py3; `\w`
     # includes CJK/Hangul. Underscores → dashes for kebab consistency.

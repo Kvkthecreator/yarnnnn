@@ -64,7 +64,14 @@ export function parseFileReference(reference: string | null | undefined): string
   if (!ref) return null;
   // Refuse traversal: a name that climbs out of the workspace is not a name in it.
   if (ref.split('/').includes('..')) return null;
-  return ref;
+  // One Unicode spelling. A non-Latin name has two byte forms that render
+  // identically — `한` is one composed syllable or three combining jamo — and
+  // nothing compares them equal. macOS decomposes filenames, the browser
+  // composes them, so the same Korean name arrives two ways and addresses two
+  // different files. NFC is what the web produces and what the W3C specifies
+  // for identifiers. Twin of `api/services/mcp_composition.py` via
+  // `services/naming.py::nfc`; ADR-587's gate drives both over one table.
+  return ref.normalize('NFC');
 }
 
 /**

@@ -42,6 +42,39 @@ MAX_SLUG_LEN = 48
 FALLBACK_SLUG = "untitled"
 
 
+def nfc(text: str) -> str:
+    """Normalize a path or a path segment to Unicode NFC. The ONE spelling.
+
+    A non-Latin name has two byte forms that render identically. `한` is either
+    one composed syllable (NFC, 3 bytes) or three combining jamo (NFD, 9 bytes),
+    and nothing compares them equal — not Python, not Postgres
+    (`'한글' = normalize('한글', NFD)` is false), not git.
+
+    macOS decomposes filenames, so a Korean file uploaded from Finder arrives
+    NFD while the same name typed in the browser arrives NFC. Measured on
+    production 2026-09-21: of four Hangul paths in `workspace_files`, two were
+    NFC (authored in-app) and two NFD (uploaded), and each was findable ONLY in
+    the form it was stored in. `path` is the substrate's binding unit
+    (ADR-373), the single-writer unit (ADR-286) and the revision-chain key
+    (ADR-209) — so two spellings of one name are two identities, two revision
+    chains, and a file an agent is told about but cannot open.
+
+    NFC is the target because it is what the web produces and what the W3C
+    specifies for identifiers; normalizing toward it moves the rarer form.
+
+    Applied at the DOORS a path enters through, never at the read of an already
+    stored path: normalizing on read would make a legacy NFD row unfindable by
+    its own stored spelling. The doors are the upload slug
+    (`services/documents.py::_filename_to_slug`) and the interop chokepoint
+    (`services/mcp_composition.py::parse_file_reference`), whose TypeScript
+    twin `web/lib/interop/fileHandle.ts::parseFileReference` does the same.
+
+    Pure and total — safe for a gate to call. ASCII is returned unchanged, so
+    this is a no-op for every Latin path in the system.
+    """
+    return unicodedata.normalize("NFC", text or "")
+
+
 def path_slug(name: str) -> str:
     """A member's typed name → an ASCII path segment (the identity key).
 

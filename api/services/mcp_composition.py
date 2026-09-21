@@ -914,6 +914,13 @@ def parse_file_reference(reference: Optional[str]) -> Optional[str]:
     ref = ref.lstrip("/").strip()
     if not ref or ".." in ref.split("/"):
         return None
+    # A non-Latin name has two byte forms that render identically (NFC/NFD), and
+    # nothing compares them equal. macOS uploads decompose; the browser composes.
+    # This is the interop chokepoint, so the fold to one spelling belongs here —
+    # see `services/naming.py::nfc` for the measurement. Kept in lockstep with
+    # `web/lib/interop/fileHandle.ts::parseFileReference` (ADR-587 parity).
+    from services.naming import nfc
+    ref = nfc(ref)
     # ADR-588 D2: resolve the told-name home to the real kernel home. Applied
     # last, after normalization, so every accepted spelling of the reference
     # (bare / absolute / yarnnn:// handle) resolves identically.

@@ -186,6 +186,14 @@ if node:
     js = ts_src
     js = re.sub(r"^export const ", "const ", js, flags=re.M)
     js = re.sub(r"^export function ", "function ", js, flags=re.M)
+    # A GENERIC type annotation on a declaration (`: Readonly<Record<string,
+    # string>> =`). Stripped BEFORE the bare `: string` rules, which would
+    # otherwise eat the inside of the generic and leave `Readonly<Record<,>>`.
+    # This is why the harness check below exists: `HOME_ALIASES:
+    # Readonly<Record<string, string>>` arrived 2026-09-17 (ee5f6f0) and node
+    # has refused the module ever since — the TS half of a PARITY gate silently
+    # stopped running, which is the exact shape this file's header warns about.
+    js = re.sub(r":\s*Readonly<[^=]*?>\s*(?==)", " ", js)
     js = re.sub(r":\s*string\s*\|\s*null\s*\|\s*undefined", "", js)
     js = re.sub(r":\s*string\s*\|\s*null", "", js)
     js = re.sub(r"\)\s*:\s*string\s*\{", ") {", js)
