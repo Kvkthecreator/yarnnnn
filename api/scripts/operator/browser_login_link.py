@@ -106,8 +106,15 @@ ALLOWED_EMAILS: dict[str, str] = {
     # second exists for the re-verify after a first-run defect is fixed. Each is
     # spent on first sign-in: once used, annotate it here rather than leaving the
     # next session to discover it warm (the testacct lesson directly above).
-    "beta-cold-01@yarnnn.com": "rig",    # COLD — unused as of 2026-09-15
-    "beta-cold-02@yarnnn.com": "rig",    # COLD — reserved for the re-verify
+    # ⚠️ SPENT AND TORN DOWN (verified 2026-09-21 against the live auth table:
+    # NEITHER USER EXISTS — the 2026-09-15 teardown ran). Kept on the roster so
+    # the addresses stay mintable when re-created, but they are NOT cold
+    # instruments today: signing in mints a fresh workspace, which is a
+    # first-run pass, not a join. Re-mint and re-annotate before relying on one.
+    # This is the exact failure the testacct comment above warns about, a second
+    # time: a roster line cannot promise a state that first use consumes.
+    "beta-cold-01@yarnnn.com": "rig",    # SPENT — user deleted 2026-09-15
+    "beta-cold-02@yarnnn.com": "rig",    # SPENT — user deleted 2026-09-15
     # --- other rig principals (persona workspaces) ---------------------
     "alpha-trader-2@yarnnn.com": "rig",
     "yarnnn-author@yarnnn.com": "rig",

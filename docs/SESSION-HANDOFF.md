@@ -6,6 +6,92 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## A member's workspace pin is wiped with no 403 — the join is real, the binding is not (2026-09-21)
+
+**Driven on production** with the declared rig pair (`kvkthecreator@yarnnn.com` owner of
+`bf5b25a9`, `testacct@yarnnn.com` as the joiner). The JOIN ITSELF IS SOUND — receipted:
+a fresh `principal_grants` row `role=member / status=active /
+granted_by=invite:67c5c637… / scopes=null`, and the invite flipped to `accepted` with the
+right `accepted_principal_id` and `accepted_at`. Roster, role badge, counts (1명 → 2명, the
+AI principal correctly excluded) and the owner-only hint all render correctly, in Korean.
+
+**THE DEFECT**: `yarnnn.active-workspace` (the `X-Workspace-Id` pin) is set correctly by the
+switcher — verified immediately after the click — and is then **cleared to `null` during the
+landing page load**, dropping the member silently into their OWN workspace. Reproduced on
+`/chat` and on `/files`.
+
+⚠️ **It is NOT the ADR-499 stale-pin self-heal, and that is the whole point.** The heal is
+gated on `isStaleWorkspacePin` = a 403 whose detail starts `"No active grant into workspace"`.
+On the `/files` repro **all 24 XHR/fetch requests returned 200** — captured — and the page
+still reloaded (the duplicated `recent-revisions`/`nav`/`roots`/`tree` pairs are the reload)
+with the pin gone. So a second, undocumented path clears the pin. Do not "fix" the 403
+predicate; find the writer. Trapping `Storage.prototype.removeItem` catches only a
+same-document clear — the wipe happens across the load, so instrument earlier (a `storage`
+event listener, or log inside `setActiveWorkspace`/`clearActiveWorkspace` themselves).
+
+**It is a RACE, not deterministic** — one hard load of `/chat` with the pin pre-set survived
+intact. Client-side navigation (dock buttons, settings→chat→back) ALWAYS survives. So the
+window is the first-paint fan-out on a full document load.
+
+**Consequence for a multi-workspace member**: they pick the other workspace in the switcher,
+land in its chat, and every subsequent surface may silently show their own workspace instead.
+Workspace Settings was the surface where this was first seen (it read "My workspace ·
+내 역할: 소유자" for a member who had just switched to the rig).
+
+**Verified NOT the cause**: the grant (valid — with the pin set by hand, every rig surface
+renders correctly as 멤버 and the pin then persists); the switcher (`UserMenu.tsx:195` pins,
+ADR-548 D9, confirmed in the live DOM); a 403 (none observed).
+
+## Members roster: three owner-gated controls are shown to a member (2026-09-21)
+
+Driven as `testacct` on the rig: the ⋯ menu on the member's OWN row offers 접근 범위 좁히기
+(narrow) · 지출 한도 설정 (spend cap) · 회수 (revoke) — all three `_require_owner_workspace`-
+gated — directly beneath the sentence "사람 초대나 접근 권한 변경은 소유자만 할 수 있어요"
+("only the owner can invite people or change access"). The UI contradicts itself in one
+viewport. Cause: `WorkspaceMembersCard.tsx:546` `const governable = !readOnly && m.role !==
+'owner'` is computed from the **target's** role; `viewerRole` (the signed-in principal's own
+role, derived at :502) is used ONLY for header copy at :756-770 and never consulted.
+
+⚠️ NOT yet proven whether the server refuses. The operator packet's rule is "hidden is not
+refused" — the direct-fetch probe was blocked by the sandbox (reading the Supabase auth
+cookie). **Before the next release, run the packet's §4 console probe** as the member against
+`/narrow` (widening own `write_scopes` to include `governance/`), `/cap` and
+`/workspace/invites`. A 200 on the first is the 2026-07-31 escalation reopened. The gate
+`test_governance_verbs_are_owner_gated.py` asserts the helper is CALLED (8/8 green, and its
+new ADR-537 arm was proven RED), but a gate reads source, not the live server.
+
+## The free-tier seat cap is enforced at one of the two membership doors (2026-09-21)
+
+`create_invite` (`services/workspace_invites.py:107-132`) raises `upgrade_required` at the
+cap. `accept_share` (`services/workspace_shares.py:266-345`) mints the SAME billed grant
+(`role="member"`, and `HUMAN_SEAT_ROLES = ("owner","member")`) with **no tier read, no
+headcount, and the link is re-redeemable by design**. `sync_seat_quantity` is called at only
+two sites — invite-accept and member-revoke — and NOT on share-accept, so a share join is
+invisible to billing twice. Verified by grep: no billing symbol appears anywhere on the share
+path. ADR-537's own comparison table asserts the open join link `| Bills | yes |`; it does
+not. Both doors sit in ONE dialog, the second described as usable "more than once".
+The fix belongs in `ensure_principal_grant`, the one function both doors call.
+
+## Smaller, all driven (2026-09-21)
+
+- The free-tier "Upgrade to the paid plan to invite your team." is a bare `<span>` with **no
+  clickable ancestor** (confirmed via `closest('a,button,[role=button],[onclick]')` → NONE).
+  `routes/workspace.py:2763-2766` says the 402 exists so the FE "branches cleanly to an
+  upgrade CTA"; nothing reads `e.status === 402`. The promised branch was never built.
+- `SeatPanel.tsx:64` destructures only `{ members }` from `useWorkspaceMembers()`, discarding
+  the `loaded`/`forbidden` flags it returns → `humans.length === 0` conflates loading, 403 and
+  empty, so a failed roster read shows "Loading the roster…" forever with no timeout.
+- A revoked invite page still reads "You've been invited as a member" above "This invite is
+  revoked." Two true lines that contradict each other.
+- The invite landing is **English while the inviter's shell is Korean** — it sits outside the
+  shell and resolves the locale per-account, so the joiner sees a different language from the
+  person who invited them.
+- ⚠️ `browser_login_link.py`'s roster is STALE: `beta-cold-01@yarnnn.com` and
+  `beta-cold-02@yarnnn.com` are annotated "COLD — unused as of 2026-09-15" but **neither
+  auth user exists any more** (the 2026-09-15 teardown ran; 22 users live, neither present).
+  The file's own comment warns that a roster cannot promise coldness — it happened anyway.
+  Re-mint a cold instrument before any first-run pass, and correct these two lines.
+
 ## ADR-661 — the Mac shell is authorized and unbuilt (2026-09-21)
 
 Phase 0 is the ADR only. **Nothing is built.** Gate `test_adr661_the_shell_may_be_native.py`
