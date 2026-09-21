@@ -18,6 +18,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { modifierKeyName } from '@/lib/shell/modifier-key';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
@@ -353,7 +354,7 @@ export function PagedNavigator({
           layout === 'deck'
             ? t('confirmDeleteSlides', { count: list.length })
             : t('confirmDeleteSections', { count: list.length }),
-        body: t('undoHint'),
+        body: t('undoHint', { mod: modifierKeyName() }),
         confirmLabel: t('delete'),
         danger: true,
       });

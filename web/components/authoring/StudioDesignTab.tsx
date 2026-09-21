@@ -33,6 +33,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { modifierKeyName } from '@/lib/shell/modifier-key';
 import {
   AlignCenter,
   AlignCenterHorizontal,
@@ -1016,10 +1017,10 @@ function TextSection({
       <div className="flex flex-wrap items-center gap-1">
         {/* The glyph letters B/I/U/S are the typographic convention every
             editor uses, in Korean software too — the WORD is the tooltip. */}
-        <button type="button" className={`${btn} font-semibold`} onClick={() => onFormat('bold')} title={t('bold')}>
+        <button type="button" className={`${btn} font-semibold`} onClick={() => onFormat('bold')} title={t('bold', { mod: modifierKeyName() })}>
           B
         </button>
-        <button type="button" className={`${btn} italic`} onClick={() => onFormat('italic')} title={t('italic')}>
+        <button type="button" className={`${btn} italic`} onClick={() => onFormat('italic')} title={t('italic', { mod: modifierKeyName() })}>
           I
         </button>
         <button type="button" className={`${btn} underline`} onClick={() => onFormat('underline')} title={t('underline')}>
