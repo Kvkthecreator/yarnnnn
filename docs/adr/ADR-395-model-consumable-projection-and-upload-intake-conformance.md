@@ -374,3 +374,51 @@ is retained, it is not yet readable, and the product says so.
 ⭐ **Recorded so it is not re-derived, and not so it is picked up.** The cheap
 half (§8.2–8.4) ships now and covers the observed feedback; the expensive half
 has a named trigger and an ADR of its own when that trigger fires.
+
+### 8.8 The click-pass (2026-09-21) — driven, and what it found
+
+Four files dragged through the real Files door on a real workspace
+(`bf5b25a9`), chosen so each exercises one decision:
+
+| File | Before am.1 | Observed |
+|---|---|---|
+| `q3-forecast.xlsx` | **refused at the door** | raw + projection, 18 words, both sheets |
+| `roadmap.pptx` | **refused at the door** | raw + projection, 16 words, slide + speaker notes |
+| `acme-contract.docx` | accepted, **table+header silently dropped** | raw + projection, **22 words** — table rows and `ACME CONFIDENTIAL` present |
+| `design.sketch` | **refused at the door** | raw (`application/octet-stream`) + **marker**, 0 words |
+
+Receipts: the four `[DOCUMENTS] Uploaded` log lines (the `.sketch` one reading
+`(marker, 0 words)` after `[EXTRACT] … retained-not-consumable (sketch) —
+marking`), and the landed `workspace_files` rows read back — every projection
+carrying `derived_from:` to its raw, the marker carrying its NOTE and no
+fabricated content. Recents went 21 → 25 with type-aware glyphs per format; the
+four `.extracted.md` siblings stayed hidden (ADR-554 D2). A `.sketch` opens to a
+named, attributed, downloadable file with an honest "can't preview here" —
+**D9's whole point: a file yarnnn cannot read is not a dead end.**
+
+**⭐ What only the click-pass could find — the caption outlived the filter.**
+The drop zone read **"PDF · DOCX · TXT · MD · ZIP 형식"**, a hardcoded
+`files.upload.formats` string in both catalogs. D8 deleted the `accept`
+attributes; nothing deletes a sentence. The door took every file while the
+sentence beside it named five — and its sibling `agentsCanRead` ("Your agents
+can read these files") became a false promise the moment a deferred format could
+land. Both reworded: the caption states the real limit (**"Any file, up to
+25MB"**), and the promise is scoped ("most formats… anything they can't is kept
+in full"). No gate could see this: the strings are correct English and correct
+Korean, they resolve, they render, and `tsc` has no opinion about whether a
+sentence is true. This is the ADR-593 *fixing the picture leaves the caption*
+class, on the door this amendment just opened.
+
+**Also corrected**: `_BINARY_TEXT_FAMILY` in `machine_projection.py` still read
+`{pdf, docx, doc}`. Its two new members were reachable only through the
+`content is None` branch, which answers identically — so nothing was wrong
+today, but a set whose whole job is to record *which formats must never have
+their raw bytes emitted as text* cannot omit two of them and stay trustworthy.
+Verified pre-existing and unchanged for `.pdf`/`.docx`: all four answer
+`deferred` at that boundary, as they did before.
+
+**Owed, and deliberately not built here**: a member sees the same "can't preview
+here" for `.sketch` (which yarnnn genuinely cannot read) as for `.xlsx` (which it
+now reads well). The distinction exists in the substrate — one has a marker, the
+other a projection — and is not surfaced. That is a Files-viewer question, not an
+intake one.

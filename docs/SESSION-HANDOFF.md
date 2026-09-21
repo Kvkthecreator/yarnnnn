@@ -12,22 +12,31 @@ Shipped: the intake door drops its format allowlist (D8), a file with no project
 with a legible marker instead of failing the upload (D9), `xlsx`/`pptx` join the text family and
 the `docx` extractor is repaired of silent table/header loss (D10). Gate 42/42, falsified six ways.
 
-1. **NOT CLICK-PASSED.** Every receipt is a driven unit path (real generated docx/xlsx/pptx through
-   `extract_text`; a real `.xlsx` through `_intake_verdict`) plus `next build` exit 0. Nobody has
-   dragged an `.xlsx` onto the Files canvas in a browser and watched the raw + projection land, or
-   uploaded a scanned PDF and read the marker in the UI. The FE `accept` attributes were REMOVED,
-   so the picker now offers every file — that is the visible change to check first.
-2. **`python-pptx` is a new dependency and must reach BOTH services.** `requirements.txt` carries it;
+**CLICK-PASSED 2026-09-21** (ADR §8.8): four files driven through the real door — `.xlsx` and
+`.pptx` (both refused before), a table-bearing `.docx` (whose table was silently dropped before),
+and an unknown `.sketch`. All landed; projections carry `derived_from`; the `.sketch` took the
+marker. It found one defect no gate could: **the drop-zone caption still read "PDF · DOCX · TXT ·
+MD · ZIP"** after D8 deleted the `accept` filters, and its sibling "Your agents can read these
+files" had become a false promise. Both reworded in `en.json`/`ko.json`.
+
+1. **`python-pptx` is a new dependency and must reach BOTH services.** `requirements.txt` carries it;
    confirm `yarnnn-api` AND `yarnnn-unified-scheduler` rebuilt (the scheduler runs the capture lane,
    which can invoke the same derive). An extractor missing there fails as a marker, not a crash —
    which is the honest degradation but would read as "we can't parse pptx".
+2. **A member cannot tell "not readable" from "read fine".** The Files viewer shows the same
+   "can't preview here" for `.sketch` (genuinely unreadable) and `.xlsx` (now read well). The
+   distinction is in the substrate — marker vs projection — and is not surfaced. A Files-viewer
+   question, not an intake one.
+3. **The add-file menu is English inside a Korean interface** — "New Folder" / "Add Files…" are
+   unlocalized while everything around them is Korean. Noticed during the click-pass; belongs to
+   ADR-660's coverage, not here.
 
-Two pre-existing defects were found and fixed in passing (both unrelated to the amendment):
+Two pre-existing defects found and fixed in passing, both unrelated to the amendment:
 `test_adr621` monkeypatched `execute_primitive` at module import and never restored it, turning
-three ADR-395 arms RED on run ORDER alone; and `test_resend_webhooks.py` is DEAD — it imports
-`_map_resend_event_to_delivery_status`, which no longer exists in `routes/webhooks.py`, so it errors
-at collection. The second is NOT fixed — it needs someone to decide whether that gate still has a
-subject.
+three ADR-395 arms RED on run ORDER alone; and `test_resend_webhooks.py` was DEAD for 26 days —
+it imported two mapper functions deleted 2026-08-26 with `agent_runs`, so it errored at COLLECTION
+and its two live signature arms never ran. RE-CUT (not deleted): the mapping test has no subject,
+and what replaced it — the raw event type landing on `export_log.outcome` — is asserted instead.
 
 **Suite baseline for the next session**: 45 failed / 593 passed across the 76 collectible gates
 (`for f in test_*.py; do grep -q 'sys\.exit' "$f" || echo "$f"; done`). The 45 are pre-existing —

@@ -53,7 +53,13 @@ _BLOCK_ELEMENTS = (
 #: projection at UPLOAD time (`services.documents.extract_text`, byte-oriented);
 #: a content-column read cannot produce one, so this boundary marks them rather
 #: than emitting `%PDF-1.4 …` and calling it text (DP34).
-_BINARY_TEXT_FAMILY = {"pdf", "docx", "doc"}
+#: ADR-395 am.1 D10 — `xlsx`/`pptx` joined the text family, so they belong here
+#: too. Reachable today only when `content` is non-None for such a path (the
+#: `content is None` branch above catches the ordinary case and says the same
+#: thing), but a set that claims to list the binary text-family and omits two of
+#: its members is a trap for the next reader — and the set is the only record of
+#: WHICH formats must never have their raw bytes emitted as text.
+_BINARY_TEXT_FAMILY = {"pdf", "docx", "doc", "xlsx", "pptx"}
 
 _BLOCK_RX = re.compile(
     r"</?(?:" + "|".join(_BLOCK_ELEMENTS) + r")\b[^>]*>", re.IGNORECASE
