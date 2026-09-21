@@ -151,6 +151,39 @@ platform-divergent APIs there are, so that ADR scopes ONE platform at a time.
 ⚠️ `docs/analysis/src_claudeCC/` is a vendored copy of Claude Code's own source (untracked,
 gitignored). **22 of 28 "computer use" matches under `docs/` are that tree, not canon.**
 
+## Chat: the lane works end to end — four copy gaps (2026-09-21)
+
+Driven in Korean on production as a real member, with a real turn against a real file.
+**The lane is sound and the receipts are real.** Picked Editor → sent a Korean message asking
+for a summary of the file created minutes earlier → the agent found it, read it, and answered
+**in Korean** (unprompted), with an honest caveat that the note was too short to summarize.
+Tool steps were reported in the member's language ("파일을 살펴봤어요 · 워크스페이스를 검색했어요
+· 파일을 읽었어요"). The reply is attributed to **Editor**, not to the engine.
+`execution_events` carries three rounds for that one message on `claude-sonnet-5`, ~$0.085
+total — the cost ledger that backs the billing model is live and correct.
+
+**Multi-party (ADR-626) works**: the add panel went 2명 → 3명 (나 + Editor + Supervisor), each
+participant's read-scope is stated ("대화 전체를 읽어요"), removal is offered
+("Editor 내보내기"), there is a read-prior-context checkbox, and when no other human exists it
+says so and offers a real `<a>` to the members pane — the membership thread closing its own
+loop. Console clean throughout.
+
+Copy gaps, all in the new-chat picker and the lane header, none blocking:
+
+1. **Agent DESCRIPTIONS are English inside a Korean interface** — "Makes images.", "Writes with
+   you — decks and documents.", "Writes posts for readers outside the workspace.", "Keeps track
+   of what is underway.", plus the "last used" marker. The agent NAMES are identifiers and are
+   correctly left literal; the sentences around them are copy and belong in the catalogs.
+   Same class as the add-file menu already recorded under ADR-395 am.1.
+2. **Editor's description truncates** in the picker — "Writes with you — decks and docu…". It is
+   the only one long enough to clip, so the row needs either a shorter string or two lines.
+3. **"New chat" is English** in the lane header and sidebar until the lane is renamed.
+4. **A single-agent lane is titled by its ENGINE, not its agent** — picking Editor produced a
+   lane called "Claude Sonnet 5". Add a second agent and the title correctly becomes
+   "Editor, Supervisor". ADR-558 makes the engine the member's pick and ADR-614 leads the door
+   with colleagues, so leading the TITLE with the engine reads as the older model; worth a
+   ruling rather than a silent change.
+
 ## Text: create ASCII-folds a Korean name, rename does not (2026-09-21)
 
 Driven in Korean on production, Text app, as a real member. **The substrate itself is fine** —
