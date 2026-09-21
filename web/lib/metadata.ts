@@ -9,6 +9,8 @@
 import { PRICE_COPY } from "@/lib/subscription/usage";
 
 import type { Metadata } from "next";
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "@/i18n/config";
+import { localePath, isTranslatedPath } from "@/lib/marketing/locale";
 
 // =============================================================================
 // BRAND CONFIGURATION
@@ -64,12 +66,28 @@ export const STAGE_NOTICE: string | null = BRAND.stage
   ? `${BRAND.name} is in ${BRAND.stage}. Things will change — your files stay yours, and they export any time.`
   : null;
 
+/** OpenGraph wants a full locale tag; the roster carries the short code. */
+const OG_LOCALES: Record<Locale, string> = {
+  en: "en_US",
+  ko: "ko_KR",
+};
+
 interface MarketingMetadataOptions {
   title: string;
   description: string;
+  /** The page's CANONICAL (English, unprefixed) path — e.g. `/pricing`. */
   path: string;
   keywords?: string[];
   type?: "website" | "article";
+  /**
+   * The language this page is rendered in. Given, the page declares
+   * `hreflang` alternates for every locale the path exists in, plus
+   * `x-default` — which is how Google learns that `/pricing` and `/ko/pricing`
+   * are the same page in two languages rather than duplicates competing with
+   * each other. Omitted → an untranslated page, and no alternates are emitted
+   * (claiming a Korean twin that does not exist is worse than claiming none).
+   */
+  locale?: Locale;
 }
 
 function absoluteUrl(path: string): string {
@@ -147,9 +165,22 @@ export function getMarketingMetadata({
   path,
   keywords,
   type = "website",
+  locale,
 }: MarketingMetadataOptions): Metadata {
-  const canonical = absoluteUrl(path);
+  // The canonical is this LANGUAGE's own URL — `/ko/pricing` is canonical for
+  // itself, not a duplicate of `/pricing`. Pointing both at the English URL
+  // would ask Google to drop the Korean page from the index entirely.
+  const canonical = absoluteUrl(locale ? localePath(path, locale) : path);
   const image = absoluteUrl(BRAND.ogImage);
+  const languages =
+    locale && isTranslatedPath(path)
+      ? {
+          ...Object.fromEntries(
+            LOCALES.map((l) => [l, absoluteUrl(localePath(path, l))]),
+          ),
+          "x-default": absoluteUrl(path),
+        }
+      : undefined;
 
   return {
     title,
@@ -157,11 +188,13 @@ export function getMarketingMetadata({
     ...(keywords && keywords.length > 0 ? { keywords } : {}),
     alternates: {
       canonical,
+      ...(languages ? { languages } : {}),
     },
     openGraph: {
       title: `${title} | ${BRAND.name}`,
       description,
       url: canonical,
+      locale: OG_LOCALES[locale ?? DEFAULT_LOCALE],
       type,
       images: [
         {

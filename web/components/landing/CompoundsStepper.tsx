@@ -17,25 +17,45 @@ import { useEffect, useRef, useState } from "react";
 
 const STAGES = [
   {
-    label: "Day 1",
+    labelKey: "day1Label",
     bars: 3,
-    body: "It works from the start. Connect your AI and the first signed file lands — a workspace, already in motion.",
+    bodyKey: "day1",
   },
   {
-    label: "Day 30",
+    labelKey: "day30Label",
     bars: 7,
-    body: "The record has added up. You, your people, and every AI you use start from the same files — fix a detail once and it stays fixed.",
+    bodyKey: "day30",
   },
   {
-    label: "Day 90",
+    labelKey: "day90Label",
     bars: 12,
-    body: "It reads like a full history — nothing forgotten, every change accounted for, all of it yours.",
+    bodyKey: "day90",
   },
-];
+] as const;
 
 const MAX_BARS = 12;
 
-export function CompoundsStepper() {
+export type CompoundsWords = Record<
+  "day1Label" | "day30Label" | "day90Label" | "day1" | "day30" | "day90",
+  string
+>;
+
+/**
+ * ⚠️ English defaults, words as a PROP — same reason as `TraceCard`: this also
+ * renders INSIDE BLOG POSTS through `lib/blog-embeds.tsx`, outside every
+ * `IntlScope`, where a translation hook throws at render.
+ */
+const EN_COMPOUNDS: CompoundsWords = {
+  day1Label: "Day 1",
+  day30Label: "Day 30",
+  day90Label: "Day 90",
+  day1: "It works from the start. Connect your AI and the first signed file lands — a workspace, already in motion.",
+  day30: "The record has added up. You, your people, and every AI you use start from the same files — fix a detail once and it stays fixed.",
+  day90: "It reads like a full history — nothing forgotten, every change accounted for, all of it yours."
+};
+
+export function CompoundsStepper({ words = EN_COMPOUNDS, className }: { words?: CompoundsWords; className?: string }) {
+  const t = (k: keyof CompoundsWords) => words[k];
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const reducedRef = useRef(false);
@@ -66,7 +86,7 @@ export function CompoundsStepper() {
           const isActive = active === i;
           return (
             <button
-              key={s.label}
+              key={s.labelKey}
               type="button"
               role="tab"
               aria-selected={isActive}
@@ -77,7 +97,7 @@ export function CompoundsStepper() {
                   : "bg-transparent text-[#1a1a1a]/40 hover:text-[#1a1a1a]/70"
               }`}
             >
-              {s.label}
+              {t(s.labelKey)}
             </button>
           );
         })}
@@ -86,7 +106,7 @@ export function CompoundsStepper() {
       <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-8 items-center">
         {/* Body copy */}
         <div>
-          <p className="text-[#1a1a1a]/60 leading-relaxed text-base md:text-lg">{stage.body}</p>
+          <p className="text-[#1a1a1a]/60 leading-relaxed text-base md:text-lg">{t(stage.bodyKey)}</p>
         </div>
 
         {/* The thickening memory — bars grow as time passes. */}

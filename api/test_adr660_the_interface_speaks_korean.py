@@ -264,8 +264,19 @@ SCOPES = [
 for rel in SCOPES:
     check(f"{rel} mounts the scope", "<IntlScope>" in strip_comments(read(rel)))
 
-# No unscoped route mounts a translated component — one import level deep, which
-# is the depth the defect was found at (`AuthForm` under `/mcp/auth`).
+# ── The FIFTH scope is per-PAGE, not per-layout (the marketing pass) ────────
+# `/` and `/ko` each wrap their body in `<MarketingIntlScope locale=…>`, which
+# takes the locale as an ARGUMENT instead of resolving it from a cookie. That
+# is what keeps a marketing route statically prerendered: the four layout
+# scopes above all read request state, and a cookie read would drop every
+# marketing page from `○` to `ƒ` — measured, and the invariant ADR-660 D3 was
+# built to protect.
+#
+# So a page carrying its own `<MarketingIntlScope>` IS scoped, and the mount
+# check must see that or it reports a false positive on the very route that is
+# doing the right thing. It is checked by CONTENT, not by path: a page that
+# renders a translated component without providing the scope still fails.
+PAGE_SCOPE = "<MarketingIntlScope"
 scope_dirs = [(WEB / rel).parent for rel in SCOPES]
 
 
@@ -287,6 +298,8 @@ for path in (WEB / "app").rglob("*.tsx"):
         continue
     routes_seen += 1
     src = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+    if PAGE_SCOPE in src:
+        continue  # the page provides its own provider — see PAGE_SCOPE above
     if re.search(r"from\s+[\"']next-intl", src):
         unscoped_mounts.append(f"{path.relative_to(WEB)} imports next-intl")
     for spec in re.findall(r"from\s+[\"']([^\"']+)[\"']", src):
@@ -294,6 +307,25 @@ for path in (WEB / "app").rglob("*.tsx"):
         if target in translated_resolved:
             unscoped_mounts.append(f"{path.relative_to(WEB)} → {target.relative_to(WEB.resolve())}")
 check("the scan saw unscoped routes", routes_seen > 0)
+
+# The marketing scope, asserted positively — a `continue` above is only honest
+# if the thing it skips really is a provider that keeps the page static.
+_mkt = strip_comments(read("components/marketing/MarketingIntlScope.tsx"))
+check("the marketing scope takes its locale as an argument, never from a cookie",
+      "locale: Locale" in _mkt and "resolveLocale" not in _mkt and "getLocale" not in _mkt,
+      "a request read here would drop every marketing route from static to dynamic")
+check("the marketing scope pins `now` and `timeZone`",
+      "now=" in _mkt and "timeZone=" in _mkt,
+      "left to the request config, the provider opts the route into dynamic rendering")
+for _rel in ("app/page.tsx", "app/ko/page.tsx"):
+    check(f"{_rel} provides the marketing scope",
+          PAGE_SCOPE in strip_comments(read(_rel)))
+# The shared chrome renders on marketing pages that stay English by ruling, so
+# it is OUTSIDE every scope there. A hook in it throws at render (D8's shape).
+for _rel in ("components/landing/LandingHeader.tsx", "components/landing/LandingFooter.tsx"):
+    check(f"{_rel} words itself by PROPS, not a hook",
+          "next-intl" not in strip_comments(read(_rel)),
+          "it also renders on untranslated marketing pages, where a hook throws")
 check("no route outside a scope mounts a translated component", not unscoped_mounts,
       f"would throw at render: {unscoped_mounts[:3]}")
 

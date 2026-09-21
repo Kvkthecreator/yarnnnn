@@ -2773,5 +2773,113 @@
     "emptyBody": "When something comes in through a connection, or you send a file out, it shows up here.",
     "loadingMore": "Loading…",
     "earlier": "Earlier"
+  },
+  "marketing": {
+    "nav": {
+      "howItWorks": "How it works",
+      "pricing": "Pricing",
+      "faq": "FAQ",
+      "blog": "Blog",
+      "about": "About",
+      "signIn": "Sign In",
+      "menu": "Toggle menu"
+    },
+    "footer": {
+      "tagline": "One workspace for you, your people, and the AI you already use.",
+      "product": "Product",
+      "company": "Company",
+      "resources": "Resources",
+      "legal": "Legal",
+      "engines": "Engines",
+      "developers": "Developers",
+      "support": "Support",
+      "privacy": "Privacy",
+      "privacyArchitecture": "Privacy architecture",
+      "terms": "Terms",
+      "invest": "Invest",
+      "rights": "All rights reserved."
+    },
+    "cta": {
+      "seeHowItWorks": "See how it works",
+      "seePricing": "See pricing",
+      "worksWith": "works with",
+      "more": "more",
+      "signup": "Connect your AI"
+    },
+    "home": {
+      "metaTitle": "your true AI-first workspace | yarnnn",
+      "metaDescription": "One workspace for you, your people, and the AI you already use. Nothing to set up — and every change signed by whoever made it, human or not.",
+      "hook": "Made with AI. Lost in the chat.",
+      "headlineA": "your true AI-first workspace.",
+      "headlineB": "co-work like never before.",
+      "subhead": "One workspace for you, your people, and the AI you already use. Nothing to set up — and every change signed by whoever made it, human or not.",
+      "problemTitle": "The real work happens with AI now — in a window only you can see.",
+      "problemA": "Drafts, decisions, analysis — the actual thinking happens in an AI chat. And then it's gone: scrolled past, unfindable next week, invisible to the people it was made for.",
+      "problemB": "Getting it in front of anyone else is still copy-paste. You do the work with AI, then you ferry it — into a doc, into a thread, into an email — by hand, every time.",
+      "recognitionQuote": "I'm the human clipboard between my AI and my team.",
+      "recognitionAnswer": "If that's you, this is the fix.",
+      "productEyebrow": "Built in — nothing to assemble",
+      "productTitleA": "Dedicated apps, a shared file system,",
+      "productTitleB": "documents you build with AI.",
+      "productBody": "Everything below ships with the workspace. Connect your AI and it works in the same apps, on the same files, under its own name.",
+      "proofEyebrow": "The part no one else can show you",
+      "proofTitle": "Every change, signed by whoever made it.",
+      "proofA": "You on Tuesday. Your agent on Thursday. Claude on Friday. One file, three authors — and you can walk every line back to who wrote it, when, and why.",
+      "proofB": "A single-vendor tool structurally can't draw this picture: it only ever sees itself. A shared workspace where everyone — you, your people, your AI — signs their own work is the one place the whole story exists.",
+      "insightTitle": "The AI will change. Your record shouldn't.",
+      "insightBody": "New models show up every few months, and each one is better than the last. What lasts isn't any one of them — it's the signed record of the work: what was decided, what was corrected, who did what. Keep that in one place you own, and every new model makes your workspace more valuable, not less. Ninety days in, starting over anywhere else means starting from zero.",
+      "whereEyebrow": "Where your work actually goes",
+      "whereTitle": "A shared workspace, not a black box.",
+      "whereA": "Your files are never training data — not for us, not by default for the models we call. When you ask an AI to work, the relevant files go to that provider to do the job, and we name every provider we can send them to.",
+      "whereB": "Nothing here deletes itself on a timer. Every change is signed by whoever made it, every version is kept, and the whole workspace exports as a plain git repo you can walk offline.",
+      "whereLink": "Read the details — including what we don't have",
+      "pricingTitle": "Free for two. A seat for the rest.",
+      "pricingBody": "The workspace is free for you and a teammate — your files, your record, reachable from any AI you use. From the 3rd person, each extra seat is paid; usage is pay-as-you-go from one shared balance. AI connections are always free — never a seat."
+    },
+    "apps": {
+      "includes": "Your workspace includes:",
+      "chat": {
+        "kicker": "Think · Chat",
+        "title": "Think out loud, over your own files.",
+        "body": "Conversation grounded in your workspace — with agents you name, on whichever engine suits the job. And what comes out of it doesn't die in the scroll: replies land as real files, saved where you and your team can find them."
+      },
+      "slides": {
+        "kicker": "Make · Slides",
+        "title": "Shape slide decks — by hand and by AI.",
+        "body": "Compose directly on the canvas, or ask in the built-in chat — every reply becomes an edit to the deck in front of you. Both land as the same signed revision, so the deck carries its own history: who changed what, and why."
+      },
+      "files": {
+        "kicker": "The record · Files",
+        "title": "One shared file system — every change signed.",
+        "body": "You, your people, and every AI you connect write into the same place. Every write carries a name — You, a teammate, ChatGPT — every version is kept, and any file can be walked back revision by revision."
+      },
+      "agents": {
+        "kicker": "Intelligence · Agents",
+        "title": "Agents ready out of the box.",
+        "body": "Every app comes with its own colleague — an editor for your decks and documents, a designer for your images, a blogger for what you publish. Ask any of them to keep a file current and it runs on the contract you set. They work on your files as you, with every edit under your name and kept in the file's history. You meet them where the work is, from the first minute."
+      }
+    },
+    "trace": {
+      "eyebrow": "Traceable",
+      "title": "Every version has an author.",
+      "body": "Every change is signed and dated. Hover a line to see who changed what, and when — you, an AI, or one of your agents.",
+      "footer": "a plain storage connector can't show this",
+      "you": "you",
+      "agent": "your research agent",
+      "whenToday": "today",
+      "when3d": "3 days ago",
+      "whenWeek": "last week",
+      "change1": "Tightened the positioning line in pitch.md.",
+      "change2": "Corrected the launch date to Q3.",
+      "change3": "Added the competitor summary as source."
+    },
+    "compounds": {
+      "day1Label": "Day 1",
+      "day30Label": "Day 30",
+      "day90Label": "Day 90",
+      "day1": "It works from the start. Connect your AI and the first signed file lands — a workspace, already in motion.",
+      "day30": "The record has added up. You, your people, and every AI you use start from the same files — fix a detail once and it stays fixed.",
+      "day90": "It reads like a full history — nothing forgotten, every change accounted for, all of it yours."
+    }
   }
 }

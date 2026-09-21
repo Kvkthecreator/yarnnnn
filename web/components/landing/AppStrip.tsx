@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * AppStrip — the "what's in the box" roster, between the problem chapter
  * (Section 2) and the product chapter (Section 3).
@@ -30,6 +32,7 @@
  */
 
 import { resolveSurfaceIcon, resolveSurfaceAccent } from "@/lib/shell/surface-icons";
+import { useTranslations } from "next-intl";
 
 /**
  * The hue for a surface with no ADR-641 accent row.
@@ -65,10 +68,11 @@ export const STRIP_APPS: { slug: string; label: string; iconKey: string }[] = [
 ];
 
 export function AppStrip() {
+  const t = useTranslations("marketing.apps");
   return (
     <div className="w-full">
       <p className="text-center text-sm md:text-base text-[#1a1a1a]/45 font-light mb-10">
-        Your workspace includes:
+        {t("includes")}
       </p>
 
       {/* Wraps rather than scrolls: a horizontal scroller hides half the
