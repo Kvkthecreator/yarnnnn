@@ -76,6 +76,71 @@ def _code_only_ts(src: str) -> str:
     return src
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# THE RENDERED WORDS (ADR-660)
+#
+# ⚠️ THIS GATE WAS RED AGAINST A CORRECT PRODUCT (found 2026-09-21, 6 checks).
+# Every copy check below grepped an English sentence in a `.tsx` file. ADR-660
+# moved the words to `web/messages/en.json`, leaving `t('section.needsYouEmpty')`
+# at the render site — so "Nothing is waiting on you." was still exactly what a
+# member READ, and the gate could no longer see it. The six failures named
+# nothing a member could observe.
+#
+# ⭐ The ADR rules what a member READS, so the check must resolve the key the
+# way the runtime does: collect the component's `t(...)` keys, look each one up
+# in the catalog under the namespace it was scoped with, and assert over the
+# resolved sentences. A copy change that breaks the promise still fails; a move
+# between key names does not. THE CATALOG IS THE ONLY COPY: a sentence that
+# exists in neither the file nor the catalog fails, which is the arm that made
+# this gate worth keeping.
+# ─────────────────────────────────────────────────────────────────────────────
+
+import json as _json
+
+_CATALOG = _json.loads((WEB / "messages" / "en.json").read_text())
+
+
+def _catalog_get(dotted: str):
+    node = _CATALOG
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node if isinstance(node, str) else None
+
+
+def _words(rel: str) -> str:
+    """The sentences a member actually reads from this component.
+
+    The component's own source PLUS every catalog string its `t('key')` calls
+    resolve to, under each namespace it scopes with `useTranslations('ns')`.
+    A component that still spells its copy inline is covered by the source
+    half, so this never weakens an un-migrated file.
+    """
+    src = _code_only_ts(_read(rel))
+    namespaces = re.findall(r"useTranslations\(\s*['\"]([\w.]+)['\"]", src)
+    if not namespaces:
+        namespaces = [""]
+    resolved: list[str] = [src]
+    for key in re.findall(r"\bt\(\s*['\"`]([\w.]+)['\"`]", src):
+        for ns in namespaces:
+            value = _catalog_get(f"{ns}.{key}" if ns else key)
+            if value:
+                resolved.append(value)
+    # A template key — t(`problem.${x}`) — resolves to every leaf under its
+    # stem, because the branch a member lands on is decided at runtime.
+    for stem in re.findall(r"\bt\(\s*`([\w.]+)\.\$\{", src):
+        for ns in namespaces:
+            node = _CATALOG
+            for part in (f"{ns}.{stem}" if ns else stem).split("."):
+                node = node.get(part) if isinstance(node, dict) else None
+                if node is None:
+                    break
+            if isinstance(node, dict):
+                resolved.extend(v for v in node.values() if isinstance(v, str))
+    return "\n".join(resolved)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # The fake database — PostgREST-shaped, models Trash + the chain + the CAS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -578,11 +643,12 @@ check("the client no longer draws `threads`", "case 'threads':" not in _sec and 
 _default = _sec[_sec.index("default:"):] if "default:" in _sec else ""
 _default = _default[: _default.index("}")] if "}" in _default else _default
 check("an unknown kind still renders the honest miss", "<SectionMiss" in _default and "return null" not in _default)
+_sec_words = _words("web/components/supervisor/SupervisorSection.tsx")
 check("the resting copy reassures; `No items` never appears",
-      "Nothing is waiting on you." in _sec and "No items" not in _sec)
+      "Nothing is waiting on you." in _sec_words and "No items" not in _sec_words)
 check("the work band's empty state names the next step, not an absence",
-      "Nothing runs on its own yet." in _sec)
-check("with nothing connected, the empty state points at Reach", "Reach" in _sec)
+      "Nothing runs on its own yet." in _sec_words)
+check("with nothing connected, the empty state points at Reach", "Reach" in _sec_words)
 
 _surf = _code_only_ts(_read("web/components/supervisor/SupervisorSurface.tsx"))
 _order = re.findall(r"kind:\s*'([a-z-]+)'", _surf)
@@ -603,7 +669,8 @@ check("the three reads ARRIVE independently — never awaited together (a 23s me
       and all(f"{c}.then(" in _surf.replace("\n", "").replace(" ", "") for c in ("api.supervisor.state()", "api.standing.list()", "api.standing.starts()")))
 check("an opened detail is never held behind the bands' wait", "if (!openTopic && " in _surf)
 check("no diagnostic logging shipped", "[DIAG]" not in _read("web/components/supervisor/SupervisorSurface.tsx") + _read("web/components/supervisor/StandingDetail.tsx"))
-check("a band whose read is still out says so itself", _sec.count("Loading…") >= 2)
+check("a band whose read is still out says so itself",
+      _sec.count("t('loading')") >= 2 and "Loading" in _sec_words)
 
 _row = _code_only_ts(_read("web/components/standing/StandingRow.tsx"))
 check("the shared row exists", bool(_row) and "export function StandingRow" in _row)
@@ -616,7 +683,8 @@ check("the COMPOSITION mounts the shared row (the exact import, and a render)",
 check("the mirror keeps its three verbs (ADR-639 D4)",
       all(w in _mirror for w in ("api.standing.list", "api.standing.run", "api.standing.update")))
 check("the mirror's empty state names the Supervisor as where standing work is set up", "Supervisor" in _mirror)
-check("the row shows who minds it (the derived minder)", "minder" in _row and "looks after this" in _row)
+check("the row shows who minds it (the derived minder)",
+      "minder" in _row and "looks after this" in _words("web/components/standing/StandingRow.tsx"))
 check("the row's repair copy names no kernel noun", "declaration" not in _row.lower())
 
 _door = _code_only_ts(_read("web/components/supervisor/NewStandingWorkModal.tsx"))
@@ -626,13 +694,15 @@ check("the door renders a REAL instructions box — a <textarea> that is not hid
       any("hidden" not in t for t in _textareas), str(_textareas)[:200])
 check("the door posts through the create door", "api.standing.create(" in _door)
 check("the door offers a folder picker (the one tree picker)", "WorkspacePickerModal" in _door)
-check("the door says the first run starts soon", "first" in _door.lower() and "minutes" in _door.lower())
+_door_words = _words("web/components/supervisor/NewStandingWorkModal.tsx").lower()
+check("the door says the first run starts soon", "first" in _door_words and "minutes" in _door_words)
 
 _detail = _code_only_ts(_read("web/components/supervisor/StandingDetail.tsx"))
 check("the detail exists", "export function StandingDetail" in _detail)
 check("the detail reads the detail route", "api.standing.get(" in _detail)
 check("the detail can retire, and its confirm says the file stays",
-      "api.standing.retire(" in _detail and "stay" in _detail)
+      "api.standing.retire(" in _detail
+      and "stay" in _words("web/components/supervisor/StandingDetail.tsx"))
 check("the detail edits the instructions as the FILE they are (editFile), never a second door",
       "api.workspace.editFile(" in _detail)
 check("the detail can pause and run now", "api.standing.update(" in _detail and "api.standing.run(" in _detail)

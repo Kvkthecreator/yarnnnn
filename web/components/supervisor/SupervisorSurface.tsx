@@ -30,12 +30,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Plus } from 'lucide-react';
 import { api, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import {
   SupervisorSection,
   type SupervisorStateData,
   type WorkBand,
 } from '@/components/supervisor/SupervisorSection';
+import { MinderBand } from '@/components/supervisor/MinderBand';
 import { NewStandingWorkModal } from '@/components/supervisor/NewStandingWorkModal';
 import { StandingDetail } from '@/components/supervisor/StandingDetail';
 import { Working } from '@/components/shared/Working';
@@ -222,18 +224,42 @@ export function SupervisorSurface() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      {/* Band 1 — the visible claim. */}
-      <header className="border-b border-border/60 px-5 py-4">
-        <h1 className="text-[15px] font-semibold text-foreground">{t('surface.title')}</h1>
-        <p className="mt-0.5 text-[13px] text-muted-foreground">
-          {t('surface.claim')}
-        </p>
+      {/* Band 1 — the visible claim, and the door beside it.
+          ⭐ The door was reachable ONLY from inside the work band, so it moved
+          as the band's contents changed and vanished entirely while the roster
+          read was out. The primary verb of a cockpit belongs in a fixed place;
+          it is hidden on an opened detail, where the verbs are that piece of
+          work's own. */}
+      <header className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
+        <div className="min-w-0">
+          <h1 className="text-[15px] font-semibold text-foreground">{t('surface.title')}</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {t('surface.claim')}
+          </p>
+        </div>
+        {!openTopic && rows !== null && rows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setNewStart(null);
+              setNewOpen(true);
+            }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
+          >
+            <Plus className="h-3.5 w-3.5" /> {t('surface.newWork')}
+          </button>
+        )}
       </header>
 
-      {/* Band 2 — who is minding it. Resting: calm, not absent. */}
-      <div className="border-b border-border/60 bg-muted/20 px-5 py-2.5">
-        <p className="text-[13px] text-foreground/80">{t('surface.minder')}</p>
-      </div>
+      {/* Band 2 — who is minding it, in its three ruled states (§4.1). It was a
+          CONSTANT; a band that cannot change cannot be trusted. Derived from
+          the roster this surface already holds — no fourth read. */}
+      <MinderBand
+        rows={rows}
+        busyTopic={busy}
+        onOpen={(topic) => param.set({ work: topic })}
+      />
+
 
       {/* Band 3 — the declared sections, or one piece of work opened (D6). */}
       {openTopic ? (

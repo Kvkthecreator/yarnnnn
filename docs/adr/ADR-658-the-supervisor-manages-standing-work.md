@@ -529,3 +529,88 @@ does not own, and each must be re-run and amended in the same commit:
 
 **The Supervisor is where a member creates, sees and manages the work that runs on its own — a verb
 bound to a connected system, minded by an agent the workspace derives.**
+
+---
+
+## Amendment 2 (2026-09-21) — the design pass: the cockpit reads as one, and a gate that had gone blind
+
+**Status**: implemented. Gate `api/test_adr658_standing_work_surface.py` **121/121**, proven RED on a
+falsified catalog before the green was trusted; the surface driven in a real browser (light, dark, 390px).
+
+### A2.0 — ⚠️ THE GATE WAS RED AGAINST A CORRECT PRODUCT
+
+Found at the start of this pass: **six checks failing, nothing wrong with the product.** ADR-660 moved
+every member-facing sentence to `web/messages/{en,ko}.json`, leaving `t('section.needsYouEmpty')` at the
+render site. Six copy checks grepped English sentences in `.tsx` files — *"Nothing is waiting on you."*,
+*"Nothing runs on its own yet."*, the door's first-run promise, the retire confirm's *"stay"*, the
+derived minder's *"looks after this"* — and all six were still exactly what a member READ. The gate could
+no longer see them.
+
+⭐ **The lesson, stated so it generalises**: an ADR rules what a member READS, so its copy checks must
+resolve keys the way the runtime does. `_words(rel)` in the gate now collects a component's
+`useTranslations` namespaces, resolves every `t('key')` against the catalog (including the template-key
+branches under a stem), and asserts over the resolved sentences. A copy change that breaks the promise
+still fails; a rename or a move to the catalog does not. **This is the third instance of the family**
+"a gate green (or red) against nothing" in this repo's ledger — here the failure was loud rather than
+silent, which is the only reason it was cheap.
+
+### A2.1 — Band 2 was a constant, and now holds its three ruled states (APP-BUILDER-UX §4.1)
+
+`surface.minder` rendered one unchanging sentence whether five pieces of work were running, one was
+failing, or none existed. **A band that cannot change cannot be wrong, and it also cannot be trusted** —
+a member learns in a week that it never says anything, which is the "surfaces noise to prove it is alive"
+failure arriving by the other door. `web/components/supervisor/MinderBand.tsx` renders §4.1 as written:
+
+| State | Renders | When |
+|---|---|---|
+| Resting | `Supervisor looks after this.` + a steady dot | the default |
+| Working | `Supervisor is updating brief.md.` + `WorkingGlyph` (ADR-651) | a run is in flight |
+| Raising | `brief.md can't run until its instructions are fixed.` + **Open** | a declaration is blocked |
+
+**§4.2's rule is honoured, not approximated.** *Raise only what changes what she would do next* — so a
+FAILED RUN is not a raise (runs fail transiently; the row says so in its own line) and only `problem`,
+which a member must act on, reaches band 2. At most one raise, structurally: the band takes the first
+blocked declaration and a count carries the rest. **Derived from the roster the surface already holds —
+no fourth read**, so it cannot become the slow band that holds the cockpit (the 2026-09-19 lesson).
+
+### A2.2 — The status spine: one derived state, one badge, three mounts
+
+`standingState()` + `StandingStateBadge` in `StandingRow.tsx`. Ordered `attention > paused > running >
+resting`, because a member scanning a cockpit asks *is anything wrong?* first — a paused row that also
+cannot run reads **Needs fixing**, since resuming it would not make it work. DP29: every input is already
+served (`problem`, `paused`, the ledger row); a stored status column would be a second truth that drifts.
+The dot carries the state and the word repeats it — colour alone is not a status.
+
+### A2.3 — ⭐ DRIVEN, NOT READ: a blocked row promised a next run
+
+The row and the detail both rendered `next_run_at` for a declaration with a `problem`. The server is
+right to serve it (it is when the schedule next comes round), but on screen **"Needs fixing" sat beside
+"next Sep 21, 11:34 AM"** — a false promise a member plans around. Found by driving fixtures through a
+real browser; reading the component does not surface it, because each line is individually correct.
+Both sites now suppress it, and the detail's **Next** field says `Not until it's fixed`.
+
+Also driven: the raise line truncated to *"…can't run until its ins…"* at 390px, losing the one thing it
+exists to say. Band 2 is one RAISE, not one physical line — it wraps.
+
+### A2.4 — The rest of the pass
+
+- **The door has a fixed place.** *New standing work* moved to band 1; inside the work band it shifted
+  with the band's contents and vanished entirely while the roster read was out.
+- **A disabled Start says why.** Six fields gate it and the door said nothing — a member facing a
+  full-looking form and a dead button could not learn that a Slack channel was never chosen in Reach.
+  The footer names the FIRST thing missing, in field order, so following it always makes progress.
+- **The door closes.** Escape (the idiom on ~20 modals; this one shipped without it, so the first modal
+  a member meets was the one that trapped them), backdrop click, `role="dialog"` + `aria-modal`.
+- **The starts wear their connectors' real faces** via the one identity resolver (`ConnectorAvatar`),
+  so the Slack picked here is visibly the Slack connected in Reach.
+- **The row's verbs recede** to `opacity-70`, returning on hover AND `focus-within` — a control that
+  appears only on hover is unreachable without a mouse.
+- **Supervisor takes the agent violet** in the Dock (`surface-icons.tsx`); it had no accent row and
+  rendered neutral grey. Not amber: the surface sits inches from the AttentionCenter, and an app
+  permanently wearing the attention hue reads as a standing alarm.
+
+### A2.5 — What was NOT done, and why
+
+The three bands and the four section kinds are unchanged: APP-BUILDER-UX §2.2 fixes the frame and §5
+rules the vocabulary grows on demand from a real app. This pass is polish **within** the canon — no new
+kind, no layout prop, no fourth band. Raising the frame is an ADR amendment, not a design session.

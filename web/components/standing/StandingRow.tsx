@@ -50,6 +50,35 @@ export function lowerFirst(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
+/**
+ * THE STATUS SPINE — one derived state per piece of standing work.
+ *
+ * ⭐ WHY DERIVED AND NOT SERVED (DP29, ADR-658 D2). Every input is already on
+ * the roster: `problem`, `paused`, and the newest ledger row. A stored status
+ * column would be a second truth that drifts the moment a run lands, and the
+ * minder is derived for exactly the same reason.
+ *
+ * ⚠️ ORDER IS THE WHOLE DESIGN. A member scanning a cockpit asks one question
+ * first — *is anything wrong?* — so `problem` outranks `paused`, and both
+ * outrank the last run. A paused row that also cannot run reads as "needs
+ * fixing", because resuming it would not make it work.
+ *
+ * ⚠️ FOUR STATES, NOT FIVE. `attention` is the only one that takes a semantic
+ * hue (amber), and it is reserved for what a member must ACT on — a
+ * declaration that cannot run. A failed RUN is not `attention`: runs fail for
+ * reasons that clear themselves (a source was unreachable), and a row that
+ * shouts on every transient failure is the noise failure APP-BUILDER-UX §4.2
+ * names. That reads `resting` and says what happened in its own line.
+ */
+export type StandingState = 'attention' | 'paused' | 'running' | 'resting';
+
+export function standingState(row: StandingSummary): StandingState {
+  if (row.problem != null) return 'attention';
+  if (row.paused) return 'paused';
+  if (row.schedule) return 'running';
+  return 'resting';
+}
+
 function clock(h: string, m: string): string {
   const hh = Number(h);
   const mm = Number(m);
@@ -143,6 +172,38 @@ export function useStandingWords() {
   return { problemCopy, runStatusLine, describeSchedule, scheduleLine, minderLine };
 }
 
+/**
+ * The state, rendered — ONE badge, so the row, the detail and the mirror
+ * cannot drift into three spellings of one state.
+ *
+ * ⚠️ The dot carries the state; the word repeats it. Colour alone is not a
+ * status (a member who cannot distinguish amber from grey reads the word), and
+ * the word alone scans slowly in a list. Both, always.
+ */
+export function StandingStateBadge({ row, className }: { row: StandingSummary; className?: string }) {
+  const t = useTranslations('supervisor.state');
+  const state = standingState(row);
+  const tone: Record<StandingState, string> = {
+    // Amber is the attention hue the product already reserves (surface-icons.tsx).
+    attention: 'text-amber-700 dark:text-amber-400',
+    paused: 'text-muted-foreground',
+    running: 'text-muted-foreground',
+    resting: 'text-muted-foreground',
+  };
+  const dot: Record<StandingState, string> = {
+    attention: 'bg-amber-500',
+    paused: 'bg-muted-foreground/40',
+    running: 'bg-emerald-500',
+    resting: 'bg-muted-foreground/40',
+  };
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 text-[11px] font-medium', tone[state], className)}>
+      <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dot[state])} />
+      {t(state)}
+    </span>
+  );
+}
+
 export function StandingRow({
   row, busy, note, onRunNow, onTogglePause, onOpen, onOpenFile,
 }: {
@@ -159,31 +220,51 @@ export function StandingRow({
   const open = onOpen ?? onOpenFile;
   const minder = minderLine(row);
   return (
-    <li className="rounded-lg border border-border/70 bg-background p-4">
+    <li
+      className={cn(
+        'group rounded-lg border bg-background p-4 transition-colors',
+        // ⚠️ The border is the ONLY place the state colours the container. A
+        // filled amber card in a list of five reads as an alarm; a left edge
+        // reads as a flag. Everything else stays neutral so the list is calm.
+        row.problem != null ? 'border-amber-500/40' : 'border-border/70 hover:border-border',
+      )}
+    >
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <button
-            type="button"
-            onClick={() => open?.(row)}
-            className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:underline"
-            title={onOpen ? t('row.openTitle') : t('row.openInFilesTitle')}
-          >
-            <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="truncate">{row.target || t('row.noFileNamed')}</span>
-          </button>
+        <div className="min-w-0 flex-1">
+          {/* ⭐ THE FILE IS THE SUBJECT. It was one of four lines at near-equal
+              weight; a member scanning the cockpit looks for WHICH FILE first,
+              so it leads at the largest type in the row and the state sits
+              beside it — the two facts a scan needs, on one line. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+            <button
+              type="button"
+              onClick={() => open?.(row)}
+              className="flex min-w-0 items-center gap-1.5 text-left text-[14px] font-semibold text-foreground hover:underline"
+              title={onOpen ? t('row.openTitle') : t('row.openInFilesTitle')}
+            >
+              <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{row.target || t('row.noFileNamed')}</span>
+            </button>
+            <StandingStateBadge row={row} />
+          </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {minder ? t('row.withTopic', { topic: row.topic, minder }) : row.topic}
           </p>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <CalendarClock className="h-3 w-3" /> {scheduleLine(row.schedule, row.timezone)}
+              <CalendarClock className="h-3 w-3 shrink-0" /> {scheduleLine(row.schedule, row.timezone)}
             </span>
-            {row.paused && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground/70">
-                {t('row.paused')}
-              </span>
-            )}
-            {row.next_run_at && !row.paused && (
+            {/* The `Paused` chip is GONE from this line: the badge above says
+                it once, and a state said twice in one row is the ADR-258 fault
+                (two things speaking status at once).
+
+                ⚠️ A BLOCKED ROW PROMISED A NEXT RUN (found by driving, not by
+                reading, 2026-09-21). The server keeps serving `next_run_at`
+                for a declaration that cannot run — correctly, it is when the
+                schedule NEXT COMES ROUND — but rendering it put "Needs fixing"
+                and "next in an hour" on the same line. It will not run then,
+                and saying so is a false promise a member plans around. */}
+            {row.next_run_at && !row.paused && row.problem == null && (
               <span>{t('row.next', { when: formatLedgerTime(row.next_run_at) })}</span>
             )}
             {row.sources.length > 0 && (
@@ -206,13 +287,19 @@ export function StandingRow({
             </ul>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        {/* ⚠️ THE VERBS RECEDE UNTIL REACHED FOR. Two bordered buttons at full
+            strength competed with the filename for the eye on every row, so a
+            list of five read as ten controls. They keep their full contrast on
+            hover and on KEYBOARD FOCUS (`focus-within`) — a control that
+            appears only on hover is unreachable without a mouse, which is the
+            trap this idiom usually springs. */}
+        <div className="flex shrink-0 items-center gap-1.5 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             type="button"
             onClick={() => onRunNow(row)}
             disabled={busy || row.problem != null}
             title={row.problem != null ? t('row.blockedTitle') : t('row.runNowTitle')}
-            className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 disabled:opacity-40"
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
             {t('row.runNow')}
@@ -221,11 +308,11 @@ export function StandingRow({
             type="button"
             onClick={() => onTogglePause(row)}
             disabled={busy}
-            className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
+            title={row.paused ? t('row.resumeTitle') : t('row.pauseTitle')}
+            aria-label={row.paused ? t('row.resume') : t('row.pause')}
+            className="flex items-center justify-center rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 disabled:opacity-40"
           >
-            {row.paused
-              ? (<><Play className="h-3.5 w-3.5" /> {t('row.resume')}</>)
-              : (<><Pause className="h-3.5 w-3.5" /> {t('row.pause')}</>)}
+            {row.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>

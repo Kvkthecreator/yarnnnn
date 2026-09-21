@@ -143,6 +143,23 @@ export function NewStandingWorkModal({
     setContract(s?.contract_seed ?? '');
   }, [open, start, connectorStarts]);
 
+  // ⚠️ ESCAPE CLOSES — the house idiom on ~20 modals (FindConnectorModal,
+  // RenameModal, ShareDialog…), and this door shipped without it, so the one
+  // modal a member meets FIRST was the one that trapped them. It does not
+  // close while the picker is open on top: Escape belongs to the topmost
+  // surface, or a member dismissing the picker loses the half-filled form
+  // behind it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || pickingFolder || busy) return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open, pickingFolder, busy, onClose]);
+
   if (!open) return null;
 
   const chosenStart = connectorStarts.find((s) => s.connector === connector) ?? null;
@@ -156,6 +173,27 @@ export function NewStandingWorkModal({
       ? Boolean(path.trim().replace(/^\/+/, ''))
       : Boolean(connector && selector);
   const canCreate = Boolean(folderSlug && target.trim() && formatOk && schedule && sourceOk && contract.trim()) && !busy;
+
+  /** What is still missing, named in the order the fields appear — so a member
+   *  following it always moves forward instead of being sent back up. Empty
+   *  once the door can post. */
+  const blocker = !folderSlug
+    ? t('newWork.blockedFolder')
+    : !target.trim()
+      ? t('newWork.blockedTarget')
+      : !formatOk
+        ? t('newWork.blockedFormat')
+        : !schedule
+          ? t('newWork.blockedSchedule')
+          : !sourceOk
+            ? sourceKind === 'connector'
+              ? t('newWork.blockedConnector')
+              : sourceKind === 'path'
+                ? t('newWork.blockedPath')
+                : t('newWork.blockedUrl')
+            : !contract.trim()
+              ? t('newWork.blockedInstructions')
+              : '';
 
   const create = async () => {
     if (!canCreate) return;
@@ -187,8 +225,23 @@ export function NewStandingWorkModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-        <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-border bg-background shadow-lg">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        {/* The backdrop dismisses, as it does on every other modal. It is a
+            sibling rather than the dialog's parent, so a click that lands on
+            the dialog cannot bubble out and close the form underneath it. */}
+        <button
+          type="button"
+          aria-hidden
+          tabIndex={-1}
+          onClick={() => { if (!busy) onClose(); }}
+          className="absolute inset-0 cursor-default"
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('newWork.title')}
+          className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl"
+        >
           <div className="border-b border-border px-5 py-4">
             <h2 className="text-base font-semibold">{t('newWork.title')}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -368,7 +421,17 @@ export function NewStandingWorkModal({
             {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+          {/* ⚠️ A DISABLED BUTTON MUST SAY WHY. Start greys out when any of six
+              fields is unfilled, and the door said nothing — a member looking
+              at a full-looking form and a dead button has no way to learn that
+              a Slack channel was never chosen in Reach. This names the FIRST
+              thing still missing, in the order the fields appear, so following
+              it always makes progress. */}
+          <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-3">
+            <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+              {busy ? '' : blocker}
+            </p>
+            <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={onClose}
@@ -386,6 +449,7 @@ export function NewStandingWorkModal({
               {busy && <Loader2 className="h-3 w-3 animate-spin" />}
               {t('newWork.start')}
             </button>
+            </div>
           </div>
         </div>
       </div>

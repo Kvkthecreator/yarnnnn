@@ -278,7 +278,18 @@ export function StandingDetail({
           </div>
           <div>
             <dt className="text-muted-foreground">{t('detail.next')}</dt>
-            <dd className="mt-0.5 text-foreground">{s.paused ? t('detail.paused') : s.next_run_at ? formatLedgerTime(s.next_run_at) : t('detail.soon')}</dd>
+            {/* ⚠️ Same false promise the row carried: a declaration with a
+                problem will NOT run at its next scheduled time, so the field
+                says what is true instead of a time to plan around. */}
+            <dd className="mt-0.5 text-foreground">
+              {s.problem != null
+                ? t('detail.blocked')
+                : s.paused
+                  ? t('detail.paused')
+                  : s.next_run_at
+                    ? formatLedgerTime(s.next_run_at)
+                    : t('detail.soon')}
+            </dd>
           </div>
           <div className="sm:col-span-2">
             <dt className="text-muted-foreground">{t('detail.sourcesLabel')}</dt>

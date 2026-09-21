@@ -216,6 +216,13 @@ const SURFACE_ACCENTS: Record<string, string> = {
   // attribution dots already use (`authorAccent`, agent → violet-400).
   chat: 'text-violet-500',
   agents: 'text-violet-500',
+  // The Supervisor minds work an agent carries out, so it takes the agent
+  // violet rather than a hue of its own — the Dock says "this is where the
+  // agents' standing work lives", and it is the same identity Chat and Agents
+  // already wear. NOT amber: the surface sits inches from the AttentionCenter
+  // and an app permanently wearing the attention hue reads as a standing
+  // alarm — the exact reason Slides is orange and not amber (above).
+  supervisor: 'text-violet-500',
   // The record. Files is the substrate itself; teal reads as the member's own
   // material (`authorAccent` member → teal-400).
   files: 'text-teal-500',

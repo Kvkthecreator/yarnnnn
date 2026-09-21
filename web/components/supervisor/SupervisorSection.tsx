@@ -34,7 +34,8 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, Link2, MessageSquare, Plus } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Link2, MessageSquare, Plus } from 'lucide-react';
+import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { StandingRow, lowerFirst } from '@/components/standing/StandingRow';
 import type { StandingStart, StandingSummary } from '@/lib/api/client';
@@ -167,23 +168,37 @@ function WorkSection({ work }: { work: WorkBand }) {
     // With nothing connected, the step is Reach — the door that makes a
     // connection — and the web-page start is still offered.
     return (
-      <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5">
-        <p className="text-sm text-foreground">{t('workEmptyTitle')}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
+      <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-5 py-6">
+        <p className="text-[15px] font-semibold text-foreground">{t('workEmptyTitle')}</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">
           {connectorStarts.length > 0 ? t('workEmptyWithStarts') : t('workEmptyNoStarts')}
         </p>
-        <ul className="mt-3 space-y-2">
+        {/* ⭐ THE HIGHEST-LEVERAGE SCREEN, so the starts are CARDS a member
+            picks, not a list of links. Each wears its connector's real face
+            through the one identity resolver, and the chevron says it opens
+            something rather than doing something. */}
+        <ul className="mt-4 space-y-2">
           {work.starts.map((s) => (
             <li key={`${s.kind}-${s.connector ?? 'url'}`}>
               <button
                 type="button"
                 onClick={() => work.onNew(s)}
-                className="flex w-full items-start gap-3 rounded-md border border-border/70 bg-background px-3 py-2.5 text-left hover:bg-muted/40"
+                className="group flex w-full items-center gap-3 rounded-lg border border-border/70 bg-background px-3.5 py-3 text-left transition-colors hover:border-border hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
               >
-                <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                {/* The connector's REAL face, resolved by the one identity
+                    resolver — the Slack a member picks here is visibly the
+                    Slack they connected in Reach. A web-page start has no
+                    connector, so it keeps the neutral link chip. */}
+                {s.connector ? (
+                  <ConnectorAvatar connectorKey={s.connector} title={s.name} size="sm" />
+                ) : (
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30">
+                    <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] text-foreground">{s.title}</span>
-                  <span className="block text-[12px] text-muted-foreground">
+                  <span className="block text-[13px] font-medium text-foreground">{s.title}</span>
+                  <span className="block truncate text-[12px] text-muted-foreground">
                     {s.kind === 'connector'
                       ? t('startConnector', {
                           name: s.name,
@@ -192,6 +207,7 @@ function WorkSection({ work }: { work: WorkBand }) {
                       : t('startPage')}
                   </span>
                 </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-muted-foreground" />
               </button>
             </li>
           ))}
@@ -220,19 +236,13 @@ function WorkSection({ work }: { work: WorkBand }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          {t('workIntro')}
-        </p>
-        <button
-          type="button"
-          onClick={() => work.onNew(null)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
-        >
-          <Plus className="h-3.5 w-3.5" /> {t('newStandingWork')}
-        </button>
-      </div>
-      <ul className="space-y-3">
+      {/* The door moved to band 1, where it holds a fixed place (the header).
+          It was here, so it shifted with the band's contents and disappeared
+          entirely whenever the roster read was still out. */}
+      <p className="text-xs text-muted-foreground">
+        {t('workIntro')}
+      </p>
+      <ul className="space-y-2.5">
         {work.rows.map((row) => (
           <StandingRow
             key={row.topic}
