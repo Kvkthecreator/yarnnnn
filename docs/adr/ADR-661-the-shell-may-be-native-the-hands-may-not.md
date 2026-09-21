@@ -269,7 +269,9 @@ GET /auth/login/?next=%2Fdesktop%2F     200   ← AuthGate ran IN THE NATIVE WIN
 
 Steps 1, 2 and 4 in one trace, inside the packaged app.
 
-**Owed, and not done here**: the DMG bundle step fails (`bundle_dmg.sh` needs Finder scripting, unavailable headless) — the `.app` itself bundles fine; notarization and auto-update are step 5; the OAuth deep-link back into the app is not wired, so sign-in currently completes in the browser.
+**The installer.** `cargo tauri build` produces `yarnnn_0.1.0_aarch64.dmg` — **7.8MB**, `hdiutil verify` VALID, mounting to the standard drag-to-install layout (`yarnnn.app` beside an `Applications` symlink, with a volume icon). Driven: mounted, copied to a fresh location, unmounted, launched from the copy — it runs at 107MB RSS with a live WebKit content process. ⚠️ The DMG step failed on the FIRST attempt and succeeded unchanged on the second; `bundle_dmg.sh` drives Finder through AppleScript, which is timing-sensitive under load. **A DMG failure is worth one retry before it is a finding** — the first read of it as "needs Finder scripting, unavailable here" was wrong.
+
+**Owed, and not done here**: notarization and auto-update are step 5 (they need an Apple Developer ID); the OAuth deep-link back into the app is not wired, so sign-in currently completes in the system browser and does not hand back.
 
 ---
 

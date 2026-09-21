@@ -110,19 +110,19 @@ The fix belongs in `ensure_principal_grant`, the one function both doors call.
 
 **Steps 1–4 are SHIPPED and driven.** A `.app` was built, launched, and proven end to end
 (`GET /` 307 → `/desktop/` 200 → `/auth/login/?next=` 200, inside the native window).
-Build it: `cd src-tauri && cargo tauri build`. Gate `test_adr661_*.py` **30/30**.
+Build it: `cd src-tauri && cargo tauri build` → `yarnnn_0.1.0_aarch64.dmg` (7.8MB, verified,
+drag-to-install). Gate `test_adr661_*.py` **30/30**. ⚠️ The DMG step drives Finder through
+AppleScript and failed once then succeeded unchanged — **retry before calling it broken**.
 
 ⚠️ **Rust is now a build dependency** for the shell only. The web build is untouched and
 does not need it.
 
 **Owed:**
-1. **The DMG step fails** — `bundle_dmg.sh` needs Finder scripting, unavailable headless.
-   The `.app` bundles fine; run `cargo tauri build` from a normal session to get the DMG.
-2. **The OAuth deep-link is not wired** — sign-in completes in the system browser and does
+1. **The OAuth deep-link is not wired** — sign-in completes in the system browser and does
    not hand back to the app. Needs a custom scheme registered + `tauri-plugin-deep-link`.
    Until then the shell can only be signed into by a session already in its store.
-3. **Step 5** — notarization + auto-update (needs an Apple Developer ID).
-4. **Step 6** — local hands (§5/§6), its own implementation ADR, four conditions, driven
+2. **Step 5** — notarization + auto-update (needs an Apple Developer ID).
+3. **Step 6** — local hands (§5/§6), its own implementation ADR, four conditions, driven
    trace. NOT before the shell is stable.
 
 ⚠️ **The two-build mechanism**: `page.web.tsx` is a route on the WEB build only
