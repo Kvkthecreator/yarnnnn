@@ -62,7 +62,14 @@ export function SeatPanel({
   onClose: () => void;
 }) {
   const t = useTranslations("billing.seats");
-  const { members } = useWorkspaceMembers();
+  // `loaded` / `forbidden` are NOT optional here (2026-09-21). This destructured
+  // `members` alone, so `humans.length === 0` conflated three different states —
+  // still loading, the read failed or 403'd (`fetchMembers` returns [] for both),
+  // and genuinely no humans. A failed roster read showed "Loading the roster…"
+  // for ever, with no timeout and nothing to resolve it. The sibling surfaces
+  // already do this correctly (WorkspaceMembersCard gates on its own `loading`
+  // flag; WorkspaceGeneralPane on `loaded`); this panel was the outlier.
+  const { members, loaded, forbidden } = useWorkspaceMembers();
   const { navigateToSurface } = useSurfacePreferences();
   const [busy, setBusy] = useState(false);
 
@@ -115,8 +122,15 @@ export function SeatPanel({
       {/* The people, each with what they cost. This is the whole point of the
           panel: a seat charge attributable to a NAME, not an opaque total. */}
       <div className="rounded-lg border border-border divide-y divide-border/60">
-        {humans.length === 0 ? (
+        {!loaded ? (
           <Working label={t("loadingRoster")} className="px-3 py-3 text-sm" />
+        ) : humans.length === 0 ? (
+          /* Loaded and still empty means the read gave us nothing — a 403 or a
+             failure, since the viewer's own grant is always on the roster they
+             can read. Say so instead of spinning for ever. */
+          <p className="px-3 py-3 text-sm text-muted-foreground">
+            {forbidden ? t("rosterForbidden") : t("rosterUnavailable")}
+          </p>
         ) : (
           humans.map((m, i) => (
             <div key={m.principal_id} className="flex items-center justify-between gap-3 px-3 py-2.5">

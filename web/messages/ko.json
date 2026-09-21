@@ -642,6 +642,8 @@
       "billedSuffix": " · {count}석 청구",
       "close": "좌석 창 닫기",
       "loadingRoster": "구성원을 불러오는 중…",
+      "rosterForbidden": "이 워크스페이스의 명단을 볼 수 없어요.",
+      "rosterUnavailable": "명단을 불러오지 못했어요. 이 패널을 다시 열어 주세요.",
       "unnamedMember": "구성원",
       "comped": "무료 제공",
       "included": "포함됨",
@@ -1135,7 +1137,8 @@
       "revoke": {
         "title": "{name}의 접근 권한을 회수할까요?",
         "bodyBefore": "모든 접근 권한이 사라져요.",
-        "bodyAfter": "님은 즉시 모든 접근 권한을 잃고, 연결 토큰이 삭제되며, 돌아오려면 처음부터 다시 인증해야 해요. 여기서는 되돌릴 수 없어요.",
+        "bodyAfterAi": "님은 즉시 모든 접근 권한을 잃고, 연결 토큰이 삭제되며, 돌아오려면 처음부터 다시 인증해야 해요. 여기서는 되돌릴 수 없어요.",
+        "bodyAfterHuman": "님은 즉시 모든 접근 권한을 잃고, 이분이 여기에 연결한 AI도 함께 끊겨요. 다시 들어오려면 새 초대가 필요해요. 여기서는 되돌릴 수 없어요.",
         "fallbackName": "이 멤버",
         "cancel": "취소",
         "confirm": "회수 및 연결 해제",

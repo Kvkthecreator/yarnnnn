@@ -32,6 +32,7 @@ import { Working } from '@/components/shared/Working';
 import { api, getActiveWorkspaceId } from '@/lib/api/client';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useWorkspaceMemberships } from '@/lib/workspace/viewer';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 import { providerBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { isSubmitKey } from '@/lib/shell/submit-key';
@@ -270,6 +271,10 @@ export function WorkspaceMembersCard({
   // line (`serverDetail` reads both wire shapes). `busy` / `inviting` stay:
   // that is micro-feedback at the control, not a notice.
   const { runAction } = useFeedback();
+  // ADR-445 §6 — the seat warning names the paid plan as the way forward, so it
+  // needs somewhere to send the owner. The house idiom (SeatPanel uses the same
+  // call in reverse, billing → members).
+  const { navigateToSurface } = useSurfacePreferences();
   // ADR-404 step 5 — human-member invites (owner-only; API 403s otherwise).
   type Invite = Awaited<ReturnType<typeof api.workspace.listInvites>>['invites'][number];
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -543,7 +548,28 @@ export function WorkspaceMembersCard({
         // ADR-386 D4 — the owner grant is immutable from this surface: no verbs.
         // ADR-496 D1 — `readOnly` drops the verbs entirely (the account-door
         // mirror READS; the workspace door GOVERNS — Singular Implementation).
-        const governable = !readOnly && m.role !== 'owner';
+        //
+        // `viewerIsOwner` (2026-09-21): this condition read only the TARGET's
+        // role, so a MEMBER saw narrow / spend-cap / revoke on every non-owner
+        // row — including their own — while all three routes are
+        // `_require_owner_workspace`-gated. Driven on production: the menu
+        // rendered directly beneath this card's own sentence saying only the
+        // owner can change access, so the surface contradicted itself in one
+        // viewport. `viewerRole` was already derived above and used ONLY for
+        // that header copy; the code simply never acted on it.
+        //
+        // Undefined while the roster loads (no row is `(you)` yet), which reads
+        // as NOT-owner — the safe direction: a verb appearing late is a control
+        // that was missing for a moment, a verb appearing wrongly is a 403.
+        //
+        // This list renders BOTH partitions (humans and AI connections), and the
+        // owner test is right for both: narrow / revoke / cap are owner-gated for
+        // EVERY principal (routes/workspace.py:2548, 2592, 2643 — no
+        // `connected_by_is_you` exemption). So a member cannot evict even the AI
+        // connection they authorized from this door; ADR-431 D5 removes it with
+        // them when the owner revokes them.
+        const viewerIsOwner = viewerRole === 'owner';
+        const governable = !readOnly && viewerIsOwner && m.role !== 'owner';
         // ADR-431 §display — the one-line "what kind of principal is this" hint
         // that carries the conceptual framing. For an external LLM it names the
         // distinguishing fact: it reaches in autonomously over MCP and writes
@@ -792,15 +818,26 @@ export function WorkspaceMembersCard({
               the one that didn't, so a free workspace at its limit was told the
               wrong reason it was blocked. Derived from `included_seats` now, so a
               future boundary move cannot leave it stale again. */}
+          {/* The upgrade sentence is a BUTTON, not prose (2026-09-21). It read
+              "Upgrade to the paid plan to invite your team." as a bare <span>
+              with no clickable ancestor — the owner was told to upgrade and
+              given nowhere to click, at exactly the moment the invite is
+              refused. `routes/workspace.py` says the 402 exists so the FE can
+              "branch cleanly to an upgrade CTA"; nothing ever read the status,
+              so the promised branch was never built. Billing is one pane away
+              in this same door, so the honest affordance is to go there. */}
           {seatInfo && !seatInfo.available && (
             <p className="mb-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">
                 {t('seatLimit', { count: seatInfo.included })}
-              </span>
-              <span className="text-amber-600 dark:text-amber-400">
-                {' '}
+              </span>{' '}
+              <button
+                type="button"
+                onClick={() => navigateToSurface('workspace-settings', { pane: 'billing' })}
+                className="rounded text-amber-600 underline underline-offset-2 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-400 dark:hover:text-amber-300"
+              >
                 {t('seatUpgrade')}
-              </span>
+              </button>
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -927,7 +964,18 @@ export function WorkspaceMembersCard({
                   <span className="font-medium text-foreground/90">
                     {revokeTarget.label ?? t('revoke.fallbackName')}
                   </span>{' '}
-                  {t('revoke.bodyAfter')}
+                  {/* The consequence differs by KIND, and one sentence used to
+                      describe both (2026-09-21). It said "its connection tokens
+                      are deleted, and it must re-authorize from scratch" — true
+                      of an AI connection, wrong about a person twice over: a
+                      revoked human does not re-authorize, they need a new
+                      invite, and what is deleted is the AI connections THEY
+                      authorized (ADR-431 D5's cascade), not their own tokens.
+                      The role vocabulary already exists one dialog over
+                      (`narrow.roleNoun.*`). */}
+                  {(AI_ROLES as readonly string[]).includes(revokeTarget.role)
+                    ? t('revoke.bodyAfterAi')
+                    : t('revoke.bodyAfterHuman')}
                 </p>
               </div>
             </div>

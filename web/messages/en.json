@@ -642,6 +642,8 @@
       "billedSuffix": " · {count} billed",
       "close": "Close seats panel",
       "loadingRoster": "Loading the roster…",
+      "rosterForbidden": "You can't see this workspace's roster.",
+      "rosterUnavailable": "The roster didn't load. Reopen this panel to try again.",
       "unnamedMember": "A member",
       "comped": "comped",
       "included": "included",
@@ -1135,7 +1137,8 @@
       "revoke": {
         "title": "Revoke {name}?",
         "bodyBefore": "This removes all access.",
-        "bodyAfter": "loses all access immediately, its connection tokens are deleted, and it must re-authorize from scratch to return. This cannot be undone from here.",
+        "bodyAfterAi": "loses all access immediately, its connection tokens are deleted, and it must re-authorize from scratch to return. This cannot be undone from here.",
+        "bodyAfterHuman": "loses all access immediately, and the AI connections they authorized here are disconnected with them. They'll need a new invite to return. This cannot be undone from here.",
         "fallbackName": "This member",
         "cancel": "Cancel",
         "confirm": "Revoke & disconnect",
