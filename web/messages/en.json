@@ -2962,6 +2962,124 @@
       "stillBody": "Start free — save one thing in one AI and watch it show up in the next.",
       "startFree": "Start free",
       "contact": "Contact us"
+    },
+    "how": {
+      "meta": {
+        "title": "How yarnnn works — a real file system for work made with AI",
+        "description": "A shared file system, agents that come with the apps, documents you build and own — every change signed, human or not. And because the work is real files you own, it goes wherever you go."
+      },
+      "eyebrow": "How It Works",
+      "headingA": "Everything you make with AI",
+      "headingB": "lands somewhere real.",
+      "intro": "yarnnn is a workspace built the way AI-first work actually happens: a shared file system at the center, agents that come with the apps you work in, and documents that stay yours — every change signed by whoever made it, human or not. Here's the system, top to bottom.",
+      "step": {
+        "files": {
+          "title": "Your workspace is a real file system",
+          "body": "Not a chat scroll — files and folders you own. Everything anyone makes here, human or AI, lands as a file you can open next week: named, organized, findable. The workspace starts empty and working; there's nothing to set up."
+        },
+        "agents": {
+          "title": "Agents come with the apps",
+          "body": "You don't hire or configure anyone. Editor works with you in Text and Slides, Designer in Images, Blogger in Blogger — each one reads your files, answers from what's actually there, and writes back into the same file system. You pick the engine behind them per conversation: Claude, GPT, Gemini, Grok or DeepSeek."
+        },
+        "build": {
+          "title": "Build documents, decks and pages — and keep them",
+          "body": "Slides, Text, Blogger and Images are where decks, documents, posts and images take shape: write directly, or ask an agent to draft against your files. Either way, every edit lands as a signed revision with full history — you can walk any document back to who changed what, when, and why."
+        },
+        "connect": {
+          "title": "Connect the AI you already use",
+          "body": "Connect ChatGPT, Claude, or any AI that speaks MCP, and it works in the same file system under its own name. The thinking you're already doing in a chat window finally has somewhere to land — no more ferrying it out by hand."
+        },
+        "travels": {
+          "title": "And that's why your work travels",
+          "body": "Because the work is real files you own — not history trapped in someone's app — it goes wherever you go. Share a document with a link. Invite a teammate into the workspace. Reach it from any AI you use. Leave, and it's still yours."
+        }
+      },
+      "guaranteesTitle": "What the system guarantees.",
+      "guarantee": {
+        "lost": {
+          "tag": "Nothing is lost",
+          "title": "Delete is reversible, history is walkable",
+          "desc": "Right-click any file for its full history: every version, who wrote it, and what changed. Deleted files go to Trash, not away."
+        },
+        "signed": {
+          "tag": "Every change signed",
+          "title": "A name on every write",
+          "desc": "You, your teammates, and every connected AI write into the same place — and each change carries the name of whoever made it, human or not."
+        },
+        "yours": {
+          "tag": "Yours to take",
+          "title": "Export the whole workspace, any time",
+          "desc": "Files, documents, history — yours. Share with a link, hand off to a teammate, or export the lot. No one's app is holding your work hostage."
+        }
+      },
+      "seePricing": "See pricing",
+      "detailPre": "Want the detail first?",
+      "detailLink": "Read how people actually use it"
+    },
+    "pricing": {
+      "meta": {
+        "title": "Pricing — free for two people, a paid seat for every extra teammate",
+        "description": "Your workspace and memory are free for you and a teammate. From the 3rd person, each extra seat is paid; usage is pay-as-you-go from one shared balance the owner funds. AI connections are always free. See every action; never a surprise bill."
+      },
+      "headingA": "Free for two.",
+      "headingB": "A seat for the rest.",
+      "intro": "Your workspace and your memory are free for you and a teammate. From the 3rd person, each extra seat is paid — and usage is pay-as-you-go from one shared balance.",
+      "noCard": "No card to start. The {signupGrant} balance is enough to feel the loop before you spend a cent.",
+      "popular": "Most popular",
+      "plan": {
+        "free": {
+          "name": "Free",
+          "cadence": "for two people",
+          "cta": "Start free",
+          "blurb": "Your memory — files, notes, and context — kept with full history and reachable from every AI you use. Free for you and a teammate, no card.",
+          "p1": "Workspace + memory, free for two people",
+          "p2": "{signupGrant} starting balance — feel the loop before you spend",
+          "p3": "Usage pay-as-you-go — top up only for what runs",
+          "p4": "Reachable from any AI over MCP — always free"
+        },
+        "team": {
+          "name": "Team",
+          "cadence": "/extra seat/mo",
+          "cta": "Bring the team",
+          "blurb": "For a real team working out of one shared workspace. Two of you stay free; from the 3rd person each seat is paid, and usage stays one shared pay-as-you-go balance.",
+          "p1": "Everything in Free — your first two seats stay free",
+          "p2": "{seat}/mo per seat from the 3rd person",
+          "p3": "One shared usage balance the whole workspace draws",
+          "p4": "Connect any AI over MCP — always free, never a seat"
+        }
+      },
+      "usageEyebrow": "How usage works",
+      "usageTitle": "One shared pool, then top up",
+      "usageAside": "— never a surprise",
+      "how": {
+        "free": "Free for two people. Your workspace, your memory, and your first teammate are free — you only pay a seat from the 3rd person.",
+        "seat": "A seat per extra teammate. Each person beyond the first two is a paid seat; AI connections you plug in over MCP are always free and never a seat.",
+        "payg": "Usage is pay-as-you-go. Every judgment call draws one shared balance the owner funds — you, your teammates, and any AI all draw the same pool. Only what actually ran counts.",
+        "topup": "Top up any amount from {topUpMin}. Top-ups never expire. Hard stop at zero — nothing is lost, you resume by topping up."
+      },
+      "guardTitle": "Two guardrails, so spend is never a surprise",
+      "guardBody": "You see everything, and nothing can overrun.",
+      "guardRanTitle": "You only pay for what ran",
+      "guardRanBody": "Usage is pay-as-you-go: each judgment call draws the shared balance, and the Usage screen shows every action — what ran, and who ran it. Idle costs nothing; there is no subscription for usage, no monthly commitment.",
+      "guardFloorTitle": "The floor — zero balance",
+      "guardFloorBody": "The absolute stop. If the balance ever reaches zero the work simply pauses — nothing is lost, no overage, no surprise. You resume by topping up.",
+      "seatQ": "What does a seat cost?",
+      "seatA": "A seat is a human on your workspace. The first two — you and a teammate — are free. Each person from the 3rd onward is {seat}/mo. Every human draws the same shared balance the owner funds — and any AI you connect over MCP is always free, never a seat and never a charge.",
+      "usageQ": "What's “usage”?",
+      "usageA1": "Usage is the model work your workspace runs — a judgment call, a piece of research, a draft. It draws your balance as it happens, and you see every action on your Usage screen. Only what actually ran counts. The engine you pick is the biggest lever on what it costs —",
+      "usageLink": "how to choose one",
+      "paygQ": "Why pay-as-you-go instead of a usage plan?",
+      "paygA": "Because work is uneven. Heavy months you top up; idle months you pay nothing — there is no monthly usage fee to outgrow or waste. The seat price is the only subscription, and it buys something that doesn't fluctuate: your team's access.",
+      "faqNeedLabel": "Do I need a paid plan?",
+      "faqNeed": "No. The workspace and your memory are free for two people. The paid plan is for a bigger team — from the 3rd person, each extra seat is {seat}/mo. Usage stays pay-as-you-go either way.",
+      "faqBalanceLabel": "Starting balance.",
+      "faqBalance": "Every workspace begins with a {signupGrant} usage credit — enough to author your context and watch the correction loop firsthand before you spend anything.",
+      "faqRunoutLabel": "If your balance runs out,",
+      "faqRunout": "the work simply pauses. Top up any amount — it never expires — and everything resumes at once. Nothing is lost while paused.",
+      "faqStopLabel": "If you stop running an operation,",
+      "faqStop": "it simply stops drawing usage. The workspace and every file remain yours, free.",
+      "questions": "Questions about pricing?",
+      "contact": "Contact us"
     }
   }
 }

@@ -78,6 +78,8 @@ export function localePath(path: string, locale: Locale): string {
 export const TRANSLATED_PATHS = [
   "/",
   "/faq",
+  "/how-it-works",
+  "/pricing",
 ] as const;
 
 /**
