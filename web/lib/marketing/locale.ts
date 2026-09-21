@@ -80,6 +80,9 @@ export const TRANSLATED_PATHS = [
   "/faq",
   "/how-it-works",
   "/pricing",
+  "/about",
+  "/developers",
+  "/support",
 ] as const;
 
 /**

@@ -3080,6 +3080,198 @@
       "faqStop": "it simply stops drawing usage. The workspace and every file remain yours, free.",
       "questions": "Questions about pricing?",
       "contact": "Contact us"
+    },
+    "about": {
+      "meta": {
+        "title": "About — the AI-first workspace no AI company can build",
+        "description": "The real work happens with AI now, and it deserves a real workspace — not a chat scroll. One that works across every AI can't be owned by any one of them. So we built it."
+      },
+      "headingA": "We built the",
+      "headingHighlight": "AI-first workspace",
+      "headingB": "no AI company can.",
+      "heroA": "The real work moved into AI chats — the drafts, the decisions, the analysis. And chats are where work disappears: scrolled past, unfindable next week, invisible to the people it was made for.",
+      "heroB1": "Every AI company would love to be where that work lives. But each one's workspace is sealed to its own models, by design. A workspace where",
+      "heroBAll": "all",
+      "heroB2": "of them work — alongside you and your team — can't belong to any one of them. It has to be neutral, and neutral across rivals is the one thing a rival can't be.",
+      "heroC": "So we built it: a real workspace — a shared file system, documents you build with AI, agents that come with the apps — where everything lands as a signed, versioned file you own, whoever made it.",
+      "heroD": "We run our own company on it, and we write down every decision in the open.",
+      "believeTitle": "What we believe",
+      "belief": {
+        "real": {
+          "title": "Work made with AI is real work",
+          "sub": "A workspace, not a chat log.",
+          "body": "Drafts, decisions, analysis — the actual thinking happens in AI chats now. But a chat scroll is where work goes to disappear. Real work deserves a real place to land: files you can open next week, organize, build on, and hand to someone else."
+        },
+        "signed": {
+          "title": "Every change signed, human or not",
+          "sub": "If you can't see who wrote it, you can't build on it.",
+          "body": "You, your teammates, your agents, and every AI you connect write into the same place — and every change carries the name of whoever made it. Not as a compliance feature: it's what makes co-working with AI trustworthy at all."
+        },
+        "neutral": {
+          "title": "Neutral across every AI",
+          "sub": "So nobody builds it. That's why we did.",
+          "body": "Each AI company's workspace is sealed to its own models — that's the business model. A workspace where all of them work as first-class participants can't belong to any one of them. Being neutral across rivals is the one thing a rival can't do."
+        },
+        "yours": {
+          "title": "Yours to keep, yours to take",
+          "sub": "The AI will change. Your record shouldn't.",
+          "body": "The files are yours. The history is yours. Models improve every few months — what compounds is the signed record of the work, kept in one place you own. Every new model makes your workspace more valuable, not less."
+        },
+        "room": {
+          "title": "A room, not an org tree",
+          "sub": "Two people work free. The product does the selling.",
+          "body": "yarnnn is built for small teams — a few people and their AIs around the same work. No admin console, no procurement, no rollout. You start alone, invite one person, and it's already doing its job."
+        },
+        "receipts": {
+          "title": "Receipts, not claims",
+          "sub": "The record is the proof.",
+          "body": "Over five hundred numbered architecture decisions written down in the open. Every change in every workspace tracked at the source. Built for real use, and run daily on our own work."
+        }
+      },
+      "notTitle": "What yarnnn is not",
+      "notIntro": "We're focused. These are things we intentionally chose not to be.",
+      "not": {
+        "chat": {
+          "title": "Not another AI chat app",
+          "desc": "Chat is one app inside the workspace, grounded in your files. The product is the workspace itself — where the work lands, not where it scrolls by."
+        },
+        "memory": {
+          "title": "Not a memory plugin",
+          "desc": "Memory layers remember things about you. yarnnn holds the work itself — documents, files, decisions — with memory as a byproduct of a record you own."
+        },
+        "bolted": {
+          "title": "Not AI bolted onto a doc tool",
+          "desc": "Retrofitted workspaces treat AI as a feature for humans to click. Here AI works in the same file system you do, under its own name — a participant, not a button."
+        },
+        "suite": {
+          "title": "Not an enterprise suite",
+          "desc": "No SSO checklist, no admin hierarchy, no pilot program. A workspace is a room. If your team needs an org tree, we're honestly not for you."
+        }
+      },
+      "whoTitle": "Who yarnnn is for",
+      "whoIntro": "Small teams — starting at one — who already work with AI every day, and are tired of being the bridge between their AI and everyone else.",
+      "who": {
+        "daily": {
+          "title": "You work with AI every day",
+          "desc": "The AI output is the work, not a garnish. You want it to land somewhere real the moment it's made — not ferried out of a chat window by hand."
+        },
+        "shared": {
+          "title": "Someone else needs to see it",
+          "desc": "A co-founder, a client, a teammate — or just your own AI on another device. The moment work is shared, who-wrote-what starts to matter."
+        },
+        "own": {
+          "title": "You'd rather own than rent",
+          "desc": "You've watched tools come and go. You want the work you've built up — files, decisions, history — in a place that outlasts any one model or vendor."
+        }
+      },
+      "whoClose": "If that's you, this is the fix.",
+      "ctaTitle": "Stop being the clipboard.",
+      "ctaBody": "Start free — you and a teammate, your files, and every AI you already use, working in one place.",
+      "ctaSecondary": "See how it works"
+    },
+    "support": {
+      "meta": {
+        "title": "Support — get help with yarnnn",
+        "description": "How to reach yarnnn: email support, the feedback form, the FAQ, and the developer docs. What to include so we can help on the first reply."
+      },
+      "heading": "Support",
+      "intro": "Email us, or start with the answers below. We read everything that comes in and reply within two working days.",
+      "reachTitle": "Reach a person",
+      "emailTitle": "Email",
+      "emailPre": "Write to",
+      "emailPost": "for anything — an account or billing question, something broken, a privacy or data request, or a question before you sign up. It reaches the people who build yarnnn, not a queue.",
+      "emailTips": "So we can help on the first reply, tell us the email address on your account, what you expected to happen, and what happened instead. If it involves a specific file, its name helps — never send us a password.",
+      "reportTitle": "Report something",
+      "reportPre": "The",
+      "reportLink": "feedback form",
+      "reportPost": "is the fastest way to send a bug or a request without writing an email. It lands in the same place, and you can leave an address if you want a reply.",
+      "dataTitle": "Your data",
+      "dataPre": "To export, correct or delete your workspace, email the address above from your account address and say what you want done. What we hold and who can receive it is set out on the",
+      "dataLink": "privacy page",
+      "selfTitle": "Answer it yourself",
+      "faqLink": "FAQ",
+      "faqBody": "How yarnnn differs from built-in AI memory, what happens to your work, what pricing costs, and how to start.",
+      "howLink": "How it works",
+      "howBody": "The shape of the product — connecting an AI, putting work in, and getting it back out.",
+      "docsLink": "Documentation",
+      "docsPre": "Setup guides and reference, including the MCP connector. Building against yarnnn? Start at",
+      "docsDevLink": "developers",
+      "stuckTitle": "Still stuck?",
+      "stuckBody": "Send us the details and we'll take a look.",
+      "stuckCta": "Email support"
+    },
+    "developers": {
+      "meta": {
+        "title": "yarnnn developer resources — API, MCP server, OpenAPI, auth",
+        "description": "Build with yarnnn. The MCP connector, OpenAPI specification, OAuth 2.1 authentication, and discovery endpoints — everything an AI agent or developer needs to read and write a workspace where every change is signed."
+      },
+      "eyebrow": "yarnnn for developers",
+      "headingA": "One workspace,",
+      "headingHighlight": "every AI you use",
+      "hero1a": "yarnnn is a Model Context Protocol server. Point any MCP-capable assistant at",
+      "hero1b": "and it reads and writes the same files a person sees — no separate memory store, no sync step.",
+      "hero2a": "Every write is signed by the client that made it and lands on a revision chain you can walk. A connection acts under its own name in the ledger, not as a key pretending to be the user — so",
+      "hero2quote": "“who changed this?”",
+      "hero2b": "has a real answer even when the answer is another AI. That is the thing a plain storage connector cannot do.",
+      "hero3": "Authentication is OAuth 2.1 with dynamic client registration, and access is scoped per verb. Everything below is at a predictable URL.",
+      "resourcesTitle": "Developer resources",
+      "res": {
+        "mcp": {
+          "name": "MCP connector",
+          "what": "The Model Context Protocol server. Connect any MCP-capable assistant — ChatGPT, Claude, and others — to read and write yarnnn memory directly."
+        },
+        "openapi": {
+          "name": "OpenAPI specification",
+          "what": "The machine-readable API contract (OpenAPI 3.1). Describes the file-native verbs an agent calls over MCP, with request and response shapes."
+        },
+        "discovery": {
+          "name": "MCP discovery card",
+          "what": "The website→server breadcrumb. Advertises the MCP server, its transport and where to find its OAuth metadata, so agents can auto-discover the connector."
+        },
+        "oauth": {
+          "name": "OAuth 2.1 authorization metadata",
+          "what": "The authorization-server metadata for the MCP connector. Standard OAuth 2.1 discovery — endpoints, supported grants, and scopes."
+        },
+        "llms": {
+          "name": "llms.txt",
+          "what": "A plain-text summary of yarnnn for language models — what the product is, how to connect over MCP, and where the key resources live."
+        },
+        "docs": {
+          "name": "Product docs",
+          "what": "Human-facing documentation — concepts, how your files are kept, and guides for getting the most out of yarnnn."
+        }
+      },
+      "verbsTitle": "The verbs an agent calls",
+      "verbsIntroA": "File-native: they read and write the same files a person sees, and every write lands under its author's name. Documented in full in the",
+      "verbsIntroLink": "OpenAPI spec",
+      "verb": {
+        "whoami": "Name where you are standing — which workspace this connection is bound to, who your writes will be signed as, and which verbs your token authorizes. Call it before writing somewhere the user assumed.",
+        "open": "Read one exact file: its current content, who last changed it, when, and its recent signed revisions. An unknown path says so — open never guesses.",
+        "list": "Enumerate the files under a folder. Takes a timestamp for the change feed — what moved since you were last here — and pages through large subtrees.",
+        "search": "Find files by meaning. Returns ranked matches with excerpts and a confidence signal, so an ambiguous result can be asked about rather than guessed at.",
+        "history": "Show how one exact file changed over time — who authored each revision, when, what changed, and a diff against its predecessor. The capability a plain storage connector cannot show.",
+        "save": "Write a file back as a signed revision. Pass the revision you opened and a concurrent change is refused rather than clobbered; every prior version stays on the chain.",
+        "edit": "Change part of a file by anchoring on its exact current text. Only the change travels, so content you never read is never at risk — the right verb for large files.",
+        "delete": "Remove a file from the live workspace. Nothing is lost: the chain keeps the content and the file can be restored.",
+        "move": "Move or rename a file. Refuses to overwrite an existing destination — that has to be deleted by intent first.",
+        "request_upload": "Get a short-lived URL for content that arrives as bytes rather than text — an image, a PDF, an export. It lands as a signed file like any other.",
+        "share": "Mint a link to one file or the whole workspace, as full access or read-only. Whoever opens it sees the work and who made it."
+      },
+      "scopesTitle": "Ask for what you need",
+      "scopesIntroA": "Access is scoped per verb and enforced on every call — a token holding",
+      "scopesIntroB": "is refused when it tries to save. The tiers are additive, and a registration that names none gets read-only.",
+      "scope": {
+        "read": "Read your files — open, list, search, and view their history.",
+        "write": "Create, edit, move, and delete files. Every change is signed and revertible.",
+        "share": "Create share links, which can give whoever opens them full member access."
+      },
+      "scopesNote": "The person approving your connection sees these same sentences before they authorise it, and can narrow or revoke the grant at any time.",
+      "ctaTitle": "Connect an agent to yarnnn",
+      "ctaBody": "Point your MCP-capable assistant at the connector and authorize over OAuth 2.1. It can read and write the workspace's files immediately, every change signed as that connection.",
+      "ctaPrimary": "MCP connector",
+      "ctaSecondary": "View the OpenAPI spec",
+      "kindRead": "a read",
+      "kindWrite": "a write"
     }
   }
 }

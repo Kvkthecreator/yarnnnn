@@ -110,7 +110,10 @@ UNTRANSLATED_OK = {"yarnnn", "yarnnn.com", "Google", "GitHub", "Notion", "Slack"
                    # `Freddie` survives only as a display-resolved attribution
                    # prefix on historical revisions (the seat is retired,
                    # ADR-632); `Free` is a served plan name.
-                   "Freddie", "Free", "YARNNN"}
+                   "Freddie", "Free", "YARNNN",
+                   # A FILENAME a client fetches, not a word: translating it
+                   # would send a developer to a path that does not exist.
+                   "llms.txt"}
 
 for loc, flat in CATALOGS.items():
     if loc == DEFAULT:
@@ -347,6 +350,13 @@ check("the language toggle is unconditional in the header",
       "gated on a prop most pages do not pass, so it renders nowhere")
 check("the header defaults its path, so every page can offer the language",
       'path = "/"' in _hdr)
+# The marketing toggle shows "the other language", which is only a coherent
+# control while there are exactly TWO. A third locale must turn it into a
+# menu; this arm makes that day name the file instead of shipping a toggle
+# that silently hides a language.
+check("the marketing toggle's two-language assumption still holds",
+      len(LOCALES) == 2,
+      f"{len(LOCALES)} locales — MarketingLanguageToggle must become a menu")
 
 for _rel in ("components/landing/LandingHeader.tsx", "components/landing/LandingFooter.tsx"):
     check(f"{_rel} words itself by PROPS, not a hook",
