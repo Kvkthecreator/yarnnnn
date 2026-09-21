@@ -505,8 +505,10 @@ async def compose_search(
 
     # Honest-state signal (zero inference): let the HOST decide answer-vs-clarify.
     confidence = _search_confidence(results)
-    # Migration 246 degrade pass: every row matched SOME query words, none
-    # matched ALL of them. That is a lead, not a hit — cap the grade at WEAK.
+    # A degraded pass: either 246's any-word fallback (every row matched SOME
+    # query words, none matched ALL) or 260's Korean substring tier (the noun
+    # was found inside an inflected word, which the English stemmer cannot
+    # see). Both are leads, not hits — cap the grade at WEAK.
     # (The pre-246 shape reported this exact state as "none", and the calling
     # model believed nothing existed — 2026-08-22, operator receipt.)
     if result.get("search_method") == "bm25_loose":
@@ -520,9 +522,10 @@ async def compose_search(
         )
     elif confidence == "weak":
         explanation = (
-            f"Nothing closely matches '{query}' — only loose matches below the "
-            f"confidence bar. Treat these as weak leads; you may need to answer "
-            f"from your own knowledge or ask the user to be more specific."
+            f"Nothing closely matches '{query}' — only partial or substring "
+            f"matches below the confidence bar. Treat these as weak leads; you "
+            f"may need to answer from your own knowledge or ask the user to be "
+            f"more specific."
         )
     out = {
         "success": True, "query": query, "results": results,

@@ -2229,11 +2229,18 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
             rows = result.data or []
             if rows:
                 # Migration 246: the RPC degrades an all-words miss to an
-                # any-word pass, labelling each row match_mode='loose'. Carry
-                # the label — compose_search grades loose as WEAK, never
-                # "high", never "none" (the 2026-08-22 false "nothing here").
-                loose = all(r.get("match_mode") == "loose" for r in rows)
-                search_method = "bm25_loose" if loose else "bm25"
+                # any-word pass, labelling each row match_mode='loose'. 260
+                # adds a third tier, 'korean' — a SUBSTRING match, which is how
+                # a noun is found inside an inflected word (본문 in 본문이) when
+                # the English stemmer cannot see it.
+                #
+                # Both are LEADS, not hits, and both must cap the grade at WEAK.
+                # `loose` alone would read a korean row as full-confidence bm25
+                # and report a substring hit as precise — the inverse of the
+                # 2026-08-22 defect, and the same class of lie.
+                weak_modes = {"loose", "korean"}
+                weak = all(r.get("match_mode") in weak_modes for r in rows)
+                search_method = "bm25_loose" if weak else "bm25"
                 bm25_ok = True
         except Exception as e:
             logger.warning(f"[QUERY_KNOWLEDGE] BM25 search failed, escalating to semantic: {e}")
