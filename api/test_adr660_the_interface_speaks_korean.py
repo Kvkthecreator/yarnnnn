@@ -336,6 +336,18 @@ _missing = [
 check("every rostered path HAS its /ko route (a roster ahead of the routes is a 404)",
       not _missing, f"rostered with no app/ko route: {_missing}")
 
+# ⭐ The toggle must RENDER, not merely exist. It was first gated on a `path`
+# prop that only the two landing pages passed, so the control was invisible on
+# the other 11 marketing pages — a visitor on /pricing had no way to reach
+# Korean at all. A component nothing renders is the same as a component that
+# does not exist (the "wiring is not a door" shape).
+_hdr = strip_comments(read("components/landing/LandingHeader.tsx"))
+check("the language toggle is unconditional in the header",
+      "MarketingLanguageToggle" in _hdr and "{path && (" not in _hdr,
+      "gated on a prop most pages do not pass, so it renders nowhere")
+check("the header defaults its path, so every page can offer the language",
+      'path = "/"' in _hdr)
+
 for _rel in ("components/landing/LandingHeader.tsx", "components/landing/LandingFooter.tsx"):
     check(f"{_rel} words itself by PROPS, not a hook",
           "next-intl" not in strip_comments(read(_rel)),

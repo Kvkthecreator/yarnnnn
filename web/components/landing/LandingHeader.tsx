@@ -49,7 +49,16 @@ interface LandingHeaderProps {
   locale?: Locale;
   /** Worded nav labels. Absent → the English defaults above. */
   nav?: LandingHeaderNav;
-  /** This page's canonical (English) path, for the language toggle. */
+  /**
+   * This page's canonical (English) path, for the language toggle.
+   *
+   * Defaults to `/`. Every marketing page renders this header, and only the
+   * two landing pages pass a path — gating the toggle on it made the control
+   * invisible on 11 pages, which is how a visitor lands on `/pricing` with no
+   * way to reach Korean at all. A page with no Korean twin still offers the
+   * language; it just points at the Korean landing page, which is the honest
+   * destination rather than a 404 (`localePath` refuses unrostered paths).
+   */
   path?: string;
 }
 
@@ -57,7 +66,7 @@ export default function LandingHeader({
   inverted,
   locale = DEFAULT_LOCALE,
   nav = EN,
-  path,
+  path = "/",
 }: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -106,9 +115,7 @@ export default function LandingHeader({
             {link.label}
           </Link>
         ))}
-        {path && (
-          <MarketingLanguageToggle locale={locale} path={path} inverted={inverted} />
-        )}
+        <MarketingLanguageToggle locale={locale} path={path} inverted={inverted} />
         <Link
           href="/auth/login"
           className={`px-4 py-2 rounded-full transition-colors ${
@@ -150,14 +157,12 @@ export default function LandingHeader({
                 {link.label}
               </Link>
             ))}
-            {path && (
-              <MarketingLanguageToggle
-                locale={locale}
-                path={path}
-                inverted={inverted}
-                className="pt-2"
-              />
-            )}
+            <MarketingLanguageToggle
+              locale={locale}
+              path={path}
+              inverted={inverted}
+              className="pt-2"
+            />
             <Link
               href="/auth/login"
               className={`mt-2 px-4 py-3 rounded-full text-center transition-colors ${
