@@ -143,3 +143,25 @@ export function kindGuessFromPath(path: string): string | null {
   const stem = (path.split('/').pop() || '').replace(/\.[a-z0-9]+$/i, '');
   return stem || null;
 }
+
+/** The path KEY for a typed name — mirrors `services/naming.py::path_slug`
+ *  (ADR-469). Accents FOLD to their base letter (`café` → `cafe`) rather than
+ *  being deleted; a name with no Latin characters yields `untitled`, and the
+ *  server disambiguates it (`untitled-2`, …) against what already exists.
+ *
+ *  Lossy ON PURPOSE and no longer load-bearing: the key does not carry the
+ *  name any more. What the member typed travels beside it and lands in the
+ *  artifact's <title>, verbatim. Keep in step with the Python. */
+export function slugify(name: string): string {
+  return (
+    name
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '') // strip combining marks: é -> e
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-{2,}/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48)
+      .replace(/-+$/, '') || 'untitled'
+  );
+}

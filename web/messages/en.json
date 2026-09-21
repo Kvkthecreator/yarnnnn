@@ -2518,7 +2518,7 @@
     },
     "name": {
       "heading": "New document",
-      "lede": "Name it for what it is — the file takes a matching name.",
+      "lede": "Name it for what it is — that name is what you'll see. The file path below is its ASCII key.",
       "nameLabel": "Name",
       "namePlaceholder": "Founder intro transcript",
       "whereLabel": "Where",

@@ -17,7 +17,7 @@ import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
-import { STUDIO_ARTIFACT_REGION } from '@/components/authoring/artifactNaming';
+import { slugify, STUDIO_ARTIFACT_REGION } from '@/components/authoring/artifactNaming';
 import { isSubmitKey } from '@/lib/shell/submit-key';
 
 /** The default destination — the Documents home.
@@ -66,7 +66,19 @@ export function NameDocumentModal({
 
   if (!open) return null;
 
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  // The ONE slugifier (2026-09-21). This was a third, hand-rolled copy that
+  // differed from the canon in a way ADR-469 had already fixed elsewhere: with
+  // no NFKD fold, `Café notes` became `caf-notes` — the accented letter deleted
+  // rather than folded to its base. `slugify` mirrors
+  // `services/naming.py::path_slug` (fold, lowercase, 48-char cap) and is
+  // already shared with the Studio's create door, so the two cannot drift.
+  //
+  // A name with no Latin characters still yields `untitled`, by design: the
+  // path slug is an ASCII KEY, not the name. What the member typed is carried
+  // verbatim into the H1 below, and the server disambiguates `untitled-2`,
+  // `untitled-3`, … so a member working entirely in Korean gets distinct files
+  // that each read back as the name they chose (naming.py::disambiguate).
+  const slug = slugify(name.trim());
 
   const create = async () => {
     const typed = name.trim();

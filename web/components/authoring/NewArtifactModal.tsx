@@ -34,32 +34,10 @@ import { createPortal } from 'react-dom';
 import { Loader2, Plus, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
-import { STUDIO_ARTIFACT_REGION, canCreateFileIn } from './artifactNaming';
+import { slugify, STUDIO_ARTIFACT_REGION, canCreateFileIn } from './artifactNaming';
 import type { WorkspaceTreeNode } from '@/types';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { isSubmitKey } from '@/lib/shell/submit-key';
-
-/** The path KEY for a typed name — mirrors `services/naming.py::path_slug`
- *  (ADR-469). Accents FOLD to their base letter (`café` → `cafe`) rather than
- *  being deleted; a name with no Latin characters yields `untitled`, and the
- *  server disambiguates it (`untitled-2`, …) against what already exists.
- *
- *  Lossy ON PURPOSE and no longer load-bearing: the key does not carry the
- *  name any more. What the member typed travels beside it and lands in the
- *  artifact's <title>, verbatim. Keep in step with the Python. */
-export function slugify(name: string): string {
-  return (
-    name
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '') // strip combining marks: é -> e
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/-{2,}/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 48)
-      .replace(/-+$/, '') || 'untitled'
-  );
-}
 
 /** The default destination — the Documents home (ADR-424 D1; its substrate
  *  path is still `operation/`, the region ADR-440 D6 fences creation to). */
