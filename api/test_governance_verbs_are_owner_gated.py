@@ -26,11 +26,28 @@ ROUTES = Path(__file__).parent / "routes" / "workspace.py"
 #: Mutating member-lifecycle routes that MUST be owner-gated. Keyed by the route
 #: path suffix as written in the decorator.
 GOVERNANCE_VERBS = {
-    "/workspace/members/invite",
     "/workspace/members/{principal_id}/narrow",
     "/workspace/members/{principal_id}/revoke",
     "/workspace/members/{principal_id}/cap",       # per-member spend cap
     "/workspace/invites/{invite_id}/revoke",
+}
+
+#: Governance verbs gated by a DIFFERENT authority helper, each named with the
+#: ADR that moved it and the helper that must still be called. These are NOT
+#: exempt — an ungated route here fails exactly as loudly; the gate simply asks
+#: for the right helper.
+#:
+#: ADR-537 D3 moved `invite` off the owner helper deliberately: share-mint (the
+#: OTHER door to the same outcome, a new member grant) already allowed
+#: write-holders under the `share_mint_policy` dial, so owner-only invite meant
+#: one outcome had two authorities and the People tab rendered a field the
+#: server refused. `assert_may_mint_share` is a real gate (it refuses a viewer,
+#: a write-deny-all member, a non-grant-holder, and every non-owner on an
+#: 'owner-only' workspace) — it is not a loosening to nothing. narrow / revoke /
+#: cap keep the owner helper: they mutate an EXISTING principal's reach, which
+#: is the 2026-07-31 escalation this file exists for.
+ALT_GATED_VERBS = {
+    "/workspace/members/invite": "assert_may_mint_share",
 }
 
 #: Mutating member routes deliberately NOT owner-gated, each with a reason.
@@ -79,6 +96,28 @@ def _calls_in(fn) -> set[str]:
     return names
 
 
+@pytest.mark.parametrize("route", sorted(ALT_GATED_VERBS))
+def test_alt_gated_verb_calls_its_named_authority_helper(route: str) -> None:
+    """A verb moved off the owner helper still calls a REAL authority gate.
+
+    Falsify by deleting the `assert_may_mint_share` call from invite_member:
+    this goes red, which is the whole point — the ADR-537 loosening must not be
+    a slide into no gate at all.
+    """
+    fns = _route_functions()
+    helper = ALT_GATED_VERBS[route]
+    assert route in fns, (
+        f"{route} is no longer a mutating route in workspace.py. If it moved or "
+        f"was renamed, update ALT_GATED_VERBS — do not delete the assertion."
+    )
+    called = _calls_in(fns[route])
+    assert helper in called, (
+        f"{route} calls neither {helper}() nor any authority gate. Minting a "
+        f"grant is governance (ADR-517 D3); {UNGUARDED_HELPER}() answers 'which "
+        f"workspace' and never 'may this caller mint here'."
+    )
+
+
 @pytest.mark.parametrize("route", sorted(GOVERNANCE_VERBS))
 def test_governance_verb_is_owner_gated(route: str) -> None:
     """PER-SITE: each governance verb calls the owner helper, not the bare one."""
@@ -118,10 +157,16 @@ def test_member_mutating_routes_are_all_accounted_for() -> None:
         r for r in fns
         if re.match(r"^/workspace/(members|invites)/", r)
     }
-    unclassified = member_routes - GOVERNANCE_VERBS - NON_GOVERNANCE_EXEMPT
+    unclassified = (
+        member_routes
+        - GOVERNANCE_VERBS
+        - set(ALT_GATED_VERBS)
+        - NON_GOVERNANCE_EXEMPT
+    )
     assert not unclassified, (
         f"unclassified mutating member routes: {sorted(unclassified)}. Add each "
-        f"to GOVERNANCE_VERBS (and owner-gate it) or to NON_GOVERNANCE_EXEMPT "
+        f"to GOVERNANCE_VERBS (and owner-gate it), to ALT_GATED_VERBS (naming "
+        f"the authority helper it calls instead), or to NON_GOVERNANCE_EXEMPT "
         f"with a written reason."
     )
 
