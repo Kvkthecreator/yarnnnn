@@ -322,6 +322,32 @@ def accept_share(*, token: str, user_id: str) -> dict[str, Any]:
             read_scopes=[artifact] if artifact else None,
         )
     else:
+        # ADR-445 §6 / ADR-537 D4 — THE SEAT CAP APPLIES TO THIS DOOR TOO
+        # (2026-09-21). A member-role redemption mints exactly the grant the seat
+        # counter bills (`HUMAN_SEAT_ROLES = ("owner","member")`), and this link is
+        # re-redeemable by design — so without this check a Free workspace passed
+        # its 2-seat cap without bound, while the email-invite door two panels away
+        # in the SAME dialog refused the third human with a 402. ADR-537's own
+        # comparison table asserts this link bills a seat; until now it did not.
+        #
+        # Checked here rather than at MINT: minting is a standing offer that may be
+        # redeemed any time, so a cap tested at mint would be stale by redemption —
+        # and refusing to mint would block a link the owner may legitimately want
+        # ready before upgrading. No `pending_invite_emails_excluding`: a redemption
+        # is immediate, and outstanding invites already count as the humans they
+        # will become.
+        #
+        # A VIEWER redemption is deliberately NOT capped — it is not a billed seat
+        # (`HUMAN_SEAT_ROLES` excludes `viewer`), which is why this sits on the
+        # member branch only.
+        from services.billing_tiers import seat_cap_blocks_new_human
+
+        if seat_cap_blocks_new_human(workspace_id, svc=_svc()):
+            raise ShareError(
+                "upgrade_required",
+                "This workspace is on the free plan, which covers two people. "
+                "Ask the owner to upgrade to add more seats.",
+            )
         grant = ensure_principal_grant(
             principal_id=user_id,
             workspace_id=workspace_id,

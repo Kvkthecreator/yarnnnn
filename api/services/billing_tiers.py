@@ -296,9 +296,87 @@ def tier_included_seats(tier: str) -> int:
 
     This is NOT a hard headcount cap (ADR-445 §4): a paid workspace grows its team
     freely, each additional human accruing a billed seat. The only headcount gate is
-    the free→paid boundary, enforced at the invite route (a Free workspace's 2nd
-    human requires the paid plan)."""
+    the free→paid boundary — see `seat_cap_blocks_new_human`, which is where it is
+    enforced for EVERY door that mints a human grant."""
     return tier_spec(tier)["included_seats"]
+
+
+class SeatCapExceeded(Exception):
+    """The free→paid boundary refuses one more human on this workspace."""
+
+    code = "upgrade_required"
+
+
+def seat_cap_blocks_new_human(
+    workspace_id: str,
+    *,
+    svc,
+    pending_invite_emails_excluding: Optional[str] = None,
+) -> bool:
+    """Would admitting ONE more human exceed this workspace's included seats?
+
+    THE ONE HOME FOR THE FREE→PAID BOUNDARY (2026-09-21). It previously lived
+    inline in `workspace_invites.create_invite`, which made it a property of the
+    EMAIL-INVITE DOOR rather than of the outcome it guards. There are two doors to
+    a human `principal_grants` row — the email invite and the share link's accept
+    (`workspace_shares.accept_share`) — and the share door read no tier at all, so
+    a Free workspace could pass its 2-seat cap without bound via a link that is
+    re-redeemable by design. ADR-537's own table asserts that link bills a seat; it
+    did not. A rule enforced at one of two doors is not enforced.
+
+    Counts ACTIVE human grants (`HUMAN_SEAT_ROLES` — the same roles that bill) and,
+    when `pending_invite_emails_excluding` is given, still-outstanding invites, so
+    the invite door cannot be used to queue past the cap. The share door passes
+    None: a redemption is immediate, and pending invites are already counted as the
+    humans they will become.
+
+    Returns False (ADMIT) for a paid tier, a billing-exempt workspace, or any read
+    error — the seat axis BILLS an extra human on a paid plan, it never refuses one,
+    and a transient DB hiccup must never block a legitimate join. Failing open is
+    deliberate and matches the behaviour this replaces.
+    """
+    try:
+        ws_row = (
+            svc.table("workspaces")
+            .select("subscription_tier, billing_exempt")
+            .eq("id", workspace_id)
+            .limit(1)
+            .execute()
+        ).data
+        ws = ws_row[0] if ws_row else {}
+        if ws.get("billing_exempt", False):
+            return False
+        tier = normalize_tier(ws.get("subscription_tier") or DEFAULT_TIER)
+        if tier in PAID_TIERS:
+            return False
+
+        included = tier_included_seats(tier)
+        grants = (
+            svc.table("principal_grants")
+            .select("principal_id")
+            .eq("workspace_id", workspace_id)
+            .eq("status", "active")
+            .in_("role", list(HUMAN_SEAT_ROLES))
+            .execute()
+        ).data or []
+        humans = len({g.get("principal_id") for g in grants if g.get("principal_id")})
+
+        pending = 0
+        if pending_invite_emails_excluding is not None:
+            rows = (
+                svc.table("workspace_invites")
+                .select("email")
+                .eq("workspace_id", workspace_id)
+                .eq("status", "pending")
+                # a re-invite of THIS address refreshes an existing offer, never adds
+                .neq("email", pending_invite_emails_excluding)
+                .execute()
+            ).data or []
+            pending = len(rows)
+
+        return (humans + pending + 1) > included
+    except Exception:  # noqa: BLE001 — fail OPEN (never block a legitimate join)
+        return False
 
 
 def tier_additional_seat_usd(tier: str) -> float:
@@ -440,6 +518,8 @@ __all__ = [
     # ADR-445 Axis ① — seat helpers (live)
     "HUMAN_SEAT_ROLES",
     "tier_included_seats",
+    "seat_cap_blocks_new_human",
+    "SeatCapExceeded",
     "tier_additional_seat_usd",
     "count_human_seats",
     "billable_seats",

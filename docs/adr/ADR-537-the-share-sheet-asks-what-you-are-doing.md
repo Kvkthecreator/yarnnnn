@@ -164,6 +164,24 @@ governs.
 
 **What does NOT change**: the seat gate. `create_invite`'s free-tier `upgrade_required` check
 lives in the service, independent of the caller, so widening authority cannot widen billing.
+
+> **Amendment 1 (2026-09-21) — this paragraph was true of ONE door and read as true of both.**
+> The sentence above is correct about `create_invite`'s service and says nothing about
+> `workspace_shares.accept_share`, which read no tier at all. The row `| Bills | yes |` in
+> §D4's table asserted an outcome nothing enforced: a member-role redemption minted exactly
+> the grant the seat counter charges for, the link is re-redeemable by design, and
+> `sync_seat_quantity` was never called on that path — so a Free workspace could pass its
+> 2-seat cap without bound, invisible to billing twice over. Found by driving both doors in
+> the same dialog during the 2026-09-21 multi-user click-pass.
+>
+> The rule now lives in `billing_tiers.seat_cap_blocks_new_human` and is called by BOTH
+> doors; the share route maps `upgrade_required` → 402 as the invite route does, and syncs the
+> seat quantity after admitting a human. A viewer redemption is deliberately uncapped — it is
+> not a billed seat. Gate: `api/test_seat_cap_binds_every_door.py` (10/10, every arm proven
+> RED, including one that restores this exact defect).
+>
+> The lesson is general: a rule that guards an OUTCOME must be enforced where the outcome is
+> produced, not at one of the doors that reaches it.
 Invite **listing and revocation** stay owner-only — reading and rescinding the workspace's
 outstanding offers is standing-state governance, not the act of bringing someone in.
 

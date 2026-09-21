@@ -72,68 +72,23 @@ def create_invite(
 
     svc = _svc()
 
-    # ADR-445 §6/§7 — the free→paid boundary gate. This is the ONLY headcount gate:
-    # a FREE workspace covers TWO humans (included_seats: 2 = the owner + one
-    # teammate, ADR-490 §1①); inviting the 3RD human requires the paid plan. (The
-    # comment said "solo / a 2nd human" — the pre-ADR-490 boundary; the CODE below
-    # reads `tier_included_seats` so it has always been correct, but the prose
-    # named the wrong rule.) A PAID workspace grows its team freely — each new human
-    # is a billed seat (ADR-445 §4), never blocked. So the gate fires ONLY on tiers
-    # that offer no in-tier paid resolution, i.e. `free`. Projected human count =
-    # active human members + still-pending invites + this one. AI principals are
-    # never gated (free, §3); exempt workspaces grow freely. Fails CLOSED only on a
-    # confident over-count on a free tier — a read error fails OPEN (never block a
-    # legit invite over a transient DB hiccup).
-    try:
-        from services.billing_tiers import (
-            DEFAULT_TIER,
-            HUMAN_SEAT_ROLES,
-            PAID_TIERS,
-            normalize_tier,
-            tier_included_seats,
-        )
+    # ADR-445 §6/§7 — the free→paid boundary gate. The RULE now lives in
+    # `billing_tiers.seat_cap_blocks_new_human`, because it guards an OUTCOME (one
+    # more human on the workspace) reached through TWO doors — this one and the
+    # share link's accept. It was inline here, so the share door enforced nothing
+    # (2026-09-21). `pending_invite_emails_excluding` counts outstanding invites so
+    # this door cannot queue past the cap; re-inviting THIS address refreshes an
+    # existing offer rather than adding a head.
+    from services.billing_tiers import seat_cap_blocks_new_human
 
-        ws_row = (
-            svc.table("workspaces")
-            .select("subscription_tier, billing_exempt")
-            .eq("id", workspace_id)
-            .limit(1)
-            .execute()
-        ).data
-        ws = ws_row[0] if ws_row else {}
-        tier = normalize_tier(ws.get("subscription_tier") or DEFAULT_TIER)
-        # A paid workspace grows freely — the seat axis bills the extra human, it
-        # does not refuse the invite. Only a non-exempt FREE workspace is capped.
-        if not ws.get("billing_exempt", False) and tier not in PAID_TIERS:
-            included = tier_included_seats(tier)
-            grants = (
-                svc.table("principal_grants")
-                .select("principal_id")
-                .eq("workspace_id", workspace_id)
-                .eq("status", "active")
-                .in_("role", list(HUMAN_SEAT_ROLES))
-                .execute()
-            ).data or []
-            human_members = len({g.get("principal_id") for g in grants if g.get("principal_id")})
-            pending = (
-                svc.table("workspace_invites")
-                .select("email")
-                .eq("workspace_id", workspace_id)
-                .eq("status", "pending")
-                .neq("email", email_norm)  # a re-invite of THIS email refreshes, not adds
-                .execute()
-            ).data or []
-            projected = human_members + len(pending) + 1  # +1 for this invite
-            if projected > included:
-                raise InviteError(
-                    "upgrade_required",
-                    "The free plan covers two people. Upgrade to the paid plan "
-                    "to add more seats to this workspace.",
-                )
-    except InviteError:
-        raise
-    except Exception:  # noqa: BLE001 — fail OPEN on a read error (never block a legit invite)
-        pass
+    if seat_cap_blocks_new_human(
+        workspace_id, svc=svc, pending_invite_emails_excluding=email_norm
+    ):
+        raise InviteError(
+            "upgrade_required",
+            "The free plan covers two people. Upgrade to the paid plan "
+            "to add more seats to this workspace.",
+        )
 
     svc.table("workspace_invites").update({"status": "revoked"}).eq(
         "workspace_id", workspace_id

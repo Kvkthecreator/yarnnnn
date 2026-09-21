@@ -526,8 +526,29 @@ async def accept_workspace_share(token: str, auth: UserClient) -> ShareAcceptRes
     try:
         result = accept_share(token=token, user_id=auth.user_id)
     except ShareError as e:
-        status = {"not_found": 404, "expired": 410, "not_active": 409}.get(e.code, 400)
+        # `upgrade_required` → 402, the SAME signal the email-invite door raises
+        # (routes/workspace.py::invite_member), so a client can branch on the status
+        # rather than parse a detail string. Both doors to a member grant now agree.
+        status = {
+            "not_found": 404, "expired": 410, "not_active": 409,
+            "upgrade_required": 402,
+        }.get(e.code, 400)
         raise HTTPException(status_code=status, detail=str(e))
+
+    # ADR-445 §7 — a newly-admitted human grows the seat count, so the LS
+    # subscription quantity is synced exactly as the invite-accept path does
+    # (routes/workspace.py::accept_workspace_invite). This door did not, so a
+    # share-link join was invisible to billing TWICE: no cap at the door and no
+    # seat sync after. Best-effort and no-op for free/exempt workspaces; a billing
+    # hiccup must never undo a grant that is already minted. Skipped for a viewer
+    # redemption, which is not a billed seat.
+    if result.get("role") != "viewer":
+        try:
+            from routes.subscription import sync_seat_quantity
+            await sync_seat_quantity(result["workspace_id"])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[ADR-445] seat-quantity sync after share-accept failed: %s", exc)
+
     return ShareAcceptResponse(
         success=True,
         workspace_id=result["workspace_id"],
