@@ -1,0 +1,279 @@
+"""ADR-661 gate — a native shell, and the local hands it may grow.
+
+    §6.1  the unattended path stays TOOLLESS — a clock plus hands is the
+          combination this forbids, the same shape as a clock plus a credential
+    §5.2  the credential chokepoint still refuses an agent-shaped caller —
+          local hands must never become the way around it
+    §6.2  write_revision remains the single write path — a local act that
+          lands durably lands as an attributed revision, never as a side
+          effect visible only on the far side
+    §6.4  no local-hands capability ships BEFORE its own implementation ADR —
+          a tripwire on the evidence standard, not a ban on the capability
+    §7.5  the two dead Supabase packages stay gone
+    §9.6  the vendored Claude Code source stays out of the repo
+
+Script-shaped: run it and READ THE COUNT (`pytest` collects nothing from it).
+
+    cd api && python3 test_adr661_the_shell_may_be_native.py
+
+Static by necessity — the subject is a ruling, not a behaviour. What reading
+cannot prove is named in the ADR: §6.4 requires a DRIVEN TRACE before local
+hands may claim they act correctly, and no gate substitutes for it (ADR-577 §7
+is the precedent — a passing gate read as live for four months while the path
+it described was unreachable).
+
+Arm 4 is a TRIPWIRE, not a prohibition. ADR-661 D3 scopes local attended
+computer use IN. This arm fires when an implementation appears while ADR-661 is
+still the only ADR on the subject — i.e. when the capability shipped without
+the implementation ADR §6.4 demands. It is retired by that ADR, not by deleting
+this check.
+
+Each arm was proven RED by editing the shipped file in place and restoring it
+in place.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+API = Path(__file__).resolve().parent
+REPO = API.parent
+WEB = REPO / "web"
+
+PASS = FAIL = 0
+
+
+def check(name: str, cond, note: str = "") -> None:
+    global PASS, FAIL
+    if cond:
+        PASS += 1
+        print(f"  ✓ {name}")
+    else:
+        FAIL += 1
+        print(f"  ✗ {name}" + (f" — {note}" if note else ""))
+
+
+def read(rel: str) -> str:
+    path = REPO / rel
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def strip_comments(src: str) -> str:
+    """Drop `#` and `//` line comments and block comments.
+
+    A rule that survives only in a docstring is not enforced, and a docstring
+    that NAMES the thing it forbids would otherwise satisfy a substring check
+    (the ADR-653 finding: `"name" in src` is true from the import line).
+    """
+    src = re.sub(r'""".*?"""', "", src, flags=re.S)
+    src = re.sub(r"'''.*?'''", "", src, flags=re.S)
+    src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+    out = []
+    for line in src.splitlines():
+        line = re.sub(r"(^|\s)#.*$", "", line)
+        line = re.sub(r"(^|\s)//.*$", "", line)
+        out.append(line)
+    return "\n".join(out)
+
+
+print("\nADR-661 — a native shell, and the local hands it may grow\n")
+
+# ---------------------------------------------------------------- §6.1 toolless
+print("§6.1 the unattended path stays toolless")
+
+derive = read("api/services/derive_turn.py")
+derive_code = strip_comments(derive)
+
+check(
+    "derive_turn.py exists",
+    bool(derive),
+    "api/services/derive_turn.py not found — the unattended path moved",
+)
+
+# The construction, not a default: ADR-615 — "deleting the toolless
+# construction would open it, which is why the gate asserts that construction
+# directly." Assert on CODE, so a docstring mentioning tools cannot satisfy it.
+check(
+    "run_bounded_derive_turn passes no tools=",
+    bool(derive) and "tools=" not in derive_code,
+    "a tools= argument appeared on the unattended path — §6.1 forbids a clock plus hands",
+)
+
+check(
+    "the unattended path does not compose a tool roster",
+    bool(derive) and "lane_tools_openai" not in derive_code,
+    "the unattended path reached for the lane's tool roster",
+)
+
+# --------------------------------------------------------- §5.2 the chokepoint
+print("\n§5.2 the credential chokepoint still refuses an agent-shaped caller")
+
+creds = read("api/services/platform_credentials.py")
+creds_code = strip_comments(creds)
+
+check(
+    "platform_credentials.py exists",
+    bool(creds),
+    "api/services/platform_credentials.py not found",
+)
+
+# Word-boundary, not substring: `def resolve_platform_credential_RENAMED`
+# CONTAINS `def resolve_platform_credential`, so a substring check stays green
+# through exactly the rename it exists to catch. Found by falsifying this arm.
+check(
+    "resolve_platform_credential is still the one resolver",
+    bool(re.search(r"def\s+resolve_platform_credential\s*\(", creds_code)),
+    "the chokepoint ADR-577 D1.a made reachable was renamed or removed",
+)
+
+# ADR-577 D1.a: the refusal is AFFIRMATIVE and logged, keyed on what the auth
+# object carries. A silent `return None` would pass a weaker check.
+check(
+    "the agent refusal is affirmative",
+    bool(re.search(r"is_agent_caller|agent-shaped|caller_identity", creds_code)),
+    "the agent-shaped refusal lost its affirmative branch",
+)
+
+# -------------------------------------------------------- §6.2 the write path
+print("\n§6.2 write_revision remains the single write path")
+
+authored = read("api/services/authored_substrate.py")
+authored_code = strip_comments(authored)
+
+# Word-boundary for the same reason as the chokepoint arm above: a rename that
+# EXTENDS the name satisfies a substring check.
+check(
+    "write_revision is defined in authored_substrate",
+    bool(re.search(r"def\s+write_revision\s*\(", authored_code)),
+    "ADR-209's single write path moved or was renamed",
+)
+
+check(
+    "authored_by is still required at the boundary",
+    "authored_by" in authored_code,
+    "the attribution argument left the write path",
+)
+
+# A second writer is how the invariant erodes: not by deleting write_revision
+# but by adding a sibling that skips it.
+writers = []
+for path in sorted((REPO / "api" / "services").rglob("*.py")):
+    if path.name in {"authored_substrate.py"}:
+        continue
+    body = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+    if re.search(r"def\s+write_revision\b", body):
+        writers.append(str(path.relative_to(REPO)))
+
+check(
+    "no second definition of write_revision",
+    not writers,
+    f"a parallel write path appeared: {writers[:3]}",
+)
+
+# ----------------------------------------------- §6.4 the local-hands tripwire
+print("\n§6.4 no local-hands capability ships before its own ADR")
+
+# ADR-661 D3 scopes this capability IN. The tripwire fires only while ADR-661
+# is the ONLY ADR on the subject — the implementation ADR retires this arm.
+impl_adrs = [
+    p.name
+    for p in sorted((REPO / "docs" / "adr").glob("ADR-*.md"))
+    if p.name != "ADR-661-the-shell-may-be-native-the-hands-may-not.md"
+    and re.search(r"computer-use|local-hands|computer_use", p.name, re.I)
+]
+
+hands_tokens = re.compile(r"computer_use|computerUse|synthetic_click|screen_capture", re.I)
+
+offenders: list[str] = []
+scan_roots = [
+    REPO / "api" / "services" / "primitives",
+    REPO / "api" / "services" / "skills",
+    WEB / "lib" / "apps",
+]
+for root in scan_roots:
+    if not root.exists():
+        continue
+    for path in sorted(root.rglob("*")):
+        if path.suffix not in {".py", ".ts", ".tsx", ".md"} or not path.is_file():
+            continue
+        body = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+        if hands_tokens.search(body):
+            offenders.append(str(path.relative_to(REPO)))
+
+if impl_adrs:
+    check(
+        "the implementation ADR exists — tripwire retired",
+        True,
+        "",
+    )
+    print(f"      (found {impl_adrs[0]}; §6.4's evidence standard now governs)")
+else:
+    check(
+        "no local-hands capability ships ahead of its ADR",
+        not offenders,
+        f"a capability appeared with no implementation ADR: {offenders[:3]}",
+    )
+
+# --------------------------------------------------------- §7.5 dead packages
+print("\n§7.5 the dead Supabase packages stay gone")
+
+pkg_raw = read("web/package.json")
+try:
+    pkg = json.loads(pkg_raw) if pkg_raw else {}
+except json.JSONDecodeError:
+    pkg = {}
+deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+
+for dead in ("@supabase/ssr", "@supabase/auth-helpers-react"):
+    check(
+        f"{dead} is not declared",
+        dead not in deps,
+        "re-declared with no source import — the ambiguity ADR-661 §7.5 removed",
+    )
+
+# The live one must survive: this arm fails if the cleanup went too far.
+check(
+    "@supabase/auth-helpers-nextjs is still declared",
+    "@supabase/auth-helpers-nextjs" in deps,
+    "the LIVE auth client was removed — the cleanup overshot",
+)
+
+# --------------------------------------------------- §9.6 the vendored tree
+print("\n§9.6 the vendored Claude Code source stays out of the repo")
+
+vendored = "docs/analysis/src_claudeCC"
+try:
+    tracked = subprocess.run(
+        ["git", "ls-files", vendored],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout.strip()
+except Exception:  # pragma: no cover - git absent
+    tracked = ""
+
+check(
+    "src_claudeCC is not tracked",
+    not tracked,
+    "a vendored copy of Claude Code's source entered the repo; "
+    "22 of 28 'computer use' matches under docs/ are that tree, not canon",
+)
+
+gitignore = read(".gitignore")
+check(
+    "src_claudeCC is gitignored",
+    "src_claudeCC" in gitignore,
+    "the vendored tree lost its ignore entry and will surface in git status",
+)
+
+# ------------------------------------------------------------------- the count
+print(f"\n  {PASS} passed, {FAIL} failed\n")
+if FAIL:
+    print("✗ ADR-661 checks FAILED")
+    sys.exit(1)
+print("✓ all ADR-661 checks passed")

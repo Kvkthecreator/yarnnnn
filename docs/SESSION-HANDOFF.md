@@ -6,6 +6,38 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## ADR-661 — the Mac shell is authorized and unbuilt (2026-09-21)
+
+Phase 0 is the ADR only. **Nothing is built.** Gate `test_adr661_the_shell_may_be_native.py`
+15/15, every arm proven RED (two were blind and repaired during falsification — a substring
+check stays green through a rename that EXTENDS the name).
+
+**Steps 1-3 of §8 are live debt on the WEB product, independent of packaging** — do these
+whether or not the shell ships:
+
+1. **A mount-time client auth gate.** `AuthenticatedLayout.tsx:59-63` says in its own words the
+   `onAuthStateChange` listener is "NOT an auth gate" — it fires after mount and paint. This is
+   the 2026-08-20 defect class (`lib/supabase/middleware.ts:30-43`: eight surfaces served a full
+   200 to logged-out visitors). A shell with no middleware must not re-open it.
+2. **The locale chain, client-side.** `i18n/resolve.ts` reads `cookies()`/`headers()`; steps 2-3
+   of ADR-660 D2's chain have NO SOURCE without a request, so a static shell falls SILENTLY to
+   English. WARN: the ADR-660 gate asserts the literal `<IntlScope>` in named layouts - it moves
+   in the same commit or it goes red for the wrong reason.
+3. **Seven external navigations + four dead share links.** OAuth handoffs
+   (`ManageConnectionSubsurface.tsx:311`, `FindConnectorModal.tsx:303,347,400`) and Stripe
+   (`useSubscription.ts:100,119,137`) must become system-browser opens; four
+   `window.location.origin` share-link builders (`StudioSurface.tsx:2327,3561,4835`,
+   `TextEditor.tsx:725`) need a canonical web origin — a share link is a web address even when
+   the shell is not.
+
+**Local hands (§5/§6) are scoped, NOT built** — they need their own implementation ADR carrying
+§6's four conditions AND ADR-577 §7's driven trace. §6.4's gate arm is a tripwire that fires if
+a capability appears first; the implementation ADR retires it. Do not start before the shell is
+real: §6.4's standard cannot be met against a shell that does not exist.
+
+⚠️ `docs/analysis/src_claudeCC/` is a vendored copy of Claude Code's own source (untracked,
+gitignored). **22 of 28 "computer use" matches under `docs/` are that tree, not canon.**
+
 ## The upload door is open — two owed follow-ups (ADR-395 am.1, 2026-09-21)
 
 Shipped: the intake door drops its format allowlist (D8), a file with no projection is retained
