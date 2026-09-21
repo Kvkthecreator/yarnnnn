@@ -38,6 +38,7 @@ import {
   type WorkBand,
 } from '@/components/supervisor/SupervisorSection';
 import { MinderBand } from '@/components/supervisor/MinderBand';
+import { StartPicker } from '@/components/supervisor/StartPicker';
 import { NewStandingWorkModal } from '@/components/supervisor/NewStandingWorkModal';
 import { StandingDetail } from '@/components/supervisor/StandingDetail';
 import { Working } from '@/components/shared/Working';
@@ -76,6 +77,11 @@ export function SupervisorSurface() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [newOpen, setNewOpen] = useState(false);
   const [newStart, setNewStart] = useState<StandingStart | null>(null);
+  // ⭐ THE DOOR IS TWO STEPS, like every other creation door: pick what it
+  // should keep current, then name it. The starts used to live only in the
+  // work band's empty state, so they vanished the moment a member had one
+  // piece of work — leaving a blank form as the sole path.
+  const [pickerOpen, setPickerOpen] = useState(false);
   const { navigateToSurface } = useSurfacePreferences();
   const { runAction } = useFeedback();
   const param = useSurfaceParam('supervisor');
@@ -194,9 +200,15 @@ export function SupervisorSurface() {
     onRunNow: runNow,
     onTogglePause: togglePause,
     onOpen: (row) => param.set({ work: row.topic }),
+    // The band asks for the door; the door's first step is the picker. A band
+    // that already knows the start (it does not, today) still lands correctly.
     onNew: (start) => {
-      setNewStart(start);
-      setNewOpen(true);
+      if (start) {
+        setNewStart(start);
+        setNewOpen(true);
+      } else {
+        setPickerOpen(true);
+      }
     },
     onOpenReach: () => {
       navigateToSurface('reach');
@@ -240,10 +252,7 @@ export function SupervisorSurface() {
         {!openTopic && rows !== null && rows.length > 0 && (
           <button
             type="button"
-            onClick={() => {
-              setNewStart(null);
-              setNewOpen(true);
-            }}
+            onClick={() => setPickerOpen(true)}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
           >
             <Plus className="h-3.5 w-3.5" /> {t('surface.newWork')}
@@ -281,6 +290,21 @@ export function SupervisorSurface() {
           ))}
         </div>
       )}
+
+      <StartPicker
+        open={pickerOpen}
+        starts={starts}
+        onClose={() => setPickerOpen(false)}
+        onOpenReach={() => {
+          setPickerOpen(false);
+          navigateToSurface('reach');
+        }}
+        onPick={(start) => {
+          setPickerOpen(false);
+          setNewStart(start);
+          setNewOpen(true);
+        }}
+      />
 
       <NewStandingWorkModal
         open={newOpen}

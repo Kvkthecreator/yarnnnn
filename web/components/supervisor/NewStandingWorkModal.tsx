@@ -23,10 +23,13 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import { APIError, api, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
+import { StartMark } from '@/components/supervisor/StartMark';
+import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG } from '@/lib/shell/z-tiers';
 import { lowerFirst, useStandingWords } from '@/components/standing/StandingRow';
 
 const FORMATS = ['md', 'csv', 'json', 'txt'];
@@ -223,30 +226,39 @@ export function NewStandingWorkModal({
     ? t('newWork.whenLabelWithZone', { timezone })
     : t('newWork.whenLabel');
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        {/* The backdrop dismisses, as it does on every other modal. It is a
-            sibling rather than the dialog's parent, so a click that lands on
-            the dialog cannot bubble out and close the form underneath it. */}
-        <button
-          type="button"
-          aria-hidden
-          tabIndex={-1}
-          onClick={() => { if (!busy) onClose(); }}
-          className="absolute inset-0 cursor-default"
-        />
+      {/* The house modal shape (ADR-452 v2's `NewArtifactModal`): a portal to
+          `document.body` on the shared z-tiers, so the dialog cannot be
+          clipped or out-stacked by whatever pane it was opened from. A bare
+          `z-50` inside the pane's own stacking context is how a door ends up
+          UNDER the thing that opened it. */}
+      <div
+        className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
+        style={{ zIndex: Z_CONFIRM_BACKDROP }}
+        onClick={() => { if (!busy) onClose(); }}
+      />
+      <div
+        className="pointer-events-none fixed inset-0 flex items-center justify-center p-4"
+        style={{ zIndex: Z_CONFIRM_DIALOG }}
+      >
         <div
           role="dialog"
           aria-modal="true"
           aria-label={t('newWork.title')}
-          className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl"
+          className="pointer-events-auto flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl animate-in fade-in zoom-in-95 duration-150"
         >
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-base font-semibold">{t('newWork.title')}</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {t('newWork.subtitle')}
-            </p>
+          {/* The chosen start is NAMED and WEARS ITS BRAND here — a member who
+              picked "Slack" on the previous step must see that this form is
+              the Slack one, or the two steps read as unrelated screens. */}
+          <div className="flex items-start gap-3 border-b border-border px-5 py-4">
+            {start ? <StartMark start={start} className="mt-0.5" /> : null}
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">{start ? start.title : t('newWork.title')}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('newWork.subtitle')}
+              </p>
+            </div>
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -456,6 +468,10 @@ export function NewStandingWorkModal({
 
       <WorkspacePickerModal
         open={pickingFolder}
+        // Opened from this dialog, so it must dim and outrank it — without
+        // this the form stays at full contrast behind the picker and the two
+        // read as one layer (driven 2026-09-21).
+        nested
         mode="folder"
         title={t('newWork.pickerTitle')}
         subtitle={t('newWork.pickerSubtitle')}
@@ -468,6 +484,7 @@ export function NewStandingWorkModal({
           setPickingFolder(false);
         }}
       />
-    </>
+    </>,
+    document.body,
   );
 }

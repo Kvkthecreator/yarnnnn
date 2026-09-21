@@ -34,7 +34,13 @@ import { ChevronRight, ChevronDown, Folder, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
-import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
+import {
+  Z_CONFIRM_BACKDROP,
+  Z_CONFIRM_DIALOG,
+  Z_NESTED_BACKDROP,
+  Z_NESTED_DIALOG,
+  dismissModal,
+} from '@/lib/shell/z-tiers';
 
 export type PickerMode = 'file' | 'folder';
 
@@ -313,6 +319,23 @@ interface WorkspacePickerModalProps extends Omit<WorkspacePickerBodyProps, 'sele
    *  its current parent is the one folder it REJECTS, so pre-selecting it would
    *  open on an un-confirmable row. Rows on the path auto-expand to reveal it. */
   initialSelected?: string | null;
+  /**
+   * Opened FROM another dialog, so it must sit above it.
+   *
+   * ⚠️ WHY A FLAG AND NOT A FIX TO THE DEFAULT. This picker's backdrop and the
+   * confirm-tier dialog it is opened from share `Z_CONFIRM_*`, so the backdrop
+   * renders BEHIND the caller's dialog: the picker lands on top (later in DOM
+   * order) while the form underneath stays at full contrast, and the two read
+   * as one confused layer. Driven 2026-09-21 on the Supervisor door; the same
+   * structure ships in `NewArtifactModal`, so this is house-wide rather than
+   * one surface's bug.
+   *
+   * Raising the DEFAULT would lift the picker above toasts (`Z_TOAST` 550) for
+   * its standalone callers (Open…, Move to…), where nothing is underneath and
+   * nothing is wrong today. So the caller that nests it says so, and only that
+   * stacking moves.
+   */
+  nested?: boolean;
 }
 
 /** The full Finder-style dialog: backdrop + header + tree body + footer. Open…,
@@ -327,6 +350,7 @@ export function WorkspacePickerModal({
   footerHint,
   canConfirm,
   initialSelected,
+  nested = false,
   ...body
 }: WorkspacePickerModalProps) {
   const [selected, setSelected] = useState<string | null>(initialSelected ?? null);
@@ -344,12 +368,12 @@ export function WorkspacePickerModal({
     <>
       <div
         className="fixed inset-0 bg-black/50 animate-in fade-in duration-150"
-        style={{ zIndex: Z_CONFIRM_BACKDROP }}
+        style={{ zIndex: nested ? Z_NESTED_BACKDROP : Z_CONFIRM_BACKDROP }}
         onClick={dismissModal(onClose)}
       />
       <div
         className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none"
-        style={{ zIndex: Z_CONFIRM_DIALOG }}
+        style={{ zIndex: nested ? Z_NESTED_DIALOG : Z_CONFIRM_DIALOG }}
       >
         <div
           className="pointer-events-auto flex w-full max-w-md flex-col rounded-lg border border-border bg-card shadow-xl animate-in fade-in zoom-in-95 duration-150"

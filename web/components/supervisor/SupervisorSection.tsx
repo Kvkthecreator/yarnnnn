@@ -34,8 +34,8 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, ChevronRight, Link2, MessageSquare, Plus } from 'lucide-react';
-import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
+import { AlertTriangle, ChevronRight, MessageSquare, Plus } from 'lucide-react';
+import { StartMark } from '@/components/supervisor/StartMark';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { StandingRow, lowerFirst } from '@/components/standing/StandingRow';
 import type { StandingStart, StandingSummary } from '@/lib/api/client';
@@ -173,10 +173,16 @@ function WorkSection({ work }: { work: WorkBand }) {
         <p className="mt-1 text-[13px] text-muted-foreground">
           {connectorStarts.length > 0 ? t('workEmptyWithStarts') : t('workEmptyNoStarts')}
         </p>
-        {/* ⭐ THE HIGHEST-LEVERAGE SCREEN, so the starts are CARDS a member
-            picks, not a list of links. Each wears its connector's real face
-            through the one identity resolver, and the chevron says it opens
-            something rather than doing something. */}
+        {/* ⭐ THE STARTS STAY HERE AT MINUTE ZERO. ADR-658 D7 rules this
+            screen shows the next step pre-shaped, so an empty workspace must
+            not hide its starts behind a button. Clicking one opens the SAME
+            door the header opens, already on its second step — one creation
+            path, two entrances. Once a member has work, the header's door
+            (and its picker) is the only entrance, because this screen is gone.
+
+            Each start wears its connector's real registry brand through the
+            shared `StartMark`, and the chevron says it opens something rather
+            than doing something. */}
         <ul className="mt-4 space-y-2">
           {work.starts.map((s) => (
             <li key={`${s.kind}-${s.connector ?? 'url'}`}>
@@ -185,17 +191,7 @@ function WorkSection({ work }: { work: WorkBand }) {
                 onClick={() => work.onNew(s)}
                 className="group flex w-full items-center gap-3 rounded-lg border border-border/70 bg-background px-3.5 py-3 text-left transition-colors hover:border-border hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
               >
-                {/* The connector's REAL face, resolved by the one identity
-                    resolver — the Slack a member picks here is visibly the
-                    Slack they connected in Reach. A web-page start has no
-                    connector, so it keeps the neutral link chip. */}
-                {s.connector ? (
-                  <ConnectorAvatar connectorKey={s.connector} title={s.name} size="sm" />
-                ) : (
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/30">
-                    <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-                  </span>
-                )}
+                <StartMark start={s} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-medium text-foreground">{s.title}</span>
                   <span className="block truncate text-[12px] text-muted-foreground">

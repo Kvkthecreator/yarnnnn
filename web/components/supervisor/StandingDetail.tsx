@@ -110,6 +110,16 @@ export function StandingDetail({
   const minder = minderLine(s);
   const currentCron = Array.isArray(s.schedule) ? s.schedule[0] ?? '' : String(s.schedule ?? '');
 
+  // Worded here rather than inline: a multi-line ternary inside JSX reads to
+  // the ADR-660 meter as literal copy even when every branch is a `t()` call.
+  const nextLine = s.problem != null
+    ? t('detail.blocked')
+    : s.paused
+      ? t('detail.paused')
+      : s.next_run_at
+        ? formatLedgerTime(s.next_run_at)
+        : t('detail.soon');
+
   const runNow = async () => {
     if (busy) return;
     setBusy(true);
@@ -281,15 +291,7 @@ export function StandingDetail({
             {/* ⚠️ Same false promise the row carried: a declaration with a
                 problem will NOT run at its next scheduled time, so the field
                 says what is true instead of a time to plan around. */}
-            <dd className="mt-0.5 text-foreground">
-              {s.problem != null
-                ? t('detail.blocked')
-                : s.paused
-                  ? t('detail.paused')
-                  : s.next_run_at
-                    ? formatLedgerTime(s.next_run_at)
-                    : t('detail.soon')}
-            </dd>
+            <dd className="mt-0.5 text-foreground">{nextLine}</dd>
           </div>
           <div className="sm:col-span-2">
             <dt className="text-muted-foreground">{t('detail.sourcesLabel')}</dt>

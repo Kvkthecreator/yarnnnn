@@ -614,3 +614,70 @@ exists to say. Band 2 is one RAISE, not one physical line — it wraps.
 The three bands and the four section kinds are unchanged: APP-BUILDER-UX §2.2 fixes the frame and §5
 rules the vocabulary grows on demand from a real app. This pass is polish **within** the canon — no new
 kind, no layout prop, no fourth band. Raising the frame is an ADR amendment, not a design session.
+
+---
+
+## Amendment 3 (2026-09-21) — the door is two steps, and a start wears its connector's face
+
+**Status**: implemented. Gate **131/131**, the two new arms proven RED on the exact bugs they guard.
+Driven in a real browser: the picker, the door, and the nested folder picker.
+
+### A3.1 — ⚠️ THE STARTS WERE REACHABLE EXACTLY ONCE
+
+The pre-shaped starts (D7) lived only in the work band's EMPTY STATE. The moment a member had their
+first piece of standing work that screen was gone, and with it every start — the only remaining
+entrance was *New standing work*, which opened a **blank form**. A member with one piece of work had a
+strictly worse creation path than a member with none, and D7's whole argument (the next step, pre-shaped
+from what they already connected) applied only at minute zero.
+
+The house gesture for creation is a modal that shows **choices, never form fields**, and opens a focused
+form once one is picked — `NewArtifactModal` (ADR-452 v2) is that pattern's tenant.
+`web/components/supervisor/StartPicker.tsx` follows it: *what should it keep current?* → pick → name it.
+
+**The empty state keeps its cards**, because D7 rules that screen shows the next step pre-shaped and
+hiding it behind a button would be a regression at exactly the moment it matters. Clicking one lands on
+the same door's second step — **one creation path, two entrances**, never two divergent lists.
+
+### A3.2 — ⭐ A PLATFORM KEY IS NOT A DIRECTORY KEY: the lettermark that shipped
+
+A start's `connector` is a **platform key** (`slack` · `notion` · `github`) — `_CONNECTOR_STARTS` is
+keyed by the capture binding's platform. The first cut passed `connectorKey={s.connector}` to
+`ConnectorAvatar`, which routes to `KEY_MARKS` — **an empty table**. It typechecked, it built, and it
+rendered a derived LETTERMARK ("S" on a hashed tone) beside a card reading *"Keep a brief of your Slack
+channels current"*, while `CONNECTOR_REGISTRY` had held the real Slack mark all along.
+
+Nothing failed. The defect was visible only by LOOKING at the rendered chip — the same class of failure
+`lib/connectors/marks.tsx` was written to end, arriving through the resolver rather than through a
+fabricated path. `StartMark.tsx` now resolves the platform key through `connectorMeta` →
+`override={meta.brand}`, the path Reach (`ReachConnected.tsx:315`) and the finder
+(`FindConnectorModal.tsx:539`) already take. One connector, one face, everywhere. A start with no
+connector (a web page, a workspace path) takes a neutral chip carrying its own kind's glyph — honest,
+never a fabricated mark.
+
+### A3.3 — ⭐ DRIVEN: a nested dialog that never dimmed the one beneath it
+
+The door's folder picker sits on top (later in DOM order) but its BACKDROP shares `Z_CONFIRM_BACKDROP`
+with the dialog it was opened from, so the backdrop renders BEHIND that dialog: the form stayed at full
+contrast and the two read as one confused layer. **This is house-wide, not this surface's bug** — the
+identical structure ships in `NewArtifactModal`.
+
+`WorkspacePickerModal` takes a `nested` flag that lifts it to a new `Z_NESTED_*` tier (520/521): above
+the confirm tier, **below `Z_TOAST`** so a nested picker can never hide its own failure message. The
+default is unchanged, because raising it would lift the standalone callers (Open…, Move to…) above
+toasts where nothing is wrong today. The Supervisor door passes `nested`; `NewArtifactModal` is left for
+its own owner and is named here so the next session finds it rather than rediscovers it.
+
+### A3.4 — The door's shape follows the house
+
+`NewStandingWorkModal` now portals to `document.body` on the shared z-tiers, like every other create
+door — a bare `z-50` inside a pane's stacking context is how a dialog ends up under the thing that
+opened it. Its header **names the chosen start and wears its mark**, so a member who picked Slack sees
+that this form is the Slack one rather than an unrelated screen.
+
+### A3.5 — The literal-copy meter, twice
+
+Both new components tripped the ADR-660 meter with **pure `t()` calls**: a multi-line ternary inside JSX
+reads as literal copy once `{…}` is stripped, leaving bare identifiers. Hoisting the ternary to a
+`const` above the JSX fixes the reading without changing a rendered byte. Recorded because it will
+recur: **the meter measures JSX text shape, not English**, and the fix is always the hoist, never a
+raised ceiling. 274 → 262, the ceiling held.

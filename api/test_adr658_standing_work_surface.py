@@ -697,6 +697,46 @@ check("the door offers a folder picker (the one tree picker)", "WorkspacePickerM
 _door_words = _words("web/components/supervisor/NewStandingWorkModal.tsx").lower()
 check("the door says the first run starts soon", "first" in _door_words and "minutes" in _door_words)
 
+# ── am.2 — the door is TWO STEPS, and its faces are real ────────────────────
+# ⚠️ The starts used to live ONLY in the work band's empty state, so they
+# vanished the moment a member had one piece of work and the sole remaining
+# entrance was a blank form. The picker is the first step; the empty state
+# keeps its cards (D7 rules that screen) and routes into the same door.
+_picker = _code_only_ts(_read("web/components/supervisor/StartPicker.tsx"))
+check("the start picker exists — the door's first step", "export function StartPicker" in _picker)
+check("the picker offers every start, not only the connector ones",
+      "starts.map(" in _picker)
+check("the picker keeps the scratch escape hatch", "setUpFromScratch" in _picker)
+check("the picker is a real modal — portal, the shared z-tiers, escape, aria",
+      all(w in _picker for w in ("createPortal", "Z_CONFIRM_DIALOG", "'Escape'", 'role="dialog"')))
+check("the header's door opens the PICKER, never a blank form directly",
+      "setPickerOpen(true)" in _surf and "<StartPicker" in _surf)
+
+# ⭐ A START WEARS ITS CONNECTOR'S REAL BRAND. `connector` is a PLATFORM KEY,
+# so it must resolve through `connectorMeta` → `override={meta.brand}` (the
+# path Reach and the finder take). A first cut passed `connectorKey=` alone,
+# which routes to `KEY_MARKS` — an EMPTY table — and rendered a derived
+# lettermark beside a card titled "Keep a brief of your Slack channels
+# current". It typechecked, built, and was only visible by looking.
+_mark = _code_only_ts(_read("web/components/supervisor/StartMark.tsx"))
+check("a start's face resolves through the connector REGISTRY, not the empty key table",
+      "connectorMeta(" in _mark and "override=" in _mark)
+check("the picker and the empty state render the SAME mark component",
+      "<StartMark" in _picker and "<StartMark" in _sec)
+check("the door names the chosen start and wears its mark",
+      "<StartMark" in _door and "start.title" in _door)
+
+# The nested folder picker must OUTRANK and dim the door it was opened from;
+# sharing `Z_CONFIRM_*` leaves the form at full contrast behind it.
+check("the door's folder picker is marked nested, so it dims the door",
+      re.search(r"<WorkspacePickerModal[^>]*?\bnested\b", _door, re.S) is not None)
+_ztiers = _read("web/lib/shell/z-tiers.ts")
+check("the nested tier sits above the confirm tier and below the feedback layer",
+      "Z_NESTED_DIALOG" in _ztiers
+      and re.search(r"Z_NESTED_DIALOG = (\d+)", _ztiers)
+      and int(re.search(r"Z_NESTED_DIALOG = (\d+)", _ztiers).group(1)) > 501
+      and int(re.search(r"Z_NESTED_DIALOG = (\d+)", _ztiers).group(1)) < 550)
+
 _detail = _code_only_ts(_read("web/components/supervisor/StandingDetail.tsx"))
 check("the detail exists", "export function StandingDetail" in _detail)
 check("the detail reads the detail route", "api.standing.get(" in _detail)

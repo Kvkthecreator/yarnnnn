@@ -2029,6 +2029,11 @@
       "raiseOne": "{target} can't run until its instructions are fixed.",
       "raiseMany": "{target} can't run until its instructions are fixed, and {count, plural, one {# other} other {# others}} too.",
       "raiseAction": "Open"
+    },
+    "startPicker": {
+      "title": "What should it keep current?",
+      "subtitle": "Pick where its updates come from. You name the file on the next step.",
+      "cancel": "Cancel"
     }
   },
   "studio": {

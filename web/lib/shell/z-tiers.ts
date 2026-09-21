@@ -69,6 +69,23 @@ export const Z_CONFIRM_BACKDROP = 500;
 export const Z_CONFIRM_DIALOG = 501;
 export const Z_TOAST = 550;
 
+/**
+ * A dialog opened FROM a confirm-tier dialog — the folder picker inside a
+ * create door, and nothing else so far.
+ *
+ * ⚠️ IT SITS BELOW `Z_TOAST` ON PURPOSE. A toast reports the outcome of what
+ * the member just did and must never be occluded (the note above), so a nested
+ * picker that outranked it would hide its own failure message. Above the
+ * confirm tier, below the feedback layer.
+ *
+ * Without this, a nested picker's BACKDROP shares `Z_CONFIRM_BACKDROP` with
+ * the dialog it was opened from and therefore renders behind it: the picker
+ * appears on top (later in DOM order) while the form beneath stays at full
+ * contrast, so the two read as one layer. Driven 2026-09-21.
+ */
+export const Z_NESTED_BACKDROP = 520;
+export const Z_NESTED_DIALOG = 521;
+
 // ---------------------------------------------------------------------------
 // The dismissal half of the modal contract (2026-09-13)
 // ---------------------------------------------------------------------------
