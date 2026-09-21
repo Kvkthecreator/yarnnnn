@@ -38,6 +38,19 @@ land in its chat, and every subsequent surface may silently show their own works
 Workspace Settings was the surface where this was first seen (it read "My workspace ·
 내 역할: 소유자" for a member who had just switched to the rig).
 
+**SEVERITY BOUND — measured 2026-09-21, and it is why this is NOT release-blocking.** The pin
+is `null` for a single-workspace user by design (the owner default), so there is nothing to
+wipe and the defect is UNREACHABLE for them. Of 22 human principals holding an active grant,
+exactly **2 hold more than one workspace — `kvkthecreator@gmail.com` and `seulkim88@gmail.com`,
+both operator-controlled**. No real external user can reach this today. It becomes live the
+moment a second real person holds two grants, which an onboarding of any invited user who
+already owns a workspace produces — so fix it before that, not before the demo.
+
+A second, quieter consequence when it does fire: `shellStateSuffix` (`lib/shell/
+surface-preferences.ts:186-196`) keys ALL persisted shell state on the pin, so a mid-session
+flip reads and writes window/dock/attention state under the wrong key. Already visible in
+live localStorage — the same user carries keys under both `owner:<uid>` and `<wsid>:<uid>`.
+
 **Verified NOT the cause**: the grant (valid — with the pin set by hand, every rig surface
 renders correctly as 멤버 and the pin then persists); the switcher (`UserMenu.tsx:195` pins,
 ADR-548 D9, confirmed in the live DOM); a 403 (none observed).
