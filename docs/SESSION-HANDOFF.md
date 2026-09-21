@@ -30,10 +30,12 @@ Awaiting the operator's call on that ratio.
 ADR-660 §14. The landing page speaks Korean at `/ko`; IP geolocation was REFUSED (D9) and the
 mechanism is a URL prefix with a link toggle (D10). 24 static routes, gate 41 checks, voice 0.
 
-**Rostered in `TRANSLATED_PATHS` but with NO `/ko` route yet** — `/pricing`, `/how-it-works`,
-`/faq`. The roster is deliberately ahead of the routes so the header/footer links already point
-where those pages will live; until they exist those `/ko/...` links 404. Either build the three
-pages or trim the roster — do not leave it half-way for long.
+**`TRANSLATED_PATHS` holds `/` only.** It must never run ahead of the routes: a rostered path with
+no `app/ko/.../page.tsx` becomes a 404 reachable in one click from the header, the footer and the
+hero. That shipped for about ten minutes and was caught by driving; `localePath` now REFUSES to
+prefix an unrostered path, and the gate pairs roster against route (falsified RED in place).
+Add a path there in the SAME commit that adds its `/ko` route. Next pass: `/pricing`,
+`/how-it-works`, `/faq`.
 
 ⚠️ `TraceCard` and `CompoundsStepper` render INSIDE BLOG POSTS via `lib/blog-embeds.tsx`. They must
 stay hook-free (words as props). A translation hook in either breaks 2 posts' prerender while tsc

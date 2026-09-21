@@ -43,13 +43,16 @@ export function localePrefix(locale: Locale): string {
  * `localePath('/pricing', 'ko')` → `/ko/pricing`
  * `localePath('/', 'ko')`        → `/ko`
  *
- * Only for paths that EXIST in both languages. A link to an untranslated page
- * (the blog, the legal pages) keeps its bare path deliberately — see
- * `TRANSLATED_PATHS`.
+ * ⭐ It REFUSES to prefix a path that is not on the roster, rather than
+ * trusting the caller to check. The first version trusted the caller, and two
+ * hero CTAs called it directly on `/pricing` and `/how-it-works` — producing
+ * 404s on the Korean page that the header and footer (which did check) did
+ * not. One guard at the one function is the difference between a rule and a
+ * rule everyone has to remember.
  */
 export function localePath(path: string, locale: Locale): string {
   const prefix = localePrefix(locale);
-  if (!prefix) return path;
+  if (!prefix || !isTranslatedPath(path)) return path;
   return path === "/" ? prefix : `${prefix}${path}`;
 }
 
@@ -74,10 +77,20 @@ export function localePath(path: string, locale: Locale): string {
  */
 export const TRANSLATED_PATHS = [
   "/",
-  "/pricing",
-  "/how-it-works",
-  "/faq",
 ] as const;
+
+/**
+ * ⚠️ THIS ROSTER MUST NOT RUN AHEAD OF THE ROUTES.
+ *
+ * A path listed here is prefixed by every link that passes through
+ * `isTranslatedPath`, so listing `/pricing` before `app/ko/pricing/page.tsx`
+ * exists turns the Korean page's own nav into three 404s — reachable in one
+ * click from the header, the footer and the hero. Driven and confirmed before
+ * this comment was written.
+ *
+ * Add a path here in the SAME commit that adds its `/ko` route, never earlier.
+ * `api/test_adr660_the_interface_speaks_korean.py` holds the pair.
+ */
 
 export type TranslatedPath = (typeof TRANSLATED_PATHS)[number];
 

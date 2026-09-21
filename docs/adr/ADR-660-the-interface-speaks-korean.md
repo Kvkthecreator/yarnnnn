@@ -493,7 +493,15 @@ Translated: the landing page and the shared chrome. **Deliberately NOT translate
 the blog (113 posts — translating a post is a content project, and a machine-drafted post is published
 prose), `/privacy` and `/terms` (legal text; a mistranslated clause is a liability, so these want a
 professional translation or nothing), `/invest` and `/developers` (those audiences read English).
-`/pricing`, `/how-it-works` and `/faq` are in `TRANSLATED_PATHS` and are the next pass.
+`/pricing`, `/how-it-works` and `/faq` are the next pass.
+
+⭐ **The roster must not run ahead of the routes.** They were rostered first, so the header, footer
+and both hero CTAs pointed at `/ko/pricing` and `/ko/how-it-works` — **three 404s reachable in one
+click from the Korean page's own nav**, found by driving the links rather than reading them. Two
+fixes, because one was not enough: `TRANSLATED_PATHS` now lists only `/`, and `localePath` REFUSES
+to prefix an unrostered path instead of trusting each caller to check — the header and footer did
+check, the hero CTAs called it directly, and that asymmetry is exactly how the defect survived. A
+gate arm pairs each rostered path with its route, falsified RED in place.
 
 ### Receipts
 

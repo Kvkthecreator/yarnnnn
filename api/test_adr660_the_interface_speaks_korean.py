@@ -322,6 +322,20 @@ for _rel in ("app/page.tsx", "app/ko/page.tsx"):
           PAGE_SCOPE in strip_comments(read(_rel)))
 # The shared chrome renders on marketing pages that stay English by ruling, so
 # it is OUTSIDE every scope there. A hook in it throws at render (D8's shape).
+# ⭐ A rostered path with no route is a 404 reachable from the Korean page's own
+# nav — driven and confirmed once, in one click from header, footer and hero.
+# The roster is what every link passes through, so it must never run ahead of
+# the routes it promises.
+_loc_src = read("lib/marketing/locale.ts")
+_roster = re.findall(r'"(/[^"]*)"', _loc_src.split("TRANSLATED_PATHS = [")[1].split("]")[0])
+check("the roster names something", bool(_roster))
+_missing = [
+    p for p in _roster
+    if not (WEB / "app" / "ko" / (p.strip("/") or "") / "page.tsx").exists()
+]
+check("every rostered path HAS its /ko route (a roster ahead of the routes is a 404)",
+      not _missing, f"rostered with no app/ko route: {_missing}")
+
 for _rel in ("components/landing/LandingHeader.tsx", "components/landing/LandingFooter.tsx"):
     check(f"{_rel} words itself by PROPS, not a hook",
           "next-intl" not in strip_comments(read(_rel)),
