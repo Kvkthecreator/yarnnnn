@@ -180,13 +180,71 @@ The one exception was **copy**, and it was a live web defect rather than a deskt
 
 ---
 
+## 7a. The export spike — driven, not read (2026-09-21, `96c5d99`)
+
+Everything in §3 and §4 was established by reading. Before authorizing
+implementation the operator asked for a final pass, so `output: 'export'` was
+actually switched on and `next build` run to exhaustion, peeling one blocker at
+a time. **The spike was thrown away; only its findings are kept.** It changed
+the plan in one material way.
+
+**Blocker 1 — a route handler with `force-dynamic` fails the build outright.**
+`app/api/feed-proxy/route.ts` (`dynamic = "force-dynamic"`) is a hard error
+under export, not a warning. The six marketing/SEO handlers (`llms.txt`,
+`openapi.json`, `rss.xml`, `.well-known/mcp.json`, `/s/[token]/txt`) are the
+same class. **Confirms §7.3's shape**: the shell ships the authenticated group
+only, and these stay on the web build.
+
+**Blocker 2 — a dynamic segment without `generateStaticParams` fails.**
+`/integrations/[provider]`, `/agents/[id]`, `/invite/[token]`. All three are
+legacy-link compatibility stubs, so §7.3's ruling (omit, don't convert) resolves
+them — but the build **stops**, it does not warn.
+
+**Blocker 3 — 41 routes fail on `cookies`, from one file.** Every authenticated
+route errored with *"couldn't be rendered statically because it used `cookies`"*.
+Patching only `app/(authenticated)/layout.tsx` — dropping `getRequestUser()` and
+swapping `IntlScope` for a client provider — **collapsed all 41 at once**. This
+is §4.1 + §4.2 confirmed from the build rather than from reading, and it is the
+whole of the server coupling: two calls in one file, 41 routes downstream.
+
+**Blocker 4 — the one the audit got wrong, and the reason this spike earned its
+cost.** With the layout patched, **12 prerender failures remained**:
+
+> `⨯ useSearchParams() should be wrapped in a suspense boundary at page "/chat"`
+
+…and the same for `/files`, `/settings`, `/supervisor`, `/text`, `/slides`,
+`/images`, `/notifications` — **the product's most-used surfaces.** The audit
+had reported `useSearchParams` as *"works fine under static export"* because its
+consumers are wrapped in `<Suspense>` "where required". Under `output: export`
+the requirement is **stricter**: the boundary must exist at the **page**, and on
+these pages it does not — the hook is reached through a child, and
+`grep -c Suspense` on each page returns 0.
+
+⭐⭐⭐ **A hook that is Suspense-wrapped for SSR is not Suspense-wrapped for
+export.** Reading found the hook and the wrapper and concluded correctly for the
+wrong build mode. Only running the target build asks the right question.
+
+**What this changes.** Step 3 of §8 gains a member: a page-level Suspense
+boundary on each of the eight surfaces. It is small and mechanical — and it is
+an improvement to the **web** build too (the same bailout costs client-side
+rendering on a slow first paint today) — but it was invisible to every static
+check, and it would have surfaced on the first day of implementation as eight
+broken surfaces rather than as a listed task.
+
+**Not blockers, confirmed**: the six `next.config.js` redirects and the one
+rewrite warn (`"will not automatically work"`) rather than fail, so they degrade
+rather than break; Sentry emits deprecation warnings only; nothing in the
+authenticated tree needs `next/image` or `next/font` work.
+
+---
+
 ## 8. The order — built so the hands fit later
 
-Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships.
+Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).
 
 1. **The client auth gate** (§4.1) — a mount-time session resolve rendering nothing until it settles, with the derived `KERNEL_SURFACE_SLUGS` prefix set ported verbatim. First, because it is the one item that can re-open a known production defect.
 2. **The locale chain, client-side** (§4.2). ⚠️ The ADR-660 gate asserts the literal `<IntlScope>` in named layouts; it moves in the same commit or it goes red for the wrong reason.
-3. **External navigations and share links** (§4.3, §4.4) — system-browser opens and a canonical web-origin constant.
+3. **External navigations, share links, and the Suspense boundaries** (§4.3, §4.4, §7a blocker 4) — system-browser opens, a canonical web-origin constant, and a page-level `<Suspense>` on the eight surfaces whose `useSearchParams` bails out under export (`/chat`, `/files`, `/settings`, `/supervisor`, `/text`, `/slides`, `/images`, `/notifications`).
 4. **The packaging target** — static export of the authenticated group, custom scheme, OAuth callback deep-linked. **Tauri, and the choice is now load-bearing rather than aesthetic**: §5 makes local OS access a planned capability, and Tauri's Rust host is where a screen/input capability would live, behind a per-act permission the member grants. Electron would work; Tauri makes step 6 a smaller step.
 5. **Notarization and auto-update.**
 6. **Local hands** (§5, §6) — after the shell is real and stable, as its own implementation ADR carrying §6's four conditions and a driven trace. Not before: §6.4's standard cannot be met against a shell that does not yet exist.

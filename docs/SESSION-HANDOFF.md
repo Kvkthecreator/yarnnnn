@@ -23,7 +23,13 @@ whether or not the shell ships:
    of ADR-660 D2's chain have NO SOURCE without a request, so a static shell falls SILENTLY to
    English. WARN: the ADR-660 gate asserts the literal `<IntlScope>` in named layouts - it moves
    in the same commit or it goes red for the wrong reason.
-3. **Seven external navigations + four dead share links.** OAuth handoffs
+3. **Eight missing page-level Suspense boundaries** (§7a blocker 4, found by the export spike —
+   NOT by reading). `useSearchParams` bails out under `output: export` on `/chat`, `/files`,
+   `/settings`, `/supervisor`, `/text`, `/slides`, `/images`, `/notifications`. Their consumers
+   ARE wrapped "where required" for SSR; export needs the boundary at the PAGE, and
+   `grep -c Suspense` on each page returns 0. Improves the web build too (a client-render
+   bailout on first paint today).
+4. **Seven external navigations + four dead share links.** OAuth handoffs
    (`ManageConnectionSubsurface.tsx:311`, `FindConnectorModal.tsx:303,347,400`) and Stripe
    (`useSubscription.ts:100,119,137`) must become system-browser opens; four
    `window.location.origin` share-link builders (`StudioSurface.tsx:2327,3561,4835`,
