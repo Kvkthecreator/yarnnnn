@@ -104,6 +104,7 @@ import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { resolveDownload } from '@/lib/workspace/download';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { Working } from '@/components/shared/Working';
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
 type TreeNode = import('@/types').WorkspaceTreeNode;
 type AccessDecision = import('@/types').AccessDecision;
@@ -429,7 +430,7 @@ function formatNodeTimestamp(value: string): string {
 // Context Page
 // =============================================================================
 
-export default function ContextPage() {
+function ContextPageBody() {
   // ADR-400 polish (2026-07-03): the universal action-feedback layer replaces
   // window.alert/confirm/prompt for the operator's file verbs. See
   // docs/design/ACTION-FEEDBACK.md.
@@ -2116,5 +2117,19 @@ export default function ContextPage() {
       <ShareDialog target={shareTarget} onClose={() => setShareTarget(null)} />
 
     </>
+  );
+}
+
+/**
+ * The route's export. `ContextPageBody` reads `useSearchParams` (directly or through
+ * the shell's param hooks), so the Suspense boundary must sit OUTSIDE it —
+ * a boundary inside the component is reached only after the hook has already
+ * run. ADR-661 §8 step 3.
+ */
+export default function ContextPage() {
+  return (
+    <SurfaceBoundary>
+      <ContextPageBody />
+    </SurfaceBoundary>
   );
 }

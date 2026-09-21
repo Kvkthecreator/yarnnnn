@@ -74,6 +74,8 @@ Four real items; the first estimate in the originating discourse understated the
 
 **4.1 A mount-time auth gate must be BUILT, not inherited.** `components/shell/AuthenticatedLayout.tsx:59-63` says in its own words that the `onAuthStateChange` listener is *"Live sign-out invalidation only — NOT an auth gate."* It fires after mount and paint — the exact 2026-08-20 defect recorded at `lib/supabase/middleware.ts:30-43`, where eight surfaces served a full 200 to logged-out visitors. A shell with no middleware must not re-open it.
 
+**4.1a The session is stored in a COOKIE, which the shell will not have.** Found while driving step 1 (2026-09-21). `lib/supabase/client.ts` uses `createClientComponentClient` from `@supabase/auth-helpers-nextjs`, and that library persists the session as `sb-{ref}-auth-token` **in `document.cookie`** — verified by probing a live page's storage (localStorage held nothing; the auth-helpers-shared bundle writes `document.cookie` directly). A cookie is a browser-origin concept: under a custom scheme there is no origin to scope it to, and the packaged shell must move the session to a token store (`autoRefreshToken` against Tauri secure storage). ⭐ **This is the one place the port is a security change rather than plumbing**, because today the cookie is ALSO rotated server-side by `updateSession` on every request, and a token store has no equivalent. It does not affect `AuthGate`, which asks `getSession()` and does not care where the answer is kept — that indifference is why the gate ports unchanged.
+
 **4.2 The locale chain is server-only by construction.** `i18n/resolve.ts` reads `cookies()` and `headers()`; steps 2–3 of ADR-660 D2's chain have **no source** without a request, so a naive static shell falls silently to English. Catalogs are plain JSON (366KB) and bundle fine; `LocaleEffects` is already client-side.
 
 **4.3 Seven external navigations would trap a member in a native window** — four OAuth handoffs (`ManageConnectionSubsurface.tsx:311`, `FindConnectorModal.tsx:303,347,400`) and three Stripe jumps (`useSubscription.ts:100,119,137`). Each must become a system-browser open.
@@ -230,6 +232,10 @@ an improvement to the **web** build too (the same bailout costs client-side
 rendering on a slow first paint today) — but it was invisible to every static
 check, and it would have surfaced on the first day of implementation as eight
 broken surfaces rather than as a listed task.
+
+**§7a.1 — the fix, and what it taught (2026-09-21, step 3 driven).** Eight pages got a shared `SurfaceBoundary` (one component, not eight hand-written fallbacks — `Working` is already "the ONE way to say wait", ADR-651, and eight bespoke ones drift). Three of them (`files`, `settings`, `notifications`) call the hook in the page component itself, so the boundary had to go OUTSIDE it: the body was renamed `…Body` and a thin default export wraps it. **A boundary inside the component is reached only after the hook has already run.**
+
+⭐⭐⭐ **The first attempt made it WORSE — 12 failures became 40.** `AuthGate` (§8 step 1, landed hours earlier) called `useSearchParams` for the bounce URL, and it sits ABOVE every page, so it demanded a boundary on all 41 authenticated routes. **A hook in a layout is a hook on every route beneath it.** The gate now reads `window.location.search` inside its effect — the same question without the opt-in, since an effect only runs in the browser. Re-run: **0 suspense failures**, and the export's only remaining prerender errors are `/orchestrator` and `/team` (the two `searchParams` stubs §7.3 omits) plus `/admin` (outside the shell by design).
 
 **Not blockers, confirmed**: the six `next.config.js` redirects and the one
 rewrite warn (`"will not automatically work"`) rather than fail, so they degrade

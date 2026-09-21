@@ -34,6 +34,7 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 // target — the operator-visible two-step. See SurfaceLink's docblock.
 import { SurfaceLink } from "@/components/shell/SurfaceLink";
 import { Working } from '@/components/shared/Working';
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 // ADR-425 — the Connectors pane (a human's platform credentials) lives in the
 // account door now. The section is location-agnostic; it was formerly mounted
 // under Workspace Settings → Perception.
@@ -133,7 +134,7 @@ type DangerAction =
   | "deactivate"
   | null;
 
-export default function SettingsPage() {
+function SettingsPageBody() {
   const t = useTranslations("settings");
   const paneGroups: PaneGroup[] = PANE_ROSTER.map((group) => ({
     label: t(group.labelKey),
@@ -618,5 +619,19 @@ export default function SettingsPage() {
           the danger zone gates and reports through FeedbackContext (ADR-400;
           transient-surfacing streamline 2026-08-22). */}
     </>
+  );
+}
+
+/**
+ * The route's export. `SettingsPageBody` reads `useSearchParams` (directly or through
+ * the shell's param hooks), so the Suspense boundary must sit OUTSIDE it —
+ * a boundary inside the component is reached only after the hook has already
+ * run. ADR-661 §8 step 3.
+ */
+export default function SettingsPage() {
+  return (
+    <SurfaceBoundary>
+      <SettingsPageBody />
+    </SurfaceBoundary>
   );
 }

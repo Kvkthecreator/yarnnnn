@@ -12,7 +12,10 @@
  */
 
 import { StudioSurface } from '@/components/authoring/StudioSurface';
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
 export default function SlidesPage() {
-  return <StudioSurface />;
+  return (
+    <SurfaceBoundary><StudioSurface /></SurfaceBoundary>
+  );
 }

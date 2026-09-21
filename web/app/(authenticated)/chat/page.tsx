@@ -16,7 +16,10 @@
  */
 
 import { ChatSurface } from '@/components/chat-surface/ChatSurface';
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
 export default function ChatPage() {
-  return <ChatSurface />;
+  return (
+    <SurfaceBoundary><ChatSurface /></SurfaceBoundary>
+  );
 }

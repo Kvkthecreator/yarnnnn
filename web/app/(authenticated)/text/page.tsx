@@ -15,7 +15,10 @@
  */
 
 import TextSurface from '@/components/text/TextSurface';
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
 export default function TextPage() {
-  return <TextSurface />;
+  return (
+    <SurfaceBoundary><TextSurface /></SurfaceBoundary>
+  );
 }

@@ -46,6 +46,7 @@ import { QueueBody } from "@/components/queue/QueueBody";
 import { ActivityLedger } from "@/components/notifications/ActivityLedger";
 import { MentionQueue } from "@/components/notifications/MentionQueue";
 import { StandingWork } from "@/components/notifications/StandingWork";
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
 // ADR-346 label pass (2026-06-19): the act labels are plain operator words.
 // The pane KEYS (resolve/understand) are unchanged — they are URL params +
@@ -81,7 +82,7 @@ function MirrorLink({ label, onClick }: { label: string; onClick: () => void }) 
 // PaneHeader is the shared shell component (Singular Implementation, 2026-07-01);
 // the escape-hatch MirrorLink rides its `action` slot.
 
-export default function OperationPage() {
+function OperationPageBody() {
   const t = useTranslations("supervisor.notifications");
   const { navigateToSurface } = useSurfacePreferences();
 
@@ -168,5 +169,19 @@ export default function OperationPage() {
       fullBleed
       navLabel={t("navLabel")}
     />
+  );
+}
+
+/**
+ * The route's export. `OperationPageBody` reads `useSearchParams` (directly or through
+ * the shell's param hooks), so the Suspense boundary must sit OUTSIDE it —
+ * a boundary inside the component is reached only after the hook has already
+ * run. ADR-661 §8 step 3.
+ */
+export default function OperationPage() {
+  return (
+    <SurfaceBoundary>
+      <OperationPageBody />
+    </SurfaceBoundary>
   );
 }

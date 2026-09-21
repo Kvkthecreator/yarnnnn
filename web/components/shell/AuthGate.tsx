@@ -40,7 +40,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getCurrentPathWithSearch } from '@/lib/auth/redirect';
 
@@ -56,7 +56,6 @@ interface AuthGateProps {
 export function AuthGate({ children, fallback }: AuthGateProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [state, setState] = useState<GateState>('resolving');
 
   useEffect(() => {
@@ -67,8 +66,16 @@ export function AuthGate({ children, fallback }: AuthGateProps) {
     // returns them where they were going — the same contract `redirectToLogin`
     // honours in the middleware.
     const bounce = () => {
-      const search = searchParams.toString();
-      const next = getCurrentPathWithSearch(pathname, search ? `?${search}` : '');
+      // `window.location.search`, NOT `useSearchParams()`. The hook opts a
+      // component into the request's query string, which under
+      // `output: 'export'` forces a client-side bailout that needs a
+      // `<Suspense>` boundary ABOVE it — and this component sits above every
+      // page, so the hook here would demand a boundary on all 41 authenticated
+      // routes (measured: the export build went from 12 failures to 40 while
+      // this used the hook). Reading `location` inside an effect asks the same
+      // question without the opt-in: effects only run in the browser, where
+      // `location` is always current. ADR-661 §7a blocker 4.
+      const next = getCurrentPathWithSearch(pathname, window.location.search);
       router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
     };
 
@@ -103,7 +110,7 @@ export function AuthGate({ children, fallback }: AuthGateProps) {
       active = false;
       subscription.unsubscribe();
     };
-  }, [router, pathname, searchParams]);
+  }, [router, pathname]);
 
   if (state === 'resolving') return <>{fallback}</>;
   return <>{children}</>;

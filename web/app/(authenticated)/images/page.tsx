@@ -18,7 +18,10 @@
  */
 
 import { StudioSurface, IMAGES_APP } from '@/components/authoring/StudioSurface';
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
 export default function ImagesPage() {
-  return <StudioSurface app={IMAGES_APP} />;
+  return (
+    <SurfaceBoundary><StudioSurface app={IMAGES_APP} /></SurfaceBoundary>
+  );
 }

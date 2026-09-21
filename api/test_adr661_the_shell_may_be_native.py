@@ -9,6 +9,8 @@
           effect visible only on the far side
     §6.4  no local-hands capability ships BEFORE its own implementation ADR —
           a tripwire on the evidence standard, not a ban on the capability
+    §7a.1 the eight export-fragile surfaces keep their Suspense boundary, and
+          no hook above them re-opens the bailout on every route
     §7.5  the two dead Supabase packages stay gone
     §9.6  the vendored Claude Code source stays out of the repo
 
@@ -240,6 +242,51 @@ check(
     "@supabase/auth-helpers-nextjs is still declared",
     "@supabase/auth-helpers-nextjs" in deps,
     "the LIVE auth client was removed — the cleanup overshot",
+)
+
+# ------------------------------------------- §7a.1 the export stays reachable
+print("\n§7a.1 the surfaces keep their Suspense boundaries")
+
+# The eight surfaces the export spike found bailing out. Their consumers are
+# Suspense-wrapped for SSR; `output: export` needs the boundary at the PAGE.
+# Reading could not find this and the export build could — so the gate pins the
+# FIX, not the diagnosis.
+SUSPENSE_PAGES = [
+    "chat", "files", "settings", "supervisor",
+    "text", "slides", "images", "notifications",
+]
+# Count the USE, not the mention: an `import { SurfaceBoundary }` line alone
+# satisfies a substring check, so removing the JSX stayed GREEN on the first
+# falsification of this arm (the ADR-653 trap — `"name" in src` is true from the
+# import). The element must actually be rendered.
+missing_boundary = [
+    slug
+    for slug in SUSPENSE_PAGES
+    if not re.search(
+        r"<SurfaceBoundary[\s>]",
+        strip_comments(read(f"web/app/(authenticated)/{slug}/page.tsx")),
+    )
+]
+check(
+    "the eight export-fragile surfaces wrap in SurfaceBoundary",
+    not missing_boundary,
+    f"useSearchParams would bail out with no boundary: {missing_boundary}",
+)
+
+check(
+    "SurfaceBoundary exists and is the one fallback",
+    (WEB / "components" / "shell" / "SurfaceBoundary.tsx").exists(),
+    "the shared boundary is gone — eight bespoke fallbacks will drift",
+)
+
+# A hook in a layout is a hook on EVERY route beneath it. AuthGate wraps all 41
+# authenticated routes, so `useSearchParams` there took the export from 12
+# failures to 40. It reads window.location.search instead.
+gate_src = strip_comments(read("web/components/shell/AuthGate.tsx"))
+check(
+    "AuthGate does not call useSearchParams",
+    "useSearchParams" not in gate_src,
+    "a query-string hook above every page demands a boundary on every route",
 )
 
 # ------------------------------------------------- §7.6 the client is neutral

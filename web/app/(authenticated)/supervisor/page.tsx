@@ -9,7 +9,10 @@
  */
 
 import { SupervisorSurface } from '@/components/supervisor/SupervisorSurface';
+import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
 export default function SupervisorPage() {
-  return <SupervisorSurface />;
+  return (
+    <SurfaceBoundary><SupervisorSurface /></SurfaceBoundary>
+  );
 }
