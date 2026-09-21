@@ -374,7 +374,10 @@ ALLOWLIST_PHASE2: list[str] = [
     "web/app/invest/page.tsx::Authored substrate with attribution enforced",
     "web/app/invest/page.tsx::calibration flow back into the substrate. Li",
     "web/app/invest/page.tsx::Supabase), platform integrations, the author",
-    "web/components/queue/QueueBody.tsx::Decided by <span className=\"font-medium\">{oc",
+    # ADR-660 — the English copy went into the catalog (`supervisor.queue.decidedBy`,
+    # worded "Decided by {who}" / "{who}이(가) 결정해요"). What the scan still sees on
+    # this line is the SERVED FIELD NAME (`occupant.occupant_class`), never rendered.
+    "web/components/queue/QueueBody.tsx::who: occupant.display_label,",
     "web/components/workspace-concepts/SourcesCard.tsx::every wake — it shapes what your agent notic",
 ]
 
@@ -458,8 +461,13 @@ ALLOWLIST_PHASE4: list[str] = [
     # for a PAST signature stays; a label for a LIVE actor does not (the queue's
     # `verdictGiverLabel` mapped a live `ai:` identity and was fixed, and
     # decisions.ts::identityLabel did the same with no callers and was deleted).
-    "web/components/workspace-concepts/RevisionFootnote.tsx::if (authoredBy.startsWith('freddie:')) return 'Freddie';",
-    "web/lib/workspace/attribution.ts::      return 'Freddie';",
+    # ADR-660 moved both of these into the catalogs. The labelers are the same
+    # two, keyed on the same historical PREFIX — the English word simply lives
+    # in `messages/*.json` now, where this guard can finally read it. The entry
+    # count does not grow: two call sites became two catalog keys. The Korean
+    # value is deliberately identical (a name is not translated, ADR-660 D6).
+    'web/messages/en.json::"freddie": "Freddie",',
+    'web/messages/ko.json::"freddie": "Freddie",',
 ]
 
 

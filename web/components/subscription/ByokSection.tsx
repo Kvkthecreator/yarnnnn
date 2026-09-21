@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { api, APIError } from "@/lib/api/client";
 import { useFeedback } from "@/contexts/FeedbackContext";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ const PROVIDERS: { value: string; label: string }[] = [
 ];
 
 export function ByokSection() {
+  const t = useTranslations("billing.byok");
   const [status, setStatus] = useState<ByokStatus | null>(null);
   const [provider, setProvider] = useState<string>("anthropic");
   const [apiKey, setApiKey] = useState<string>("");
@@ -61,12 +63,12 @@ export function ByokSection() {
     setSaving(true);
     try {
       const s = await runAction(() => api.workspace.setByok(provider, apiKey.trim()), {
-        pending: "Saving your key\u2026",
-        success: "Key saved",
+        pending: t("savePending"),
+        success: t("saveSuccess"),
         error: (e) =>
           e instanceof APIError
-            ? (e.data as { detail?: string })?.detail || "Couldn't save that key"
-            : "Couldn't save that key",
+            ? (e.data as { detail?: string })?.detail || t("saveError")
+            : t("saveError"),
       });
       setStatus(s);
       setApiKey(""); // never keep the plaintext in state after save
@@ -83,14 +85,12 @@ export function ByokSection() {
     setToggling(true);
     try {
       const s = await runAction(() => api.workspace.toggleByok(turningOn), {
-        pending: turningOn ? "Turning on your keys\u2026" : "Turning off your keys\u2026",
-        success: turningOn
-          ? "Chat lanes now run on your keys"
-          : "Chat lanes are back on this workspace's allowance",
+        pending: turningOn ? t("onPending") : t("offPending"),
+        success: turningOn ? t("onSuccess") : t("offSuccess"),
         error: (e) =>
           e instanceof APIError
-            ? (e.data as { detail?: string })?.detail || "Couldn't change that setting"
-            : "Couldn't change that setting",
+            ? (e.data as { detail?: string })?.detail || t("toggleError")
+            : t("toggleError"),
       });
       setStatus(s);
     } catch {
@@ -104,12 +104,12 @@ export function ByokSection() {
     setToggling(true);
     try {
       const s = await runAction(() => api.workspace.clearByok(), {
-        pending: "Removing your key\u2026",
-        success: "Key removed",
+        pending: t("removePending"),
+        success: t("removeSuccess"),
         error: (e) =>
           e instanceof APIError
-            ? (e.data as { detail?: string })?.detail || "Couldn't remove that key"
-            : "Couldn't remove that key",
+            ? (e.data as { detail?: string })?.detail || t("removeError")
+            : t("removeError"),
       });
       setStatus(s);
     } catch {
@@ -123,35 +123,31 @@ export function ByokSection() {
     <section className="p-4 border border-border rounded-lg space-y-3">
       <div className="flex items-center gap-2">
         <KeyRound className="w-4 h-4 text-primary" />
-        <h3 className="font-medium">Your own keys (BYOK)</h3>
+        <h3 className="font-medium">{t("title")}</h3>
         {status?.enabled && status?.configured && (
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-            <Check className="w-3 h-3" /> Active
+            <Check className="w-3 h-3" /> {t("active")}
           </span>
         )}
       </div>
-      <p className="text-sm text-muted-foreground leading-relaxed">
-        Run your team&rsquo;s chat lanes on your organization&rsquo;s own LLM account. When on,
-        those model calls bill to your provider and draw nothing from this workspace&rsquo;s
-        allowance. The system agent always runs on our keys.
-      </p>
+      <p className="text-sm text-muted-foreground leading-relaxed">{t("lead")}</p>
 
       {/* Current key state */}
       {status?.configured ? (
         <div className="flex items-center justify-between gap-3 text-sm border-t border-border/60 pt-3">
           <div className="text-muted-foreground">
-            Key set for{" "}
+            {t("keySetFor")}{" "}
             <span className="font-medium text-foreground">
               {PROVIDERS.find((p) => p.value === status.provider)?.label ?? status.provider}
             </span>{" "}
-            · {status.enabled ? "in use" : "stored, currently off"}
+            · {status.enabled ? t("inUse") : t("storedOff")}
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={handleToggle} disabled={toggling}>
-              {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : status.enabled ? "Turn off" : "Turn on"}
+              {toggling ? <Loader2 className="w-4 h-4 animate-spin" /> : status.enabled ? t("turnOff") : t("turnOn")}
             </Button>
             <Button size="sm" variant="ghost" onClick={handleClear} disabled={toggling}>
-              Remove
+              {t("remove")}
             </Button>
           </div>
         </div>
@@ -162,7 +158,7 @@ export function ByokSection() {
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               className="rounded-md border border-border bg-transparent px-2 py-1.5 text-sm"
-              aria-label="BYOK provider"
+              aria-label={t("providerLabel")}
             >
               {PROVIDERS.map((p) => (
                 <option key={p.value} value={p.value}>
@@ -174,17 +170,15 @@ export function ByokSection() {
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Paste your provider API key"
+              placeholder={t("keyPlaceholder")}
               className="flex-1 rounded-md border border-border bg-transparent px-3 py-1.5 text-sm outline-none"
-              aria-label="Provider API key"
+              aria-label={t("keyLabel")}
             />
             <Button size="sm" onClick={handleSave} disabled={saving || !apiKey.trim()}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save key"}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : t("save")}
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Stored encrypted; never shown again after saving.
-          </p>
+          <p className="text-[11px] text-muted-foreground">{t("storedNote")}</p>
         </div>
       )}
     </section>

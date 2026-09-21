@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -92,10 +93,15 @@ interface ManageConnectionSubsurfaceProps {
   disconnecting?: boolean;
 }
 
-function relativeTime(iso?: string): string {
-  // Connector freshness labels (ADR-392 D5); time math via @/lib/formatting.
-  if (!iso) return "not reading yet";
-  if (Number.isNaN(new Date(iso).getTime())) return "unknown";
+/** Connector freshness labels (ADR-392 D5); time math via @/lib/formatting.
+ *  The two sentinel words are COPY, so they arrive from the caller's catalog
+ *  rather than being baked into a module-level function. */
+function relativeTime(
+  iso: string | undefined,
+  words: { none: string; unknown: string },
+): string {
+  if (!iso) return words.none;
+  if (Number.isNaN(new Date(iso).getTime())) return words.unknown;
   return formatRelativeTime(iso);
 }
 
@@ -129,9 +135,16 @@ export function ManageConnectionSubsurface({
   onDisconnect,
   disconnecting = false,
 }: ManageConnectionSubsurfaceProps) {
+  const t = useTranslations("billing.connection");
   const provider = meta.provider as SelectableProvider;
-  const resourceNoun = meta.resourceNoun ?? "sources";
-  const resourceNounSingular = resourceNoun.replace(/s$/, "");
+  // The noun a provider calls its slices ("channels" / "pages" / "repos").
+  // `meta.resourceNoun` is the registry's English; the catalog holds the same
+  // roster keyed by provider, so the word is chosen at RENDER. An unknown
+  // provider falls back to the generic noun, exactly as the registry does.
+  const resourceNoun = ["slack", "notion", "github"].includes(provider)
+    ? t(`nouns.${provider}`)
+    : t("nouns.default");
+  const timeWords = { none: t("notReadingYetLower"), unknown: t("unknownTime") };
 
   // Core connection facts (capture-signal + sources — one round-trip each).
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -199,12 +212,12 @@ export function ManageConnectionSubsurface({
       setCaptureEnabled(signal?.connector_capture_enabled ?? false);
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : `Could not load the ${provider} connection.`,
+        e instanceof Error ? e.message : t("loadError", { provider }),
       );
     } finally {
       setLoading(false);
     }
-  }, [provider]);
+  }, [provider, t]);
 
   const loadLandscape = useCallback(
     async (refresh?: boolean) => {
@@ -221,13 +234,13 @@ export function ManageConnectionSubsurface({
         );
       } catch (e) {
         setScopeError(
-          e instanceof Error ? e.message : `Could not list ${provider} ${resourceNoun}.`,
+          e instanceof Error ? e.message : t("listError", { provider, noun: resourceNoun }),
         );
       } finally {
         setScopeLoading(false);
       }
     },
-    [provider, resourceNoun],
+    [provider, resourceNoun, t],
   );
 
   useEffect(() => {
@@ -255,12 +268,12 @@ export function ManageConnectionSubsurface({
       await runAction(
         () => api.integrations.updateSources(provider, Array.from(selected)),
         {
-          pending: "Saving\u2026",
-          success: "Saved what this connection may read",
+          pending: t("savePending"),
+          success: t("saveSuccess"),
           error: (e) =>
             e instanceof APIError
-              ? (e.data as { detail?: string })?.detail || "Couldn't save that selection"
-              : "Couldn't save that selection",
+              ? (e.data as { detail?: string })?.detail || t("saveError")
+              : t("saveError"),
         },
       );
     } catch {
@@ -297,30 +310,32 @@ export function ManageConnectionSubsurface({
       const result = await api.integrations.getAuthorizationUrl(provider, back);
       window.location.href = result.authorization_url;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start reauthorization.");
+      setError(e instanceof Error ? e.message : t("reauthError"));
     }
   };
 
   // The honest connector-level freshness line. Item count is the number of
   // selectors captured, not message count (ADR-393 signal is thin).
   const freshnessLabel = (): string => {
-    if (!connectorFreshness?.observed_at) return "Not reading yet";
-    const when = relativeTime(connectorFreshness.observed_at);
+    if (!connectorFreshness?.observed_at) return t("notReadingYet");
+    const when = relativeTime(connectorFreshness.observed_at, timeWords);
     const status = connectorFreshness.status;
     const items =
       typeof connectorFreshness.items === "number"
-        ? ` · ${connectorFreshness.items} ${resourceNoun} read`
+        ? t("itemsRead", { count: connectorFreshness.items, noun: resourceNoun })
         : "";
-    const errored = status && status !== "ok" ? ` · ${status}` : "";
-    return `Last read ${when}${items}${errored}`;
+    const errored = status && status !== "ok" ? t("statusSuffix", { status }) : "";
+    return `${t("lastRead", { when })}${items}${errored}`;
   };
 
   const since = sinceLabel(connection?.connected_at);
   const probeLabel =
     probe &&
     (probe.status === "healthy"
-      ? `read OK · ${relativeTime(new Date(probe.at).toISOString())}`
-      : `${probe.status}${probe.errors?.length ? ` — ${probe.errors[0]}` : ""}`);
+      ? t("probeOk", { when: relativeTime(new Date(probe.at).toISOString(), timeWords) })
+      : probe.errors?.length
+        ? t("probeBad", { status: probe.status, error: probe.errors[0] })
+        : t("probeBadPlain", { status: probe.status }));
 
   // ADR-594 D1 — the landing grammar is FIXED: a connection is a rail
   // (consent + credential + aperture), it carries no placement choice.
@@ -335,26 +350,20 @@ export function ManageConnectionSubsurface({
       // "Try Refresh" would re-run the same honest empty; the real recovery
       // is re-consenting with pages picked (or sharing pages inside Notion).
       <div className="py-2">
-        <p className="text-sm text-muted-foreground">
-          No pages are shared with the yarnnn integration yet.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Notion grants access page-by-page. Reconnect and pick pages on
-          Notion&apos;s consent screen — or share pages to yarnnn inside Notion,
-          then Refresh.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("notionEmpty")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("notionEmptyHelp")}</p>
         <button
           type="button"
           onClick={() => void reconnect()}
           className="mt-2 inline-flex items-center gap-1 rounded-md border border-border/60 px-2.5 py-1 text-xs hover:bg-muted"
         >
-          Reconnect
+          {t("reconnect")}
           <ArrowUpRight className="h-3 w-3" />
         </button>
       </div>
     ) : (
       <p className="py-2 text-sm text-muted-foreground">
-        No {resourceNoun} discovered. Try Refresh.
+        {t("noneDiscovered", { noun: resourceNoun })}
       </p>
     );
 
@@ -367,7 +376,7 @@ export function ManageConnectionSubsurface({
         className="mb-4 inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Connections
+        {t("back")}
       </button>
 
       <div className="flex items-start gap-3">
@@ -393,7 +402,7 @@ export function ManageConnectionSubsurface({
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Connected{since ? ` · since ${since}` : ""}
+            {since ? t("connectedSince", { since }) : t("connected")}
           </p>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -402,12 +411,12 @@ export function ManageConnectionSubsurface({
             onClick={refreshAll}
             disabled={loading || scopeLoading}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            title="Re-discover from the platform"
+            title={t("refreshTitle")}
           >
             <RefreshCw
               className={`h-3 w-3 ${loading || scopeLoading ? "animate-spin" : ""}`}
             />
-            Refresh
+            {t("refresh")}
           </button>
           {/* The lifecycle verbs — one honest place (the Claude.ai shape). */}
           <div className="relative" ref={menuRef}>
@@ -416,7 +425,7 @@ export function ManageConnectionSubsurface({
               onClick={() => setMenuOpen((o) => !o)}
               disabled={disconnecting}
               className="inline-flex h-7 w-7 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-              aria-label="Connection actions"
+              aria-label={t("actionsLabel")}
             >
               {disconnecting ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -433,9 +442,9 @@ export function ManageConnectionSubsurface({
                     void reconnect();
                   }}
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                  title="Re-runs authorization; existing credentials are replaced"
+                  title={t("reconnectTitle")}
                 >
-                  <ArrowUpRight className="h-3 w-3" /> Reconnect
+                  <ArrowUpRight className="h-3 w-3" /> {t("reconnect")}
                 </button>
                 {onDisconnect && (
                   <button
@@ -446,7 +455,7 @@ export function ManageConnectionSubsurface({
                     }}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10"
                   >
-                    <Trash2 className="h-3 w-3" /> Disconnect
+                    <Trash2 className="h-3 w-3" /> {t("disconnect")}
                   </button>
                 )}
               </div>
@@ -457,7 +466,7 @@ export function ManageConnectionSubsurface({
 
       <div className="mt-4 flex-1 space-y-3 overflow-y-auto pb-2">
         {loading ? (
-          <Working label="Loading the connection…" fill />
+          <Working label={t("loading")} fill />
         ) : (
           <>
             {error && <p className="py-1 text-sm text-destructive">{error}</p>}
@@ -465,7 +474,7 @@ export function ManageConnectionSubsurface({
             {/* ═══ CONNECTION stratum ═══ */}
 
             {/* ACCESS — the consent fact. */}
-            <SectionShell title="Access">
+            <SectionShell title={t("accessTitle")}>
               {grantedScopes.length > 0 ? (
                 <div className="mb-2 flex flex-wrap gap-1">
                   {grantedScopes.map((s) => (
@@ -479,8 +488,7 @@ export function ManageConnectionSubsurface({
                 </div>
               ) : (
                 <p className="mb-2 text-xs text-muted-foreground">
-                  Access is set in {meta.displayName}, for the {resourceNoun} you shared when you
-                  connected.
+                  {t("accessNote", { provider: meta.displayName, noun: resourceNoun })}
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-3">
@@ -495,7 +503,7 @@ export function ManageConnectionSubsurface({
                   ) : (
                     <ShieldCheck className="h-3 w-3" />
                   )}
-                  Test connection
+                  {t("testConnection")}
                 </button>
                 {probeLabel && (
                   <span
@@ -516,27 +524,27 @@ export function ManageConnectionSubsurface({
                 from the machinery that enacts them (capture binding · exporter
                 registry · the ADR-577 refusal). Facts, not controls. */}
             {does && (
-              <SectionShell title="What this connection does">
+              <SectionShell title={t("doesTitle")}>
                 <dl className="space-y-1.5 text-xs">
                   <div className="flex gap-2">
-                    <dt className="w-14 shrink-0 font-medium">Reads</dt>
+                    <dt className="w-14 shrink-0 font-medium">{t("reads")}</dt>
                     <dd className="text-muted-foreground">
                       {does.reads}
-                      {!captureEnabled && " (background reading paused)"}
+                      {!captureEnabled && t("capturePaused")}
                     </dd>
                   </div>
                   <div className="flex gap-2">
-                    <dt className="w-14 shrink-0 font-medium">Writes</dt>
+                    <dt className="w-14 shrink-0 font-medium">{t("writes")}</dt>
                     <dd className="text-muted-foreground">{does.writes}</dd>
                   </div>
                   {does.chat && (
                     <div className="flex gap-2">
-                      <dt className="w-14 shrink-0 font-medium">Chat</dt>
+                      <dt className="w-14 shrink-0 font-medium">{t("chat")}</dt>
                       <dd className="text-muted-foreground">{does.chat}</dd>
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <dt className="w-14 shrink-0 font-medium">Agents</dt>
+                    <dt className="w-14 shrink-0 font-medium">{t("agents")}</dt>
                     <dd className="text-muted-foreground">{does.agents}</dd>
                   </div>
                 </dl>
@@ -546,15 +554,13 @@ export function ManageConnectionSubsurface({
             {/* ═══ CAPTURE stratum — the background writer's configuration,
                 one consumer block: selection + destination.
                 Collapsed to one honest line while the lane is dormant. ═══ */}
-            <SectionShell title="What it reads">
+            <SectionShell title={t("readsTitle")}>
               {!captureEnabled && (
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground">
-                    Nothing runs on a schedule. Copies are saved when something
-                    you set up reads this connection, like a kept-current file or
-                    a chat.
+                    {t("dormantNote")}
                     {selected.size > 0 &&
-                      ` ${selected.size} ${resourceNoun} in scope.`}
+                      t("inScope", { count: selected.size, noun: resourceNoun })}
                   </p>
                   <button
                     type="button"
@@ -563,11 +569,11 @@ export function ManageConnectionSubsurface({
                   >
                     {captureExpanded ? (
                       <>
-                        Hide configuration <ChevronDown className="h-3 w-3" />
+                        {t("hideConfiguration")} <ChevronDown className="h-3 w-3" />
                       </>
                     ) : (
                       <>
-                        Configure <ChevronRight className="h-3 w-3" />
+                        {t("configure")} <ChevronRight className="h-3 w-3" />
                       </>
                     )}
                   </button>
@@ -577,17 +583,14 @@ export function ManageConnectionSubsurface({
               {captureExpanded && (
                 <div className={captureEnabled ? "" : "mt-3"}>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    Only the {resourceNoun} you choose here are read. Copies are
-                    saved in your workspace under this connection&apos;s name. Nothing
-                    is ever chosen for you.
-                    {provider === "github" &&
-                      " For GitHub, this also limits which repos a chat can answer about. Choose none to allow all."}
+                    {t("chooseNote", { noun: resourceNoun })}
+                    {provider === "github" && t("githubNote")}
                   </p>
 
                   {scopeLoading ? (
                     <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Discovering {resourceNoun}…
+                      {t("discovering", { noun: resourceNoun })}
                     </div>
                   ) : scopeError ? (
                     // Discovery failed — scoped here so ACCESS (Test/Reconnect)
@@ -595,19 +598,15 @@ export function ManageConnectionSubsurface({
                     // means the token no longer authenticates.
                     <div className="py-2">
                       <p className="text-sm text-destructive">
-                        Couldn&apos;t list {resourceNoun}: {scopeError}
+                        {t("listFailed", { noun: resourceNoun, error: scopeError })}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        This usually means the connection&apos;s authorization
-                        has expired — Reconnect to refresh it, then Refresh
-                        here.
-                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{t("listFailedHelp")}</p>
                       <button
                         type="button"
                         onClick={() => void reconnect()}
                         className="mt-2 inline-flex items-center gap-1 rounded-md border border-border/60 px-2.5 py-1 text-xs hover:bg-muted"
                       >
-                        Reconnect
+                        {t("reconnect")}
                         <ArrowUpRight className="h-3 w-3" />
                       </button>
                     </div>
@@ -640,7 +639,7 @@ export function ManageConnectionSubsurface({
                                 a pre-check (auto-selection died 2026-08-19). */}
                             {r.recommended && !on && (
                               <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                Suggested
+                                {t("suggested")}
                               </span>
                             )}
                           </button>
@@ -658,12 +657,12 @@ export function ManageConnectionSubsurface({
                         className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                       >
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        Save selection
+                        {t("saveSelection")}
                       </button>
                       <span className="text-xs text-muted-foreground">
                         {selected.size === 0
-                          ? `nothing selected — the writer captures nothing`
-                          : `${selected.size} selected`}
+                          ? t("nothingSelected")
+                          : t("selectedCount", { count: selected.size })}
                       </span>
                     </div>
                   )}
@@ -675,9 +674,9 @@ export function ManageConnectionSubsurface({
                       {/* ADR-594 D1: the landing grammar is fixed — no
                           destination dial. Snapshots stay until something
                           removes them (no GC sweeps this lane). */}
-                      Snapshots land as attributed observation files under{" "}
-                      <span className="font-mono">{defaultLane}</span>, and stay
-                      until something removes them — kept, not swept.
+                      {t.rich("landingNote", {
+                        path: () => <span className="font-mono">{defaultLane}</span>,
+                      })}
                     </p>
                   </div>
                 </div>
@@ -687,22 +686,19 @@ export function ManageConnectionSubsurface({
             {/* YIELD — the writer's read-back (connector grain).
                 ADR-404 D2: hidden while the capture lane is dormant. */}
             {captureEnabled && (
-              <SectionShell title="What it brought in">
+              <SectionShell title={t("yieldTitle")}>
                 <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <span>{freshnessLabel()}</span>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  What it reads is saved in Downloads under this connection&apos;s
-                  name, ready to open and to build from.
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">{t("yieldNote")}</p>
                 {connectorFreshness?.observed_at && (
                   <SurfaceLink
                     to="files"
                     params={{ path: filesPath }}
                     className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                   >
-                    View captured files
+                    {t("viewCaptured")}
                     <ArrowUpRight className="h-3 w-3" />
                   </SurfaceLink>
                 )}

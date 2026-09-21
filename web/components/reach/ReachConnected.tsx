@@ -32,6 +32,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ArrowRight, ChevronRight, FolderOpen, Plug, Plus } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, type StandingSummary } from '@/lib/api/client';
@@ -82,6 +83,7 @@ export function ReachConnected() {
   const { navigateToSurface } = useSurfacePreferences();
   const surfaceParam = useSurfaceParam('reach');
   const { confirm: confirmDialog, runAction } = useFeedback();
+  const t = useTranslations('reach');
   const [rows, setRows] = useState<Integration[] | null>(null);
   const [standing, setStanding] = useState<StandingSummary[]>([]);
   const [freshness, setFreshness] = useState<Record<string, Freshness>>({});
@@ -167,18 +169,18 @@ export function ReachConnected() {
   const handleDisconnect = async (provider: string) => {
     const label = connectorMeta(provider)?.displayName ?? provider.replace(/^mcp:/, '');
     const ok = await confirmDialog({
-      title: `Disconnect ${label}?`,
-      body: `You'll need to reconnect to reach ${label} again.`,
-      confirmLabel: 'Disconnect',
+      title: t('disconnectConfirm.title', { name: label }),
+      body: t('disconnectConfirm.body', { name: label }),
+      confirmLabel: t('disconnectConfirm.confirmLabel'),
       danger: true,
     });
     if (!ok) return;
     setDisconnecting(provider);
     try {
       await runAction(() => api.integrations.disconnect(provider), {
-        pending: `Disconnecting ${label}…`,
-        success: `${label} disconnected`,
-        error: `Couldn't disconnect ${label}. Nothing changed.`,
+        pending: t('disconnectConfirm.pending', { name: label }),
+        success: t('disconnectConfirm.success', { name: label }),
+        error: t('disconnectConfirm.error', { name: label }),
       });
       openConnector(null);
       reload();
@@ -229,17 +231,15 @@ export function ReachConnected() {
   }
 
   if (rows === null) {
-    return <Working label="Loading connections…" fill />;
+    return <Working label={t('list.loading')} fill />;
   }
 
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border/60 px-6 py-10 text-center">
         <Plug className="mx-auto mb-3 h-6 w-6 text-muted-foreground/40" />
-        <p className="text-sm font-medium text-foreground/80">Nothing is connected yet</p>
-        <p className="mt-1 text-xs text-muted-foreground/70">
-          Connect Slack, Notion, GitHub, or WordPress, and this page shows what each one reads and writes.
-        </p>
+        <p className="text-sm font-medium text-foreground/80">{t('list.emptyTitle')}</p>
+        <p className="mt-1 text-xs text-muted-foreground/70">{t('list.emptyBody')}</p>
         {error && <p className="mt-2 text-[11px] text-destructive">{error}</p>}
         <button
           type="button"
@@ -247,7 +247,7 @@ export function ReachConnected() {
           className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
         >
           <Plus className="h-3.5 w-3.5" />
-          New connection
+          {t('list.newConnection')}
         </button>
         {finderOpen && (
           <FindConnectorModal
@@ -287,7 +287,7 @@ export function ReachConnected() {
           className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
         >
           <Plus className="h-3.5 w-3.5" />
-          New connection
+          {t('list.newConnection')}
         </button>
       </div>
       <ul className="space-y-3">
@@ -323,7 +323,7 @@ export function ReachConnected() {
                         type="button"
                         onClick={() => openConnector(i.provider)}
                         className="group inline-flex items-center gap-1 text-sm font-medium text-foreground hover:underline"
-                        title={`Manage ${name}`}
+                        title={t('list.manage', { name })}
                       >
                         {name}
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 group-hover:text-foreground" />
@@ -339,7 +339,7 @@ export function ReachConnected() {
                     />
                     {attached && (
                       <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        attached
+                        {t('list.attached')}
                       </span>
                     )}
                     {/* A held connection with no drill-in (a RETIRED api-key
@@ -354,31 +354,38 @@ export function ReachConnected() {
                         onClick={() => handleDisconnect(i.provider)}
                         className="ml-auto shrink-0 text-[11px] text-muted-foreground hover:text-destructive disabled:opacity-50"
                       >
-                        {disconnecting === i.provider ? 'Disconnecting…' : 'Disconnect'}
+                        {disconnecting === i.provider ? t('list.disconnecting') : t('list.disconnect')}
                       </button>
                     )}
                   </div>
                   <dl className="mt-2 space-y-1 text-[11px]">
-                    {i.does?.reads && <Fact label="Reads" text={i.does.reads} />}
-                    {i.does?.writes && <Fact label="Writes" text={i.does.writes} />}
+                    {i.does?.reads && <Fact label={t('facts.reads')} text={i.does.reads} />}
+                    {i.does?.writes && <Fact label={t('facts.writes')} text={i.does.writes} />}
                     {/* ADR-644 — the same structure the agent is told: what an
                         agent holds through this connection, in one line. */}
                     {i.reach && (
                       <Fact
-                        label="Agents"
+                        label={t('facts.agents')}
                         text={
                           i.reach.agent_writes.length > 0
-                            ? 'Can post here once you approve it in To do'
+                            ? t('facts.agentsCanPost')
                             : i.reach.reads.length > 0
-                              ? 'Read only. Cannot send'
-                              : 'None. Only what you send yourself goes through'
+                              ? t('facts.agentsReadOnly')
+                              : t('facts.agentsNone')
                         }
                       />
                     )}
                     {attached && (
                       <Fact
-                        label="Exposes"
-                        text={`${i.tools_exposed ?? 0} tool${i.tools_exposed === 1 ? '' : 's'} available in chat${i.category ? ` · ${i.category}` : ''}`}
+                        label={t('facts.exposes')}
+                        text={
+                          i.category
+                            ? t('facts.exposesToolsCategory', {
+                                count: i.tools_exposed ?? 0,
+                                category: i.category,
+                              })
+                            : t('facts.exposesTools', { count: i.tools_exposed ?? 0 })
+                        }
                       />
                     )}
                     {/* ADR-635 D4 am.1 — the server moved under the member's
@@ -388,14 +395,17 @@ export function ReachConnected() {
                         where they already look; the fix is one click away. */}
                     {attached && (i.drift?.withdrawn.length || i.drift?.appeared.length) ? (
                       <Fact
-                        label="Changed"
+                        label={t('facts.changed')}
                         tone={i.drift.withdrawn.length > 0 ? 'warn' : 'muted'}
                         text={[
                           i.drift.withdrawn.length > 0
-                            ? `${i.drift.withdrawn.length} tool${i.drift.withdrawn.length === 1 ? '' : 's'} you allowed ${i.drift.withdrawn.length === 1 ? 'is' : 'are'} gone from this server (${i.drift.withdrawn.join(', ')})`
+                            ? t('facts.changedWithdrawn', {
+                                count: i.drift.withdrawn.length,
+                                names: i.drift.withdrawn.join(', '),
+                              })
                             : null,
                           i.drift.appeared.length > 0
-                            ? `${i.drift.appeared.length} new tool${i.drift.appeared.length === 1 ? '' : 's'} offered, none allowed yet`
+                            ? t('facts.changedAppeared', { count: i.drift.appeared.length })
                             : null,
                         ]
                           .filter(Boolean)
@@ -407,11 +417,16 @@ export function ReachConnected() {
                         read that is coming. Shown only where a capture exists. */}
                     {fresh && !(i.does?.reads ?? '').startsWith('nothing') && (
                       <Fact
-                        label="Last read"
+                        label={t('facts.lastRead')}
                         text={
                           fresh.observedAt
-                            ? `${formatRelativeTime(fresh.observedAt)}${fresh.items ? ` · ${fresh.items} items` : ''}`
-                            : 'not reading yet'
+                            ? fresh.items
+                              ? t('facts.lastReadAtItems', {
+                                  when: formatRelativeTime(fresh.observedAt),
+                                  count: fresh.items,
+                                })
+                              : formatRelativeTime(fresh.observedAt)
+                            : t('facts.lastReadNever')
                         }
                         tone={fresh.lastError ? 'warn' : 'muted'}
                       />
@@ -420,7 +435,7 @@ export function ReachConnected() {
                       <div className="flex gap-2">
                         {/* The declarations are THIS WORKSPACE's (substrate);
                             the connection is the viewer's (account). Say so. */}
-                        <dt className="w-16 shrink-0 text-muted-foreground/60" title="Standing work in this workspace that reads through this connection">Read by</dt>
+                        <dt className="w-16 shrink-0 text-muted-foreground/60" title={t('facts.readByHint')}>{t('facts.readBy')}</dt>
                         <dd className="flex flex-wrap gap-1">
                           {readers.map((d) => (
                             <button
@@ -430,7 +445,7 @@ export function ReachConnected() {
                                 navigateToSurface('files', { path: d.target_path ?? d.declaration_path })
                               }
                               className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
-                              title="Open the file this standing work keeps"
+                              title={t('facts.readerOpenHint')}
                             >
                               <FolderOpen className="h-3 w-3" />
                               {d.topic}
@@ -463,7 +478,7 @@ export function ReachConnected() {
           itself sits at the TOP of the pane (the create affordance a reader
           looks for before scanning the list), not below the roster. */}
       <p className="pt-1 text-[11px] leading-snug text-muted-foreground/70">
-        Your connections go where you go. Open one to choose what this workspace reads through it.
+        {t('list.yoursGoWithYou')}
       </p>
 
       {/* ADR-645 D3 / ADR-496 D1 — the INBOUND half of the boundary: external
@@ -472,11 +487,8 @@ export function ReachConnected() {
           belongs here because it is reach. READ-ONLY — governance stays
           singular in WorkspaceMembersCard (workspace-settings → members). */}
       <div className="border-t border-border/60 pt-6">
-        <h3 className="mb-1 text-sm font-medium">Your AI connections</h3>
-        <p className="mb-3 text-xs text-muted-foreground">
-          AI assistants you&apos;ve connected from outside. Each one works under your account,
-          in this workspace only.
-        </p>
+        <h3 className="mb-1 text-sm font-medium">{t('aiConnections.title')}</h3>
+        <p className="mb-3 text-xs text-muted-foreground">{t('aiConnections.body')}</p>
         <WorkspaceMembersCard
           variant="compact"
           scope="mine"
@@ -487,7 +499,7 @@ export function ReachConnected() {
               params={{ pane: 'members' }}
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
-              Manage access for everyone in the workspace
+              {t('aiConnections.manageAccess')}
               <ArrowRight className="h-3 w-3" />
             </SurfaceLink>
           }

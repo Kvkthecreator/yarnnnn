@@ -31,6 +31,8 @@
  *     panes stay dormant in SystemAgentPanes; /system-agent is a redirect stub.
  */
 
+import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { AlertTriangle, BarChart3, Building2, CreditCard, Plus, Users } from "lucide-react";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 // ADR-491 D1 (2026-07-28) — Billing + Usage return to THIS door (the third and
@@ -80,7 +82,13 @@ import { WorkspaceCreatePane } from "@/components/workspace-concepts/WorkspaceCr
 // resolves here. ADR-415: connectors/sources re-homed here (Channels dissolved).
 // ADR-454 D4 (2026-07-13): the door set is Access (Members) · System
 // (Autonomy · Budget — back from the reversed ADR-426 door).
-const PANE_GROUPS: PaneGroup[] = [
+// ADR-660 — the labels are worded at RENDER, never at import: a module-level
+// table is evaluated before any member's language is known. Same table, same
+// order, same keys; only the label strings come from the catalog.
+function buildPaneGroups(
+  t: ReturnType<typeof useTranslations<"workspaceSettings.door">>,
+): PaneGroup[] {
+  return [
   // ADR-421 (2026-07-08): the Constitution group is REMOVED. A workspace has no
   // constitution of its own — mandate/identity/principles are per-agent concepts
   // (ADR-414 D6): a hired agent's declared intent + persona + judgment framework,
@@ -112,15 +120,15 @@ const PANE_GROUPS: PaneGroup[] = [
   {
     // Workspace identity phase 1 (2026-08-14) — the workspace's own name +
     // icon. What the switcher, invite emails, and invite/share landings show.
-    label: "Workspace",
+    label: t("groups.workspace"),
     panes: [
-      { key: "general", label: "General", icon: Building2 },
+      { key: "general", label: t("panes.general"), icon: Building2 },
       // Deliberate genesis (ADR-465 D2), 2026-08-18 operator ruling: the
       // workspace door, not the account door — a workspace is the billing unit
       // (ADR-416) and a commons (ADR-378), not a personal object. Its own pane
       // rather than a button inside General: General edits THIS workspace's
       // identity; creating another one is not a property of it.
-      { key: "create", label: "Create Workspace", icon: Plus },
+      { key: "create", label: t("panes.create"), icon: Plus },
     ],
   },
   {
@@ -128,19 +136,19 @@ const PANE_GROUPS: PaneGroup[] = [
     // external LLMs over MCP, platforms) can write to this workspace, and
     // what region each holds. Read-only legibility; provisioning is a
     // separate ADR.
-    label: "Access",
+    label: t("groups.access"),
     panes: [
-      { key: "members", label: "Workspace Members", icon: Users },
+      { key: "members", label: t("panes.members"), icon: Users },
     ],
   },
   {
     // ADR-491 D1 — the workspace's money. Billing is authority-gated (the
     // owner's verbs; a member sees the calm pointer state); Usage is
     // member-visible legibility. Each pane names the workspace it bills.
-    label: "Billing",
+    label: t("groups.billing"),
     panes: [
-      { key: "billing", label: "Billing", icon: CreditCard },
-      { key: "usage", label: "Usage", icon: BarChart3 },
+      { key: "billing", label: t("panes.billing"), icon: CreditCard },
+      { key: "usage", label: t("panes.usage"), icon: BarChart3 },
     ],
   },
   // ADR-551 — the SYSTEM AGENT group is REMOVED (reversing ADR-491 D4, which
@@ -168,12 +176,15 @@ const PANE_GROUPS: PaneGroup[] = [
     // are workspace-scope, not account-scope. They moved here from System
     // Settings → Account, which keeps the genuinely account-scoped actions
     // (a member's own connections, account reset, deactivation).
-    label: "Danger Zone",
-    panes: [{ key: "danger", label: "Clear Workspace", icon: AlertTriangle }],
+    label: t("groups.dangerZone"),
+    panes: [{ key: "danger", label: t("panes.danger"), icon: AlertTriangle }],
   },
-];
+  ];
+}
 
 export default function WorkspaceSettingsPage() {
+  const t = useTranslations("workspaceSettings.door");
+  const paneGroups = useMemo(() => buildPaneGroups(t), [t]);
   // ADR-412 D6 — the roster read is the surface's access probe. It is already
   // fetched once per workspace bind and cached, so this adds no request.
   const { forbidden: accessRefused } = useWorkspaceMembers();
@@ -199,8 +210,8 @@ export default function WorkspaceSettingsPage() {
           <section className="mb-8">
             <PaneHeader
               icon={Building2}
-              title="General"
-              subtitle="This workspace's name and icon, as members see them."
+              title={t("panes.general")}
+              subtitle={t("generalSubtitle")}
               bordered={false}
             />
             <WorkspaceGeneralPane />
@@ -227,8 +238,8 @@ export default function WorkspaceSettingsPage() {
           <section className="mb-8">
             <PaneHeader
               icon={CreditCard}
-              title="Billing"
-              subtitle="This workspace's plan, seats, and balance."
+              title={t("panes.billing")}
+              subtitle={t("billingSubtitle")}
               bordered={false}
             />
             <BillingPaneBody />
@@ -239,8 +250,8 @@ export default function WorkspaceSettingsPage() {
           <section className="mb-8">
             <PaneHeader
               icon={BarChart3}
-              title="Usage"
-              subtitle="What ran in this workspace, what it drew from the balance, and who ran it."
+              title={t("panes.usage")}
+              subtitle={t("usageSubtitle")}
               bordered={false}
             />
             <UsagePaneBody />
@@ -257,8 +268,8 @@ export default function WorkspaceSettingsPage() {
           <section className="mb-8">
             <PaneHeader
               icon={AlertTriangle}
-              title="Clear Workspace"
-              subtitle="Remove this workspace's shared content. These actions affect every member's work and cannot be undone."
+              title={t("panes.danger")}
+              subtitle={t("dangerSubtitle")}
               bordered={false}
             />
             <WorkspaceDangerZone />
@@ -281,19 +292,15 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className="mx-auto max-w-lg px-6 py-16 text-center">
         <h1 className="text-base font-semibold text-foreground">
-          You don&rsquo;t have access to this workspace
+          {t("refusedTitle")}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your access may have been revoked, or you may be viewing a workspace
-          you were never added to. Switch workspaces from the avatar menu, or
-          ask the owner to invite you again.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{t("refusedBody")}</p>
       </div>
     );
   }
 
   return (
-    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="members" renderPane={renderPane} />
+    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={paneGroups} defaultPane="members" renderPane={renderPane} />
   );
 }
 

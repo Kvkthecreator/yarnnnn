@@ -35,6 +35,7 @@
  */
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { UserRoundPlus, X } from "lucide-react";
 import { Working } from '@/components/shared/Working';
 import { useWorkspaceMembers } from "@/lib/workspace/viewer";
@@ -60,6 +61,7 @@ export function SeatPanel({
   seatPriceUsd: number;
   onClose: () => void;
 }) {
+  const t = useTranslations("billing.seats");
   const { members } = useWorkspaceMembers();
   const { navigateToSurface } = useSurfacePreferences();
   const [busy, setBusy] = useState(false);
@@ -78,7 +80,11 @@ export function SeatPanel({
   // Derived by position so it always matches the backend's arithmetic rather
   // than restating it: the first `included_seats` humans are covered.
   const rowPrice = (i: number) =>
-    exempt ? "comped" : i < includedSeats ? "included" : `${money(seatPriceUsd)}/mo`;
+    exempt
+      ? t("comped")
+      : i < includedSeats
+        ? t("included")
+        : t("perMonth", { amount: money(seatPriceUsd) });
 
   const goToRoster = () => {
     setBusy(true);
@@ -90,16 +96,16 @@ export function SeatPanel({
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-medium">Seats on this workspace</h3>
+          <h3 className="text-base font-medium">{t("title")}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {humans.length} {humans.length === 1 ? "person" : "people"}
-            {!exempt && billable > 0 && ` · ${billable} billed`}
+            {t("people", { count: humans.length })}
+            {!exempt && billable > 0 && t("billedSuffix", { count: billable })}
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close seats panel"
+          aria-label={t("close")}
           className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <X className="h-4 w-4" />
@@ -110,13 +116,17 @@ export function SeatPanel({
           panel: a seat charge attributable to a NAME, not an opaque total. */}
       <div className="rounded-lg border border-border divide-y divide-border/60">
         {humans.length === 0 ? (
-          <Working label="Loading the roster…" className="px-3 py-3 text-sm" />
+          <Working label={t("loadingRoster")} className="px-3 py-3 text-sm" />
         ) : (
           humans.map((m, i) => (
             <div key={m.principal_id} className="flex items-center justify-between gap-3 px-3 py-2.5">
               <div className="min-w-0">
-                <div className="truncate text-sm">{m.label ?? "A member"}</div>
-                <div className="text-[11px] capitalize text-muted-foreground">{m.role}</div>
+                <div className="truncate text-sm">{m.label ?? t("unnamedMember")}</div>
+                {/* The role is a kernel enum made English by CSS `capitalize`;
+                    it gets catalog keys here, and the class goes with it. */}
+                <div className="text-[11px] text-muted-foreground">
+                  {m.role === "owner" ? t("roleOwner") : t("roleMember")}
+                </div>
               </div>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                 {rowPrice(i)}
@@ -128,8 +138,10 @@ export function SeatPanel({
         {/* The total, on the same rule as the rows it sums. */}
         {!exempt && humans.length > 0 && (
           <div className="flex items-center justify-between gap-3 bg-muted/40 px-3 py-2.5">
-            <span className="text-sm font-medium">Seat total</span>
-            <span className="text-sm font-medium tabular-nums">{money(seatTotal)}/mo</span>
+            <span className="text-sm font-medium">{t("total")}</span>
+            <span className="text-sm font-medium tabular-nums">
+              {t("totalPerMonth", { amount: money(seatTotal) })}
+            </span>
           </div>
         )}
       </div>
@@ -146,26 +158,26 @@ export function SeatPanel({
       >
         <span className="flex items-center gap-2.5">
           <UserRoundPlus className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Invite a teammate</span>
+          <span className="text-sm font-medium">{t("invite")}</span>
         </span>
         <span className="shrink-0 text-xs text-muted-foreground">
           {/* ADR-490 — the price the NEXT invite actually carries: free while
               the workspace is under its two included seats, priced beyond. */}
           {exempt
-            ? "comped"
+            ? t("comped")
             : humans.length < includedSeats
-              ? "included"
-              : `+${money(seatPriceUsd)}/mo`}
+              ? t("included")
+              : t("plusPerMonth", { amount: money(seatPriceUsd) })}
         </span>
       </button>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
         {exempt
-          ? "This workspace is comped — people are free to add, and no seat charge applies."
-          : `Seat ${includedSeats === 1 ? "1 (you) is" : `1–${includedSeats} are`} included. ` +
-            "Each additional person is a billed seat, charged from your next renewal; " +
-            "removing someone stops their seat at the same boundary. "}
-        AI connections are always free and never count as seats.
+          ? t("exemptNote")
+          : includedSeats === 1
+            ? t("includedOne")
+            : t("includedMany", { count: includedSeats })}
+        {t("aiFree")}
       </p>
     </div>
   );

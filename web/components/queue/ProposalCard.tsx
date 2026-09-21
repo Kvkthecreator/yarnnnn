@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   CheckCircle2, XCircle, Clock, ShieldAlert, Loader2,
   AlertCircle, ShieldCheck, ShieldX, ShieldQuestion, Hexagon,
@@ -21,7 +22,7 @@ import {
 import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useFeedback } from '@/contexts/FeedbackContext';
-import { proposalActionLabel, proposalQueuedByDialLine } from '@/lib/proposal-labels';
+import { useProposalLabels } from '@/lib/proposal-labels';
 import { InteractiveModal } from './InteractiveModal';
 
 // ---------------------------------------------------------------------------
@@ -77,44 +78,55 @@ interface NormalizedProposal {
   diff?: { path: string; before: string; after: string };
 }
 
-function normalizeProposal(p: ProposalData): NormalizedProposal {
-  const dc = (p.decision_context ?? {}) as Record<string, unknown>;
-  if (p.family === 'substrate') {
-    const diff = dc.diff as { path: string; before: string; after: string } | undefined;
-    const path = (dc.path as string) ?? diff?.path ?? '';
+/** ADR-660 — the fallback sentences are the CLIENT's (a served `message`,
+ *  `title` or `preview` still rides as it came), so normalizing words them:
+ *  a hook, not a module function. */
+function useNormalizeProposal() {
+  const t = useTranslations('supervisor.proposal');
+  return (p: ProposalData): NormalizedProposal => {
+    const dc = (p.decision_context ?? {}) as Record<string, unknown>;
+    if (p.family === 'substrate') {
+      const diff = dc.diff as { path: string; before: string; after: string } | undefined;
+      const path = (dc.path as string) ?? diff?.path ?? '';
+      return {
+        rationale: (dc.message as string) || t('writeTo', { path }),
+        expected_effect: path
+          ? t('updatesPath', { path, mode: (dc.mode as string) ?? t('modeOverwrite') })
+          : '',
+        reversibility: 'reversible', // substrate writes revert via the revision chain (ADR-209)
+        risk_warnings: [],
+        diff,
+      };
+    }
+    if (p.family === 'external-write') {
+      // ADR-307 external-write: the decision_context is {effect, gate_reason}.
+      // Render the effect preview (channel/recipient/title + content preview) as
+      // the expected_effect line — the operator approves a *send*, not a diff.
+      const effect = (dc.effect ?? {}) as Record<string, unknown>;
+      const preview = (effect.preview as string) ?? '';
+      const target =
+        (effect.channel as string) ??
+        (effect.to as string) ??
+        (effect.page as string) ??
+        (effect.parent as string) ??
+        '';
+      return {
+        rationale:
+          (effect.title as string) || (target ? t('sendTo', { target }) : t('outboundMessage')),
+        expected_effect: [target ? t('toTarget', { target }) : '', preview]
+          .filter(Boolean)
+          .join(' — '),
+        reversibility: 'soft-reversible',
+        risk_warnings: [],
+      };
+    }
+    // capital family
     return {
-      rationale: (dc.message as string) || `Write to ${path}`,
-      expected_effect: path ? `Updates ${path} (${(dc.mode as string) ?? 'overwrite'}).` : '',
-      reversibility: 'reversible', // substrate writes revert via the revision chain (ADR-209)
-      risk_warnings: [],
-      diff,
+      rationale: (dc.rationale as string) ?? '',
+      expected_effect: (dc.expected_effect as string) ?? '',
+      reversibility: dc.reversibility as string | undefined,
+      risk_warnings: (dc.risk_warnings as string[]) ?? [],
     };
-  }
-  if (p.family === 'external-write') {
-    // ADR-307 external-write: the decision_context is {effect, gate_reason}.
-    // Render the effect preview (channel/recipient/title + content preview) as
-    // the expected_effect line — the operator approves a *send*, not a diff.
-    const effect = (dc.effect ?? {}) as Record<string, unknown>;
-    const preview = (effect.preview as string) ?? '';
-    const target =
-      (effect.channel as string) ??
-      (effect.to as string) ??
-      (effect.page as string) ??
-      (effect.parent as string) ??
-      '';
-    return {
-      rationale: (effect.title as string) || (target ? `Send to ${target}` : 'Outbound message'),
-      expected_effect: [target ? `To: ${target}` : '', preview].filter(Boolean).join(' — '),
-      reversibility: 'soft-reversible',
-      risk_warnings: [],
-    };
-  }
-  // capital family
-  return {
-    rationale: (dc.rationale as string) ?? '',
-    expected_effect: (dc.expected_effect as string) ?? '',
-    reversibility: dc.reversibility as string | undefined,
-    risk_warnings: (dc.risk_warnings as string[]) ?? [],
   };
 }
 
@@ -140,28 +152,38 @@ type AgentPosture = 'approve_advisory' | 'defer' | 'rejected' | 'none';
 /** ADR-307: human label from (primitive, family). ADR-340 P4 F3: the
  * inline implementation consolidated into the shared lib/proposal-labels
  * module (Singular Implementation — same labeler as the Home decision
- * slot + AttentionCenter). */
-function formatProposalLabel(p: ProposalData): string {
-  return proposalActionLabel(p);
-}
+ * slot + AttentionCenter). ADR-660: it words through the catalog, so the
+ * one labeler is a hook. */
+function useProposalWords() {
+  const t = useTranslations('supervisor.proposal');
 
-function formatExpiresAt(iso: string): string {
-  const expires = new Date(iso).getTime();
-  const now = Date.now();
-  const diffMs = expires - now;
-  if (diffMs <= 0) return 'expired';
-  const hours = Math.floor(diffMs / 3_600_000);
-  const mins = Math.floor((diffMs % 3_600_000) / 60_000);
-  if (hours >= 1) return `in ${hours}h ${mins}m`;
-  return `in ${mins}m`;
-}
+  const expiresIn = (iso: string): string => {
+    const expires = new Date(iso).getTime();
+    const now = Date.now();
+    const diffMs = expires - now;
+    if (diffMs <= 0) return t('expired');
+    const hours = Math.floor(diffMs / 3_600_000);
+    const mins = Math.floor((diffMs % 3_600_000) / 60_000);
+    if (hours >= 1) return t('inHoursMinutes', { hours, minutes: mins });
+    return t('inMinutes', { minutes: mins });
+  };
 
-function reversibilityLabel(r?: string): string {
-  if (!r) return '';
-  if (r === 'reversible') return 'Reversible';
-  if (r === 'soft-reversible') return 'Soft-reversible';
-  if (r === 'irreversible') return 'Irreversible';
-  return r;
+  const reversibilityLabel = (r?: string): string => {
+    if (!r) return '';
+    if (r === 'reversible') return t('reversible');
+    if (r === 'soft-reversible') return t('softReversible');
+    if (r === 'irreversible') return t('irreversible');
+    return r;
+  };
+
+  /** 2026-09-18 — this returned the literal 'Freddie' for every non-human
+   *  reviewer, so the To do queue credited a seat ADR-632 retired. The stored
+   *  value is `human:<id>` or `ai:<slug>`: the second is an agent, and VOICE §3
+   *  calls an agent "your agent". */
+  const verdictGiverLabel = (identity?: string | null): string =>
+    identity?.startsWith('human:') ? t('verdictYou') : t('verdictAgent');
+
+  return { t, expiresIn, reversibilityLabel, verdictGiverLabel };
 }
 
 function deriveAgentPosture(
@@ -192,6 +214,7 @@ function deriveAgentPosture(
 // the fallback shows all keys formatted so unknown types are never silent.
 
 function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after: string } }) {
+  const t = useTranslations('supervisor.proposal');
   // ADR-338 D4.3: a substrate proposal MUST show its diff at approval time.
   // Pre-fix this returned null when diff was absent (operator approved blind)
   // and rendered an empty <pre> when `after` was empty/whitespace — the exact
@@ -203,8 +226,7 @@ function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after:
       <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 flex items-start gap-2">
         <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
         <div className="text-[11px] text-amber-700 dark:text-amber-400">
-          No diff available for this write. The change can&apos;t be previewed — approve only if you
-          know what it does.
+          {t('noDiff')}
         </div>
       </div>
     );
@@ -213,14 +235,14 @@ function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after:
   return (
     <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 space-y-1">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-        Pending write · <span className="font-mono">{diff.path}</span>
+        {t('pendingWrite')} · <span className="font-mono">{diff.path}</span>
       </div>
       {diff.before ? (
         <pre className="text-[11px] font-mono text-rose-700/80 dark:text-rose-400/80 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
           {diff.before}
         </pre>
       ) : (
-        <div className="text-[11px] text-muted-foreground italic">new file</div>
+        <div className="text-[11px] text-muted-foreground italic">{t('newFile')}</div>
       )}
       {afterIsEmpty ? (
         // ADR-338 D4.3: empty `after` = the NULL-content write. Make it loud,
@@ -228,9 +250,9 @@ function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after:
         <div className="flex items-start gap-2 border-t border-amber-500/40 pt-1.5">
           <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-[11px] text-amber-700 dark:text-amber-400">
-            This write would set the file to <span className="font-medium">empty content</span>
-            {diff.before ? ' — wiping the text shown above.' : '.'} Reject unless that&apos;s
-            deliberate.
+            {/* One whole sentence per case — the clause "wiping the text shown
+                above" is not a tail a translator can append in English order. */}
+            {diff.before ? t('emptyWriteWipes') : t('emptyWrite')}
           </div>
         </div>
       ) : (
@@ -243,6 +265,7 @@ function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after:
 }
 
 function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Record<string, unknown> }) {
+  const t = useTranslations('supervisor.proposal');
   if (!inputs || Object.keys(inputs).length === 0) return null;
 
   // Trading primitives: surface the order ticket fields prominently
@@ -255,18 +278,18 @@ function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Rec
     const stop = inputs.stop_price;
     const tif = inputs.time_in_force ?? inputs.tif;
     const fields: Array<[string, unknown]> = [];
-    if (symbol) fields.push(['Symbol', symbol]);
-    if (side) fields.push(['Side', side]);
-    if (qty !== undefined) fields.push(['Quantity', qty]);
-    if (orderType) fields.push(['Type', orderType]);
-    if (limit !== undefined) fields.push(['Limit', limit]);
-    if (stop !== undefined) fields.push(['Stop', stop]);
-    if (tif) fields.push(['TIF', tif]);
+    if (symbol) fields.push([t('fieldSymbol'), symbol]);
+    if (side) fields.push([t('fieldSide'), side]);
+    if (qty !== undefined) fields.push([t('fieldQuantity'), qty]);
+    if (orderType) fields.push([t('fieldType'), orderType]);
+    if (limit !== undefined) fields.push([t('fieldLimit'), limit]);
+    if (stop !== undefined) fields.push([t('fieldStop'), stop]);
+    if (tif) fields.push([t('fieldTif'), tif]);
     if (fields.length === 0) return <GenericInputsTable inputs={inputs} />;
     return (
       <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1">
-          Order ticket
+          {t('orderTicket')}
         </div>
         <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
           {fields.map(([label, value]) => (
@@ -298,9 +321,9 @@ function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Rec
       (inputs.recipients as string) ??
       '';
     const destLabel =
-      primitive === 'platform_slack_send_to_channel' ? 'Channel'
-      : primitive.startsWith('platform_notion_') ? 'Page'
-      : 'To';
+      primitive === 'platform_slack_send_to_channel' ? t('destChannel')
+      : primitive.startsWith('platform_notion_') ? t('destPage')
+      : t('destTo');
     const title = inputs.title as string | undefined;
     const body =
       (inputs.text as string) ??
@@ -310,7 +333,7 @@ function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Rec
     return (
       <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 space-y-1.5">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-          Outbound message
+          {t('outboundMessage')}
         </div>
         {destination && (
           <div className="flex gap-2 text-xs">
@@ -320,13 +343,13 @@ function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Rec
         )}
         {title && (
           <div className="flex gap-2 text-xs">
-            <span className="text-muted-foreground shrink-0">Title</span>
+            <span className="text-muted-foreground shrink-0">{t('fieldTitle')}</span>
             <span className="text-foreground break-words">{title}</span>
           </div>
         )}
         {body && (
           <div className="text-xs">
-            <div className="text-muted-foreground mb-0.5">Message</div>
+            <div className="text-muted-foreground mb-0.5">{t('fieldMessage')}</div>
             <div className="rounded bg-background/60 border border-border/40 px-2 py-1.5 text-foreground whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
               {body}
             </div>
@@ -342,10 +365,11 @@ function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Rec
 }
 
 function GenericInputsTable({ inputs }: { inputs: Record<string, unknown> }) {
+  const t = useTranslations('supervisor.proposal');
   return (
     <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1">
-        Inputs
+        {t('inputs')}
       </div>
       <dl className="grid grid-cols-[max-content,1fr] gap-x-3 gap-y-0.5 text-xs">
         {Object.entries(inputs).map(([key, value]) => (
@@ -391,28 +415,22 @@ interface ProposalChipProps {
   onClick: () => void;
 }
 
-// 2026-09-18 — this returned the literal 'Freddie' for every non-human
-// reviewer, so the To do queue credited a seat ADR-632 retired. The stored
-// value is `human:<id>` or `ai:<slug>`: the second is an agent, and VOICE §3
-// calls an agent "your agent". Never null, so the `?? 'Freddie'` guards that
-// rode on every call site were dead code and are gone.
-function verdictGiverLabel(identity?: string | null): string {
-  return identity?.startsWith('human:') ? 'You' : 'Your agent';
-}
-
 function ProposalChip({ proposal, agentPosture, personaName, terminalStatus, onClick }: ProposalChipProps) {
-  const name = personaName;
+  const { t, reversibilityLabel } = useProposalWords();
+  const { actionLabel } = useProposalLabels();
+  const normalizeProposal = useNormalizeProposal();
+  const who = personaName;
 
   const reviewerLine =
-    agentPosture === 'approve_advisory' ? `${name} approved` :
-    agentPosture === 'defer' ? `${name} deferred` :
-    agentPosture === 'rejected' ? `${name} rejected` :
+    agentPosture === 'approve_advisory' ? t('approvedBy', { who }) :
+    agentPosture === 'defer' ? t('deferredBy', { who }) :
+    agentPosture === 'rejected' ? t('rejectedBy', { who }) :
     null;
 
   const isTerminal = terminalStatus === 'approved' || terminalStatus === 'rejected';
   const terminalLine =
-    terminalStatus === 'approved' ? 'Executed' :
-    terminalStatus === 'rejected' ? 'Rejected' :
+    terminalStatus === 'approved' ? t('executed') :
+    terminalStatus === 'rejected' ? t('rejected') :
     null;
 
   return (
@@ -430,10 +448,10 @@ function ProposalChip({ proposal, agentPosture, personaName, terminalStatus, onC
       <div className="flex items-center gap-2">
         <Hexagon className="w-3.5 h-3.5 shrink-0 text-muted-foreground/50" />
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Proposal
+          {t('chipLabel')}
         </span>
         <span className="text-xs text-muted-foreground/70 truncate flex-1">
-          {formatProposalLabel(proposal)}
+          {actionLabel(proposal)}
         </span>
         <span className="text-[10px] text-muted-foreground/40 shrink-0">
           {reversibilityLabel(normalizeProposal(proposal).reversibility)}
@@ -443,7 +461,7 @@ function ProposalChip({ proposal, agentPosture, personaName, terminalStatus, onC
         <div className="mt-1 pl-5 text-[11px] text-muted-foreground/60">
           {terminalLine ?? reviewerLine}
           {!isTerminal && (
-            <span className="ml-1 text-muted-foreground/40">· tap to review</span>
+            <span className="ml-1 text-muted-foreground/40">{t('tapToReview')}</span>
           )}
         </div>
       )}
@@ -462,9 +480,12 @@ interface ProposalDetailProps {
 
 function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
   const { runAction } = useFeedback();
+  const { t, expiresIn, verdictGiverLabel } = useProposalWords();
+  const { queuedByDialLine } = useProposalLabels();
+  const normalizeProposal = useNormalizeProposal();
   // ADR-632: the steward retired. A verdict is the operator's (`human:`) or,
   // on historical rows, the retired steward's.
-  const personaName = verdictGiverLabel(proposal.reviewer_identity);
+  const who = verdictGiverLabel(proposal.reviewer_identity);
   const [status, setStatus] = useState<LocalStatus>(
     proposal.status === 'executed' ? 'approved' :
     proposal.status === 'rejected' ? 'rejected' :
@@ -508,12 +529,12 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
     setErrorMsg(null);
     try {
       const res = await runAction(() => api.proposals.approve(liveProposal.id), {
-        pending: 'Approving…',
-        success: (r) => (r.success ? 'Approved' : ''),
-        error: 'Could not approve this',
+        pending: t('approving'),
+        success: (r) => (r.success ? t('approved') : ''),
+        error: t('couldNotApprove'),
       });
       if (res.success) { setStatus('approved'); onClose(); }
-      else { setStatus('error'); setErrorMsg(res.error || 'Execution failed'); }
+      else { setStatus('error'); setErrorMsg(res.error || t('executionFailed')); }
     } catch {
       setStatus('error');
     }
@@ -524,12 +545,12 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
     setErrorMsg(null);
     try {
       const res = await runAction(() => api.proposals.reject(liveProposal.id), {
-        pending: 'Rejecting…',
-        success: (r) => (r.success ? 'Rejected' : ''),
-        error: 'Could not reject this',
+        pending: t('rejecting'),
+        success: (r) => (r.success ? t('rejected') : ''),
+        error: t('couldNotReject'),
       });
       if (res.success) { setStatus('rejected'); onClose(); }
-      else { setStatus('error'); setErrorMsg('Rejection failed'); }
+      else { setStatus('error'); setErrorMsg(t('rejectionFailed')); }
     } catch {
       setStatus('error');
     }
@@ -538,16 +559,16 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
   const isTerminal = status === 'approved' || status === 'rejected';
   const isLoading = status === 'approving' || status === 'rejecting';
   const approveLabel =
-    agentPosture === 'approve_advisory' ? 'Confirm · Execute' :
-    agentPosture === 'defer' ? 'Proceed anyway' :
-    'Approve';
+    agentPosture === 'approve_advisory' ? t('confirmExecute') :
+    agentPosture === 'defer' ? t('proceedAnyway') :
+    t('approve');
 
   const norm = normalizeProposal(liveProposal);
 
   // ADR-408 D5.2: an agent-queued pending proposal is queued by the agent's
   // WITNESS DIAL (ADR-405), not a permission failure — say so, subdued.
   const dialLine =
-    liveProposal.status === 'pending' ? proposalQueuedByDialLine(liveProposal.source) : null;
+    liveProposal.status === 'pending' ? queuedByDialLine(liveProposal.source) : null;
 
   return (
     <div className="space-y-3">
@@ -579,19 +600,19 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
           {agentPosture === 'approve_advisory' && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
               <ShieldCheck className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName} approved</span>
+              <span className="font-medium">{t('approvedBy', { who })}</span>
             </div>
           )}
           {agentPosture === 'defer' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldQuestion className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName} deferred — your judgment needed</span>
+              <span className="font-medium">{t('deferredByNeedsYou', { who })}</span>
             </div>
           )}
           {agentPosture === 'rejected' && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <ShieldX className="w-3 h-3 shrink-0" />
-              <span className="font-medium">{personaName} rejected</span>
+              <span className="font-medium">{t('rejectedBy', { who })}</span>
             </div>
           )}
           <p className="text-xs text-muted-foreground leading-relaxed pl-4">
@@ -615,7 +636,7 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
         <div className="flex items-center gap-2 pt-1 border-t border-border/40">
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>expires {formatExpiresAt(liveProposal.expires_at)}</span>
+            <span>{t('expires', { when: expiresIn(liveProposal.expires_at) })}</span>
           </div>
           <div className="flex-1" />
           <button
@@ -624,7 +645,7 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
             disabled={isLoading}
             className="px-2.5 py-1 text-xs rounded border border-border hover:bg-muted transition-colors disabled:opacity-50"
           >
-            Reject
+            {t('reject')}
           </button>
           <button
             type="button"
@@ -641,7 +662,7 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
       {agentPosture === 'rejected' && !isTerminal && (
         <div className="flex items-center gap-1.5 pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
           <Clock className="w-3 h-3" />
-          <span>expires {formatExpiresAt(liveProposal.expires_at)} · update risk rules and re-propose to proceed</span>
+          <span>{t('expiresAndRepropose', { when: expiresIn(liveProposal.expires_at) })}</span>
         </div>
       )}
 
@@ -660,6 +681,8 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
 // ---------------------------------------------------------------------------
 
 export function ProposalCard({ result }: ProposalCardProps) {
+  const { t, verdictGiverLabel } = useProposalWords();
+  const { actionLabel } = useProposalLabels();
   const [open, setOpen] = useState(false);
   // ADR-632: the steward retired. A verdict is the operator's (`human:`) or,
   // on historical rows, the retired steward's.
@@ -670,7 +693,7 @@ export function ProposalCard({ result }: ProposalCardProps) {
       <div className="rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-sm">
         <div className="flex items-center gap-2 text-muted-foreground">
           <AlertCircle className="w-4 h-4" />
-          <span>Proposal couldn&apos;t be created</span>
+          <span>{t('couldNotCreate')}</span>
         </div>
         {result.message && <div className="mt-1 text-xs text-muted-foreground/70">{result.message}</div>}
       </div>
@@ -703,8 +726,8 @@ export function ProposalCard({ result }: ProposalCardProps) {
       <InteractiveModal
         isOpen={open}
         onClose={() => setOpen(false)}
-        title="Proposal"
-        subtitle={formatProposalLabel(proposal)}
+        title={t('modalTitle')}
+        subtitle={actionLabel(proposal)}
       >
         <ProposalDetail proposal={proposal} onClose={() => setOpen(false)} />
       </InteractiveModal>
@@ -769,6 +792,7 @@ export interface UseProposalModalReturn {
  * existed but couldn't be loaded (e.g., expired + cleaned up).
  */
 export function InlineProposalChipById({ proposalId }: { proposalId: string }) {
+  const t = useTranslations('supervisor.proposal');
   const [proposal, setProposal] = useState<ProposalData | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -801,7 +825,7 @@ export function InlineProposalChipById({ proposalId }: { proposalId: string }) {
   if (failed) {
     return (
       <div className="mt-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        Proposal {proposalId.slice(0, 8)} unavailable (expired or removed)
+        {t('unavailable', { id: proposalId.slice(0, 8) })}
       </div>
     );
   }
@@ -816,6 +840,8 @@ export function InlineProposalChipById({ proposalId }: { proposalId: string }) {
 }
 
 export function useProposalModal(opts: UseProposalModalOpts = {}): UseProposalModalReturn {
+  const t = useTranslations('supervisor.proposal');
+  const { actionLabel } = useProposalLabels();
   const [active, setActive] = useState<ProposalData | null>(null);
   const { onResolved } = opts;
 
@@ -835,8 +861,8 @@ export function useProposalModal(opts: UseProposalModalOpts = {}): UseProposalMo
     <InteractiveModal
       isOpen={true}
       onClose={handleClose}
-      title="Proposal"
-      subtitle={formatProposalLabel(active)}
+      title={t('modalTitle')}
+      subtitle={actionLabel(active)}
     >
       <ProposalDetail proposal={active} onClose={handleClose} />
     </InteractiveModal>

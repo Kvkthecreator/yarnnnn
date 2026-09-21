@@ -19,14 +19,15 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ArrowDownLeft, ArrowUpRight, ShieldX } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 import { formatAbsolute, formatLedgerTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { resolveActorForViewer, useWorkspaceRoster } from '@/lib/workspace/viewer';
-import { KindGlyph, actorLine, secondaryLine, type TimelineEntry } from '@/lib/workspace/timeline-rows';
-import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
+import { useActorForViewer, useWorkspaceRoster } from '@/lib/workspace/viewer';
+import { KindGlyph, useTimelineRows, type TimelineEntry } from '@/lib/workspace/timeline-rows';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 60;
@@ -47,22 +48,25 @@ function directionOf(e: TimelineEntry): Direction {
   return 'decided';
 }
 
-const DIRECTION_META: Record<Direction, { label: string; className: string; Icon: typeof ArrowUpRight }> = {
-  arrived: { label: 'arrived', className: 'text-teal-600 dark:text-teal-400', Icon: ArrowDownLeft },
-  left: { label: 'left', className: 'text-cyan-600 dark:text-cyan-400', Icon: ArrowUpRight },
-  refused: { label: 'refused', className: 'text-muted-foreground', Icon: ShieldX },
-  decided: { label: 'decided', className: 'text-muted-foreground', Icon: ArrowUpRight },
+// ADR-660 D3 — evaluated at import, before any member's language is known, so
+// the row holds a catalog KEY; the ledger words it at render.
+const DIRECTION_META: Record<Direction, { labelKey: string; className: string; Icon: typeof ArrowUpRight }> = {
+  arrived: { labelKey: 'directions.arrived', className: 'text-teal-600 dark:text-teal-400', Icon: ArrowDownLeft },
+  left: { labelKey: 'directions.left', className: 'text-cyan-600 dark:text-cyan-400', Icon: ArrowUpRight },
+  refused: { labelKey: 'directions.refused', className: 'text-muted-foreground', Icon: ShieldX },
+  decided: { labelKey: 'directions.decided', className: 'text-muted-foreground', Icon: ArrowUpRight },
 };
 
 /** The platform a receipt names, in the member's words. */
-function platformWord(p?: string | null): string {
-  if (!p) return 'the platform';
+function platformWord(p?: string | null, unknown = 'the platform'): string {
+  if (!p) return unknown;
   if (p === 'wordpress') return 'WordPress';
   if (p === 'slack') return 'Slack';
   return p.charAt(0).toUpperCase() + p.slice(1);
 }
 
 function ReceiptLine({ receipt }: { receipt: NonNullable<TimelineEntry['receipt']> }) {
+  const t = useTranslations('boundary');
   const r = receipt as {
     platform?: string;
     url?: string | null;
@@ -73,12 +77,13 @@ function ReceiptLine({ receipt }: { receipt: NonNullable<TimelineEntry['receipt'
     channel?: string | null;
     folded?: boolean | null;
   };
-  const where = r.channel ? `${platformWord(r.platform)} ${r.channel}` : platformWord(r.platform);
+  const platform = platformWord(r.platform, t('thePlatform'));
+  const where = r.channel ? t('where', { platform, channel: r.channel }) : platform;
   return (
     <div className="mt-1 space-y-0.5 text-[11px]">
       <div className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
         <span>
-          {r.status === 'draft' ? 'Draft saved on' : 'Sent to'} {where}
+          {r.status === 'draft' ? t('draftSavedOn', { where }) : t('sentTo', { where })}
         </span>
         {r.url && (
           <a
@@ -87,32 +92,45 @@ function ReceiptLine({ receipt }: { receipt: NonNullable<TimelineEntry['receipt'
             rel="noreferrer"
             className="truncate underline hover:text-foreground"
           >
-            open
+            {t('open')}
           </a>
         )}
       </div>
       {/* ADR-628 D7 — the platform accepted it, but can a reader reach it? */}
       {r.publicly_readable === false && (
-        <p className="text-amber-600">Live on the site, but not public yet. The site is private or hasn't launched.</p>
+        <p className="text-amber-600">{t('notPublic')}</p>
       )}
       {/* ADR-628 D8 — the read-back verdict, where the tenant mechanizes it. */}
-      {r.read_back === 'matched' && <p className="text-muted-foreground/80">Read back from {platformWord(r.platform)}: matches what was sent.</p>}
+      {r.read_back === 'matched' && (
+        <p className="text-muted-foreground/80">{t('readBackMatched', { platform })}</p>
+      )}
       {r.read_back === 'differs' && (
         <p className="text-amber-600">
-          Read back from {platformWord(r.platform)}: stored differently than sent{r.read_back_detail ? ` (${r.read_back_detail})` : ''}.
+          {r.read_back_detail
+            ? t('readBackDiffersDetail', { platform, detail: r.read_back_detail })
+            : t('readBackDiffers', { platform })}
         </p>
       )}
       {r.read_back === 'unreadable' && (
-        <p className="text-amber-600">Could not read it back from {platformWord(r.platform)}{r.read_back_detail ? ` — ${r.read_back_detail}` : ''}.</p>
+        <p className="text-amber-600">
+          {r.read_back_detail
+            ? t('readBackUnreadableDetail', { platform, detail: r.read_back_detail })
+            : t('readBackUnreadable', { platform })}
+        </p>
       )}
-      {r.folded && <p className="text-muted-foreground/70">Long post. Readers see “Show more”.</p>}
+      {r.folded && <p className="text-muted-foreground/70">{t('folded')}</p>}
     </div>
   );
 }
 
 export function BoundaryLedger() {
+  const t = useTranslations('boundary');
   const { userId } = useSurfacePreferences();
   const roster = useWorkspaceRoster();
+  // ADR-660 — the shared row grammar reads the catalog, so it is a hook.
+  const { actorLine, secondaryLine } = useTimelineRows();
+  const resolveActorForViewer = useActorForViewer();
+  const { authorLabelOrSystem } = useAuthorLabel();
 
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -168,12 +186,12 @@ export function BoundaryLedger() {
         who: resolveActorForViewer(e.actor, e.actor_id, userId, roster),
         direction: directionOf(e),
       })),
-    [entries, userId, roster],
+    [entries, userId, roster, resolveActorForViewer],
   );
 
   if (loading) {
     return (
-      <Working label="Loading activity…" fill className="p-6" />
+      <Working label={t('loading')} fill className="p-6" />
     );
   }
 
@@ -181,9 +199,9 @@ export function BoundaryLedger() {
     return (
       <div className="p-6">
         <div className="rounded-lg border border-dashed border-border/60 px-6 py-10 text-center">
-          <p className="text-sm font-medium text-foreground/80">Nothing yet</p>
+          <p className="text-sm font-medium text-foreground/80">{t('emptyTitle')}</p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            When something comes in through a connection, or you send a file out, it shows up here.
+            {t('emptyBody')}
           </p>
         </div>
       </div>
@@ -195,15 +213,15 @@ export function BoundaryLedger() {
       <ul className="divide-y divide-border/40">
         {rows.map(({ e, who, direction }) => {
           const meta = DIRECTION_META[direction];
-          const line = secondaryLine(e, { witnessLabel: (d) => formatAuthorLabelOrSystem(d) });
+          const line = secondaryLine(e, { witnessLabel: (d) => authorLabelOrSystem(d) });
           return (
             <li key={e.id} className="flex items-start gap-3 px-6 py-3">
               <span
                 className={cn('mt-0.5 inline-flex w-16 shrink-0 items-center gap-1 text-[10px] font-medium uppercase tracking-wide', meta.className)}
-                title={meta.label}
+                title={t(meta.labelKey)}
               >
                 <meta.Icon className="h-3 w-3" aria-hidden />
-                {meta.label}
+                {t(meta.labelKey)}
               </span>
               <span className="mt-1 shrink-0"><KindGlyph entry={e} /></span>
               <div className="min-w-0 flex-1">
@@ -232,7 +250,7 @@ export function BoundaryLedger() {
             disabled={loadingMore}
             className="text-xs text-primary hover:underline disabled:opacity-50"
           >
-            {loadingMore ? 'Loading…' : 'Earlier'}
+            {loadingMore ? t('loadingMore') : t('earlier')}
           </button>
         </div>
       )}

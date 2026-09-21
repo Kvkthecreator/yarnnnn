@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowUpFromLine, ExternalLink } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 
@@ -54,6 +55,7 @@ function formatWhen(iso: string): string {
 }
 
 export function EmissionsView() {
+  const t = useTranslations('workspaceSettings.emissions');
   const [emissions, setEmissions] = useState<Emission[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,12 +67,12 @@ export function EmissionsView() {
         if (!cancelled) setEmissions(rows);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load emissions');
+        if (!cancelled) setError(err instanceof Error ? err.message : t('loadFailed'));
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   if (error) {
     return (
@@ -82,7 +84,7 @@ export function EmissionsView() {
 
   if (!emissions) {
     return (
-      <Working label="Loading…" fill />
+      <Working label={t('loading')} fill />
     );
   }
 
@@ -90,11 +92,8 @@ export function EmissionsView() {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <ArrowUpFromLine className="w-6 h-6 text-muted-foreground/50 mb-3" />
-        <p className="text-sm font-medium text-foreground">Nothing emitted yet</p>
-        <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-          When the operation sends an email, Slack message, or Notion update on your
-          behalf, it lands here — what shipped, to whom, and when.
-        </p>
+        <p className="text-sm font-medium text-foreground">{t('emptyTitle')}</p>
+        <p className="text-xs text-muted-foreground mt-1 max-w-xs">{t('emptyBody')}</p>
       </div>
     );
   }
@@ -118,7 +117,7 @@ export function EmissionsView() {
                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  view
+                  {t('view')}
                 </a>
               )}
             </div>

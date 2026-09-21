@@ -35,6 +35,8 @@ import {
   Users,
 } from "lucide-react";
 
+import { useTranslations } from "next-intl";
+
 import { api, APIError } from "@/lib/api/client";
 import { useFeedback } from "@/contexts/FeedbackContext";
 import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
@@ -61,6 +63,7 @@ interface DangerZoneStats {
 type WorkspaceAction = "work-history" | "workspace";
 
 export function WorkspaceDangerZone() {
+  const t = useTranslations("workspaceSettings.danger");
   const [stats, setStats] = useState<DangerZoneStats | null>(null);
   const [loading, setLoading] = useState(false);
   // ADR-501: the server's own clear-authority verdict (`can_clear` on
@@ -142,19 +145,17 @@ export function WorkspaceDangerZone() {
             ? api.account.clearWorkHistory()
             : api.account.clearWorkspace(),
         {
-          pending: isHistory ? "Clearing work history…" : "Clearing workspace…",
+          pending: isHistory ? t("history.pending") : t("workspace.pending"),
           success: (res) =>
             res.message ||
-            (isHistory ? "Work history cleared" : "Workspace cleared"),
+            (isHistory ? t("history.success") : t("workspace.success")),
           error: (e) =>
             e instanceof APIError
               ? (e.data as { detail?: string })?.detail ||
-                (isHistory
-                  ? "Couldn't clear work history."
-                  : "Couldn't clear the workspace.")
+                (isHistory ? t("history.failed") : t("workspace.failed"))
               : isHistory
-                ? "Couldn't clear work history."
-                : "Couldn't clear the workspace.",
+                ? t("history.failed")
+                : t("workspace.failed"),
         },
       );
       await loadStats();
@@ -171,21 +172,21 @@ export function WorkspaceDangerZone() {
   // copy has to say plainly that it does not.
   const sharedWarning =
     otherMemberCount > 0
-      ? `This workspace has ${otherMemberCount} other member${otherMemberCount === 1 ? "" : "s"}. These actions remove everyone's work, not just yours.`
+      ? t("sharedWarning", { count: otherMemberCount })
       : null;
 
   if (loading && !stats) {
     return (
-      <Working label="Loading…" fill />
+      <Working label={t("loading")} fill />
     );
   }
 
   if (!stats) {
     return (
       <p className="text-sm text-muted-foreground">
-        Could not load workspace data.{" "}
+        {t("statsFailed")}{" "}
         <button onClick={() => void loadStats()} className="underline">
-          Retry
+          {t("retry")}
         </button>
       </p>
     );
@@ -203,9 +204,7 @@ export function WorkspaceDangerZone() {
       {!canClear && (
         <div className="flex items-start gap-2 p-3 rounded-lg border border-border bg-muted/40 text-sm">
           <AlertTriangle className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-          <span className="text-muted-foreground">
-            Only the workspace owner can clear shared content.
-          </span>
+          <span className="text-muted-foreground">{t("notOwner")}</span>
         </div>
       )}
 
@@ -216,14 +215,14 @@ export function WorkspaceDangerZone() {
       {/* L1 — clear work history */}
       <ActionCard
         icon={<History className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
-        title="Clear Work History"
-        description={`Delete ${stats.work_history_files} dated output files and per-run logs. Scheduled work, identity, and accumulated context are preserved.`}
-        cta="Clear History"
+        title={t("history.title")}
+        description={t("history.description", { count: stats.work_history_files })}
+        cta={t("history.cta")}
         tone="amber"
         disabled={!canClear || stats.work_history_files === 0 || pending !== null}
         busy={pending === "work-history"}
         confirming={confirming === "work-history"}
-        confirmCopy="This deletes every member's run records and outputs. Continue?"
+        confirmCopy={t("history.confirm")}
         onAsk={() => setConfirming("work-history")}
         onCancel={() => setConfirming(null)}
         onConfirm={() => void run("work-history")}
@@ -232,9 +231,12 @@ export function WorkspaceDangerZone() {
       {/* L2 — clear workspace */}
       <ActionCard
         icon={<Database className="w-4 h-4 text-orange-600 dark:text-orange-400" />}
-        title="Clear Workspace"
-        description={`Delete ${stats.workspace_files} workspace files, ${stats.action_proposals} pending proposals, and all activity. The workspace is re-scaffolded afterwards.`}
-        cta="Clear Workspace"
+        title={t("workspace.title")}
+        description={t("workspace.description", {
+          files: stats.workspace_files,
+          proposals: stats.action_proposals,
+        })}
+        cta={t("workspace.cta")}
         tone="orange"
         disabled={
           !canClear ||
@@ -243,7 +245,7 @@ export function WorkspaceDangerZone() {
         }
         busy={pending === "workspace"}
         confirming={confirming === "workspace"}
-        confirmCopy="This removes all workspace content for every member. Continue?"
+        confirmCopy={t("workspace.confirm")}
         typeToConfirm={activeWorkspaceLabel}
         onAsk={() => setConfirming("workspace")}
         onCancel={() => setConfirming(null)}
@@ -260,15 +262,18 @@ export function WorkspaceDangerZone() {
           pane as its sidebar labels it, or the reader hunts for a menu item
           that isn't there. */}
       <p className="text-xs text-muted-foreground pt-2 border-t border-border">
-        Looking for your own account? Your connections are in{" "}
-        <SurfaceLink to="reach" params={{ pane: "connected" }} className="underline">
-          Reach
-        </SurfaceLink>
-        . Resetting or deactivating your account is in{" "}
-        <SurfaceLink to="settings" params={{ pane: "account" }} className="underline">
-          User Settings → Account
-        </SurfaceLink>
-        .
+        {t.rich("accountPointer", {
+          reach: (chunks) => (
+            <SurfaceLink to="reach" params={{ pane: "connected" }} className="underline">
+              {chunks}
+            </SurfaceLink>
+          ),
+          settings: (chunks) => (
+            <SurfaceLink to="settings" params={{ pane: "account" }} className="underline">
+              {chunks}
+            </SurfaceLink>
+          ),
+        })}
       </p>
     </div>
   );
@@ -307,6 +312,7 @@ function ActionCard({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("workspaceSettings.danger");
   // Local to the card: cleared on cancel so a reopened confirm starts empty.
   const [typed, setTyped] = useState("");
   // Trimmed + case-insensitive — a speed bump that makes the operator NAME
@@ -339,13 +345,18 @@ function ActionCard({
             {typeToConfirm && (
               <label className="inline-flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">
-                  Type <span className="font-medium text-foreground">{typeToConfirm}</span>:
+                  {t.rich("typeToConfirm", {
+                    name: typeToConfirm,
+                    b: (chunks) => (
+                      <span className="font-medium text-foreground">{chunks}</span>
+                    ),
+                  })}
                 </span>
                 <input
                   type="text"
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
-                  aria-label={`Type ${typeToConfirm} to confirm`}
+                  aria-label={t("typeToConfirmAria", { name: typeToConfirm })}
                   autoComplete="off"
                   className="w-40 rounded-md border border-border bg-background px-2 py-1 text-sm"
                 />
@@ -358,14 +369,14 @@ function ActionCard({
               }}
               className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
             >
-              Cancel
+              {t("cancel")}
             </button>
             <button
               onClick={onConfirm}
               disabled={!confirmSatisfied}
               className="px-4 py-2 text-sm font-medium rounded-md border border-destructive/50 text-destructive hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Confirm
+              {t("confirmCta")}
             </button>
           </div>
         ) : (

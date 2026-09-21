@@ -26,6 +26,7 @@
  */
 
 import { useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { ExternalLink, FileQuestion, Loader2, X } from 'lucide-react';
 import { FileBody } from '@/components/workspace/FileBody';
 import { FileMeta } from '@/components/workspace/FileMeta';
@@ -39,6 +40,7 @@ interface FileOpenModalProps {
 }
 
 export function FileOpenModal({ path, onClose }: FileOpenModalProps) {
+  const t = useTranslations('chat.fileOpen');
   useEffect(() => {
     if (!path) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -83,13 +85,13 @@ export function FileOpenModal({ path, onClose }: FileOpenModalProps) {
               className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
             >
               <ExternalLink className="h-3 w-3" />
-              Open in Files
+              {t('openInFiles')}
             </SurfaceLink>
             <button
               type="button"
               onClick={onClose}
               className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Close"
+              aria-label={t('close')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -101,18 +103,18 @@ export function FileOpenModal({ path, onClose }: FileOpenModalProps) {
           {loading && (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Opening {filename}…
+              {t('opening', { filename })}
             </div>
           )}
           {notFound && (
             <div className="py-16 text-center text-sm text-muted-foreground">
               <FileQuestion className="mx-auto mb-2 h-6 w-6 opacity-40" />
-              This file is no longer at {relPath}.
+              {t('notFound', { path: relPath })}
             </div>
           )}
           {error && (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              Couldn’t open this file. It’s still in the workspace — try Files.
+              {t('error')}
             </div>
           )}
           {!loading && !notFound && !error && file && <FileBody file={file} />}

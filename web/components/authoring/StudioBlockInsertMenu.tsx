@@ -28,6 +28,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Link2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import {
@@ -93,6 +94,8 @@ export function StudioBlockInsertMenu({
   onClose,
   pageSection,
 }: StudioBlockInsertMenuProps) {
+  const t = useTranslations('studio.insertMenu');
+  const tStruct = useTranslations('structure');
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [clamped, setClamped] = useState<{ left: number; top: number } | null>(null);
   // D5 — the housing decision is measured once per open. A menu that jumps
@@ -106,8 +109,10 @@ export function StudioBlockInsertMenu({
 
   const hasSlide = !!pageSection && pageSection.arrangements.length > 0;
   const rail: Array<{ key: RailKey; label: string }> = [
-    ...(hasSlide ? [{ key: 'slide' as const, label: `New ${pageSection!.noun}` }] : []),
-    ...groups.map((g) => ({ key: g.key, label: g.label })),
+    ...(hasSlide
+      ? [{ key: 'slide' as const, label: t('newPage', { noun: pageSection!.noun }) }]
+      : []),
+    ...groups.map((g) => ({ key: g.key, label: tStruct(g.labelKey) })),
   ];
   const [active, setActive] = useState<RailKey | null>(null);
   const activeKey = active ?? rail[0]?.key ?? null;
@@ -235,20 +240,19 @@ export function StudioBlockInsertMenu({
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => onPickLibrary(c.path, c.head_version_id)}
-                    title={`${relPath(c.path)} — shared: edits at source reach every use`}
+                    title={t('sharedHint', { path: relPath(c.path) })}
                     className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-muted/30"
                   >
                     <Link2 className="h-3 w-3 shrink-0 text-indigo-500/80" />
                     <span className="min-w-0 flex-1 truncate text-[11px]">{baseName(c.path)}</span>
                     <span className="shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground">
-                      shared
+                      {t('shared')}
                     </span>
                   </button>
                 ))
               ) : (
                 <p className="px-2 py-1.5 text-[10px] leading-snug text-muted-foreground">
-                  No shared components yet — ask the chat to compose one from a
-                  screenshot or a source; it lands here.
+                  {t('noShared')}
                 </p>
               )}
             </div>
@@ -300,7 +304,7 @@ export function StudioBlockInsertMenu({
           stat") — a fixed "into" prefix here composed "into after the stat"
           on every block-selected open (ADR-586 click-pass). */}
       <p className="shrink-0 border-b border-border/60 px-2.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-        Add — {targetLabel}
+        {t('addTo', { target: targetLabel })}
       </p>
       <div className={`flex min-h-0 flex-1 ${sheet ? 'flex-col' : ''}`}>
         {railEl}

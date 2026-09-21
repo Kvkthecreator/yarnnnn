@@ -61,6 +61,7 @@
 
 import { useState, useEffect, useRef, useCallback, type ComponentType, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useSurfaceParam, useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { useViewport } from "@/lib/shell/useViewport";
 import { usePaneLadder, usePaneSlot } from "@/lib/shell/pane-layout";
@@ -219,7 +220,7 @@ interface SettingsPaneShellProps {
    *     FeedSurface, RecurrenceList).
    */
   contentWidth?: "form" | "reading" | "fill";
-  /** Sidebar section header label (default "Settings panes" for a11y). */
+  /** Sidebar section header label (defaults to the catalog's a11y label). */
   navLabel?: string;
 }
 
@@ -240,8 +241,12 @@ export function SettingsPaneShell({
   header,
   fullBleed = false,
   contentWidth,
-  navLabel = "Settings panes",
+  navLabel,
 }: SettingsPaneShellProps) {
+  // The default is worded at RENDER, never as a parameter default: a module
+  // evaluated at import has no member language yet.
+  const t = useTranslations("billing.shell");
+  const resolvedNavLabel = navLabel ?? t("navLabel");
   // Resolve the body-width policy. `contentWidth` is canonical; `fullBleed`
   // is the legacy boolean alias (→ `fill`). Default is `form` (centered card
   // column) to preserve the config-door behavior.
@@ -437,7 +442,7 @@ export function SettingsPaneShell({
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{bodyChildren}</div>
         ) : (
           <nav
-            aria-label={navLabel}
+            aria-label={resolvedNavLabel}
             className={`flex-1 overflow-y-auto ${navPadded ? "py-3 px-2 space-y-4" : ""}`}
           >
             {navListChildren}
@@ -453,7 +458,7 @@ export function SettingsPaneShell({
       {header}
       <div className="flex-1 flex min-h-0">
         <nav
-          aria-label={navLabel}
+          aria-label={resolvedNavLabel}
           className={`${resizable ? "" : "w-44 sm:w-52"} shrink-0 border-r border-border overflow-y-auto ${navPadded ? "py-3 px-2 space-y-4" : ""}`}
           style={resizable && navIsColumn ? { width: nav.width } : undefined}
         >
@@ -465,7 +470,7 @@ export function SettingsPaneShell({
             role="separator"
             aria-orientation="vertical"
             className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
-            title="Drag to resize"
+            title={t("resize")}
           />
         )}
         {bodyChildren}

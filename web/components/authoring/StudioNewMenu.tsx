@@ -27,6 +27,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { FilePlus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { studioShapeStyle } from './studioShapes';
@@ -57,6 +58,7 @@ export function StudioNewMenu({
   onPickTemplate,
   onPickLearn,
 }: StudioNewMenuProps) {
+  const t = useTranslations('studio.newMenu');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -87,7 +89,7 @@ export function StudioNewMenu({
         className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
       >
         <FilePlus className="h-4 w-4" />
-        New
+        {t('new')}
       </button>
 
       {open && (
@@ -95,27 +97,27 @@ export function StudioNewMenu({
           role="menu"
           className="absolute right-0 z-30 mt-1.5 w-64 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-lg animate-in fade-in zoom-in-95 duration-100"
         >
-          {templates.map((t) => {
+          {templates.map((tpl) => {
             // ADR-459: the slug IS the kind — no fake filename to round-trip
             // it through, and the label comes from the served registry.
-            const shape = studioShapeStyle(t.slug);
+            const shape = studioShapeStyle(tpl.slug);
             const Icon = shape.icon;
             return (
               <button
-                key={t.slug}
+                key={tpl.slug}
                 type="button"
                 role="menuitem"
                 onClick={() => {
                   setOpen(false);
-                  onPickTemplate(t);
+                  onPickTemplate(tpl);
                 }}
                 className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent/60"
               >
                 <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', shape.color)} />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium leading-tight">{t.label}</span>
+                  <span className="block text-sm font-medium leading-tight">{tpl.label}</span>
                   <span className="mt-0.5 block truncate text-[11px] leading-snug text-muted-foreground">
-                    {t.description}
+                    {tpl.description}
                   </span>
                 </span>
               </button>
@@ -132,14 +134,14 @@ export function StudioNewMenu({
               setOpen(false);
               onPickLearn();
             }}
-            title={learnEnabled ? undefined : 'Chat helpers aren’t enabled on this workspace.'}
+            title={learnEnabled ? undefined : t('learnDisabled')}
             className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent/60 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0">
-              <span className="block text-sm font-medium leading-tight">Learn from…</span>
+              <span className="block text-sm font-medium leading-tight">{t('learnFrom')}</span>
               <span className="mt-0.5 block truncate text-[11px] leading-snug text-muted-foreground">
-                Start from a file — yours or one you upload.
+                {t('learnFromHint')}
               </span>
             </span>
           </button>

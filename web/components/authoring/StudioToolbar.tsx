@@ -24,6 +24,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 
 /** An arrangement (ADR-447) — the composition shape of a page/slide.
@@ -203,10 +204,11 @@ export function StudioToolbar({
   // renders no page-grain chrome rather than guessing `flow` — `mode === 'paged'`
   // is false for both "document" and "not yet known", and only the first of
   // those is a claim.
+  const t = useTranslations('studio.toolbar');
   const isPaged = mode === 'paged';
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
-  const pageNoun = layout === 'deck' ? 'slide' : 'section';
+  const pageNoun = layout === 'deck' ? t('slide') : t('section');
   const rootRef = useRef<HTMLDivElement>(null);
   // The trigger cluster (buttons + their panels) — the click-away boundary.
   // Deliberately NOT rootRef, which spans the row's full flex-1 width.
@@ -272,13 +274,13 @@ export function StudioToolbar({
         }}
         title={
           isPaged
-            ? `Add — a ${pageNoun}, component, text, media, or data — into the selected spot or this ${pageNoun}`
-            : 'Add — a component, text, media, or data — after the selection, or at the end'
+            ? t('addPagedHint', { noun: pageNoun })
+            : t('addFlowHint')
         }
-        aria-label={compact ? 'Add' : undefined}
+        aria-label={compact ? t('add') : undefined}
       >
         <Plus className="h-3 w-3" />
-        {!compact && ' Add'}
+        {!compact && <span>&nbsp;{t('add')}</span>}
       </button>
 
       {/* UPDATE is DELETED (ADR-616 D1). Six of its seven rows were one

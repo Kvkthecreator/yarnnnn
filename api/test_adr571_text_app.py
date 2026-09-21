@@ -22,12 +22,29 @@ The claims, at the altitudes they can actually fail:
 """
 
 import ast
+import json
 import re
 import sys
 from pathlib import Path
 
 API = Path(__file__).parent
 WEB = API.parent / "web"
+
+# ADR-660 — the words moved to the catalog. A check whose claim is about the
+# SENTENCE (not the call site) reads the English catalog here; a check whose
+# claim is about the CALL SITE asserts the key in the component source, which
+# is structural and holds in every language.
+_EN_MESSAGES = json.loads((WEB / "messages" / "en.json").read_text(encoding="utf-8"))
+
+
+def _msg(dotted: str) -> str:
+    """One catalog string by its dotted key ("" when the key is absent)."""
+    node = _EN_MESSAGES
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return ""
+        node = node[part]
+    return node if isinstance(node, str) else ""
 
 
 def _sucrase() -> str:
@@ -310,7 +327,11 @@ _landing = _strip_comments((_TEXT / "TextSurface.tsx").read_text())
 _editor = _strip_comments((_TEXT / "TextEditor.tsx").read_text())
 
 check("5a the landing offers Open (the File-menu pair, not New alone)",
-      "OpenArtifactModal" in _landing and ">\n              Open\n" in _landing)
+      # ADR-660 — the words moved to the catalog; assert the KEY. The pair is
+      # still asserted as a PAIR: the Open button beside New, not New alone.
+      "OpenArtifactModal" in _landing
+      and re.search(r"setOpenPickerOn\(true\)[\s\S]{0,400}?t\('open'\)", _landing) is not None
+      and re.search(r"setNamingOpen\(true\)[\s\S]{0,400}?t\('new'\)", _landing) is not None)
 check("5b recents are a THUMBNAIL GRID, not a text list",
       "grid-cols-2" in _landing and "ProseThumb" in _landing)
 check("5c each card carries the ⋯ / right-click organize menu",
@@ -318,11 +339,15 @@ check("5c each card carries the ⋯ / right-click organize menu",
 check("5d creation is a NAMING DIALOG, never window.prompt",
       "NameDocumentModal" in _landing and "window.prompt" not in _landing)
 check("5e the open state has a crumb that renames the document",
-      "onRename" in _editor and "click to rename" in _editor)
+      # ADR-660 — the words moved to the catalog; assert the KEY.
+      "onRename" in _editor and "t('renameTitle'" in _editor)
 check("5f the boundary acts are present (Share opens the ONE shared dialog)",
       "ShareDialog" in _editor and "TextExport" in _editor)
 check("5g the rail is Properties | Chat, the Docs grammar",
-      "'properties', 'Properties'" in _editor and "'chat', 'Chat'" in _editor)
+      # ADR-660 — the words moved to the catalog; the tab tuples now hold
+      # catalog KEYS and the word is taken at render, so assert the keys.
+      "['properties', 'tabProperties']" in _editor
+      and "['chat', 'tabChat']" in _editor)
 check("5h the lane stays MOUNTED across a tab switch (a streaming turn survives)",
       "rightTab === 'chat' ? 'flex' : 'hidden'" in _editor)
 # 5i re-anchored 2026-08-22: the "Properties and chat" copy left with the
@@ -394,9 +419,13 @@ check("6g search rides @codemirror/search inside the canvas; the hand-rolled "
       and not (_TEXT / "FindReplaceBar.tsx").exists()
       and "FindReplaceBar" not in _editor)
 check("6h the Properties pane carries the OUTLINE (ADR-526 D2's home)",
-      "parseOutline" in _editor and "No headings yet" in _editor)
+      # ADR-660 — the words moved to the catalog; assert the KEY.
+      "parseOutline" in _editor and "t('outlineEmpty')" in _editor)
 check("6i Print/PDF is offered over the RENDERED document",
-      "printProse" in _export and "Print / PDF" in _export)
+      # ADR-660 — the words moved to the catalog; assert the KEY at the same
+      # call site, so the printProse act still carries the Print/PDF label.
+      re.search(r"printProse\(text, name\)[\s\S]{0,600}?t\('printTitle'\)", _export)
+      is not None)
 check("6j the single-pane rung has a bottom tab bar at the touch floor",
       "singlePane" in _editor and "min-h-[44px]" in _editor)
 # The retry must be a REACHABLE ACT in the load-error branch, not a phrase.
@@ -701,7 +730,20 @@ const { MarkdownRenderer } = require(WEB + '/components/shared/MarkdownRenderer.
 // ProseReader stopped passing the prop (caught by falsification, 2026-08-16).
 // Rendering ProseReader is what makes 7n a check on the WIRING.
 const { ProseReader, PROSE_READING_SKIN } = require(WEB + '/components/text/ProseReader.tsx');
-const R = (p) => renderToStaticMarkup(React.createElement(MarkdownRenderer, p));
+// ADR-660 — the reading face reads its words from the catalog, and
+// `useTranslations` THROWS outside a provider (that is the contract: a missing
+// scope is a bug you want loudly, not a silent English fallback). So the probe
+// mounts the SAME provider the app does, with the SAME catalog the app ships —
+// rendering it bare would be testing a shape production never has.
+const { NextIntlClientProvider } = require(WEB + '/node_modules/next-intl');
+const MESSAGES = JSON.parse(fs.readFileSync(WEB + '/messages/en.json', 'utf8'));
+const withIntl = (node) =>
+  React.createElement(
+    NextIntlClientProvider,
+    { locale: 'en', messages: MESSAGES },
+    node,
+  );
+const R = (p) => renderToStaticMarkup(withIntl(React.createElement(MarkdownRenderer, p)));
 
 const brief = [
   '# Creative Brief', '', 'This is **not** a block model. It is _plain markdown_.', '',
@@ -710,7 +752,7 @@ const brief = [
   '```sh', '# not a heading', '```', '',
   '- [ ] open task', '- [x] done task', '',
 ].join('\n');
-const doc = renderToStaticMarkup(React.createElement(ProseReader, { text: brief }));
+const doc = renderToStaticMarkup(withIntl(React.createElement(ProseReader, { text: brief })));
 const chat = R({ content: '# h\n\n| a |\n| - |\n| b |' });
 
 console.log(JSON.stringify({
@@ -831,11 +873,13 @@ const empty = readConflict(null);
 console.log(JSON.stringify({
   // The button's existence depends on this being non-null.
   live_head: a.currentHeadId === '507258bf-dc88-442d-82ec-ba2e346b941a',
-  live_names_actor: !!a.actor && a.actor !== 'Someone else',
+  // ADR-660: the reader names a catalog KEY, never an English sentence — the
+  // discriminator is structural (a ref vs null), so it holds in any language.
+  live_names_actor: !!a.actorRef && typeof a.actorRef.key === 'string',
   legacy_head: b.currentHeadId === 'abc123',
-  legacy_names_actor: !!b.actor && b.actor !== 'Someone else',
+  legacy_names_actor: !!b.actorRef && typeof b.actorRef.key === 'string',
   // An unreadable body must still produce a usable banner, never a crash.
-  empty_degrades: empty.currentHeadId === null && empty.actor === 'Someone else',
+  empty_degrades: empty.currentHeadId === null && empty.actorRef === null,
 }));
 """
 
@@ -853,13 +897,15 @@ except Exception as exc:  # noqa: BLE001 — an unrunnable probe is a FAILED gat
 check("8a the CURRENT wire envelope yields the head id — the 'Save mine over "
       "theirs' button is conditional on it, so a miss DELETES an exit",
       _c.get("live_head") is True, str(_c)[:220])
-check("8b the current envelope names WHO moved the head (not 'Someone else')",
+check("8b the current envelope names WHO moved the head (a catalog ref, not "
+      "the generic fallback)",
       _c.get("live_names_actor") is True, str(_c)[:220])
 check("8c the legacy `detail` envelope still reads (the shape is not this "
       "component's to pin; a reader that survives either cannot break again)",
       _c.get("legacy_head") is True and _c.get("legacy_names_actor") is True,
       str(_c)[:220])
-check("8d an unreadable body degrades to a usable banner, never a crash",
+check("8d an unreadable body degrades to a usable banner (no ref — the "
+      "component words its own 'Someone else'), never a crash",
       _c.get("empty_degrades") is True, str(_c)[:220])
 check("8e the editor READS through that helper (not a re-inlined field access)",
       "readConflict(err.data)" in _editor and "detail?.current_head" not in _editor)
@@ -1074,17 +1120,24 @@ let handle = null;
 const { createRoot } = require(WEB + '/node_modules/react-dom/client');
 def('IS_REACT_ACT_ENVIRONMENT', true);
 const { act } = require(WEB + '/node_modules/react');
+// ADR-660 — the same provider the app mounts, with the catalog it ships. A
+// component that reads its words from the catalog cannot render bare, and a
+// probe that renders it bare is testing a shape production never has.
+const { NextIntlClientProvider } = require(WEB + '/node_modules/next-intl');
+const MESSAGES = JSON.parse(fs.readFileSync(WEB + '/messages/en.json', 'utf8'));
+const withIntl = (node) =>
+  React.createElement(NextIntlClientProvider, { locale: 'en', messages: MESSAGES }, node);
 const root = createRoot(host);
 act(() => {
-  root.render(React.createElement(ProseCanvas, {
+  root.render(withIntl(React.createElement(ProseCanvas, {
     value: src, onChange: () => {}, handleRef: (h) => { handle = h; },
-  }));
+  })));
 });
 const canvasHtml = host.innerHTML;
 const liveDoc = handle ? null : null;
 
 // The rendered reading face, for the cross-engine comparison.
-const readerHtml = renderToStaticMarkup(React.createElement(ProseReader, { text: src }));
+const readerHtml = renderToStaticMarkup(withIntl(React.createElement(ProseReader, { text: src })));
 
 const out = {
   // 11a — the table must be VISIBLY a table on the canvas, not raw pipes.
@@ -1350,7 +1403,11 @@ check("11k4 leaving the document flushes pending text (beforeunload + "
 check("11k5 the 409 CONFLICT BANNER SURVIVES — Docs can auto-recompute a "
       "conflict because it commits replayable OPS; Text commits whole text, "
       "so it must ask the member instead of inventing a merge",
-      "setConflict(readConflict(" in _editor and "Save mine over theirs" in _editor,
+      # ADR-660 — the words moved to the catalog; assert the KEY, and the
+      # catalog's own sentence, so the banner still OFFERS the override.
+      "setConflict(readConflict(" in _editor
+      and "t('saveOverTheirs')" in _editor
+      and _msg("text.editor.saveOverTheirs") == "Save mine over theirs",
       "the conflict banner was lost with the Save button")
 
 # ── 11L. the Properties pane: the ⋯, and the visible refusal ─────────────
@@ -1523,8 +1580,11 @@ check("12j 'Save mine over theirs' is ALWAYS offered — it was conditional on "
       "button silently vanished and the member had ONE exit where the design "
       "promises two. D7 fixed one CAUSE of that; the condition itself was the "
       "deeper defect, because any future cause reproduces it",
+      # ADR-660 — the words moved to the catalog; assert the KEY at the
+      # override's own call site, beside the absence of the condition.
       re.search(r"\{conflict\.currentHeadId\s*&&", _editor_ast) is None
-      and "Save mine over theirs" in _editor_ast,
+      and re.search(r"commit\(conflict\.currentHeadId\)[\s\S]{0,300}?t\('saveOverTheirs'\)",
+                    _editor_ast) is not None,
       "the override button is still conditional on a field the server may omit")
 
 
@@ -1790,6 +1850,12 @@ const { createRoot } = require(WEB + '/node_modules/react-dom/client');
 const { act } = React;
 const { ProseCanvas, readSlashRun } = require(WEB + '/components/text/ProseCanvas.tsx');
 const { filterSlashItems, SLASH_ITEMS } = require(WEB + '/components/text/SlashMenu.tsx');
+// ADR-660 — the palette filters on the WORDED label, so `filterSlashItems`
+// takes a label resolver. The probe hands it the same one the app does: the
+// row's `labelKey` read out of the shipped English catalog, never a
+// hand-written table (which would drift from what the member actually sees).
+const SLASH_MSGS = JSON.parse(fs.readFileSync(WEB + '/messages/en.json', 'utf8')).text.slash;
+const slashLabel = (i) => SLASH_MSGS[i.labelKey];
 
 const DOC = '## Structure\n\n| Section | Idea |\n| --- | --- |\n| Verse 1 | lists everything |\n'
   + '| Chorus | sung warmly |\n\n## The one good line\n\nplain **bold** text\n';
@@ -1823,9 +1889,12 @@ console.log(JSON.stringify({
   slash_not_url: readSlashRun('see http://x', 12) === null,
   slash_space_closes: readSlashRun('/table of', 9) === null,
   // The palette's rows come from the SAME actions the toolbar dispatches.
-  slash_filters: filterSlashItems('quo').length === 1
-    && filterSlashItems('todo').some((i) => i.id === 'task')
-    && filterSlashItems('').length === SLASH_ITEMS.length,
+  // Every row's label resolves — a missing catalog key would filter as
+  // `undefined` and this whole claim would be vacuous.
+  slash_labels_resolve: SLASH_ITEMS.every((i) => typeof slashLabel(i) === 'string' && slashLabel(i).length > 0),
+  slash_filters: filterSlashItems('quo', slashLabel).length === 1
+    && filterSlashItems('todo', slashLabel).some((i) => i.id === 'task')
+    && filterSlashItems('', slashLabel).length === SLASH_ITEMS.length,
 }));
 """
 
@@ -1865,7 +1934,11 @@ for _k, _lbl in [
 check("15f the palette filters, and its rows are the SAME ToolbarAction values "
       "the toolbar dispatches — a second DOOR to one mechanism, never a second "
       "mechanism (the rule Docs states for its own toolbar/slash pair)",
-      _d14.get("slash_filters") is True, str(_d14)[:300])
+      # ADR-660 — the filter now runs over the WORDED label, so the claim is
+      # only meaningful if every row HAS a word: a missing catalog key would
+      # resolve to `undefined` and filter as a silent no-match.
+      _d14.get("slash_filters") is True and _d14.get("slash_labels_resolve") is True,
+      str(_d14)[:300])
 
 
 
@@ -2429,7 +2502,11 @@ check("18k a FAILED read inserts NOTHING and says so — writing a source note "
       and "insertCsvTable" not in _csv_catch_body
       and "applyEdit" not in _csv_catch_body
       and "reportAction(" in _csv_fn_body
-      and re.search(r"error:\s*`[^`]*nothing was inserted", _csv_fn_body) is not None,
+      # ADR-660 — the words moved to the catalog; the error option names the
+      # KEY at the reportAction call site, and the catalog's own sentence
+      # still makes the "nothing was inserted" claim this check is about.
+      and re.search(r"error:\s*t\('csvError'", _csv_fn_body) is not None
+      and "nothing was inserted" in _msg("text.editor.csvError"),
       f"catch body: {_csv_catch_body.strip()[:160]!r}")
 
 # ⚠️ RE-ANCHORED 2026-08-24. The original required Strings to IMPORT the
@@ -2551,8 +2628,11 @@ check("19i the header does NOT read 'Editing…' while a conflict suspends "
       "written until the member chooses — but 'Editing…' was chosen to mean "
       "*nothing is at risk*. Three mutually exclusive claims were on one "
       "screen; this is the copy half.",
-      re.search(r"conflict \?[\s\S]{0,400}?Paused", _editor_nc) is not None
-      and re.search(r"\) : dirty \?\s*\(\s*'Editing…'", _editor_nc) is not None,
+      # ADR-660 — the WORDS moved to the catalog, so the discriminator is the
+      # catalog KEY. Structural, and it holds in every language; asserting the
+      # English literal would have made this gate a translation blocker.
+      re.search(r"conflict \?[\s\S]{0,400}?t\('paused'\)", _editor_nc) is not None
+      and re.search(r"\) : dirty \?\s*\(?\s*t\('editing'\)", _editor_nc) is not None,
       "the status label still reads Editing… during a conflict")
 
 _mig = (API.parent / "supabase" / "migrations"

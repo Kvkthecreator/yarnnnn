@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from "next";
+import { getTranslations } from 'next-intl/server';
 import { getRequestUser } from '@/lib/supabase/server';
 import { IntlScope } from '@/components/i18n/IntlScope';
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
@@ -38,10 +39,14 @@ export const metadata: Metadata = {
 export default async function Layout({ children }: { children: React.ReactNode }) {
   // Request-cached and shared with the locale resolver (ADR-660 D2): one fetch.
   const user = await getRequestUser();
+  // ADR-660 — the fallback's word is resolved HERE, not inside it: a Suspense
+  // fallback must render synchronously, so it cannot be an async component
+  // that awaits its own translations.
+  const t = await getTranslations('shell');
 
   return (
     <IntlScope>
-      <Suspense fallback={<LayoutFallback />}>
+      <Suspense fallback={<LayoutFallback loading={t('loading')} />}>
         <AuthenticatedLayout userEmail={user?.email ?? undefined}>
           {children}
         </AuthenticatedLayout>
@@ -50,12 +55,12 @@ export default async function Layout({ children }: { children: React.ReactNode }
   );
 }
 
-function LayoutFallback() {
+function LayoutFallback({ loading }: { loading: string }) {
   return (
     <div className="h-screen flex items-center justify-center bg-background">
       <div className="text-center">
         <h1 className="mb-2"><Wordmark className="text-xl" /></h1>
-        <Working label="Loading…" className="text-sm" />
+        <Working label={loading} className="text-sm" />
       </div>
     </div>
   );

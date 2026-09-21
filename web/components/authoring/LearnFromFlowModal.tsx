@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { FileText, Loader2, Sparkles, Upload } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
@@ -47,6 +48,7 @@ function leaf(p: string): string {
 }
 
 export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFromFlowModalProps) {
+  const t = useTranslations('studio.learnFrom');
   const [mode, setMode] = useState<'files' | 'upload'>('files');
   const [rows, setRows] = useState<Array<{ path: string }> | null>(null);
   const [filter, setFilter] = useState('');
@@ -102,16 +104,16 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
     setErr(null);
     try {
       const res = await runAction(() => api.documents.upload(file), {
-        pending: 'Uploading…',
+        pending: t('uploading'),
       });
       const first = res.results?.[0];
       if (first?.success && first.workspace_path) {
         setSource({ path: first.workspace_path, name: first.filename });
       } else {
-        setErr(first?.error || 'Upload failed.');
+        setErr(first?.error || t('uploadFailed'));
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Upload failed.');
+      setErr(e instanceof Error ? e.message : t('uploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -124,7 +126,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
     try {
       await onStart(source, target);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not start.');
+      setErr(e instanceof Error ? e.message : t('couldNotStart'));
       setBusy(false);
     }
   };
@@ -146,7 +148,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
           aria-modal="true"
         >
           <h3 className="flex items-center gap-1.5 text-base font-semibold text-card-foreground">
-            <Sparkles className="h-4 w-4" /> Learn from
+            <Sparkles className="h-4 w-4" /> {t('title')}
           </h3>
 
           {/* ── Step 1: the source ─────────────────────────────────────── */}
@@ -163,18 +165,21 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
                 onClick={() => setSource(null)}
                 className="shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
               >
-                Change
+                {t('change')}
               </button>
             </div>
           ) : (
             <>
               <div className="mt-3 grid grid-cols-2 gap-1 rounded-md border border-border p-1">
+                {/* ADR-660 — the tab table holds catalog KEYS, worded at
+                    render; a module-level label table is evaluated before any
+                    member's language is known. */}
                 {(
                   [
-                    ['files', 'From your files'],
-                    ['upload', 'Upload'],
+                    ['files', 'fromYourFiles'],
+                    ['upload', 'upload'],
                   ] as const
-                ).map(([m, label]) => (
+                ).map(([m, labelKey]) => (
                   <button
                     key={m}
                     type="button"
@@ -184,7 +189,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
                       mode === m ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
                     )}
                   >
-                    {label}
+                    {t(labelKey)}
                   </button>
                 ))}
               </div>
@@ -194,16 +199,16 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
                   <input
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
-                    placeholder="Filter recent files…"
+                    placeholder={t('filterRecent')}
                     className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                    aria-label="Filter files"
+                    aria-label={t('filterFiles')}
                   />
                   <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto" style={{ maxHeight: '30vh' }}>
                     {visible === null ? (
-                      <Working label="Loading…" fill />
+                      <Working label={t('loading')} fill />
                     ) : visible.length === 0 ? (
                       <p className="p-6 text-center text-sm text-muted-foreground">
-                        Nothing matches — try Upload instead.
+                        {t('nothingMatches')}
                       </p>
                     ) : (
                       <ul className="space-y-1">
@@ -251,7 +256,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
                     ) : (
                       <Upload className="h-5 w-5" />
                     )}
-                    {uploading ? 'Uploading…' : 'Choose a file (PDF, Word, markdown…)'}
+                    {uploading ? t('uploading') : t('chooseFile')}
                   </button>
                 </div>
               )}
@@ -260,24 +265,24 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
 
           {/* ── Step 2: the target (activates once a source is chosen) ──── */}
           <p className="mt-4 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            What should it make?
+            {t('whatShouldItMake')}
           </p>
           <div className="mt-1.5 grid grid-cols-3 gap-2">
-            {targets.map((t) => (
+            {targets.map((tg) => (
               <button
-                key={t.skill}
+                key={tg.skill}
                 type="button"
                 disabled={!source}
-                onClick={() => setTarget(t)}
+                onClick={() => setTarget(tg)}
                 className={cn(
                   'rounded-lg border p-2.5 text-left transition-colors disabled:opacity-40',
-                  target?.skill === t.skill
+                  target?.skill === tg.skill
                     ? 'border-primary bg-primary/5'
                     : 'border-border hover:bg-muted/20',
                 )}
               >
-                <p className="text-sm font-medium">{t.label}</p>
-                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{t.description}</p>
+                <p className="text-sm font-medium">{tg.label}</p>
+                <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{tg.description}</p>
               </button>
             ))}
           </div>
@@ -289,7 +294,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
               onClick={onClose}
               className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="button"
@@ -303,7 +308,7 @@ export function LearnFromFlowModal({ open, targets, onClose, onStart }: LearnFro
               )}
             >
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Start
+              {t('start')}
             </button>
           </div>
         </div>

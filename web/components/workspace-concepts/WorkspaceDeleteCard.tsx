@@ -25,6 +25,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Loader2, RotateCcw, Trash2 } from "lucide-react";
 
+import { useTranslations } from "next-intl";
+
 import { api, APIError, clearActiveWorkspace } from "@/lib/api/client";
 import { useFeedback } from "@/contexts/FeedbackContext";
 
@@ -39,6 +41,8 @@ interface Preview {
 }
 
 export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | null }) {
+  const t = useTranslations("workspaceSettings.delete");
+  const tRoles = useTranslations("workspaceSettings.roles");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [forbidden, setForbidden] = useState(false);
@@ -79,13 +83,13 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
         setForbidden(true);
       } else {
         setError(
-          e instanceof Error ? e.message : "Couldn't load this workspace's details."
+          e instanceof Error ? e.message : t("loadFailed")
         );
       }
     } finally {
       setLoaded(true);
     }
-  }, [workspaceId]);
+  }, [workspaceId, t]);
 
   useEffect(() => {
     void load();
@@ -109,10 +113,10 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
           <Trash2 className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
           <div className="min-w-0">
             <h3 className="text-sm font-medium text-muted-foreground">
-              Delete Workspace
+              {t("forbiddenTitle")}
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Only the workspace owner can delete this workspace.
+              {t("forbiddenBody")}
             </p>
           </div>
         </div>
@@ -131,7 +135,7 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
           onClick={() => void load()}
           className="mt-2 text-xs text-muted-foreground underline hover:text-foreground"
         >
-          Try again
+          {t("tryAgain")}
         </button>
       </div>
     ) : null;
@@ -149,19 +153,19 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
     // it gets a success line.
     const copy = {
       delete: {
-        pending: "Deleting workspace…",
+        pending: t("pendingDelete"),
         success: undefined,
-        fallback: "Couldn't delete this workspace.",
+        fallback: t("failedDelete"),
       },
       purge: {
-        pending: "Purging workspace…",
+        pending: t("pendingPurge"),
         success: undefined,
-        fallback: "Couldn't purge this workspace.",
+        fallback: t("failedPurge"),
       },
       restore: {
-        pending: "Restoring workspace…",
-        success: "Workspace restored",
-        fallback: "Couldn't restore this workspace.",
+        pending: t("pendingRestore"),
+        success: t("successRestore"),
+        fallback: t("failedRestore"),
       },
     }[verb];
     try {
@@ -209,29 +213,23 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
         <Trash2 className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-medium">
-            {isDeleted ? "Workspace deleted" : "Delete Workspace"}
+            {isDeleted ? t("deletedTitle") : t("liveTitle")}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            {isDeleted
-              ? "This workspace is deleted and hidden. Nothing has been destroyed — it's kept until you purge it."
-              : "Remove this workspace and everything in it. It's hidden immediately and kept until you purge it — there's no automatic deletion."}
+            {isDeleted ? t("deletedBody") : t("liveBody")}
           </p>
 
           {/* D3 — the last owned workspace cannot be deleted. Say why, rather
               than presenting a button that 400s. */}
           {!isDeleted && preview.is_last_owned && (
-            <p className="text-xs text-muted-foreground mt-2">
-              This is your only workspace. Create another one first — deleting
-              your last workspace would immediately mint a replacement.
-            </p>
+            <p className="text-xs text-muted-foreground mt-2">{t("lastOwned")}</p>
           )}
 
           {/* D4 — the witness dial: name who loses access. */}
           {!isDeleted && others.length > 0 && (
             <div className="mt-2 rounded border border-destructive/30 bg-destructive/5 px-3 py-2">
               <p className="text-xs text-destructive">
-                {others.length} other {others.length === 1 ? "principal" : "principals"} will
-                lose access to this workspace and everything they&rsquo;ve made in it:
+                {t("witness", { count: others.length })}
               </p>
               <ul className="mt-1 text-xs text-muted-foreground">
                 {others.slice(0, 5).map((p) => (
@@ -240,10 +238,13 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                         heavy, so it must be READABLE. The server names each
                         principal best-effort; an unresolved id keeps its raw
                         value rather than rendering blank. */}
-                    {p.label ?? p.principal_id} ({p.role})
+                    {p.label ?? p.principal_id} (
+                    {tRoles.has(p.role) ? tRoles(p.role) : p.role})
                   </li>
                 ))}
-                {others.length > 5 && <li>…and {others.length - 5} more</li>}
+                {others.length > 5 && (
+                  <li>{t("witnessMore", { count: others.length - 5 })}</li>
+                )}
               </ul>
             </div>
           )}
@@ -265,14 +266,14 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                 onClick={() => setConfirming("delete")}
                 className="px-3 py-1.5 rounded-md border border-destructive/50 text-destructive text-sm disabled:opacity-50"
               >
-                Delete workspace
+                {t("deleteCta")}
               </button>
             )}
 
             {!isDeleted && confirming === "delete" && (
               <>
                 <span className="text-sm text-muted-foreground">
-                  Delete &ldquo;{preview.name}&rdquo;? You can restore it afterwards.
+                  {t("deleteAsk", { name: preview.name })}
                 </span>
                 <button
                   type="button"
@@ -281,14 +282,14 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                   className="px-3 py-1.5 rounded-md bg-destructive text-destructive-foreground text-sm inline-flex items-center gap-1.5"
                 >
                   {pending === "delete" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Confirm delete
+                  {t("deleteConfirm")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirming(null)}
                   className="px-3 py-1.5 rounded-md border text-sm"
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
               </>
             )}
@@ -306,7 +307,7 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                   ) : (
                     <RotateCcw className="w-3.5 h-3.5" />
                   )}
-                  Restore
+                  {t("restore")}
                 </button>
 
                 {confirming !== "purge" ? (
@@ -316,18 +317,18 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                     disabled={pending !== null}
                     className="px-3 py-1.5 rounded-md border border-destructive/50 text-destructive text-sm"
                   >
-                    Purge permanently
+                    {t("purgeCta")}
                   </button>
                 ) : (
                   <>
                     <span className="text-sm text-destructive inline-flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      Destroys every file and its history. Cannot be undone.
+                      {t("purgeWarning")}
                       {/* ADR-405: the system does not destroy work unwitnessed.
                           Naming the loss without naming the remedy is only half
                           the witness — the copy is available right up to here. */}
                       <span className="text-muted-foreground">
-                        Download it first if you want to keep a copy.
+                        {t("purgeRemedy")}
                       </span>
                     </span>
                     {/* Type the workspace name. The name is shown right here:
@@ -338,14 +339,19 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                         not a spelling test. */}
                     <label className="inline-flex items-center gap-2 text-sm">
                       <span className="text-muted-foreground">
-                        Type <span className="font-medium text-foreground">{preview.name}</span> to confirm:
+                        {t.rich("purgeTypeLabel", {
+                          name: preview.name,
+                          b: (chunks) => (
+                            <span className="font-medium text-foreground">{chunks}</span>
+                          ),
+                        })}
                       </span>
                       <input
                         type="text"
                         value={purgeTyped}
                         onChange={(e) => setPurgeTyped(e.target.value)}
                         disabled={pending !== null}
-                        aria-label={`Type ${preview.name} to confirm permanent deletion`}
+                        aria-label={t("purgeTypeAria", { name: preview.name })}
                         autoComplete="off"
                         className="w-48 rounded-md border border-border bg-background px-2 py-1 text-sm"
                       />
@@ -360,7 +366,7 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                       className="px-3 py-1.5 rounded-md bg-destructive text-destructive-foreground text-sm inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {pending === "purge" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      Purge forever
+                      {t("purgeConfirm")}
                     </button>
                     <button
                       type="button"
@@ -370,7 +376,7 @@ export function WorkspaceDeleteCard({ workspaceId }: { workspaceId: string | nul
                       }}
                       className="px-3 py-1.5 rounded-md border text-sm"
                     >
-                      Cancel
+                      {t("cancel")}
                     </button>
                   </>
                 )}

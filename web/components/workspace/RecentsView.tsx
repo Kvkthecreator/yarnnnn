@@ -47,12 +47,14 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { History, FolderPlus, Upload } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
-import { formatAuthorLabelOrSystem, authorAccent } from '@/lib/workspace/attribution';
+import { authorAccent } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { FileTile } from './FileTile';
 import { FileListHeader, FileListRow } from './FileListView';
 import { FilesViewToggle } from './FilesViewToggle';
@@ -81,7 +83,7 @@ interface Revision {
 // ---------------------------------------------------------------------------
 // ADR-388 D3: author label + accent come from the ONE shared attribution
 // module (was duplicated here, in files/page, ContentViewer, NodeDetailsPanel).
-// formatAuthorLabelOrSystem keeps RecentsView's never-null glance behavior.
+// authorLabelOrSystem keeps RecentsView's never-null glance behavior.
 
 function fileName(path: string): string {
   return path.split('/').filter(Boolean).pop() || path;
@@ -137,7 +139,8 @@ interface RecentsViewProps {
   onSelectRow?: (path: string) => void;
   /** Hide the header (caller renders its own title chrome). */
   hideHeader?: boolean;
-  /** Header label (default "Recents"). */
+  /** Header label. Absent → the catalog's "Recents" (ADR-660: the default is
+   *  worded at render, not baked into the signature). */
   title?: string;
   /**
    * Self-hide instead of showing the cold-start empty state. A kernel slot
@@ -170,13 +173,15 @@ export function RecentsView({
   onClearSelection,
   onSelectRow,
   hideHeader = false,
-  title = 'Recents',
+  title,
   hideWhenEmpty = false,
   verbs,
   subtitle,
   onNewFolder,
   onAddFiles,
 }: RecentsViewProps) {
+  const t = useTranslations('files.recents');
+  const { authorLabelOrSystem } = useAuthorLabel();
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [loading, setLoading] = useState(true);
   // The ONE shared Files view mode (icon/list) — synced with the folder-listing
@@ -255,7 +260,7 @@ export function RecentsView({
     // Self-hiding slot: stay silent until the first batch resolves.
     if (hideWhenEmpty) return null;
     return (
-      <Working label="Loading recent changes…" className="px-1 py-3 text-sm" />
+      <Working label={t('loading')} className="px-1 py-3 text-sm" />
     );
   }
 
@@ -268,20 +273,20 @@ export function RecentsView({
       <div className="flex flex-col items-center justify-center py-10 text-center px-6">
         <History className="h-8 w-8 text-muted-foreground/40 mb-3" />
         <p className="max-w-sm text-sm text-muted-foreground">
-          Nothing here yet. Files you and your agents write show up here, newest first.
+          {t('coldStart')}
         </p>
         {(onNewFolder || onAddFiles) && (
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             {onNewFolder && (
               <button type="button" onClick={onNewFolder} className={EMPTY_DOOR_CLASS}>
                 <FolderPlus className="h-3.5 w-3.5" />
-                New folder
+                {t('newFolder')}
               </button>
             )}
             {onAddFiles && (
               <button type="button" onClick={onAddFiles} className={EMPTY_DOOR_CLASS}>
                 <Upload className="h-3.5 w-3.5" />
-                Add files
+                {t('addFiles')}
               </button>
             )}
           </div>
@@ -295,9 +300,9 @@ export function RecentsView({
       {!hideHeader && (
         <div className="mb-3 flex items-center gap-2">
           <History className="h-4 w-4 text-muted-foreground shrink-0" />
-          <h2 className="text-sm font-medium text-foreground">{title}</h2>
+          <h2 className="text-sm font-medium text-foreground">{title ?? t('title')}</h2>
           <span className="text-[11px] text-muted-foreground">
-            {subtitle ?? `${revisions.length} change${revisions.length === 1 ? '' : 's'}`}
+            {subtitle ?? t('changes', { count: revisions.length })}
           </span>
           <div className="ml-auto">
             <FilesViewToggle mode={mode} onChange={setView} />
@@ -404,6 +409,7 @@ function ListTable({
   rowContext: (path: string) => (e: React.MouseEvent) => void;
   Kebab: (props: { target: FileMenuTarget; className?: string }) => React.ReactNode;
 }) {
+  const { authorLabelOrSystem } = useAuthorLabel();
   return (
     <div className="overflow-hidden rounded-lg border border-border/60">
       <FileListHeader />
@@ -423,7 +429,7 @@ function ListTable({
               author={
                 <span className="inline-flex items-center gap-1.5">
                   <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent(rev.authored_by))} />
-                  {formatAuthorLabelOrSystem(rev.authored_by)}
+                  {authorLabelOrSystem(rev.authored_by)}
                 </span>
               }
               title={rev.path}

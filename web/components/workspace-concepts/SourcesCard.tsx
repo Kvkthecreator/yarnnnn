@@ -23,6 +23,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Rss, Plus, X, CheckCircle2, AlertCircle, Clock, Globe } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import {
@@ -39,6 +40,8 @@ import { cn } from '@/lib/utils';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { isSubmitKey } from '@/lib/shell/submit-key';
 
+type T = ReturnType<typeof useTranslations<'workspaceSettings.sources'>>;
+
 export type SourcesVariant = 'full' | 'compact';
 
 interface SourcesCardProps {
@@ -47,21 +50,20 @@ interface SourcesCardProps {
 }
 
 export function SourcesCard({ variant = 'full', className }: SourcesCardProps) {
+  const t = useTranslations('workspaceSettings.sources');
   const { watches, loading, noWatch, setSources } = useSources();
 
   if (loading) {
-    return <Working label="Loading sources…" fill className={className} />;
+    return <Working label={t('loading')} fill className={className} />;
   }
 
   if (noWatch) {
     return (
       <div className={cn('rounded-lg border border-dashed border-border/60 px-4 py-6 text-center', className)}>
         <Rss className="mx-auto h-5 w-5 text-muted-foreground/50" />
-        <p className="mt-2 text-sm font-medium text-foreground/80">No standing watch declared</p>
+        <p className="mt-2 text-sm font-medium text-foreground/80">{t('noWatchTitle')}</p>
         <p className="mt-1 text-xs text-muted-foreground/70 max-w-sm mx-auto">
-          Your active program declares no web watch. Uploads and websearch remain your context-in —
-          perception is a flow, never a gate. A program with a web/RSS watch (e.g. an interest scout)
-          surfaces its source editor here.
+          {t('noWatchBody')}
         </p>
       </div>
     );
@@ -75,9 +77,7 @@ export function SourcesCard({ variant = 'full', className }: SourcesCardProps) {
           is a glance, not the teaching moment. */}
       {variant === 'full' && (
         <p className="text-xs text-muted-foreground/80 rounded-md bg-muted/40 border border-border/50 px-3 py-2">
-          What you declare here becomes your agent&apos;s perception: each source is
-          fetched on the watch&apos;s cadence, distilled into a signal file, and read at
-          every wake — it shapes what your agent notices and what reaches your Queue.
+          {t('consequence')}
         </p>
       )}
       {watches.map((w) => (
@@ -100,6 +100,7 @@ function WatchEditor({
   onSave: (declarationPath: string, sources: WatchSource[]) => Promise<void>;
   compact: boolean;
 }) {
+  const t = useTranslations('workspaceSettings.sources');
   const { runAction } = useFeedback();
   const [saving, setSaving] = useState(false);
   const observedById = new Map<string, ObservedSourceHealth>(watch.observed.map((o) => [o.id, o]));
@@ -111,9 +112,9 @@ function WatchEditor({
     setSaving(true);
     try {
       await runAction(() => onSave(watch.declaration_path, next), {
-        pending: 'Saving sources…',
-        success: 'Sources saved',
-        error: 'Could not save those sources',
+        pending: t('savePending'),
+        success: t('saveSuccess'),
+        error: t('saveFailed'),
       });
     } catch {
       /* reported; the next load shows what is actually stored */
@@ -140,7 +141,9 @@ function WatchEditor({
         </div>
         <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-muted-foreground/70">
           <Clock className="h-3 w-3" />
-          {watch.observed_at ? `observed ${relativeTime(watch.observed_at)}` : 'not yet observed'}
+          {watch.observed_at
+            ? t('observedAt', { when: relativeTime(watch.observed_at, t) })
+            : t('notObserved')}
         </div>
       </div>
 
@@ -148,7 +151,7 @@ function WatchEditor({
       <ul className="divide-y divide-border/40">
         {watch.declared.length === 0 ? (
           <li className="px-4 py-3 text-xs text-muted-foreground/50 italic">
-            No sources declared — this watch is a deliberate no-op.
+            {t('noSources')}
           </li>
         ) : (
           watch.declared.map((s) => {
@@ -167,14 +170,14 @@ function WatchEditor({
                     <Globe className="h-3 w-3 shrink-0" />
                     <span className="truncate">{s.url}</span>
                   </div>
-                  <HealthLine health={health} maxEntries={s.max_entries} />
+                  <HealthLine health={health} maxEntries={s.max_entries} t={t} />
                 </div>
                 {!compact && (
                   <button
                     type="button"
                     onClick={() => void remove(s.url)}
                     disabled={saving}
-                    aria-label={`Remove ${s.id}`}
+                    aria-label={t('removeAria', { id: s.id })}
                     className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -191,8 +194,7 @@ function WatchEditor({
         <div className="border-t border-border/60 px-4 py-2.5">
           {atCap ? (
             <p className="text-[11px] text-muted-foreground/60">
-              At the {watch.source_cap || SOURCE_CAP}-source cap — a portfolio of attention, not a crawler.
-              Remove one to add another.
+              {t('atCap', { cap: watch.source_cap || SOURCE_CAP })}
             </p>
           ) : (
             <AddSourceRow
@@ -220,6 +222,7 @@ function AddSourceRow({
   onAdd: (src: WatchSource) => void;
   disabled: boolean;
 }) {
+  const t = useTranslations('workspaceSettings.sources');
   const [url, setUrl] = useState('');
   const [id, setId] = useState('');
   const [attestation, setAttestation] = useState<Attestation>('platform');
@@ -247,7 +250,7 @@ function AddSourceRow({
               add();
             }
           }}
-          placeholder="https://example.com/feed/"
+          placeholder={t('urlPlaceholder')}
           disabled={disabled}
           className="flex-1 rounded-md border border-border/60 bg-transparent px-2 py-1 text-xs outline-none focus:border-border disabled:opacity-40"
         />
@@ -257,7 +260,7 @@ function AddSourceRow({
           disabled={disabled || !url.trim()}
           className="shrink-0 inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-40"
         >
-          <Plus className="h-3 w-3" /> Add
+          <Plus className="h-3 w-3" /> {t('add')}
         </button>
       </div>
       <div className="flex items-center gap-1.5">
@@ -265,7 +268,7 @@ function AddSourceRow({
           type="text"
           value={id}
           onChange={(e) => setId(e.target.value)}
-          placeholder="id (optional — derived from domain)"
+          placeholder={t('idPlaceholder')}
           disabled={disabled}
           className="flex-1 rounded-md border border-border/60 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-border disabled:opacity-40"
         />
@@ -274,7 +277,7 @@ function AddSourceRow({
           onChange={(e) => setAttestation(e.target.value as Attestation)}
           disabled={disabled}
           className="shrink-0 rounded-md border border-border/60 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-border disabled:opacity-40"
-          title="Who attests these facts?"
+          title={t('attestationTitle')}
         >
           {ATTESTATIONS.map((a) => (
             <option key={a} value={a}>
@@ -292,8 +295,14 @@ function AddSourceRow({
 // ---------------------------------------------------------------------------
 
 function HealthDot({ health }: { health?: ObservedSourceHealth }) {
+  const t = useTranslations('workspaceSettings.sources');
   if (!health) {
-    return <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30" title="Not yet observed" />;
+    return (
+      <span
+        className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30"
+        title={t('notObservedDot')}
+      />
+    );
   }
   if (health.status === 'error') {
     return <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-500" />;
@@ -301,21 +310,37 @@ function HealthDot({ health }: { health?: ObservedSourceHealth }) {
   return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />;
 }
 
-function HealthLine({ health, maxEntries }: { health?: ObservedSourceHealth; maxEntries: number }) {
+function HealthLine({
+  health,
+  maxEntries,
+  t,
+}: {
+  health?: ObservedSourceHealth;
+  maxEntries: number;
+  t: T;
+}) {
   if (!health) {
-    return <p className="text-[11px] text-muted-foreground/40 mt-0.5">Awaiting first observation · keeps ≤{maxEntries} entries</p>;
+    return (
+      <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+        {t('awaiting', { max: maxEntries })}
+      </p>
+    );
   }
   if (health.status === 'error') {
     return (
       <p className="text-[11px] text-rose-500/80 mt-0.5 truncate">
-        Last fetch failed{health.error ? `: ${health.error}` : ''}
+        {health.error ? t('fetchFailedWith', { error: health.error }) : t('fetchFailed')}
       </p>
     );
   }
   return (
     <p className="text-[11px] text-muted-foreground/60 mt-0.5">
-      {health.entry_count} {health.entry_count === 1 ? 'entry' : 'entries'} last observed
-      {health.observed_at ? ` ${relativeTime(health.observed_at)}` : ''}
+      {health.observed_at
+        ? t('entriesObservedWhen', {
+            count: health.entry_count,
+            when: relativeTime(health.observed_at, t),
+          })
+        : t('entriesObserved', { count: health.entry_count })}
     </p>
   );
 }
@@ -324,15 +349,15 @@ function HealthLine({ health, maxEntries }: { health?: ObservedSourceHealth; max
 // Relative-time helper (small, dependency-free)
 // ---------------------------------------------------------------------------
 
-function relativeTime(iso: string): string {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return iso;
-  const diffMs = Date.now() - t;
+function relativeTime(iso: string, t: T): string {
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return iso;
+  const diffMs = Date.now() - parsed;
   const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return t('time.justNow');
+  if (mins < 60) return t('time.minutes', { n: mins });
   const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return t('time.hours', { n: hrs });
   const days = Math.round(hrs / 24);
-  return `${days}d ago`;
+  return t('time.days', { n: days });
 }

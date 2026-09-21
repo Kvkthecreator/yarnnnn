@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   History,
   User,
@@ -41,9 +42,9 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import { Working } from '@/components/shared/Working';
 import {
   authorClass,
-  formatAuthorLabelOrSystem,
   type AuthorClass,
 } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 
 /** ADR-406 D2 — extract the 409 stale-write payload's intervening-head
  *  attribution from an APIError, or null when the error is anything else.
@@ -74,14 +75,28 @@ interface RevisionSummary {
 
 /** The viewer-relative label: "You" (+ the transport tail) when the server says
  * the acting member is the viewer; else the server-resolved display; else the
- * local labeler (legacy payloads). */
-function revisionAuthorLabel(rev: RevisionSummary): string {
-  const display = rev.authored_by_display ?? null;
-  if (rev.author_is_you) {
-    const via = display?.includes(' via ') ? display.slice(display.indexOf(' via ')) : '';
-    return `You${via}`;
-  }
-  return display ?? formatAuthorLabelOrSystem(rev.authored_by);
+ * local labeler (legacy payloads).
+ *
+ * ⚠️ ADR-660 — the "you + transport" case is composed from PARTS. It used to
+ * slice the served display at the literal `' via '` and re-join it to an
+ * English "You", which is an English-only parse: in any other language it
+ * produced a name with no transport, or a tail in the wrong place. The
+ * transport rides as an ICU argument of one whole sentence instead. The served
+ * `authored_by_display` itself is the SERVER's word and is never translated. */
+function useRevisionAuthorLabel() {
+  const tViewer = useTranslations('supervisor.viewer');
+  const tAttr = useTranslations('attribution');
+  const { authorLabelOrSystem } = useAuthorLabel();
+  return (rev: RevisionSummary): string => {
+    const display = rev.authored_by_display ?? null;
+    if (rev.author_is_you) {
+      const idx = display ? display.indexOf(' via ') : -1;
+      return idx >= 0 && display
+        ? tViewer('youVia', { model: display.slice(idx + ' via '.length) })
+        : tAttr('you');
+    }
+    return display ?? authorLabelOrSystem(rev.authored_by);
+  };
 }
 
 interface RevisionHistoryPanelProps {
@@ -157,6 +172,9 @@ export function RevisionHistoryPanel({
   onRevert,
   revertDisabled = false,
 }: RevisionHistoryPanelProps) {
+  const t = useTranslations('files.revisions');
+  const { authorLabelOrSystem } = useAuthorLabel();
+  const revisionAuthorLabel = useRevisionAuthorLabel();
   const [revisions, setRevisions] = useState<RevisionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -220,7 +238,7 @@ export function RevisionHistoryPanel({
       try {
         const detail = await api.workspace.readRevision(path, rev.id);
         if (detail.content === null || detail.content === undefined) {
-          throw new Error('Revision has no content to restore');
+          throw new Error(t('noContent'));
         }
         // Bound before the wrapper: the narrowing above does not survive into
         // the callback's closure.
@@ -244,11 +262,11 @@ export function RevisionHistoryPanel({
               headId
             ),
           {
-            pending: 'Restoring…',
-            success: `Restored the version from ${shortId}`,
+            pending: t('restoring'),
+            success: t('restoredFrom', { id: shortId }),
             // The 409 is re-thrown to the catch below, which replaces this
             // line with the who-moved-past-you sentence.
-            error: (e) => (staleWriteHead(e) ? '' : 'Could not restore that version'),
+            error: (e) => (staleWriteHead(e) ? '' : t('couldNotRestore')),
           },
         );
         // Close diff view + refetch
@@ -262,11 +280,11 @@ export function RevisionHistoryPanel({
           // ADR-406/405 — the conflict is a witness moment: say WHO moved
           // past the operator, refresh the chain (and parent content via
           // onRevert) so they can redo the revert against the new head.
-          const who = formatAuthorLabelOrSystem(conflict.authored_by ?? null);
+          const who = authorLabelOrSystem(conflict.authored_by ?? null);
           toast({
             kind: 'error',
-            message: 'File changed since you opened it',
-            description: `${who} saved a newer revision. History refreshed — redo the revert if you still want it.`,
+            message: t('changedTitle'),
+            description: t('changedBody', { who }),
             durationMs: 6000,
           });
           setSelectedId(null);
@@ -280,7 +298,7 @@ export function RevisionHistoryPanel({
         setRevertBusy(false);
       }
     },
-    [path, headId, fetchRevisions, onRevert, toast, runAction]
+    [path, headId, fetchRevisions, onRevert, toast, runAction, t]
   );
 
   const totalCount = revisions.length;
@@ -295,31 +313,31 @@ export function RevisionHistoryPanel({
       >
         <span className="flex items-center gap-2">
           <History className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium">Revision history</span>
+          <span className="font-medium">{t('title')}</span>
           {!loading && (
             <span className="text-xs text-muted-foreground">
-              ({totalCount}{totalCount === limit ? '+' : ''})
+              {t(totalCount === limit ? 'countPlus' : 'count', { count: totalCount })}
             </span>
           )}
         </span>
         <span className="text-xs text-muted-foreground">
-          {collapsed ? 'show' : 'hide'}
+          {collapsed ? t('show') : t('hide')}
         </span>
       </button>
 
       {!collapsed && (
         <div className="border-t border-border">
           {loading && (
-            <Working label="Loading revisions…" className="px-3 py-4 text-sm" />
+            <Working label={t('loading')} className="px-3 py-4 text-sm" />
           )}
 
           {!loading && error && (
-            <div className="px-3 py-3 text-xs text-destructive">Failed to load: {error}</div>
+            <div className="px-3 py-3 text-xs text-destructive">{t('loadFailed', { error })}</div>
           )}
 
           {!loading && !error && revisions.length === 0 && (
             <div className="px-3 py-4 text-xs text-muted-foreground italic">
-              No revisions yet for this file.
+              {t('none')}
             </div>
           )}
 
@@ -357,7 +375,7 @@ export function RevisionHistoryPanel({
                         </span>
                         {isHead && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/30">
-                            current
+                            {t('current')}
                           </span>
                         )}
                       </div>
@@ -376,16 +394,16 @@ export function RevisionHistoryPanel({
                           }}
                           disabled={revertBusy}
                           className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border text-[11px] hover:bg-muted disabled:opacity-50"
-                          title="Go back to this version. It’s saved as a new version under your name"
+                          title={t('revertTitle')}
                         >
                           <Undo2 className="w-3 h-3" />
-                          revert
+                          {t('revert')}
                         </button>
                       )}
                       {!isHead && (
                         <span className="shrink-0 text-[10px] text-muted-foreground/50 inline-flex items-center gap-1">
                           <GitCompare className="w-3 h-3" />
-                          diff
+                          {t('diff')}
                         </span>
                       )}
                     </div>
@@ -394,7 +412,7 @@ export function RevisionHistoryPanel({
                       <div className="mt-2 rounded border border-border bg-muted/30">
                         <div className="flex items-center justify-between px-2 py-1 border-b border-border">
                           <span className="text-[11px] text-muted-foreground">
-                            Diff against current (r{totalCount})
+                            {t('diffAgainstCurrent', { count: totalCount })}
                           </span>
                           <button
                             type="button"
@@ -403,17 +421,17 @@ export function RevisionHistoryPanel({
                               setDiffText(null);
                             }}
                             className="text-muted-foreground hover:text-foreground"
-                            aria-label="Close diff"
+                            aria-label={t('closeDiff')}
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                         {diffLoading && (
-                          <Working label="Computing diff…" className="p-3 text-xs" />
+                          <Working label={t('computingDiff')} className="p-3 text-xs" />
                         )}
                         {!diffLoading && diffIdentical && (
                           <div className="p-3 text-xs text-muted-foreground italic">
-                            Content identical — different revisions written with the same bytes.
+                            {t('identical')}
                           </div>
                         )}
                         {!diffLoading && diffText && !diffIdentical && (
@@ -431,7 +449,7 @@ export function RevisionHistoryPanel({
 
           {revertError && (
             <div className="px-3 py-2 border-t border-border text-xs text-destructive">
-              Revert failed: {revertError}
+              {t('revertFailed', { error: revertError })}
             </div>
           )}
         </div>

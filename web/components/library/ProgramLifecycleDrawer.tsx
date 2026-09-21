@@ -20,6 +20,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Loader2,
   Sparkles,
@@ -46,6 +47,7 @@ interface ProgramLifecycleDrawerProps {
 }
 
 export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDrawerProps) {
+  const t = useTranslations('supervisor.program');
   const { runAction } = useFeedback();
   const [expanded, setExpanded] = useState(false);
   const [isMutating, setIsMutating] = useState<string | null>(null);
@@ -70,9 +72,9 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
     setIsMutating(slug);
     try {
       await runAction(() => api.programs.activate(slug), {
-        pending: `Activating ${slug}…`,
-        success: `Activated ${slug}`,
-        error: (e) => (e instanceof APIError ? e.message : 'Activation failed'),
+        pending: t('activating', { slug }),
+        success: t('activated', { slug }),
+        error: (e) => (e instanceof APIError ? e.message : t('activationFailed')),
       });
       await onMutation();
     } catch {
@@ -84,11 +86,11 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
     setIsMutating('deactivate');
     try {
       await runAction(() => api.programs.deactivate(), {
-        pending: 'Deactivating…',
+        pending: t('deactivating'),
         // Only a real deactivation gets a line — the server can answer "there
         // was nothing running", and claiming otherwise would be a lie.
-        success: (res) => (res.deactivated ? `Deactivated ${res.prior_program_slug}` : ''),
-        error: (e) => (e instanceof APIError ? e.message : 'Deactivation failed'),
+        success: (res) => (res.deactivated ? t('deactivated', { slug: res.prior_program_slug ?? '' }) : ''),
+        error: (e) => (e instanceof APIError ? e.message : t('deactivationFailed')),
       });
       await onMutation();
     } catch {
@@ -103,23 +105,23 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
   const summaryParts: React.ReactNode[] = [];
   if (activeProgram) {
     summaryParts.push(
-      <span key="active" className="text-foreground">Running {activeProgram.title}</span>
+      <span key="active" className="text-foreground">{t('running', { title: activeProgram.title })}</span>
     );
   } else {
     summaryParts.push(
-      <span key="none" className="italic text-muted-foreground/60">No program active</span>
+      <span key="none" className="italic text-muted-foreground/60">{t('noneActive')}</span>
     );
   }
   if (state.capability_gaps.length > 0) {
     if (unmetGaps.length > 0) {
       summaryParts.push(
         <span key="gaps" className="text-amber-600 dark:text-amber-400">
-          {unmetGaps.length} platform{unmetGaps.length !== 1 ? 's' : ''} needed
+          {t('platformsNeeded', { count: unmetGaps.length })}
         </span>
       );
     } else {
       summaryParts.push(
-        <span key="ok" className="text-green-700 dark:text-green-400">All platforms connected</span>
+        <span key="ok" className="text-green-700 dark:text-green-400">{t('allConnected')}</span>
       );
     }
   }
@@ -144,7 +146,7 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
           )}
         </div>
         <span className="text-[11px] text-muted-foreground">
-          {expanded ? 'Hide' : 'Manage program'}
+          {expanded ? t('hide') : t('manage')}
         </span>
       </button>
 
@@ -153,7 +155,7 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
 
           {/* Active program detail */}
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Active program</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('activeProgram')}</h3>
             {activeProgram ? (
               <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -175,14 +177,13 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
                   {isMutating === 'deactivate'
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Power className="w-3.5 h-3.5" />}
-                  Deactivate
+                  {t('deactivate')}
                 </button>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3">
                 <p className="text-sm text-muted-foreground">
-                  No program activated yet. Activate one below to begin — until then
-                  the workspace is in standby.
+                  {t('noneActivatedYet')}
                 </p>
               </div>
             )}
@@ -192,10 +193,10 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
           {unmetGaps.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Platform connections needed
+                {t('connectionsNeeded')}
               </h3>
               <p className="text-xs text-muted-foreground/80">
-                Your active program needs these platforms connected before it can execute autonomously.
+                {t('connectionsNeededBody')}
               </p>
               <div className="space-y-2">
                 {unmetGaps.map(gap => <CapabilityGapRow key={`${gap.capability}-${gap.requires_platform}`} gap={gap} />)}
@@ -207,12 +208,10 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
           {switchablePrograms.length > 0 ? (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {activeProgram ? 'Switch program' : 'Available programs'}
+                {activeProgram ? t('switchProgram') : t('availablePrograms')}
               </h3>
               <p className="text-xs text-muted-foreground/80">
-                {activeProgram
-                  ? 'Switching hires the new agent in place — your authored content is preserved.'
-                  : 'Activating a program hires an agent — its load-out installs into the agent’s own home.'}
+                {activeProgram ? t('switchBody') : t('activateBody')}
               </p>
               <div className="space-y-2">
                 {switchablePrograms.map(p => (
@@ -225,7 +224,7 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
             </div>
           ) : !activeProgram ? null : (
             <p className="text-xs text-muted-foreground/60 italic">
-              More programs coming soon.
+              {t('moreComingSoon')}
             </p>
           )}
 
@@ -238,6 +237,7 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
 // ─── Capability gap row (ADR-266 D6 copy hygiene) ────────────────────────────
 
 function CapabilityGapRow({ gap }: { gap: CapabilityGap }) {
+  const t = useTranslations('supervisor.program');
   // Display the platform name, not the slug. "Alpaca" not "trading".
   const display = getPlatformDisplay(gap.requires_platform);
   return (
@@ -248,7 +248,7 @@ function CapabilityGapRow({ gap }: { gap: CapabilityGap }) {
       </div>
       <a href={display.href}
         className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 shrink-0">
-        <Link2 className="w-3.5 h-3.5" /> Connect
+        <Link2 className="w-3.5 h-3.5" /> {t('connect')}
       </a>
     </div>
   );
@@ -264,6 +264,7 @@ function ProgramRow({
   disabled: boolean;
   onActivate: () => void;
 }) {
+  const t = useTranslations('supervisor.program');
   const interactive = !program.deferred;
   return (
     <div className={cn('rounded-lg border px-4 py-3', 'border-border bg-card')}>
@@ -275,7 +276,7 @@ function ProgramRow({
                 Deferred bundles get the COMING SOON badge; the
                 "(Reference)" parenthetical is dropped. */}
             {program.deferred && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground/70">Coming soon</span>
+              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground/70">{t('comingSoon')}</span>
             )}
             {program.current_phase_label && !program.deferred && (
               <span className="text-[10px] text-muted-foreground/60">{program.current_phase_label}</span>
@@ -289,7 +290,7 @@ function ProgramRow({
           <button type="button" onClick={onActivate} disabled={disabled}
             className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-muted/20 disabled:opacity-40 flex items-center gap-1.5 shrink-0">
             {isMutating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            Activate
+            {t('activate')}
           </button>
         )}
       </div>

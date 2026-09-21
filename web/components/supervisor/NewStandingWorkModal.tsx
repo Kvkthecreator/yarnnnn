@@ -23,27 +23,33 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import { APIError, api, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
-import { describeSchedule, lowerFirst } from '@/components/standing/StandingRow';
+import { lowerFirst, useStandingWords } from '@/components/standing/StandingRow';
 
 const FORMATS = ['md', 'csv', 'json', 'txt'];
 
 /** The schedules a member sets from the door — each one a cron the kernel
- *  reads in the workspace's clock. "Custom" takes any cron. */
-const PRESETS: Array<{ label: string; cron: string }> = [
-  { label: 'Every weekday at 09:00', cron: '0 9 * * 1-5' },
-  { label: 'Every day at 09:00', cron: '0 9 * * *' },
-  { label: 'Every Monday at 09:00', cron: '0 9 * * 1' },
-  { label: 'Every hour', cron: '0 * * * *' },
+ *  reads in the workspace's clock. "Custom" takes any cron.
+ *
+ *  ADR-660 — the rows hold catalog KEYS: this table is evaluated at import,
+ *  before any member's language is known. */
+const PRESETS: Array<{ labelKey: string; cron: string }> = [
+  { labelKey: 'preset.weekdays9', cron: '0 9 * * 1-5' },
+  { labelKey: 'preset.daily9', cron: '0 9 * * *' },
+  { labelKey: 'preset.monday9', cron: '0 9 * * 1' },
+  { labelKey: 'preset.hourly', cron: '0 * * * *' },
 ];
 
 function slugify(s: string): string {
   return s.trim().toLowerCase().replace(/[^a-z0-9/]+/g, '-').replace(/^-|-$/g, '').replace(/\/+/g, '/');
 }
 
-function refusalMessage(e: unknown): string {
+/** The refusal the SERVER named (`detail.message`) — served, so it rides as
+ *  it came. `fallback` is the client's own last resort, worded by the caller. */
+function refusalMessage(e: unknown, fallback: string): string {
   if (e instanceof APIError) {
     const detail = (e.data as { detail?: unknown } | undefined)?.detail;
     if (detail && typeof detail === 'object' && 'message' in detail) {
@@ -51,7 +57,7 @@ function refusalMessage(e: unknown): string {
       if (typeof m === 'string' && m) return m;
     }
   }
-  return e instanceof Error ? e.message : 'Could not set this up.';
+  return e instanceof Error ? e.message : fallback;
 }
 
 export function NewStandingWorkModal({
@@ -64,6 +70,8 @@ export function NewStandingWorkModal({
   onClose: () => void;
   onCreated: (created: StandingSummary) => void;
 }) {
+  const t = useTranslations('supervisor');
+  const { describeSchedule } = useStandingWords();
   const connectorStarts = useMemo(() => starts.filter((s) => s.kind === 'connector'), [starts]);
   const [folder, setFolder] = useState('');
   const [target, setTarget] = useState('');
@@ -167,33 +175,35 @@ export function NewStandingWorkModal({
       });
       onCreated(created);
     } catch (e) {
-      setError(refusalMessage(e));
+      setError(refusalMessage(e, t('newWork.couldNotSetUp')));
     } finally {
       setBusy(false);
     }
   };
 
-  const tzLabel = timezone && timezone !== 'UTC' ? ` (${timezone})` : '';
+  const whenLabel = timezone && timezone !== 'UTC'
+    ? t('newWork.whenLabelWithZone', { timezone })
+    : t('newWork.whenLabel');
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
         <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-lg border border-border bg-background shadow-lg">
           <div className="border-b border-border px-5 py-4">
-            <h2 className="text-base font-semibold">New standing work</h2>
+            <h2 className="text-base font-semibold">{t('newWork.title')}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              One file, kept current on a schedule. The first run starts within a few minutes.
+              {t('newWork.subtitle')}
             </p>
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <div>
-              <label className="block text-xs font-medium text-muted-foreground">Where</label>
+              <label className="block text-xs font-medium text-muted-foreground">{t('newWork.whereLabel')}</label>
               <div className="mt-1 flex items-center gap-2">
                 <input
                   value={folder}
                   onChange={(e) => setFolder(e.target.value)}
-                  placeholder="team-brief"
+                  placeholder={t('newWork.folderPlaceholder')}
                   className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
                 />
                 <button
@@ -201,46 +211,49 @@ export function NewStandingWorkModal({
                   onClick={() => setPickingFolder(true)}
                   className="shrink-0 rounded-md border border-border px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 >
-                  Choose…
+                  {t('newWork.choose')}
                 </button>
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                A folder of its own. New or existing, one piece of standing work per folder.
+                {t('newWork.whereHint')}
               </p>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground">The file it keeps</label>
+              <label className="block text-xs font-medium text-muted-foreground">{t('newWork.targetLabel')}</label>
               <input
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
-                placeholder="brief.md"
+                placeholder={t('newWork.targetPlaceholder')}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
               />
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {target && !formatOk
-                  ? 'Only md, csv, json and txt files can be kept current.'
-                  : `Lives at ${folderSlug || '…'}/${target || '…'}. Made on the first run if it does not exist yet.`}
+                  ? t('newWork.formatBad')
+                  : t('newWork.targetHint', {
+                      folder: folderSlug || t('newWork.ellipsis'),
+                      target: target || t('newWork.ellipsis'),
+                    })}
               </p>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground">When{tzLabel}</label>
+              <label className="block text-xs font-medium text-muted-foreground">{whenLabel}</label>
               <select
                 value={preset}
                 onChange={(e) => setPreset(e.target.value)}
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
               >
                 {PRESETS.map((p) => (
-                  <option key={p.cron} value={p.cron}>{p.label}</option>
+                  <option key={p.cron} value={p.cron}>{t(p.labelKey)}</option>
                 ))}
-                <option value="custom">Custom…</option>
+                <option value="custom">{t('newWork.custom')}</option>
               </select>
               {preset === 'custom' && (
                 <input
                   value={customCron}
                   onChange={(e) => setCustomCron(e.target.value)}
-                  placeholder="0 13 * * *"
+                  placeholder={t('newWork.cronPlaceholder')}
                   className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-foreground/30"
                 />
               )}
@@ -250,7 +263,7 @@ export function NewStandingWorkModal({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground">Where its updates come from</label>
+              <label className="block text-xs font-medium text-muted-foreground">{t('newWork.sourceLabel')}</label>
               <div className="mt-1 flex gap-2">
                 {connectorStarts.length > 0 && (
                   <button
@@ -258,7 +271,7 @@ export function NewStandingWorkModal({
                     onClick={() => setSourceKind('connector')}
                     className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'connector' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
                   >
-                    A connection
+                    {t('newWork.sourceConnection')}
                   </button>
                 )}
                 <button
@@ -266,14 +279,14 @@ export function NewStandingWorkModal({
                   onClick={() => setSourceKind('path')}
                   className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'path' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
                 >
-                  Your workspace
+                  {t('newWork.sourceWorkspace')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSourceKind('url')}
                   className={`rounded-md border px-2.5 py-1.5 text-xs ${sourceKind === 'url' ? 'border-foreground/40 bg-muted/40 text-foreground' : 'border-border text-muted-foreground hover:bg-muted/40'}`}
                 >
-                  A web page
+                  {t('newWork.sourceWebPage')}
                 </button>
               </div>
               {sourceKind === 'connector' ? (
@@ -303,11 +316,11 @@ export function NewStandingWorkModal({
                     </select>
                   ) : (
                     <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                      Nothing is chosen on this connection yet. Choose what it reads in Reach first.
+                      {t('newWork.nothingChosen')}
                     </p>
                   )}
                   {chosenStart?.reads && (
-                    <p className="text-[11px] text-muted-foreground">It reads {lowerFirst(chosenStart.reads)}.</p>
+                    <p className="text-[11px] text-muted-foreground">{t('newWork.itReads', { reads: lowerFirst(chosenStart.reads) })}</p>
                   )}
                 </div>
               ) : sourceKind === 'path' ? (
@@ -316,7 +329,7 @@ export function NewStandingWorkModal({
                     value={path}
                     onChange={(e) => setPath(e.target.value)}
                     list="standing-source-folders"
-                    placeholder="A folder, or a file inside one"
+                    placeholder={t('newWork.pathPlaceholder')}
                     className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-foreground/30"
                   />
                   <datalist id="standing-source-folders">
@@ -325,30 +338,30 @@ export function NewStandingWorkModal({
                     ))}
                   </datalist>
                   <p className="text-[11px] text-muted-foreground">
-                    End a folder with a slash and it reads the newest files in it. Name another kept file and this one follows it.
+                    {t('newWork.pathHint')}
                   </p>
                 </div>
               ) : (
                 <input
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://…"
+                  placeholder={t('newWork.urlPlaceholder')}
                   className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
                 />
               )}
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground">Instructions</label>
+              <label className="block text-xs font-medium text-muted-foreground">{t('newWork.instructionsLabel')}</label>
               <textarea
                 value={contract}
                 onChange={(e) => setContract(e.target.value)}
                 rows={5}
-                placeholder="What this file is, and what it must stay true to."
+                placeholder={t('newWork.instructionsPlaceholder')}
                 className="mt-1 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
               />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Saved next to the file. Every run follows it, and you can change it any time.
+                {t('newWork.instructionsHint')}
               </p>
             </div>
 
@@ -362,7 +375,7 @@ export function NewStandingWorkModal({
               disabled={busy}
               className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
             >
-              Cancel
+              {t('newWork.cancel')}
             </button>
             <button
               type="button"
@@ -371,7 +384,7 @@ export function NewStandingWorkModal({
               className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-sm text-background disabled:opacity-50"
             >
               {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-              Start
+              {t('newWork.start')}
             </button>
           </div>
         </div>
@@ -380,10 +393,10 @@ export function NewStandingWorkModal({
       <WorkspacePickerModal
         open={pickingFolder}
         mode="folder"
-        title="Choose a folder"
-        subtitle="Where this standing work lives"
-        confirmLabel="Choose"
-        emptyMessage="No folders yet."
+        title={t('newWork.pickerTitle')}
+        subtitle={t('newWork.pickerSubtitle')}
+        confirmLabel={t('newWork.pickerConfirm')}
+        emptyMessage={t('newWork.pickerEmpty')}
         selectable={(node) => node.type === 'folder'}
         onClose={() => setPickingFolder(false)}
         onConfirm={(path) => {

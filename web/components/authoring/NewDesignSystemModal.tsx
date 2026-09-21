@@ -24,6 +24,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, FileText, Loader2, Palette, Upload } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
@@ -72,6 +73,7 @@ export function NewDesignSystemModal({
   onImport,
   onDerive,
 }: NewDesignSystemModalProps) {
+  const t = useTranslations('studio.newDesignSystem');
   const [mode, setMode] = useState<Mode>('choose');
   // derive state
   const [srcTab, setSrcTab] = useState<'files' | 'upload'>('files');
@@ -134,10 +136,15 @@ export function NewDesignSystemModal({
     setErr(null);
     try {
       const r = await onImport(file);
-      const warns = r.warnings ? ` · ${r.warnings} warning(s)` : '';
-      setImportMsg(`Imported “${r.name}” — ${r.written} files${warns}.`);
+      // ADR-660 — one sentence, one message: joining a clause in code carries
+      // English word order into every language.
+      setImportMsg(
+        r.warnings
+          ? t('importedWithWarnings', { name: r.name, files: r.written, warnings: r.warnings })
+          : t('imported', { name: r.name, files: r.written }),
+      );
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Import failed.');
+      setErr(e instanceof Error ? e.message : t('importFailed'));
     } finally {
       setBusy(false);
     }
@@ -147,7 +154,7 @@ export function NewDesignSystemModal({
     // Belt-and-braces on the accept filter: reject a non-look upload in the
     // member's words rather than deriving a design system from a font.
     if (!isLookSource(file.name)) {
-      setErr('That file type can’t seed a look. Use a brand guide, a styled page, a screenshot, or a CSS export.');
+      setErr(t('notALookSource'));
       return;
     }
     setUploading(true);
@@ -156,16 +163,16 @@ export function NewDesignSystemModal({
       // The WAIT rides the canonical layer; the FAILURE stays inline — this
       // modal stays open so the member can pick another file right here.
       const res = await runAction(() => api.documents.upload(file), {
-        pending: 'Uploading…',
+        pending: t('uploading'),
       });
       const first = res.results?.[0];
       if (first?.success && first.workspace_path) {
         setSource({ path: first.workspace_path, name: first.filename });
       } else {
-        setErr(first?.error || 'Upload failed.');
+        setErr(first?.error || t('uploadFailed'));
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Upload failed.');
+      setErr(e instanceof Error ? e.message : t('uploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -178,7 +185,7 @@ export function NewDesignSystemModal({
     try {
       await onDerive(source); // parent navigates on success
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not start.');
+      setErr(e instanceof Error ? e.message : t('couldNotStart'));
       setBusy(false);
     }
   };
@@ -211,20 +218,19 @@ export function NewDesignSystemModal({
                   setImportMsg(null);
                 }}
                 className="text-muted-foreground transition-colors hover:text-foreground"
-                aria-label="Back"
+                aria-label={t('back')}
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
             )}
-            <Palette className="h-4 w-4" /> New design system
+            <Palette className="h-4 w-4" /> {t('title')}
           </h3>
 
           {/* ── Choose: the ONE question — where does this look come from? ── */}
           {mode === 'choose' && (
             <>
               <p className="mt-3 text-sm text-muted-foreground">
-                A design system is the look your artifacts wear — its colors, type,
-                and shape. Start it one of two ways:
+                {t('intro')}
               </p>
               <div className="mt-3 space-y-2">
                 <button
@@ -233,26 +239,26 @@ export function NewDesignSystemModal({
                   className="flex w-full flex-col items-start rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/30"
                 >
                   <span className="flex items-center gap-1.5 text-sm font-medium">
-                    <Upload className="h-3.5 w-3.5" /> I have an export
+                    <Upload className="h-3.5 w-3.5" /> {t('haveExport')}
                   </span>
                   <span className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                    A design-system <code>.zip</code> — tokens, styles, and fonts
-                    (e.g. from Claude Design).
+                    {t.rich('haveExportHint', {
+                      code: (chunks) => <code>{chunks}</code>,
+                    })}
                   </span>
                 </button>
                 <button
                   type="button"
                   disabled={!deriveEnabled}
                   onClick={() => setMode('derive')}
-                  title={deriveEnabled ? undefined : 'Chat helpers aren’t enabled on this workspace.'}
+                  title={deriveEnabled ? undefined : t('deriveDisabled')}
                   className="flex w-full flex-col items-start rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/30 disabled:opacity-40"
                 >
                   <span className="flex items-center gap-1.5 text-sm font-medium">
-                    <Palette className="h-3.5 w-3.5" /> Derive from a source
+                    <Palette className="h-3.5 w-3.5" /> {t('deriveFromSource')}
                   </span>
                   <span className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                    Point at something that <em>shows</em> your look — a brand
-                    guide, a styled page, a screenshot — and it derives the tokens.
+                    {t.rich('deriveHint', { em: (chunks) => <em>{chunks}</em> })}
                   </span>
                 </button>
               </div>
@@ -263,9 +269,7 @@ export function NewDesignSystemModal({
           {mode === 'import' && (
             <>
               <p className="mt-3 text-sm text-muted-foreground">
-                Choose a design-system export — a <code>.zip</code> of tokens,
-                styles, and fonts. yarnnn flattens the stylesheets, carries the
-                fonts, and writes a system your artifacts can wear.
+                {t.rich('importIntro', { code: (chunks) => <code>{chunks}</code> })}
               </p>
               <input
                 ref={zipInputRef}
@@ -285,7 +289,7 @@ export function NewDesignSystemModal({
                 className="mt-3 flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground transition-colors hover:bg-muted/20 disabled:opacity-50"
               >
                 {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
-                {busy ? 'Importing…' : 'Choose a .zip export…'}
+                {busy ? t('importing') : t('chooseZip')}
               </button>
               {importMsg && <p className="mt-2 text-xs text-emerald-600">{importMsg}</p>}
             </>
@@ -307,22 +311,23 @@ export function NewDesignSystemModal({
                     onClick={() => setSource(null)}
                     className="shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
                   >
-                    Change
+                    {t('change')}
                   </button>
                 </div>
               ) : (
                 <>
                   <p className="mt-3 text-[11px] text-muted-foreground">
-                    Pick something that <em>shows</em> your look. Fonts, decks, and
-                    data files aren’t listed — they don’t carry a design.
+                    {t.rich('pickSourceHint', { em: (chunks) => <em>{chunks}</em> })}
                   </p>
                   <div className="mt-2 grid grid-cols-2 gap-1 rounded-md border border-border p-1">
+                    {/* ADR-660 — the tab table holds catalog KEYS, worded at
+                        render; a literal table would be fixed at import. */}
                     {(
                       [
-                        ['files', 'From your files'],
-                        ['upload', 'Upload'],
+                        ['files', 'fromYourFiles'],
+                        ['upload', 'upload'],
                       ] as const
-                    ).map(([m, label]) => (
+                    ).map(([m, labelKey]) => (
                       <button
                         key={m}
                         type="button"
@@ -332,7 +337,7 @@ export function NewDesignSystemModal({
                           srcTab === m ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
-                        {label}
+                        {t(labelKey)}
                       </button>
                     ))}
                   </div>
@@ -342,16 +347,16 @@ export function NewDesignSystemModal({
                       <input
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
-                        placeholder="Filter files…"
+                        placeholder={t('filterFilesPlaceholder')}
                         className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                        aria-label="Filter files"
+                        aria-label={t('filterFiles')}
                       />
                       <div className="mt-1.5 min-h-0 flex-1 overflow-y-auto" style={{ maxHeight: '30vh' }}>
                         {visible === null ? (
-                          <Working label="Loading…" fill />
+                          <Working label={t('loading')} fill />
                         ) : visible.length === 0 ? (
                           <p className="p-6 text-center text-sm text-muted-foreground">
-                            No look-carrying files yet — try Upload.
+                            {t('noLookFiles')}
                           </p>
                         ) : (
                           <ul className="space-y-1">
@@ -396,7 +401,7 @@ export function NewDesignSystemModal({
                         className="flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground transition-colors hover:bg-muted/20 disabled:opacity-50"
                       >
                         {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
-                        {uploading ? 'Uploading…' : 'Upload a brand guide, screenshot, or CSS…'}
+                        {uploading ? t('uploading') : t('uploadLookSource')}
                       </button>
                     </div>
                   )}
@@ -409,7 +414,7 @@ export function NewDesignSystemModal({
                   onClick={onClose}
                   className={cn(shell, 'border border-border text-foreground hover:bg-muted/60')}
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="button"
@@ -423,7 +428,7 @@ export function NewDesignSystemModal({
                   )}
                 >
                   {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Start
+                  {t('start')}
                 </button>
               </div>
             </>
@@ -441,7 +446,7 @@ export function NewDesignSystemModal({
                 onClick={onClose}
                 className={cn(shell, 'border border-border text-foreground hover:bg-muted/60')}
               >
-                {importMsg ? 'Done' : 'Cancel'}
+                {importMsg ? t('done') : t('cancel')}
               </button>
             </div>
           )}

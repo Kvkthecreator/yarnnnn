@@ -31,6 +31,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { FileOutput, Share2 } from 'lucide-react';
 
@@ -71,6 +72,7 @@ export function StudioShareExport({
   compact = false,
   coarsePointer = false,
 }: StudioShareExportProps) {
+  const t = useTranslations('studio.shareExport');
   // Only Export has a panel now — Share is a dialog trigger (ADR-529 D1).
   const [open, setOpen] = useState<null | 'export'>(null);
   // The trigger cluster (buttons + panels) — the click-away boundary, same
@@ -167,21 +169,21 @@ export function StudioShareExport({
         type="button"
         className={btn}
         onClick={() => { setOpen(null); share(); }}
-        title="Share. Choose who can open it, and get a link"
-        aria-label={compact ? 'Share…' : undefined}
+        title={t('shareHint')}
+        aria-label={compact ? t('share') : undefined}
       >
         <Share2 className="h-3 w-3" />
-        {!compact && ' Share…'}
+        {!compact && <span>&nbsp;{t('share')}</span>}
       </button>
       <button
         type="button"
         className={btn}
         onClick={() => setOpen(open === 'export' ? null : 'export')}
-        title="Export as print, PDF, or a link for an AI"
-        aria-label={compact ? 'Export' : undefined}
+        title={t('exportHint')}
+        aria-label={compact ? t('export') : undefined}
       >
         <FileOutput className="h-3 w-3" />
-        {!compact && ' Export'}
+        {!compact && <span>&nbsp;{t('export')}</span>}
       </button>
 
       {/* Export (ADR-466 D6) — the boundary projections: Print/PDF over the
@@ -190,7 +192,7 @@ export function StudioShareExport({
       {open === 'export' && (
         <div className={panel}>
           <p className="px-1 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Export
+            {t('export')}
           </p>
           <div className="space-y-1.5 px-1 pb-1">
             <div className="flex flex-wrap gap-1">
@@ -200,13 +202,13 @@ export function StudioShareExport({
                   className={act}
                   onClick={runExportPng}
                   disabled={pngState === 'working'}
-                  title="Download as a PNG"
+                  title={t('downloadPngHint')}
                 >
                   {pngState === 'working'
-                    ? 'Rendering…'
+                    ? t('rendering')
                     : pngState === 'error'
-                      ? 'Export failed — retry'
-                      : 'Download PNG'}
+                      ? t('exportFailed')
+                      : t('downloadPng')}
                 </button>
               )}
               {savePng && (
@@ -215,15 +217,15 @@ export function StudioShareExport({
                   className={act}
                   onClick={runSavePng}
                   disabled={saveState === 'working'}
-                  title="Save a PNG copy next to this file, so a document can use it"
+                  title={t('savePngHint')}
                 >
                   {saveState === 'working'
-                    ? 'Saving…'
+                    ? t('saving')
                     : saveState === 'saved'
-                      ? 'Saved to workspace ✓'
+                      ? t('savedToWorkspace')
                       : saveState === 'error'
-                        ? 'Save failed — retry'
-                        : 'Save PNG to workspace'}
+                        ? t('saveFailed')
+                        : t('savePng')}
                 </button>
               )}
               <button
@@ -233,25 +235,25 @@ export function StudioShareExport({
                   setOpen(null); // the print dialog takes the screen — close first
                   print();
                 }}
-                title="Print, or save as PDF from the print dialog"
+                title={t('printHint')}
               >
-                Print / PDF…
+                {t('print')}
               </button>
               <button
                 type="button"
                 className={act}
                 onClick={runCopyAiRef}
-                title="Copy a link any AI you’ve connected can use to open this"
+                title={t('copyAiRefHint')}
               >
-                {aiRefState === 'copied' ? 'Reference copied ✓' : 'Copy AI reference'}
+                {aiRefState === 'copied' ? t('aiRefCopied') : t('copyAiRef')}
               </button>
             </div>
             <p className="text-[10px] leading-snug text-muted-foreground">
               {exportPng
                 ? saveState === 'saved' && savedPath
-                  ? `Saved to ${savedPath} — refer to it from a document as ![alt](${savedPath}).`
-                  : 'The PNG is a flat projection — the composition stays the source (trace walks its layers). Save lands it beside the artboard so a document can refer to it.'
-                : 'A deck prints one slide per page. Markdown export arrives with the interchange wave (ADR-456 W4).'}
+                  ? t('savedAt', { path: savedPath })
+                  : t('pngNote')
+                : t('printNote')}
             </p>
           </div>
         </div>

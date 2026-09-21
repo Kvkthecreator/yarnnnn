@@ -31,13 +31,15 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { GitCompare, Undo2, X } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
-import { authorClass, formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
+import { authorClass } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 
 interface RailRevision {
   id: string;
@@ -76,10 +78,16 @@ function defaultAuthorChip(authoredBy: string): string {
   }
 }
 
-function defaultEventLine(e: RailEvent): string {
-  if (e.status === 'skipped')
-    return `Run skipped${e.error_reason ? ` — ${e.error_reason}` : ''}`;
-  return `Run failed${e.error_reason ? ` — ${e.error_reason}` : ''}`;
+/** The rail's own sentence for a non-success ledger event, when the consuming
+ *  app passes none. ADR-660: it reads the catalog, so it is a hook. */
+function useDefaultEventLine() {
+  const t = useTranslations('supervisor.rail');
+  return (e: RailEvent): string => {
+    if (e.status === 'skipped') {
+      return e.error_reason ? t('runSkippedWithReason', { reason: e.error_reason }) : t('runSkipped');
+    }
+    return e.error_reason ? t('runFailedWithReason', { reason: e.error_reason }) : t('runFailed');
+  };
 }
 
 export function PaneActivityRail({
@@ -122,6 +130,11 @@ export function PaneActivityRail({
   /** The app's sentence for a non-success ledger event. */
   eventLine?: (e: RailEvent) => string;
 }) {
+  const t = useTranslations('supervisor.rail');
+  const defaultEventLine = useDefaultEventLine();
+  // Named apart from the `authorLabel` PROP above — the prop is the app's own
+  // word for its standing writer; this is the shared fallback.
+  const { authorLabelOrSystem: sharedAuthorLabel } = useAuthorLabel();
   const { runAction } = useFeedback();
   const [revisions, setRevisions] = useState<RailRevision[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -192,11 +205,11 @@ export function PaneActivityRail({
       const res = await api.workspace.diffRevisions(rev.path, rev.parent_version_id, rev.id);
       setDiffText(res.diff);
     } catch (e) {
-      setDiffText(`# diff fetch failed\n${e instanceof APIError ? e.message : String(e)}`);
+      setDiffText(t('diffFetchFailed', { error: e instanceof APIError ? e.message : String(e) }));
     } finally {
       setDiffLoading(false);
     }
-  }, [expandedId]);
+  }, [expandedId, t]);
 
   const revert = useCallback(async (rev: RailRevision) => {
     setRevertBusy(true);
@@ -206,9 +219,9 @@ export function PaneActivityRail({
         api.workspace.readRevision(rev.path, rev.id),
         api.workspace.listRevisions({ path: rev.path }, 1),
       ]);
-      if (detail.content == null) throw new Error('revision has no content to restore');
+      if (detail.content == null) throw new Error(t('noContent'));
       const headId = head.revisions?.[0]?.id ?? null;
-      if (headId === rev.id) throw new Error('already the current version');
+      if (headId === rev.id) throw new Error(t('alreadyCurrent'));
       // Bound before the wrapper: the null check above does not survive into
       // the callback's closure.
       const content: string = detail.content;
@@ -220,13 +233,13 @@ export function PaneActivityRail({
             rev.path,
             content,
             undefined,
-            `revert to revision ${rev.id.slice(0, 8)}`,
+            t('revertMessage', { id: rev.id.slice(0, 8) }),
             headId,
           ),
         {
-          pending: 'Restoring…',
-          success: `Restored the version from ${rev.id.slice(0, 8)}`,
-          error: 'Could not restore that version',
+          pending: t('restoring'),
+          success: t('restored', { id: rev.id.slice(0, 8) }),
+          error: t('couldNotRestore'),
         },
       );
       setExpandedId(null);
@@ -237,18 +250,18 @@ export function PaneActivityRail({
     } finally {
       setRevertBusy(false);
     }
-  }, [onReverted, runAction]);
+  }, [onReverted, runAction, t]);
 
   if (revisions === null) {
     return (
-      <Working label="Reading the folder’s history…" className={cn('py-3 text-xs', className)} />
+      <Working label={t('reading')} className={cn('py-3 text-xs', className)} />
     );
   }
 
   if (error && rows.length === 0) {
     return (
       <p className={cn('py-2 text-xs text-muted-foreground', className)}>
-        The history could not be read ({error}).
+        {t('unreadable', { error })}
       </p>
     );
   }
@@ -256,7 +269,7 @@ export function PaneActivityRail({
   if (rows.length === 0) {
     return (
       <p className={cn('py-2 text-xs text-muted-foreground', className)}>
-        Nothing has happened here yet.
+        {t('empty')}
       </p>
     );
   }
@@ -309,11 +322,11 @@ export function PaneActivityRail({
                 )}
                 title={rev.authored_by}
               >
-                {authorLabel?.(rev.authored_by) ?? formatAuthorLabelOrSystem(rev.authored_by)}
+                {authorLabel?.(rev.authored_by) ?? sharedAuthorLabel(rev.authored_by)}
               </span>
               <span className="min-w-0 flex-1 truncate text-xs">{rev.message}</span>
               <span className="shrink-0 inline-flex items-center gap-1 text-[10px] text-muted-foreground/50">
-                <GitCompare className="h-3 w-3" /> diff
+                <GitCompare className="h-3 w-3" /> {t('diff')}
               </span>
             </div>
 
@@ -321,9 +334,7 @@ export function PaneActivityRail({
               <div className="mt-2 rounded border border-border bg-muted/30">
                 <div className="flex items-center justify-between border-b border-border px-2 py-1">
                   <span className="text-[11px] text-muted-foreground">
-                    {rev.parent_version_id
-                      ? 'What this change did'
-                      : 'First version'}
+                    {rev.parent_version_id ? t('whatChanged') : t('firstVersion')}
                   </span>
                   <span className="flex items-center gap-2">
                     {revertable && (
@@ -335,9 +346,9 @@ export function PaneActivityRail({
                           void revert(rev);
                         }}
                         className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50"
-                        title="Restore this version. It’s saved as a new version under your name"
+                        title={t('restoreTitle')}
                       >
-                        <Undo2 className="h-3 w-3" /> restore this version
+                        <Undo2 className="h-3 w-3" /> {t('restore')}
                       </button>
                     )}
                     <button
@@ -348,14 +359,14 @@ export function PaneActivityRail({
                         setDiffText(null);
                       }}
                       className="text-muted-foreground hover:text-foreground"
-                      aria-label="Close diff"
+                      aria-label={t('closeDiff')}
                     >
                       <X className="h-3 w-3" />
                     </button>
                   </span>
                 </div>
                 {diffLoading && (
-                  <Working label="Computing diff…" className="p-3 text-xs" />
+                  <Working label={t('computingDiff')} className="p-3 text-xs" />
                 )}
                 {!diffLoading && diffText && (
                   <pre className="max-h-80 overflow-auto whitespace-pre px-3 py-2 font-mono text-[11px]">
@@ -364,7 +375,7 @@ export function PaneActivityRail({
                 )}
                 {revertError && (
                   <div className="border-t border-border px-3 py-2 text-xs text-destructive">
-                    Restore failed: {revertError}
+                    {t('restoreFailed', { error: revertError })}
                   </div>
                 )}
               </div>

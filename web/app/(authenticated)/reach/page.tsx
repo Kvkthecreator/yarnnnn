@@ -31,6 +31,8 @@
  * shape — one shell, N mounts).
  */
 
+import { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { ArrowLeftRight, Cable, ExternalLink, Send } from 'lucide-react';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from '@/components/settings/SettingsPaneShell';
@@ -38,16 +40,14 @@ import { QueueBody } from '@/components/queue/QueueBody';
 import { ReachConnected } from '@/components/reach/ReachConnected';
 import { BoundaryLedger } from '@/components/reach/BoundaryLedger';
 
-const PANE_GROUPS: PaneGroup[] = [
-  {
-    label: 'The boundary',
-    panes: [
-      { key: 'connected', label: 'Connected', icon: Cable },
-      { key: 'leaving', label: 'Leaving', icon: Send },
-      { key: 'crossed', label: 'Crossed', icon: ArrowLeftRight },
-    ],
-  },
-];
+/** ADR-660 — the roster holds catalog KEYS, not words: a module table is
+ *  evaluated at import, before the member's language is known. Worded at
+ *  render, below. */
+const PANE_KEYS = [
+  { key: 'connected', labelKey: 'panes.connected', icon: Cable },
+  { key: 'leaving', labelKey: 'panes.leaving', icon: Send },
+  { key: 'crossed', labelKey: 'panes.crossed', icon: ArrowLeftRight },
+] as const;
 
 /** The escape-hatch row (the Notifications MirrorLink grammar). */
 function DoorLink({ label, onClick }: { label: string; onClick: () => void }) {
@@ -65,6 +65,17 @@ function DoorLink({ label, onClick }: { label: string; onClick: () => void }) {
 
 export default function ReachPage() {
   const { navigateToSurface } = useSurfacePreferences();
+  const t = useTranslations('reach');
+
+  const paneGroups: PaneGroup[] = useMemo(
+    () => [
+      {
+        label: t('groups.boundary'),
+        panes: PANE_KEYS.map((p) => ({ key: p.key, label: t(p.labelKey), icon: p.icon })),
+      },
+    ],
+    [t],
+  );
 
   const renderPane = (pane: string) => {
     switch (pane) {
@@ -73,8 +84,8 @@ export default function ReachPage() {
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={Cable}
-              title="Connected"
-              subtitle="Your connections, held under your account. Other members hold and see their own. What this workspace reads through them is set here."
+              title={t('panes.connected')}
+              subtitle={t('connected.subtitle')}
             />
             <div className="flex-1 overflow-y-auto p-6">
               <ReachConnected />
@@ -86,11 +97,11 @@ export default function ReachPage() {
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={Send}
-              title="Leaving"
-              subtitle="What's about to leave this workspace. Nothing goes out until you approve it."
+              title={t('panes.leaving')}
+              subtitle={t('leaving.subtitle')}
               action={
                 <DoorLink
-                  label="Show all to-dos"
+                  label={t('leaving.showAllToDos')}
                   onClick={() => navigateToSurface('notifications', { pane: 'resolve' })}
                 />
               }
@@ -108,11 +119,11 @@ export default function ReachPage() {
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={ArrowLeftRight}
-              title="Crossed"
-              subtitle="What came in and what went out, each with its receipt."
+              title={t('panes.crossed')}
+              subtitle={t('crossed.subtitle')}
               action={
                 <DoorLink
-                  label="Show all activity"
+                  label={t('crossed.showAllActivity')}
                   onClick={() => navigateToSurface('notifications', { pane: 'understand' })}
                 />
               }
@@ -130,7 +141,7 @@ export default function ReachPage() {
   return (
     <SettingsPaneShell
       windowSlug="reach"
-      paneGroups={PANE_GROUPS}
+      paneGroups={paneGroups}
       defaultPane="connected"
       renderPane={renderPane}
       fullBleed

@@ -89,15 +89,28 @@ BASE = CATALOGS.get(DEFAULT, {})
 print("D4 — catalogs")
 check("the default catalog is not empty", len(BASE) > 0)
 
-ICU_ARG = re.compile(r"\{\s*(\w+)")
+# ⚠️ `\w` MATCHES HANGUL in Python. `{count, plural, other {다른 멤버 #명}}` read
+# `다른` as a second ICU argument, so a legitimate Korean plural whose body opens
+# with a word registered as argument DRIFT against its English twin. A real ICU
+# argument is ASCII-identifier-shaped and is followed by `}` or `,` — anchor on
+# that instead of on "some word characters after a brace".
+ICU_ARG = re.compile(r"\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*[,}]")
 HANGUL = re.compile(r"[가-힣]")
 # Names that do not translate. A value made ONLY of these (plus punctuation,
 # digits and ICU arguments) is allowed to carry no Hangul.
 # `Blogger`, `Supervisor` and `Reach` are the product's OWN app names, which
 # D6 keeps in Latin script the way the product's name is: they name a thing in
 # the workspace, not a common noun ("블로거" would read as a person who blogs).
+# A key ending `Placeholder` shows a literal FORMAT — a URL shape, an email
+# shape, a header name, an example path. Translating one would teach the member
+# a shape the field does not accept, so those keys are exempt from the Hangul
+# rule (filtered below, not listed here).
 UNTRANSLATED_OK = {"yarnnn", "yarnnn.com", "Google", "GitHub", "Notion", "Slack", "MCP", "AI",
-                   "Blogger", "Supervisor", "Reach"}
+                   "Blogger", "Supervisor", "Reach",
+                   # `Freddie` survives only as a display-resolved attribution
+                   # prefix on historical revisions (the seat is retired,
+                   # ADR-632); `Free` is a served plan name.
+                   "Freddie", "Free", "YARNNN"}
 
 for loc, flat in CATALOGS.items():
     if loc == DEFAULT:
@@ -119,8 +132,32 @@ if "ko" in CATALOGS:
             residue = residue.replace(name, "")
         if re.search(r"[A-Za-z]{2,}", residue):
             not_korean.append(key)
+    not_korean = [k for k in not_korean if not k.endswith("Placeholder")]
     check("[ko] every value is Korean, or only names that do not translate",
           not not_korean, f"{len(not_korean)} English values, e.g. {not_korean[:3]}")
+
+# ⭐ And the INVERSE. A pass that writes one plural arm for both locales ships
+# Korean counters inside English sentences ("2개 of the tools…", "5명 · 3석
+# billed") — 25 of them, once. Argument parity cannot see it: the arguments are
+# identical, it is the TEXT that is in the wrong language. Caught by rendering
+# both catalogs, or by this.
+# ⭐ AND the plural arms. English needs `one` and `other`; Korean has no plural
+# form and takes `other` alone. A pass that writes the KOREAN shape once and
+# copies it to both locales renders "1 people", "1 sources", "1 words" — 13 of
+# them, once, and every other arm of this gate stayed green over it (the key
+# exists, the arguments match, the value is in the right language). Only the
+# DEFAULT locale is held: `other`-only is correct Korean.
+plural_no_one = sorted(
+    k for k, v in BASE.items()
+    if "plural" in v and re.search(r"\bone\s*\{", v) is None
+)
+check(f"[{DEFAULT}] every plural carries a `one` arm — `other` alone renders \"1 people\"",
+      not plural_no_one, f"{len(plural_no_one)}, e.g. {plural_no_one[:3]}")
+
+english_with_hangul = sorted(k for k, v in BASE.items() if HANGUL.search(v))
+check(f"[{DEFAULT}] no value carries Korean text — a shared plural arm is the usual cause",
+      not english_with_hangul,
+      f"{len(english_with_hangul)}, e.g. {english_with_hangul[:3]}")
 
 # Every call resolves. A missing key renders its own path in production, silently.
 SCOPED_DIRS = ["app", "components", "lib", "contexts"]
@@ -146,7 +183,17 @@ for top in SCOPED_DIRS:
             continue
         translated_files.add(path)
         namespaces = [ns for _, ns in bindings]
+        # ⚠️ ONE FILE CAN BIND ONE NAME TO SEVERAL NAMESPACES — a page whose
+        # Suspense fallback and inner component each hold their own `t`, a pane
+        # whose helper components each scope themselves. A regex cannot see
+        # which `t` is in scope at a given line (that needs the component tree),
+        # so a key RESOLVES when it exists under ANY namespace that name is
+        # bound to IN THIS FILE. Narrower than per-call attribution, and it
+        # still catches what matters: a key that exists under NONE of them.
+        by_var: dict[str, list[str]] = {}
         for var, ns in bindings:
+            by_var.setdefault(var, []).append(ns)
+        for var, var_namespaces in by_var.items():
             # `t(…)` AND its methods: `t.rich(…)` embeds components, `t.has(…)`
             # / `t.raw(…)` read the same catalog. Requiring a bare `t(` left a
             # broken `t.rich` key green (found 2026-09-20, the settings pane).
@@ -157,9 +204,9 @@ for top in SCOPED_DIRS:
             ):
                 key = dq_key or sq_key
                 calls += 1
-                full = f"{ns}.{key}" if ns else key
-                if full not in BASE:
-                    unresolved.append(f"{path.relative_to(WEB)} → {full}")
+                candidates = [f"{ns}.{key}" if ns else key for ns in var_namespaces]
+                if not any(c in BASE for c in candidates):
+                    unresolved.append(f"{path.relative_to(WEB)} → {candidates[0]}")
         # A module-level roster holds KEYS (`labelKey: "panes.account"`), worded at render.
         for key in re.findall(r"\b\w*[kK]ey:\s*\"([a-z][\w]*(?:\.[\w]+)+)\"", src):
             calls += 1
@@ -203,7 +250,17 @@ print("D3 — scope")
 root_layout = strip_comments(read("app/layout.tsx"))
 check("the root layout imports nothing from next-intl or the locale resolver",
       not re.search(r"from\s+[\"'](next-intl|@/i18n|@/components/i18n)", root_layout))
-SCOPES = ["app/(authenticated)/layout.tsx", "app/auth/login/layout.tsx", "app/mcp/auth/layout.tsx"]
+# FOUR scopes since 2026-09-21. `app/admin` joined not because the console is
+# translated — it is a Hat-B instrument and its chrome stays English — but
+# because it mounts `FeedbackProvider`, whose confirm shell IS member-facing
+# copy. A shared component's MOUNTS decide where a scope is needed, never the
+# route's own audience.
+SCOPES = [
+    "app/(authenticated)/layout.tsx",
+    "app/auth/login/layout.tsx",
+    "app/mcp/auth/layout.tsx",
+    "app/admin/layout.tsx",
+]
 for rel in SCOPES:
     check(f"{rel} mounts the scope", "<IntlScope>" in strip_comments(read(rel)))
 
@@ -283,11 +340,43 @@ print("D4 — coverage")
 # Lines of literal, member-facing copy still in components a scope renders. A
 # METER, not a proof: it counts what it can see (JSX text + copy-bearing props).
 # A pass lowers the ceiling in the commit that lowers the count; nothing raises it.
-LITERAL_COPY_CEILING = 875  # 2026-09-20 — after the settings pane (1005 → 972 → 898 → 875)
+# 2026-09-21 — the full-coverage pass. 1005 → 972 → 898 → 875 → 262.
+#
+# ⚠️ WHAT THIS NUMBER IS NOW. 226 of these 262 lines are FALSE POSITIVES inside
+# files that are fully translated: the meter marks JSX-text continuation lines,
+# and Prettier wraps a long `t('…', { … })` call across several, so it counts
+# JS identifiers and date-format options as if they were prose. Reflowing real
+# code onto one line to satisfy a meter would be the tail wagging the dog.
+#
+# The other 36 are the SIX files that stay English by operator ruling (see
+# SCOPELESS_BY_RULING above, plus `/mcp/authorize` and `/auth/callback`, whose
+# entry routes were left unscoped deliberately).
+#
+# So the honest reading is: coverage is DONE, and this ceiling now guards
+# against NEW literal copy rather than measuring remaining work. A future pass
+# that adds a surface should still see it fall.
+LITERAL_COPY_CEILING = 262  # 2026-09-21 — full coverage (226 of these are meter noise; see above)
 COPY_PROP = re.compile(r"\b(placeholder|title|aria-label|label|alt|subtitle|description)=\"[^\"]*[A-Za-z]{2,}[^\"]*\"")
 INLINE_TEXT = re.compile(r">([^<>{}]*[A-Za-z]{2,}[^<>{}]*)</")
 METERED = [WEB / "app" / "(authenticated)", WEB / "app" / "auth", WEB / "app" / "mcp", WEB / "components"]
 NOT_MEMBER_FACING = {"landing", "marketing", "admin", "ui"}
+
+# ⚠️ STAYS ENGLISH BY RULING (operator, 2026-09-21). These components are mounted
+# by routes OUTSIDE every `IntlScope` — `/invite/{token}`, `/s/{token}`,
+# `/mcp/authorize`, `/auth/callback`, `/blog` — and the operator ruled those four
+# entry routes stay English rather than pay the prerender cost of a scope each
+# (D3's tradeoff, declined here). `useTranslations` THROWS outside a scope, so
+# translating any of them ships a runtime crash on a signed-out entry path that
+# tsc, the build and every other arm pass cleanly.
+#
+# Their lines are a PERMANENT FLOOR under the ceiling: a pass must not chase them.
+# If a future ruling scopes those routes, delete this set in the same commit.
+SCOPELESS_BY_RULING = {
+    "components/authoring/NewArtifactModal.tsx",
+    "components/workspace/WorkspacePicker.tsx",
+    "components/shared/Working.tsx",
+    "components/blog/BlogPostList.tsx",
+}
 
 
 def literal_copy_lines(path: Path) -> int:
@@ -316,6 +405,12 @@ for top in METERED:
         files_with_copy += 1 if n else 0
 print(f"    literal copy: {measured} lines across {files_with_copy} files (ceiling {LITERAL_COPY_CEILING})")
 check("the meter reads something", measured > 0, "zero — the meter is blind, not the app translated")
+scopeless_translated = [
+    rel for rel in sorted(SCOPELESS_BY_RULING)
+    if re.search(r"from\s+[\"']next-intl", strip_comments(read(rel)))
+]
+check("a component mounted outside every scope imports no translation hook — it would throw at render",
+      not scopeless_translated, f"{scopeless_translated}")
 check("literal member-facing copy is at or under its ceiling",
       measured <= LITERAL_COPY_CEILING, f"{measured} > {LITERAL_COPY_CEILING}")
 check("the ceiling is tight — lower it in the commit that lowers the count",

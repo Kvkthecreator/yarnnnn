@@ -25,6 +25,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 // ADR-636 D1 — `Image`/`Newspaper`/`Presentation` are GONE from this import:
 // the three app glyphs now resolve through `resolveSurfaceIcon` off the served
@@ -283,17 +284,11 @@ function extractTemplate(html: string): string {
  *  Plain words, no model-speak: they teach what the authoring apps DO.
  *  (The `article` entry died with its type, ADR-505; `web` falls to the
  *  document set at the lookup until it earns its own.) */
+//  ADR-660 — catalog KEYS, not words: a module table is built at import,
+//  before any member's language is known. The lane's mount words them.
 const TEMPLATE_SUGGESTIONS: Record<string, string[]> = {
-  document: [
-    'Draft this document from these points: ',
-    'Add a section on ',
-    'Tighten the wording throughout — keep the structure',
-  ],
-  deck: [
-    'Draft a 6-slide deck that argues: ',
-    'Rewrite the title slide to lead with the strongest number',
-    'Add a slide that shows the table from a workspace file',
-  ],
+  document: ['suggestDocumentDraft', 'suggestDocumentAddSection', 'suggestDocumentTighten'],
+  deck: ['suggestDeckDraft', 'suggestDeckTitleSlide', 'suggestDeckAddTable'],
 };
 
 /**
@@ -323,8 +318,13 @@ export interface AuthoringApp {
    *  ADR-636 D1 — DERIVED from the app's descriptor row, not restated here. */
   label: string;
   /** The landing's one-line invitation, in the app's own voice (ADR-518 D7 —
-   *  a writing app invites writing; a layout app invites shaping). */
-  tagline: string;
+   *  a writing app invites writing; a layout app invites shaping).
+   *
+   *  ADR-660 — a KEY into `studio.surface`, never the words: the three app
+   *  constants below are built at IMPORT, before any member's language is
+   *  known, so a literal here would be English for everyone. The landing
+   *  words it. */
+  taglineKey: string;
   /** The landing glyph — RESOLVED, not declared (ADR-636 D1).
    *
    *  It was a second home for the app's mark, and the drift it caused is on
@@ -386,7 +386,7 @@ export interface AuthoringApp {
  * lesson): a degraded-but-plausible value hides the bug it should surface,
  * and here it would silently render a new app with another app's grammar.
  */
-function authoringApp(slug: string, tagline: string, iconKey: string): AuthoringApp {
+function authoringApp(slug: string, taglineKey: string, iconKey: string): AuthoringApp {
   const d = resolveApp(slug);
   if (!d) {
     throw new Error(
@@ -396,7 +396,7 @@ function authoringApp(slug: string, tagline: string, iconKey: string): Authoring
   return {
     slug: d.slug,
     label: d.label,
-    tagline,
+    taglineKey,
     icon: resolveSurfaceIcon(iconKey),
     objectModel: d.objectModel,
     dimensionsFirst: d.dimensionsFirst,
@@ -413,23 +413,16 @@ function authoringApp(slug: string, tagline: string, iconKey: string): Authoring
 // that pair cannot drift again.
 export const STUDIO_APP: AuthoringApp = authoringApp(
   'slides',
-  'Name a deck, then say what you want in plain words. It takes shape slide by slide, using your files, images, and data.',
+  'taglineSlides',
   'presentation',
 );
-export const IMAGES_APP: AuthoringApp = authoringApp(
-  'images',
-  'Pick a size, name it, then describe the image in plain words. It appears as you go.',
-  'image',
-);
+export const IMAGES_APP: AuthoringApp = authoringApp('images', 'taglineImages', 'image');
 // ADR-627 — the publish medium's pane: the outward type (ADR-505 D2's merged
 // article/page, deleted by ADR-599 D5) returns as `post` under its own app.
-export const BLOGGER_APP: AuthoringApp = authoringApp(
-  'blogger',
-  'Name a post, then say what you want in plain words. It takes shape section by section, using your files, images, and data.',
-  'newspaper',
-);
+export const BLOGGER_APP: AuthoringApp = authoringApp('blogger', 'taglineBlogger', 'newspaper');
 
 export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {}) {
+  const t = useTranslations('studio.surface');
   const { get: getParam, set: setParam } = useSurfaceParam(app.slug);
   const { runAction } = useFeedback();
   const artifactParam = getParam('file');
@@ -923,12 +916,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         // refused rename leaves the OLD name there, which reads as nothing
         // having happened), so this one keeps its success line.
         const r = await runAction(() => api.studio.renameArtifact(artifactPath, trimmed), {
-          pending: 'Renaming…',
-          success: 'Renamed',
+          pending: t('renaming'),
+          success: t('renamed'),
           error: (e) =>
             e instanceof APIError
-              ? (e.data as { detail?: string })?.detail || 'Couldn’t rename that'
-              : 'Couldn’t rename that',
+              ? (e.data as { detail?: string })?.detail || t('renameFailed')
+              : t('renameFailed'),
         });
         if (r.renamed) {
           setParam({ file: relPath(r.path) }); // follow the artifact to its new path
@@ -1162,10 +1155,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const handleRefused = useCallback((reason: string) => {
     setRefusal(
       reason === 'cross-area-set'
-        ? 'Select objects from one area at a time — a set spanning two areas has no shared frame to align against.'
-        : 'That is not available here.',
+        ? t('refusalCrossArea')
+        : t('refusalGeneric'),
     );
-  }, []);
+  }, [t]);
   // The notice is transient: it answers a gesture, so it clears on the next one
   // rather than lingering as chrome the member must dismiss.
   useEffect(() => {
@@ -1464,7 +1457,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               : null;
           setOpError(
             detail ??
-              (e instanceof Error ? e.message : 'The edit did not land — reloading.'),
+              (e instanceof Error ? e.message : t('editDidNotLand')),
           );
           setLocalOverride(null);
           setReloadKey((k) => k + 1);
@@ -1590,7 +1583,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         // 49 call sites share this one guard, so the copy must not name a cause
         // it cannot know. It states WHAT happened and offers the one recovery
         // that always applies, instead of guessing WHY.
-        setOpError('That change could not be applied. Reload and try again.');
+        setOpError(t('changeNotApplied'));
         return;
       }
       // A structural op does NOT reload. The old comment here said it must
@@ -1613,7 +1606,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         touchedBlockIds,
       );
     },
-    [artifactPath, file, writeAndAdvance, resolvedMode],
+    [artifactPath, file, writeAndAdvance, resolvedMode, t],
   );
 
   const anchor = useMemo(
@@ -1700,7 +1693,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       //    The old red banner ("has no place for this slide's content") remains
       //    only for the layout with no slotted arrangement at all.
       const slotRoles = Object.fromEntries(a.areas.map((s) => [s.name, s.role]));
-      const pageNoun = template === 'deck' ? 'slide' : 'section';
+      // ADR-660 — this noun reaches the MEMBER (the refusal banner below);
+      // the revision summaries around it are substrate attribution and stay
+      // in system vocabulary.
+      const pageNoun = template === 'deck' ? t('slide') : t('section');
 
       // The planned path. Only worth a metered call when there is content to
       // place AND somewhere to put it — an empty page or a slotless target is
@@ -1753,7 +1749,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   areas: a.areas.map((s) => ({ name: s.name, role: s.role, place: s.place })),
                   arrangement: a.slug,
                 }),
-              { pending: 'Arranging…' },
+              { pending: t('arranging') },
             );
             if (placements) {
               // Settle to the judgment. `applyOp` computes from LIVE state
@@ -1797,9 +1793,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         // this is a refusal that names the member's NEXT ACT — move or delete
         // the blocks — performed on the canvas it is sitting above. A toast
         // would evaporate in four seconds, taking the instruction with it.
-        setOpError(
-          `"${a.label}" has no place for this ${pageNoun}'s content — move or delete the blocks first.`,
-        );
+        setOpError(t('arrangementNoPlace', { arrangement: a.label, noun: pageNoun }));
         return Promise.resolve();
       }
       return applyOp(
@@ -1807,7 +1801,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         `${app.label}: change arrangement to ${a.label}`,
       );
     },
-    [applyOp, anchor, file, vocabulary, template, runAction],
+    [applyOp, anchor, file, vocabulary, template, runAction, t],
   );
 
   // ADR-466 D5 — the galleries forewarn: how many blocks would an arrangement
@@ -2656,7 +2650,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
     const isRange = selRect.grain === 'range';
     const kind = selection.blockKind ?? 'content';
     return {
-      noun: isRange ? 'the selection' : `the ${kind} block`,
+      noun: isRange ? t('gestureNounSelection') : t('gestureNounBlock', { kind }),
       label: isRange ? 'selection' : kind,
       // A range is addressed by the block that holds it — the runtime has no
       // source offsets for HTML, so `block_id` IS this medium's address
@@ -2664,7 +2658,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // the member has, and the frame carries the excerpt to narrow it.
       blockId: selection.blockId ?? null,
     };
-  }, [selRect, selection]);
+  }, [selRect, selection, t]);
 
   // ADR-612 D4 in THIS medium — the act says it is working, and cannot get
   // stuck saying so. Slides shipped the gesture without this, so a member who
@@ -2990,24 +2984,35 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         // to a fixed "into" prefix — that composed "into after the stat", the
         // ungrammatical header the ADR-586 click-pass found on every
         // block-selected open (both the popover and the bottom sheet).
-        label: sel.blockKind ? `after the ${sel.blockKind}` : 'after the selected block',
+        label: sel.blockKind
+          ? t('insertAfterKind', { kind: sel.blockKind })
+          : t('insertAfterSelected'),
       };
     }
     if (sel?.slot) {
-      return { slot: sel.slot, blockId: null, slideIndex, pageIndex, label: `into ${sel.slot}` };
+      return {
+        slot: sel.slot,
+        blockId: null,
+        slideIndex,
+        pageIndex,
+        label: t('insertIntoSlot', { slot: sel.slot }),
+      };
     }
     const nth = (slideIndex ?? pageIndex);
     // Same derivation the toolbar's New-‹noun› uses (deck speaks "slide",
     // web speaks "section") — the chrome must not call one page two names.
-    const noun = template === 'deck' ? 'slide' : 'section';
+    const noun = template === 'deck' ? t('slide') : t('section');
     return {
       slot: null, blockId: null, slideIndex, pageIndex,
-      label: nth == null ? `into this ${noun}` : `into ${noun} ${nth + 1}`,
+      label:
+        nth == null
+          ? t('insertIntoThisPage', { noun })
+          : t('insertIntoPageN', { noun, n: nth + 1 }),
     };
     // `viewportPage` is a DEPENDENCY, not a closed-over constant — the sibling
     // gate test_adr522_focus_is_threaded_not_closed_over.py exists because this
     // exact value was once captured stale.
-  }, [selection, template, viewportPage]);
+  }, [selection, template, viewportPage, t]);
 
   const openInsertMenu = useCallback(
     (x: number, y: number) => {
@@ -3016,12 +3021,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // acts is not a menu"), so when the roster is empty because the fetch
       // FAILED, say so here rather than letting the press look ignored.
       if (vocabularyError && !vocabulary?.blocks.length) {
-        setOpError('Insert is unavailable — the block list could not be loaded. Reload to retry.');
+        setOpError(t('insertUnavailable'));
         return;
       }
       setInsertMenu({ x, y, ...resolveInsertTarget() });
     },
-    [resolveInsertTarget, vocabularyError, vocabulary],
+    [resolveInsertTarget, vocabularyError, vocabulary, t],
   );
 
   // ADR-586 D1 — ONE door on every medium: the toolbar's [+ Add] opens the
@@ -3399,8 +3404,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
    *  the SAME served vocabulary the Design tab reads — one table, two readers. */
   const layerLabels = useMemo(() => blockLabelMap(vocabulary?.blocks), [vocabulary]);
   const layerLabelFor = useCallback(
-    (kind: string) => layerLabels[kind] ?? 'Layer',
-    [layerLabels],
+    (kind: string) => layerLabels[kind] ?? t('layerFallback'),
+    [layerLabels, t],
   );
 
   /** Select a LAYER from the tree.
@@ -3683,7 +3688,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
       // same shape and the same reason as `applyOp`'s shared guard, which this
       // path never reached.
       if (!containerId) {
-        setOpError('That spot could not be addressed yet. Reload and try again.');
+        setOpError(t('spotNotAddressable'));
         return;
       }
       const role = vocabulary?.arrangements?.[template]
@@ -3831,7 +3836,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onPointerDown={rail.startResize}
                 role="separator"
                 aria-orientation="vertical"
-                title="Drag to resize the slide strip"
+                title={t('resizeStrip')}
                 className="absolute right-0 top-0 z-10 block h-full w-1.5 translate-x-1/2 cursor-col-resize hover:bg-primary/20 active:bg-primary/30"
               />
             )}
@@ -3865,8 +3870,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               <button
                 type="button"
                 onClick={toggleNav}
-                title={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
-                aria-label={`${navCollapsed ? 'Show' : 'Hide'} the slide strip`}
+                title={navCollapsed ? t('showStrip') : t('hideStrip')}
+                aria-label={navCollapsed ? t('showStrip') : t('hideStrip')}
                 className={`ml-2 inline-flex shrink-0 items-center justify-center gap-1 rounded text-[11px] transition-colors hover:bg-muted/40 ${
                   coarsePointer ? 'h-11 w-11' : 'p-1'
                 } ${navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'}`}
@@ -3878,7 +3883,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               <button
                 type="button"
                 onClick={() => setParam({ file: null })}
-                title={`Back to ${app.label}`}
+                title={t('backToApp', { app: app.label })}
                 className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
                 {/* ADR-482 D7: app-aware, matching the landing. The label is
@@ -3927,13 +3932,13 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                     }
                   }}
                   className="w-[24ch] rounded border border-indigo-400/60 bg-background px-1 py-0.5 text-xs font-medium outline-none disabled:opacity-50"
-                  aria-label="Rename"
+                  aria-label={t('rename')}
                 />
               ) : (
                 <button
                   type="button"
                   onClick={() => setRenaming(true)}
-                  title={`${relPath(artifactPath)} — click to rename`}
+                  title={t('clickToRename', { path: relPath(artifactPath) })}
                   className="flex max-w-[26ch] items-center gap-1.5 truncate rounded px-1 py-0.5 font-medium text-foreground/80 hover:bg-muted/50"
                 >
                   {/* ADR-482 D7: the document-type glyph. The registry already
@@ -3968,7 +3973,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 type="button"
                 onClick={() => setZoom((z) => Math.max(0.25, Math.round((z - 0.1) * 100) / 100))}
                 className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
-                title="Zoom out"
+                title={t('zoomOut')}
               >
                 −
               </button>
@@ -3976,7 +3981,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 type="button"
                 onClick={() => setZoom(1)}
                 className="min-w-[3ch] rounded px-1 py-0.5 text-[11px] tabular-nums text-muted-foreground hover:bg-muted/40"
-                title="Reset zoom to 100%"
+                title={t('zoomReset')}
               >
                 {Math.round(zoom * 100)}%
               </button>
@@ -3984,7 +3989,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 type="button"
                 onClick={() => setZoom((z) => Math.min(2, Math.round((z + 0.1) * 100) / 100))}
                 className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
-                title="Zoom in"
+                title={t('zoomIn')}
               >
                 +
               </button>
@@ -4036,8 +4041,8 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               <button
                 type="button"
                 onClick={side.toggle}
-                title={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
-                aria-label={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
+                title={sideOpen ? t('hideSide') : t('showSide')}
+                aria-label={sideOpen ? t('hideSide') : t('showSide')}
                 aria-expanded={sideOpen}
                 className={`mr-1 inline-flex shrink-0 items-center justify-center rounded border border-border text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground ${
                   coarsePointer ? 'h-11 w-11' : 'h-7 w-7'
@@ -4053,28 +4058,26 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             </p>
           )}
           {loading ? (
-            <Working label="Opening…" fill className="flex-1" />
+            <Working label={t('opening')} fill className="flex-1" />
           ) : loadError && !file ? (
             /* A real failure says so, and offers the retry — never "it doesn't
                exist", which reads as data loss. reloadKey is the same refetch
                the 409 path uses. */
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Couldn’t load {relPath(artifactPath)}. The artifact is still there — the
-                request failed.
+                {t('loadFailed', { path: relPath(artifactPath) })}
               </p>
               <button
                 type="button"
                 onClick={() => setReloadKey((k) => k + 1)}
                 className="rounded border border-border px-2.5 py-1 text-xs hover:bg-accent"
               >
-                Try again
+                {t('tryAgain')}
               </button>
             </div>
           ) : notFound || !file ? (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              This artifact does not exist yet — ask the lane to create it at{' '}
-              {relPath(artifactPath)}.
+              {t('notCreatedYet', { path: relPath(artifactPath) })}
             </div>
           ) : (
             /* The wrapper is the slash palette's positioning context — the
@@ -4403,7 +4406,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
             onPointerDown={side.startResize}
             role="separator"
             aria-orientation="vertical"
-            title="Drag to resize"
+            title={t('resizeSide')}
             className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
           />
         )}
@@ -4484,24 +4487,35 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 artifactWrite="none"
                 emptyState={
                   <div className="space-y-2 text-center text-xs text-muted-foreground">
-                    <p className="text-sm font-medium text-foreground/80">Tell it what to write.</p>
+                    <p className="text-sm font-medium text-foreground/80">{t('laneEmptyTitle')}</p>
                     <p>
-                      Ask in plain words — every reply becomes an edit to{' '}
-                      <span className="font-medium text-foreground/70">{baseName(artifactPath)}</span>,
-                      and the page updates as it works. It can also pull in your
-                      workspace files — images, tables, notes — as live references.
+                      {t.rich('laneEmptyBody', {
+                        file: () => (
+                          <span className="font-medium text-foreground/70">
+                            {baseName(artifactPath)}
+                          </span>
+                        ),
+                      })}
                     </p>
                   </div>
                 }
                 suggestions={
                   // ADR-452 D2: a derive-bound lane (the landing's Learn-from
                   // flow) leads with its one job; the template chips follow.
+                  // ADR-660 — the module table holds KEYS; word them here.
                   boundLane.derive_source
                     ? [
-                        `Learn from ${baseName(boundLane.derive_source)} — build this ${template} from it.`,
-                        ...(TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document),
+                        t('suggestLearnFrom', {
+                          source: baseName(boundLane.derive_source),
+                          template,
+                        }),
+                        ...(TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document).map(
+                          (k) => t(k),
+                        ),
                       ]
-                    : TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document
+                    : (TEMPLATE_SUGGESTIONS[template] ?? TEMPLATE_SUGGESTIONS.document).map((k) =>
+                        t(k),
+                      )
                 }
               />
             ) : (
@@ -4511,7 +4525,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                   {laneError}
                 </div>
               ) : (
-                <Working label="Getting ready…" fill className="flex-1" />
+                <Working label={t('gettingReady')} fill className="flex-1" />
               )
             )}
           </div>
@@ -4593,10 +4607,10 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
         <nav className="flex shrink-0 border-t border-border">
           {([
             ...(resolvedMode === 'paged'
-              ? ([['nav', template === 'deck' ? 'Slides' : 'Outline']] as const)
+              ? ([['nav', template === 'deck' ? t('tabSlides') : t('tabOutline')]] as const)
               : []),
-            ['canvas', 'Canvas'],
-            ['chat', 'Chat'],
+            ['canvas', t('tabCanvas')],
+            ['chat', t('tabChat')],
           ] as ReadonlyArray<readonly [typeof activePane, string]>).map(([pane, label]) => (
             <button
               key={pane}
@@ -4651,30 +4665,37 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
 // landing has at least one row whose template it owns.** Adding an app without
 // adding its row reproduces the ADR-646 D6 defect one app over — which is
 // exactly how it recurred. Gate: `test_adr473_document_types.py` §6.
-const LEARN_TARGETS: LearnTarget[] = [
+//  ADR-660 — the rows carry catalog KEYS; the landing words them into the
+//  `LearnTarget` the modal renders. Built at import, so no literal can live here.
+const LEARN_TARGETS: Array<{
+  skill: string;
+  template: string | null;
+  labelKey: string;
+  descriptionKey: string;
+}> = [
   {
     skill: 'writing-a-spec',
     template: 'post',
-    label: 'Post',
-    description: 'A post written from the source.',
+    labelKey: 'learnPostLabel',
+    descriptionKey: 'learnPostDescription',
   },
   {
     skill: 'presenting-from-sources',
     template: 'deck',
-    label: 'Deck',
-    description: 'Slides that make the source’s case, with its evidence.',
+    labelKey: 'learnDeckLabel',
+    descriptionKey: 'learnDeckDescription',
   },
   {
     skill: 'composing-an-image',
     template: 'image',
-    label: 'Image',
-    description: 'An image built from layers.',
+    labelKey: 'learnImageLabel',
+    descriptionKey: 'learnImageDescription',
   },
   {
     skill: 'deriving-a-design-system',
     template: null,
-    label: 'Design system',
-    description: 'One look your decks, posts, and images can share.',
+    labelKey: 'learnSystemLabel',
+    descriptionKey: 'learnSystemDescription',
   },
 ];
 
@@ -4745,6 +4766,7 @@ function StudioStart({
   const [wornBy, setWornBy] = useState<Record<string, number>>({});
   // ADR-487 D5 — the workspace default's manifest path (badged on its card).
   const [defaultSystem, setDefaultSystem] = useState<string | null>(null);
+  const t = useTranslations('studio.surface');
   const [openPickerOn, setOpenPickerOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { runAction } = useFeedback();
@@ -4794,7 +4816,7 @@ function StudioStart({
       // holds a list of "which types are Studio's", so a program-shipped type
       // routes with no frontend deploy.
       .then((res) => setTemplates(res.templates))
-      .catch(() => setError('Could not load templates.'));
+      .catch(() => setError(t('templatesLoadFailed')));
     loadRecents();
     loadSystems();
   }, [loadRecents, loadSystems, app]);
@@ -4921,7 +4943,7 @@ function StudioStart({
           app: app.slug,
           ...(dims ?? {}),
         }),
-      { pending: 'Creating…' },
+      { pending: t('creating') },
     );
     onOpen(res.path);
   };
@@ -4932,10 +4954,10 @@ function StudioStart({
   // design-system target (a folder, no canvas) routes to a chat lane.
   const learnFrom = async (
     source: { path: string; name: string },
-    target: (typeof LEARN_TARGETS)[number],
+    target: LearnTarget,
   ) => {
     if (!laneEnv?.enabled) {
-      throw new Error('Chat helpers aren’t enabled on this workspace.');
+      throw new Error(t('laneDisabled'));
     }
     if (target.template) {
       // ADR-549 D4 — a derived artifact lands BESIDE ITS SOURCE.
@@ -4974,7 +4996,7 @@ function StudioStart({
           });
           return created;
         },
-        { pending: 'Setting up…' },
+        { pending: t('settingUp') },
       );
       setLearnOpen(false);
       onOpen(res.path);
@@ -4992,7 +5014,7 @@ function StudioStart({
             skill: target.skill,
             derive_source: source.path,
           }),
-        { pending: 'Starting a chat…' },
+        { pending: t('startingChat') },
       );
       setLearnOpen(false);
       navigateToSurface('chat', { lane: lane.id });
@@ -5010,7 +5032,7 @@ function StudioStart({
     // its own receipt ("Imported X — N files") and its own inline failure, and
     // stays open either way. Adding a second channel would say it twice.
     const r = await runAction(() => api.studio.importDesignSystem(file), {
-      pending: 'Importing…',
+      pending: t('importing'),
     });
     loadSystems();
     return { name: r.name, written: r.written.length, warnings: r.warnings?.length ?? 0 };
@@ -5026,7 +5048,7 @@ function StudioStart({
           skill: 'deriving-a-design-system',
           derive_source: source.path,
         }),
-      { pending: 'Starting a chat…' },
+      { pending: t('startingChat') },
     );
     setNewSystemOpen(false);
     navigateToSurface('chat', { lane: lane.id });
@@ -5050,7 +5072,7 @@ function StudioStart({
               </h1>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
-              {app.tagline}
+              {t(app.taglineKey)}
             </p>
           </div>
           {/* The New / Open pair (the File-menu convention). Open browses an
@@ -5063,7 +5085,7 @@ function StudioStart({
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
               <FolderOpen className="h-3.5 w-3.5" />
-              Open
+              {t('open')}
             </button>
             <StudioNewMenu
               templates={templates}
@@ -5093,7 +5115,7 @@ function StudioStart({
         {hasRecents ? (
           <div className="space-y-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Continue where you left off
+              {t('continueWhereYouLeftOff')}
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {recents.map((r) => {
@@ -5142,7 +5164,7 @@ function StudioStart({
                         the SAME menu as right-click, anchored at the click point. */}
                     <button
                       type="button"
-                      aria-label={`Actions for ${r.name}`}
+                      aria-label={t('actionsFor', { name: r.name })}
                       onClick={(e) => {
                         e.stopPropagation();
                         openMenu(target, e);
@@ -5162,12 +5184,15 @@ function StudioStart({
               {/* ADR-518: the offer derives from THIS app's served templates —
                   the hardcoded list had gone stale twice (article/page died in
                   ADR-505; the split made it cross-app). */}
-              Nothing here yet — hit <span className="font-medium text-foreground/80">New</span>{' '}
-              to start your first{' '}
-              {templates && templates.length
-                ? templates.map((t) => t.label.toLowerCase()).join(' or ')
-                : 'artifact'}
-              .
+              {/* ADR-660 — one sentence, the served kind list as its
+                  argument; the pieces were joined in JSX, an English order. */}
+              {t.rich('noRecents', {
+                shapes:
+                  templates && templates.length
+                    ? templates.map((tpl) => tpl.label.toLowerCase()).join(t('orJoin'))
+                    : t('artifactFallback'),
+                new: () => <span className="font-medium text-foreground/80">{t('new')}</span>,
+              })}
             </p>
           </div>
         )}
@@ -5182,7 +5207,7 @@ function StudioStart({
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Design systems
+              {t('designSystems')}
             </p>
             {systems.length > 0 && (
               <button
@@ -5191,7 +5216,7 @@ function StudioStart({
                 className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
               >
                 <Plus className="h-3 w-3" />
-                New design system
+                {t('newDesignSystem')}
               </button>
             )}
           </div>
@@ -5199,8 +5224,7 @@ function StudioStart({
           {systems.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6">
               <p className="text-sm text-muted-foreground">
-                No design system yet. Give everything you make one look. Import
-                your brand’s export, or build one from a style guide.
+                {t('noSystems')}
               </p>
               <button
                 type="button"
@@ -5208,7 +5232,7 @@ function StudioStart({
                 className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
               >
                 <Plus className="h-3.5 w-3.5" />
-                New design system
+                {t('newDesignSystem')}
               </button>
             </div>
           ) : (
@@ -5226,18 +5250,21 @@ function StudioStart({
                     {defaultSystem === s.manifest_path && (
                       <span
                         className="ml-auto shrink-0 rounded-full border border-border px-1.5 py-px text-[9px] uppercase tracking-wide text-muted-foreground"
-                        title="New decks, posts, and images use this design system"
+                        title={t('defaultBadgeHint')}
                       >
-                        Default
+                        {t('defaultBadge')}
                       </span>
                     )}
                   </span>
                   <span className="mt-1 text-[11px] text-muted-foreground">
+                    {/* ADR-660 — the 1-vs-N split was an English PLURAL rule;
+                        it is an ICU plural now, so a language with no plural
+                        form gets one arm. */}
                     {wornBy[s.manifest_path] === undefined
                       ? '—'
                       : wornBy[s.manifest_path] === 0
-                        ? 'Not worn yet'
-                        : `Worn by ${wornBy[s.manifest_path]} ${wornBy[s.manifest_path] === 1 ? 'artifact' : 'artifacts'}`}
+                        ? t('notWornYet')
+                        : t('wornByCount', { count: wornBy[s.manifest_path] })}
                   </span>
                 </button>
               ))}
@@ -5262,9 +5289,16 @@ function StudioStart({
           // artifact type it OWNS, resolved through the served kind→app
           // association (never a hardcoded type list). Folder targets
           // (template: null → chat lane) are app-free and offered everywhere.
+          // ADR-660 — the module rows carry KEYS; worded here, where the
+          // member's language is known.
           targets={LEARN_TARGETS.filter(
-            (t) => !t.template || appForKind(t.template) === app.slug,
-          )}
+            (row) => !row.template || appForKind(row.template) === app.slug,
+          ).map((row) => ({
+            skill: row.skill,
+            template: row.template,
+            label: t(row.labelKey),
+            description: t(row.descriptionKey),
+          }))}
           onClose={() => setLearnOpen(false)}
           onStart={learnFrom}
         />
@@ -5329,6 +5363,7 @@ function StudioManage({
   // ADR-487 D5 — is THIS system the workspace default? (null = unknown/loading)
   const [isDefault, setIsDefault] = useState<boolean | null>(null);
   const [defaultBusy, setDefaultBusy] = useState(false);
+  const t = useTranslations('studio.surface');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { runAction } = useFeedback();
 
@@ -5337,7 +5372,7 @@ function StudioManage({
     api.studio
       .resolveDesignSystem(manifestPath)
       .then(setDetail)
-      .catch(() => setError('This design system could not be read.'));
+      .catch(() => setError(t('systemUnreadable')));
     // Worn-by: the ADR-448 reference edge, read outward from the manifest —
     // the endpoint already returns the PATHS, not just the count. The backend
     // returns {dependents: []} on any failure, so this never throws.
@@ -5350,7 +5385,7 @@ function StudioManage({
       .vocabulary()
       .then((v) => setIsDefault(v.default_design_system === manifestPath))
       .catch(() => setIsDefault(null));
-  }, [manifestPath]);
+  }, [manifestPath, t]);
 
   // ADR-487 D5 — toggle the workspace default. An inheritance rule at
   // creation: new artifacts are born wearing it; nothing existing changes.
@@ -5368,13 +5403,12 @@ function StudioManage({
       const r = await runAction(
         () => api.studio.setDefaultDesignSystem(turningOn ? manifestPath : null),
         {
-          pending: turningOn ? 'Setting as default…' : 'Clearing the default…',
-          success: turningOn ? 'Now the workspace default' : 'No longer the default',
+          pending: turningOn ? t('settingDefault') : t('clearingDefault'),
+          success: turningOn ? t('nowDefault') : t('noLongerDefault'),
           error: (e) =>
             e instanceof APIError
-              ? (e.data as { detail?: string })?.detail ||
-                'Couldn’t change the workspace default'
-              : 'Couldn’t change the workspace default',
+              ? (e.data as { detail?: string })?.detail || t('defaultChangeFailed')
+              : t('defaultChangeFailed'),
         },
       );
       setIsDefault(r.default_design_system === manifestPath);
@@ -5413,12 +5447,12 @@ function StudioManage({
       // A success line earns its place because a re-import of the same folder
       // often looks identical on screen — nothing else would say it landed.
       await runAction(() => api.studio.importDesignSystem(file, detail?.name), {
-        pending: 'Re-importing…',
-        success: 'Re-imported',
+        pending: t('reimporting'),
+        success: t('reimported'),
         error: (e) =>
           e instanceof APIError
-            ? (e.data as { detail?: string })?.detail || 'Couldn’t re-import that export'
-            : 'Couldn’t re-import that export',
+            ? (e.data as { detail?: string })?.detail || t('reimportFailed')
+            : t('reimportFailed'),
       });
       load(); // pick up the new sources/warnings
     } catch {
@@ -5439,7 +5473,7 @@ function StudioManage({
           onClick={onBack}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Design systems
+          <ArrowLeft className="h-3.5 w-3.5" /> {t('designSystems')}
         </button>
 
         <div className="flex items-start justify-between gap-4">
@@ -5447,7 +5481,7 @@ function StudioManage({
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-muted-foreground" />
               <h1 className="min-w-0 truncate text-lg font-semibold">
-                {detail?.name ?? 'Design system'}
+                {detail?.name ?? t('designSystem')}
               </h1>
             </div>
             <p className="truncate text-[11px] text-muted-foreground">
@@ -5461,11 +5495,7 @@ function StudioManage({
               type="button"
               disabled={defaultBusy || isDefault === null}
               onClick={() => void toggleDefault()}
-              title={
-                isDefault
-                  ? 'New artifacts are born wearing this — click to clear'
-                  : 'Make new artifacts wear this design system at creation'
-              }
+              title={isDefault ? t('clearDefaultHint') : t('setDefaultHint')}
               className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${
                 isDefault
                   ? 'border-indigo-400 bg-indigo-50/60 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200'
@@ -5477,7 +5507,7 @@ function StudioManage({
               ) : (
                 <Check className={`h-3.5 w-3.5 ${isDefault ? '' : 'opacity-40'}`} />
               )}
-              {isDefault ? 'Default' : 'Set as default'}
+              {isDefault ? t('defaultBadge') : t('setAsDefault')}
             </button>
             <input
               ref={fileInputRef}
@@ -5497,7 +5527,7 @@ function StudioManage({
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
             >
               {reimporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              Re-import
+              {t('reimport')}
             </button>
           </div>
         </div>
@@ -5509,13 +5539,16 @@ function StudioManage({
             HEAD cites this manifest, one click from its manage home. */}
         <div className="rounded-lg border border-border p-4">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Worn by{wornBy && wornBy.length > 0 ? ` · ${wornBy.length}` : ''}
+            {/* ADR-660 — one message per arm; the ` · N` join was word order. */}
+            {wornBy && wornBy.length > 0
+              ? t('wornByWithCount', { count: wornBy.length })
+              : t('wornBy')}
           </p>
           {wornBy === null ? (
             <p className="mt-1 text-sm text-muted-foreground">—</p>
           ) : wornBy.length === 0 ? (
             <p className="mt-1 text-sm text-muted-foreground">
-              No artifacts wear this yet. Apply it from an artifact’s Design tab.
+              {t('nothingWearsThis')}
             </p>
           ) : (
             <ul className="mt-2 space-y-1">
@@ -5542,12 +5575,12 @@ function StudioManage({
         {/* The files — the flattened sources the skin is composed from. */}
         <div className="rounded-lg border border-border p-4">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            Files
+            {t('files')}
           </p>
           {detail === null ? (
-            <Working label="Loading…" className="mt-2 text-sm" />
+            <Working label={t('loading')} className="mt-2 text-sm" />
           ) : detail.sources.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">No stylesheets found.</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t('noStylesheets')}</p>
           ) : (
             <ul className="mt-2 space-y-1">
               {detail.sources.map((s) => (
@@ -5577,7 +5610,7 @@ function StudioManage({
         {themeVars.length > 0 && (
           <div className="rounded-lg border border-border p-4">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Theme
+              {t('theme')}
             </p>
             <div className="mt-2 space-y-1">
               {themeVars.map((v) => (
@@ -5596,8 +5629,7 @@ function StudioManage({
               ))}
             </div>
             <p className="mt-3 border-t border-border pt-2 text-[10px] text-muted-foreground">
-              Read-only — the theme lives in its files. Change a value through
-              the chat or a re-import; inline editing lands here.
+              {t('themeReadOnly')}
             </p>
           </div>
         )}

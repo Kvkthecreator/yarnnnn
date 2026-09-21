@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { FileText, FolderOpen, MoreHorizontal, Plus } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api } from '@/lib/api/client';
@@ -169,6 +170,10 @@ function TextLanding({
   onOpen: (path: string) => void;
   onChanged: () => void;
 }) {
+  const t = useTranslations('text.landing');
+  // The app's own name, read from the SURFACE roster — the same words the
+  // Dock and the Launcher show, so the door and the app cannot drift.
+  const surfaces = useTranslations('surfaces');
   const [openPickerOn, setOpenPickerOn] = useState(false);
   const [namingOpen, setNamingOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -193,11 +198,10 @@ function TextLanding({
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-muted-foreground" />
-              <h1 className="text-lg font-semibold">Text</h1>
+              <h1 className="text-lg font-semibold">{surfaces('text.title')}</h1>
             </div>
             <p className="max-w-md text-sm text-muted-foreground">
-              Notes, briefs, transcripts. Open one and write, with Editor beside
-              you when you want help. Every save is kept in the history.
+              {t('intro')}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -207,7 +211,7 @@ function TextLanding({
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
               <FolderOpen className="h-3.5 w-3.5" />
-              Open
+              {t('open')}
             </button>
             <button
               type="button"
@@ -215,7 +219,7 @@ function TextLanding({
               className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-sm text-background transition-opacity hover:opacity-90"
             >
               <Plus className="h-3.5 w-3.5" />
-              New
+              {t('new')}
             </button>
           </div>
         </div>
@@ -223,11 +227,11 @@ function TextLanding({
         {/* Recents — the emphasis, the Docs card anatomy: a text preview
             thumbnail, the document's own name, then the kind + quiet date. */}
         {loading ? (
-          <Working label="Reading your documents…" className="text-xs" />
+          <Working label={t('loading')} className="text-xs" />
         ) : hasRecents ? (
           <div className="space-y-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Continue where you left off
+              {t('continue')}
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {recents.map((r) => {
@@ -252,7 +256,7 @@ function TextLanding({
                         </span>
                       </span>
                       <span className="mt-1 block truncate text-[11px]">
-                        <span className="font-medium text-sky-600 dark:text-sky-400">Document</span>
+                        <span className="font-medium text-sky-600 dark:text-sky-400">{t('kind')}</span>
                         {r.created_at ? (
                           <span className="text-muted-foreground" title={formatAbsolute(r.created_at)}>
                             {` · ${formatRelativeTime(r.created_at, { rollToDate: true })}`}
@@ -262,7 +266,7 @@ function TextLanding({
                     </button>
                     <button
                       type="button"
-                      aria-label={`Actions for ${documentName(path)}`}
+                      aria-label={t('actionsFor', { name: documentName(path) })}
                       onClick={(e) => {
                         e.stopPropagation();
                         openMenu(target, e);
@@ -279,10 +283,11 @@ function TextLanding({
         ) : (
           <div className="rounded-lg border border-dashed border-border p-8 text-center">
             <FileText className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
-            <p className="text-sm font-medium text-foreground/80">No documents yet</p>
+            <p className="text-sm font-medium text-foreground/80">{t('emptyTitle')}</p>
             <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
-              New starts one. Anything written as <span className="font-mono">.md</span> —
-              by you, by a colleague in chat, or by a connected AI — shows up here.
+              {t.rich('emptyBody', {
+                code: (chunks) => <span className="font-mono">{chunks}</span>,
+              })}
             </p>
           </div>
         )}

@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { BarChart3, Users } from "lucide-react";
 import { Working } from '@/components/shared/Working';
 import { api } from "@/lib/api/client";
@@ -47,6 +48,7 @@ function fmtUsd(n: number): string {
 }
 
 export function UsagePaneBody() {
+  const t = useTranslations("billing.usage");
   // ADR-416/429 §13 SAFETY GUARD: this pane sits under the ACCOUNT door but every
   // figure on it is workspace-scoped, so it must name its subject — otherwise it
   // swaps silently on workspace switch (the exact incoherence the operator caught
@@ -126,12 +128,12 @@ export function UsagePaneBody() {
         principal_id: r.principal_id,
         label:
           principalLabels.get(r.principal_id) ??
-          (r.principal_id === "unknown" ? "Unattributed" : r.principal_id),
+          (r.principal_id === "unknown" ? t("unattributed") : r.principal_id),
         pct: Math.round((r.spend_usd / total) * 100),
         events: r.event_count,
       }))
       .filter((r) => r.pct > 0 || r.events > 0);
-  }, [spendByPrincipal, principalLabels]);
+  }, [spendByPrincipal, principalLabels, t]);
 
   // ⭐ The pane must survive an OLDER server payload. The FE and API deploy
   // independently (separate Render services), so for a window after any FE
@@ -145,12 +147,12 @@ export function UsagePaneBody() {
 
   if (limitsLoading) {
     return (
-      <Working label="Loading usage…" className="p-4 text-sm" />
+      <Working label={t("loading")} className="p-4 text-sm" />
     );
   }
 
   if (!limits) {
-    return <p className="text-sm text-muted-foreground">Unable to load usage data.</p>;
+    return <p className="text-sm text-muted-foreground">{t("unavailable")}</p>;
   }
 
   return (
@@ -158,8 +160,11 @@ export function UsagePaneBody() {
       {/* The workspace this pane is about (ADR-416/429 §13 guard). */}
       {activeWorkspaceName ? (
         <p className="text-xs text-muted-foreground -mb-2">
-          For <span className="font-medium text-foreground">{activeWorkspaceName}</span>
-          {" "}— its usage this cycle. Switch workspaces from the avatar menu.
+          {t.rich("forWorkspace", {
+            name: () => (
+              <span className="font-medium text-foreground">{activeWorkspaceName}</span>
+            ),
+          })}
         </p>
       ) : null}
 
@@ -179,13 +184,13 @@ export function UsagePaneBody() {
             if (limits && limits.billing_authority === false) {
               return (
                 <>
-                  <h3 className="font-medium">Balance</h3>
+                  <h3 className="font-medium">{t("balanceTitle")}</h3>
                   <p className="text-xs text-muted-foreground">
                     {limits.balance_exhausted
-                      ? "The workspace's balance is spent, so work is paused — the workspace owner manages billing and top-ups."
+                      ? t("memberExhausted")
                       : limits.balance_low
-                        ? "The workspace's balance is running low. The workspace owner manages billing and top-ups."
-                        : "This workspace's balance is managed by its owner. Your usage draws from the shared pool and appears below."}
+                        ? t("memberLow")
+                        : t("memberCalm")}
                   </p>
                 </>
               );
@@ -195,7 +200,7 @@ export function UsagePaneBody() {
           return (
             <>
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">Balance</h3>
+                <h3 className="font-medium">{t("balanceTitle")}</h3>
                 <span
                   className={
                     balance.isExhausted
@@ -203,12 +208,14 @@ export function UsagePaneBody() {
                       : "text-sm font-medium tabular-nums"
                   }
                 >
-                  {balance.remainingLabel} remaining
+                  {t("remaining", { amount: balance.remainingLabel })}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
+                {/* `balance.detail` is the shared balance model's sentence
+                    (lib/subscription/usage.ts), not this pane's copy. */}
                 {balance.detail}
-                {runwayDays !== null && ` · ~${runwayDays} days left at this pace`}
+                {runwayDays !== null && t("runway", { count: runwayDays })}
               </p>
             </>
           );
@@ -226,9 +233,9 @@ export function UsagePaneBody() {
           <div className="flex items-center justify-between">
             <h3 className="font-medium flex items-center gap-2">
               <Users className="w-4 h-4" />
-              Who used it
+              {t("whoUsedIt")}
             </h3>
-            <span className="text-xs text-muted-foreground">this cycle</span>
+            <span className="text-xs text-muted-foreground">{t("thisCycle")}</span>
           </div>
           <div className="space-y-2.5">
             {memberUsage.map((m) => (
@@ -236,7 +243,7 @@ export function UsagePaneBody() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="truncate pr-3">{m.label}</span>
                   <span className="font-mono text-xs text-muted-foreground shrink-0">
-                    {m.events} {m.events === 1 ? "action" : "actions"} · {m.pct}%
+                    {t("memberRow", { count: m.events, pct: m.pct })}
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -248,10 +255,7 @@ export function UsagePaneBody() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Share of this workspace&rsquo;s pooled usage, by member. Everyone draws
-            the one shared balance.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("whoNote")}</p>
         </div>
       )}
 
@@ -260,9 +264,12 @@ export function UsagePaneBody() {
       {usageDetail && usageDetail.by_work.length > 0 && (
         <div className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-medium">Where this workspace&rsquo;s usage went</h3>
+            <h3 className="font-medium">{t("whereItWent")}</h3>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {fmtUsd(spendTotal)} · {usageDetail.activity.runs} runs
+              {t("runsSummary", {
+                amount: fmtUsd(spendTotal),
+                count: usageDetail.activity.runs,
+              })}
             </span>
           </div>
           <div className="space-y-2.5">
@@ -271,8 +278,7 @@ export function UsagePaneBody() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="truncate pr-3">{workItemName(item.slug)}</span>
                   <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums">
-                    {fmtUsd(item.cost_usd)} · {item.runs}{" "}
-                    {item.runs === 1 ? "run" : "runs"}
+                    {t("workRow", { amount: fmtUsd(item.cost_usd), count: item.runs })}
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -286,16 +292,17 @@ export function UsagePaneBody() {
           </div>
           {usageDetail.by_work[0].pct_runs !== undefined && (
             <p className="text-xs text-muted-foreground">
-              Bars are share of spend. A row can be many runs and little money, or
-              the reverse — the highest-spend row here is {usageDetail.by_work[0].pct}% of
-              spend from {usageDetail.by_work[0].pct_runs}% of runs.
+              {t("barsNote", {
+                pct: usageDetail.by_work[0].pct,
+                pctRuns: usageDetail.by_work[0].pct_runs,
+              })}
               {/* The row names say what was done and to which folder ("Checked ·
                   Fundraising") but not that it ran unattended — the name has
                   ~244px at phone width and spelling it inline truncates the
                   folder. So the panel says it ONCE, and only when such a row is
                   actually present. */}
               {usageDetail.by_work.some((w) => isScheduledWork(w.slug)) && (
-                <> Rows with a folder name ran on a schedule.</>
+                <>{t("scheduledNote")}</>
               )}
             </p>
           )}
@@ -312,11 +319,12 @@ export function UsagePaneBody() {
           <div className="flex items-center justify-between">
             <h3 className="font-medium flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
-              Spend trend
+              {t("trendTitle")}
             </h3>
             <span className="text-xs text-muted-foreground">
-              last {usageDetail.trend_days ?? usageDetail.trend.length}{" "}
-              {(usageDetail.trend_days ?? usageDetail.trend.length) === 1 ? "day" : "days"}
+              {t("trendWindow", {
+                count: usageDetail.trend_days ?? usageDetail.trend.length,
+              })}
             </span>
           </div>
           {(() => {
@@ -344,7 +352,7 @@ export function UsagePaneBody() {
                     {fmtUsd(spendTotal)}
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    peak {fmtUsd(peak.cost_usd)} · {dayLabel(peak.date)}
+                    {t("peak", { amount: fmtUsd(peak.cost_usd), date: dayLabel(peak.date) })}
                   </span>
                 </div>
                 <div
@@ -385,26 +393,27 @@ export function UsagePaneBody() {
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {active ? (
                     <>
-                      {dayLabel(active.date)} — {fmtUsd(active.cost_usd)}
-                      {active.runs !== undefined && (
-                        <>
-                          {" · "}
-                          {active.runs} {active.runs === 1 ? "run" : "runs"}
-                        </>
-                      )}
-                      {(active.failed ?? 0) > 0 && ` · ${active.failed} failed`}
+                      {t("dayReadout", {
+                        date: dayLabel(active.date),
+                        amount: fmtUsd(active.cost_usd),
+                      })}
+                      {active.runs !== undefined && t("dayRuns", { count: active.runs })}
+                      {(active.failed ?? 0) > 0 &&
+                        t("dayFailed", { count: active.failed ?? 0 })}
                       {(active.runs ?? 0) > 0 &&
                         active.cost_usd === 0 &&
-                        " · no billable draw"}
+                        t("noBillableDraw")}
                     </>
                   ) : (
                     <>
-                      {usageDetail.activity.runs} runs ·{" "}
-                      {fmtUsd(usageDetail.activity.avg_cost_usd)} avg per run
+                      {t("summaryRuns", {
+                        count: usageDetail.activity.runs,
+                        amount: fmtUsd(usageDetail.activity.avg_cost_usd),
+                      })}
                       {usageDetail.activity.success_rate !== null &&
-                        ` · ${usageDetail.activity.success_rate}% success`}
+                        t("summarySuccess", { pct: usageDetail.activity.success_rate })}
                       {usageDetail.activity.failed > 0 &&
-                        ` · ${usageDetail.activity.failed} failed`}
+                        t("summaryFailed", { count: usageDetail.activity.failed })}
                     </>
                   )}
                 </p>
@@ -419,8 +428,8 @@ export function UsagePaneBody() {
       {usageDetail && (usageDetail.by_model?.length ?? 0) > 0 && (
         <div className="p-4 border border-border rounded-lg space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-medium">Where it went by engine</h3>
-            <span className="text-xs text-muted-foreground">this cycle</span>
+            <h3 className="font-medium">{t("byEngine")}</h3>
+            <span className="text-xs text-muted-foreground">{t("thisCycle")}</span>
           </div>
           <div className="space-y-2.5">
             {(usageDetail.by_model ?? []).map((m) => (
@@ -428,7 +437,7 @@ export function UsagePaneBody() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="truncate pr-3 font-mono text-xs">{m.model}</span>
                   <span className="font-mono text-xs text-muted-foreground shrink-0 tabular-nums">
-                    {fmtUsd(m.cost_usd)} · {m.runs} {m.runs === 1 ? "run" : "runs"}
+                    {t("engineRow", { amount: fmtUsd(m.cost_usd), count: m.runs })}
                   </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
@@ -446,12 +455,12 @@ export function UsagePaneBody() {
       {/* Plan */}
       <div className="p-4 border border-border rounded-lg">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Plan</span>
+          <span className="text-sm font-medium">{t("planTitle")}</span>
           <span className="text-sm text-muted-foreground capitalize">{limits.tier}</span>
         </div>
         {limits.next_refill && (
           <p className="text-xs text-muted-foreground mt-1">
-            Renews: {new Date(limits.next_refill).toLocaleDateString()}
+            {t("renews", { date: new Date(limits.next_refill).toLocaleDateString() })}
           </p>
         )}
       </div>

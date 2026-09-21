@@ -43,6 +43,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -57,10 +58,11 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 // Provenance, rendered from the field. A member-authored agent simply lacks
 // the mark — there is no "yours" badge, because the member already knows.
 function KernelMark() {
+  const t = useTranslations('text.agents');
   return (
     <span
       className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
-      title="Comes with yarnnn — you can't edit this one."
+      title={t('kernelMark')}
     >
       yarnnn
     </span>
@@ -179,6 +181,7 @@ function EnginePicker({
   models: EngineRow[];
   onChange: (model: string | null) => Promise<void>;
 }) {
+  const t = useTranslations('text.agents');
   const [open, setOpen] = useState(false);
   const current = agent.model ?? '';
   const declared = agent.model_default ?? '';
@@ -197,9 +200,9 @@ function EnginePicker({
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-foreground transition-colors hover:bg-muted/60"
       >
-        {current ? labelFor(current) : 'Choose an engine'}
+        {current ? labelFor(current) : t('chooseEngine')}
         {agent.model_override && (
-          <span className="text-[10px] text-muted-foreground">· yours</span>
+          <span className="text-[10px] text-muted-foreground">{t('yours')}</span>
         )}
         <ChevronDown className="h-3 w-3 text-muted-foreground" aria-hidden />
       </button>
@@ -208,14 +211,21 @@ function EnginePicker({
           honest sentence is "not running", never a silent substitution. */}
       {chosen?.available === false && (
         <p className="text-[11px] text-amber-600 dark:text-amber-500">
-          {chosen.label} is not available right now
-          {chosen.unavailable_detail ? ` \u2014 ${chosen.unavailable_detail}` : ''}.
-          New conversations use {declared ? labelFor(declared) : 'the default'}.
+          {/* ONE sentence per arm, never a join: a detail glued on with an
+              em dash in code is an English word order (ADR-660). */}
+          {chosen.unavailable_detail
+            ? t('engineUnavailableDetail', {
+                label: chosen.label,
+                detail: chosen.unavailable_detail,
+              })
+            : t('engineUnavailable', { label: chosen.label })}{' '}
+          {t('engineFallback', {
+            engine: declared ? labelFor(declared) : t('engineDefault'),
+          })}
         </p>
       )}
       <p className="text-[11px] text-muted-foreground">
-        Applies to new conversations. Ones already running keep the engine they
-        started with.
+        {t('engineApplies')}
       </p>
       <EngineChooserModal
         open={open}
@@ -255,6 +265,7 @@ function ConnectorScope({
   optIn: string[] | undefined;
   onChange: (platforms: string[] | null) => void;
 }) {
+  const t = useTranslations('text.agents');
   const scoped = optIn !== undefined;
   const [busy, setBusy] = useState(false);
 
@@ -270,7 +281,7 @@ function ConnectorScope({
   if (available.length === 0) {
     return (
       <span className="text-muted-foreground">
-        No connections yet. Add one in Reach, then choose it here.
+        {t('noConnections')}
       </span>
     );
   }
@@ -346,11 +357,11 @@ function ConnectorScope({
           the price of a surface that states only what it must. */}
       {!scoped ? (
         <p className="text-[11px] text-muted-foreground">
-          Following your connections — including any you add later.
+          {t('followingConnections')}
         </p>
       ) : (optIn ?? []).length === 0 ? (
         <p className="text-[11px] text-muted-foreground">
-          Reads through no connection.
+          {t('noConnection')}
         </p>
       ) : null}
     </div>
@@ -379,6 +390,7 @@ function AgentDetail({
   // The Files door for the Memory row — the SAME `navigateToSurface('files',
   // { path })` the Strings pane opens its subject with, so a agent's memory
   // lands in the one place files are read.
+  const t = useTranslations('text.agents');
   const { navigateToSurface } = useSurfacePreferences();
   // Bound outside the closure so the narrowing survives into the handler.
   const memoryPath = agent.memory_path ?? '';
@@ -390,7 +402,7 @@ function AgentDetail({
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        All agents
+        {t('allAgents')}
       </button>
 
       <header className="flex items-start gap-3">
@@ -413,25 +425,25 @@ function AgentDetail({
 
       <dl className="space-y-3 text-xs">
         <div className="flex gap-3">
-          <dt className="w-24 shrink-0 text-muted-foreground">Works in</dt>
+          <dt className="w-24 shrink-0 text-muted-foreground">{t('worksIn')}</dt>
           <dd>
             {agent.apps.length ? (
               <AppChips agent={agent} />
             ) : (
-              'Anywhere you invite them'
+              t('worksInAnywhere')
             )}
           </dd>
         </div>
         <div className="flex gap-3">
-          <dt className="w-24 shrink-0 text-muted-foreground">Add to a chat</dt>
-          <dd>Yes — start a chat with them, or add them to one you are in.</dd>
+          <dt className="w-24 shrink-0 text-muted-foreground">{t('addToChat')}</dt>
+          <dd>{t('addToChatBody')}</dd>
         </div>
         {/* ADR-654 D4 — the engine is the member's CHOICE, not a statement
             about them. Every offered engine, every provider; an unavailable one
             greyed WITH its reason rather than filtered (ADR-559 D3). */}
         {(agent.model || models.length > 0) && (
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-muted-foreground">Runs on</dt>
+            <dt className="w-24 shrink-0 text-muted-foreground">{t('runsOn')}</dt>
             <dd className="min-w-0 flex-1">
               <EnginePicker
                 agent={agent}
@@ -447,7 +459,7 @@ function AgentDetail({
             entry is a DOOR into Files, never a viewer here (ADR-595 D1). */}
         {agent.craft && agent.craft.length > 0 && (
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-muted-foreground">Skills</dt>
+            <dt className="w-24 shrink-0 text-muted-foreground">{t('skills')}</dt>
             <dd className="min-w-0 flex-1">
               <ul className="flex flex-wrap gap-x-3 gap-y-1">
                 {agent.craft.map((c) => (
@@ -463,15 +475,14 @@ function AgentDetail({
                 ))}
               </ul>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                What {agent.name} knows how to do, offered in every chat with them and
-                kept as ordinary files.
+                {t('skillsBody', { name: agent.name })}
               </p>
             </dd>
           </div>
         )}
         {agent.tending && agent.tending.length > 0 && (
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-muted-foreground">Keeps current</dt>
+            <dt className="w-24 shrink-0 text-muted-foreground">{t('keepsCurrent')}</dt>
             <dd className="min-w-0 flex-1">
               <ul className="space-y-0.5">
                 {agent.tending.map((t) => (
@@ -487,7 +498,7 @@ function AgentDetail({
                 ))}
               </ul>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                Files {agent.name} keeps current, on a schedule.
+                {t('keepsCurrentBody', { name: agent.name })}
               </p>
             </dd>
           </div>
@@ -498,24 +509,23 @@ function AgentDetail({
             second reading face ADR-595 D1 deleted a canvas to avoid. */}
         {agent.memory_path && (
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-muted-foreground">Memory</dt>
+            <dt className="w-24 shrink-0 text-muted-foreground">{t('memory')}</dt>
             <dd className="min-w-0 flex-1">
               <button
                 type="button"
                 onClick={() => navigateToSurface('files', { path: memoryPath })}
                 className="text-left underline underline-offset-2 hover:text-foreground"
               >
-                What {agent.name} has learned
+                {t('memoryLink', { name: agent.name })}
               </button>
               <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
-                Kept as ordinary files in the workspace, with their history, yours
-                to read or correct.
+                {t('memoryBody')}
               </p>
             </dd>
           </div>
         )}
         <div className="flex gap-3">
-          <dt className="w-24 shrink-0 text-muted-foreground">Connections</dt>
+          <dt className="w-24 shrink-0 text-muted-foreground">{t('connections')}</dt>
           <dd className="min-w-0 flex-1">
             <ConnectorScope
               slug={agent.slug}
@@ -538,6 +548,8 @@ function AgentDetail({
 }
 
 export function AgentsSurface() {
+  const t = useTranslations('text.agents');
+  const surfaces = useTranslations('surfaces');
   const { runAction } = useFeedback();
   const params = useSearchParams();
   const { setSurfaceParams } = useSurfacePreferences();
@@ -575,9 +587,9 @@ export function AgentsSurface() {
     // unhandled promise, so a failed scoping left the switch showing a
     // reach the agent does not have and said nothing.
     const res = await runAction(() => api.agentConnectors.set(slug, platforms), {
-      pending: 'Saving…',
-      success: 'Saved what this agent may reach',
-      error: 'Could not save that — this agent keeps the reach it had',
+      pending: t('savingPending'),
+      success: t('scopeSaved'),
+      error: t('scopeError'),
     });
     setOptIn(res.opt_in ?? {});
   };
@@ -604,9 +616,9 @@ export function AgentsSurface() {
     await runAction(
       () => api.memberState.put(`agent_engine:${slug}`, model ? { model } : {}),
       {
-        pending: 'Saving…',
-        success: model ? 'Engine changed' : 'Back to the declared engine',
-        error: 'Could not change the engine',
+        pending: t('savingPending'),
+        success: model ? t('engineChanged') : t('engineCleared'),
+        error: t('engineError'),
       },
     );
     setAgents((prev) =>
@@ -668,7 +680,7 @@ export function AgentsSurface() {
     <div className="h-full overflow-y-auto px-6 py-8">
       <div className="mx-auto max-w-2xl space-y-8">
         <header className="space-y-1">
-          <h1 className="text-sm font-medium">Agents</h1>
+          <h1 className="text-sm font-medium">{surfaces('agents.title')}</h1>
           {/* The second sentence described a roster that does not exist yet
               (nobody is `offered`, ADR-599 D1) — the same unfulfillable
               promise as the empty section below it. Says what IS true.
@@ -677,7 +689,7 @@ export function AgentsSurface() {
               old section header. What a member cannot see from the rows is
               that the engine is theirs to change. */}
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Who works with you here. Open one to change the engine behind it.
+            {t('lede')}
           </p>
         </header>
 
@@ -692,8 +704,8 @@ export function AgentsSurface() {
           {housed.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               {agents === null
-                ? 'Could not load this.'
-                : 'None yet.'}
+                ? t('loadFailed')
+                : t('noneYet')}
             </p>
           ) : (
             <ul className="space-y-2">
@@ -747,7 +759,7 @@ export function AgentsSurface() {
         {offered.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-xs font-medium text-muted-foreground">
-            To work with
+            {t('toWorkWith')}
           </h2>
           {(
             <ul className="space-y-2">

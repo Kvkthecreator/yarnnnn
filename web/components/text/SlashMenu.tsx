@@ -29,6 +29,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import type { LucideIcon } from 'lucide-react';
 import {
   Code,
@@ -50,8 +51,12 @@ import { cn } from '@/lib/utils';
 
 export interface SlashItem {
   id: string;
-  label: string;
-  hint: string;
+  /** ADR-660 — CATALOG KEYS, never words. This table is evaluated at import,
+   *  before any member's language is known, so both are resolved at render
+   *  under `text.slash`. The keyboard filter takes a worder for the same
+   *  reason: a member filters on what they can READ. */
+  labelKey: string;
+  hintKey: string;
   icon: LucideIcon;
   action: ToolbarAction;
   /** Extra words the filter matches, so "bullet" finds the bulleted list. */
@@ -71,34 +76,42 @@ export interface SlashItem {
 export const SLASH_ITEMS: SlashItem[] = [
   // ── NEW — minted from thin air (ADR-579 D4). The caret's common case
   //    leads. ──
-  { id: 'h1', label: 'Heading 1', hint: 'Large section heading', icon: Heading1, action: { kind: 'heading', level: 1 }, keywords: ['title', 'h1'], group: 'new' },
-  { id: 'h2', label: 'Heading 2', hint: 'Medium section heading', icon: Heading2, action: { kind: 'heading', level: 2 }, keywords: ['h2', 'subtitle'], group: 'new' },
-  { id: 'h3', label: 'Heading 3', hint: 'Small section heading', icon: Heading3, action: { kind: 'heading', level: 3 }, keywords: ['h3'], group: 'new' },
-  { id: 'bullet', label: 'Bulleted list', hint: 'A simple list', icon: List, action: { kind: 'list', ordered: false }, keywords: ['bullet', 'ul', 'unordered'], group: 'new' },
-  { id: 'number', label: 'Numbered list', hint: 'A list in order', icon: ListOrdered, action: { kind: 'list', ordered: true }, keywords: ['ol', 'ordered', '1'], group: 'new' },
-  { id: 'task', label: 'Task list', hint: 'Tick items off', icon: ListChecks, action: { kind: 'checklist' }, keywords: ['todo', 'checkbox', 'check'], group: 'new' },
-  { id: 'quote', label: 'Quote', hint: 'Set text apart', icon: Quote, action: { kind: 'quote' }, keywords: ['blockquote', 'cite'], group: 'new' },
-  { id: 'table', label: 'Table', hint: 'Rows and columns', icon: Table, action: { kind: 'table' }, keywords: ['grid'], group: 'new' },
-  { id: 'divider', label: 'Divider', hint: 'A section break', icon: Minus, action: { kind: 'rule' }, keywords: ['hr', 'rule', 'line', 'separator'], group: 'new' },
+  { id: 'h1', labelKey: 'h1', hintKey: 'h1Hint', icon: Heading1, action: { kind: 'heading', level: 1 }, keywords: ['title', 'h1'], group: 'new' },
+  { id: 'h2', labelKey: 'h2', hintKey: 'h2Hint', icon: Heading2, action: { kind: 'heading', level: 2 }, keywords: ['h2', 'subtitle'], group: 'new' },
+  { id: 'h3', labelKey: 'h3', hintKey: 'h3Hint', icon: Heading3, action: { kind: 'heading', level: 3 }, keywords: ['h3'], group: 'new' },
+  { id: 'bullet', labelKey: 'bullet', hintKey: 'bulletHint', icon: List, action: { kind: 'list', ordered: false }, keywords: ['bullet', 'ul', 'unordered'], group: 'new' },
+  { id: 'number', labelKey: 'number', hintKey: 'numberHint', icon: ListOrdered, action: { kind: 'list', ordered: true }, keywords: ['ol', 'ordered', '1'], group: 'new' },
+  { id: 'task', labelKey: 'task', hintKey: 'taskHint', icon: ListChecks, action: { kind: 'checklist' }, keywords: ['todo', 'checkbox', 'check'], group: 'new' },
+  { id: 'quote', labelKey: 'quote', hintKey: 'quoteHint', icon: Quote, action: { kind: 'quote' }, keywords: ['blockquote', 'cite'], group: 'new' },
+  { id: 'table', labelKey: 'table', hintKey: 'tableHint', icon: Table, action: { kind: 'table' }, keywords: ['grid'], group: 'new' },
+  { id: 'divider', labelKey: 'divider', hintKey: 'dividerHint', icon: Minus, action: { kind: 'rule' }, keywords: ['hr', 'rule', 'line', 'separator'], group: 'new' },
   // ADR-572 D17 — the thin-air media kinds. Heavier acts than a list or a
   // heading; `/dia` and `/code` reach them in a few keystrokes.
-  { id: 'mermaid', label: 'Diagram', hint: 'A mermaid diagram', icon: Workflow, action: { kind: 'mermaid' }, keywords: ['mermaid', 'chart', 'flow', 'graph'], group: 'new' },
-  { id: 'code', label: 'Code block', hint: 'Fenced, with a language', icon: Code, action: { kind: 'code' }, keywords: ['fence', 'snippet', 'pre'], group: 'new' },
+  { id: 'mermaid', labelKey: 'mermaid', hintKey: 'mermaidHint', icon: Workflow, action: { kind: 'mermaid' }, keywords: ['mermaid', 'chart', 'flow', 'graph'], group: 'new' },
+  { id: 'code', labelKey: 'code', hintKey: 'codeHint', icon: Code, action: { kind: 'code' }, keywords: ['fence', 'snippet', 'pre'], group: 'new' },
   // ── ADD — from the workspace (ADR-579 D4): the two picker-backed kinds.
   //    `/csv` and `/img` still reach them in a few keystrokes; the header
   //    answers the discovery need the old sits-beside-the-table placement
   //    served (ADR-572 D18). ──
-  { id: 'image', label: 'Image', hint: 'From your workspace', icon: ImageIcon, action: { kind: 'image' }, keywords: ['img', 'picture', 'photo', 'figure'], group: 'add' },
-  { id: 'csvtable', label: 'Table from CSV', hint: 'Rows from a workspace file', icon: Sheet, action: { kind: 'csvtable' }, keywords: ['csv', 'data', 'spreadsheet', 'import'], group: 'add' },
+  { id: 'image', labelKey: 'image', hintKey: 'imageHint', icon: ImageIcon, action: { kind: 'image' }, keywords: ['img', 'picture', 'photo', 'figure'], group: 'add' },
+  { id: 'csvtable', labelKey: 'csvtable', hintKey: 'csvtableHint', icon: Sheet, action: { kind: 'csvtable' }, keywords: ['csv', 'data', 'spreadsheet', 'import'], group: 'add' },
 ];
 
-/** Rows matching `filter`, in declaration order. Empty filter → everything. */
-export function filterSlashItems(filter: string): SlashItem[] {
+/** Rows matching `filter`, in declaration order. Empty filter → everything.
+ *
+ *  ADR-660 — `label` takes the row's WORDED label, because a member filters on
+ *  what the palette shows them. The `keywords` stay Latin ASCII on purpose:
+ *  they are the typed shortcuts (`/img`, `/csv`) the gesture is built around,
+ *  not copy, and they keep working in every language. */
+export function filterSlashItems(
+  filter: string,
+  label: (item: SlashItem) => string,
+): SlashItem[] {
   const q = filter.trim().toLowerCase();
   if (!q) return SLASH_ITEMS;
   return SLASH_ITEMS.filter(
     (i) =>
-      i.label.toLowerCase().includes(q) ||
+      label(i).toLowerCase().includes(q) ||
       i.keywords.some((k) => k.startsWith(q)),
   );
 }
@@ -117,6 +130,7 @@ export function SlashMenu({
   onPick: (item: SlashItem) => void;
   onHover: (index: number) => void;
 }) {
+  const t = useTranslations('text.slash');
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Keep the highlighted row in view when ↑/↓ walks past the fold.
@@ -141,7 +155,7 @@ export function SlashMenu({
   return (
     <div
       role="listbox"
-      aria-label="Insert"
+      aria-label={t('listLabel')}
       ref={listRef}
       style={style}
       className="fixed z-50 max-h-[300px] w-64 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md"
@@ -153,7 +167,7 @@ export function SlashMenu({
               starts and the flat keyboard index is untouched. */}
           {(i === 0 || items[i - 1].group !== item.group) && (
             <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
-              {item.group === 'add' ? 'Add — from the workspace' : 'New'}
+              {item.group === 'add' ? t('groupAdd') : t('groupNew')}
             </p>
           )}
         <button
@@ -176,8 +190,8 @@ export function SlashMenu({
         >
           <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <span className="min-w-0">
-            <span className="block truncate text-xs font-medium text-foreground">{item.label}</span>
-            <span className="block truncate text-[10px] text-muted-foreground">{item.hint}</span>
+            <span className="block truncate text-xs font-medium text-foreground">{t(item.labelKey)}</span>
+            <span className="block truncate text-[10px] text-muted-foreground">{t(item.hintKey)}</span>
           </span>
         </button>
         </div>

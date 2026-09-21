@@ -38,6 +38,7 @@
  * SettingsPaneShell (Singular Implementation) in fullBleed mode.
  */
 
+import { useTranslations } from "next-intl";
 import { ExternalLink, ClipboardCheck, ClipboardList, ScrollText } from "lucide-react";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/settings/SettingsPaneShell";
@@ -50,16 +51,18 @@ import { StandingWork } from "@/components/notifications/StandingWork";
 // The pane KEYS (resolve/understand) are unchanged — they are URL params +
 // the ADR-340 D2 act identities (Decide/Read); only the roster shrank
 // (ADR-603 D5 removed `tune`).
-const PANE_GROUPS: PaneGroup[] = [
+// ADR-660: the roster holds catalog KEYS — it is evaluated at import, before
+// any member's language is known; the labels are worded inside the component.
+const PANE_ROSTER = [
   {
-    label: "Operate",
+    labelKey: "groupOperate",
     panes: [
-      { key: "resolve", label: "To do", icon: ClipboardCheck },
-      { key: "understand", label: "Activity", icon: ScrollText },
-      { key: "standing", label: "Standing work", icon: ClipboardList },
+      { key: "resolve", labelKey: "paneToDo", icon: ClipboardCheck },
+      { key: "understand", labelKey: "paneActivity", icon: ScrollText },
+      { key: "standing", labelKey: "paneStanding", icon: ClipboardList },
     ],
   },
-];
+] as const;
 
 /** Shared "Open full ___ →" escape-hatch row (ADR-346 — mirrors stay reachable). */
 function MirrorLink({ label, onClick }: { label: string; onClick: () => void }) {
@@ -79,7 +82,13 @@ function MirrorLink({ label, onClick }: { label: string; onClick: () => void }) 
 // the escape-hatch MirrorLink rides its `action` slot.
 
 export default function OperationPage() {
+  const t = useTranslations("supervisor.notifications");
   const { navigateToSurface } = useSurfacePreferences();
+
+  const paneGroups: PaneGroup[] = PANE_ROSTER.map((g) => ({
+    label: t(g.labelKey),
+    panes: g.panes.map((p) => ({ key: p.key, label: t(p.labelKey), icon: p.icon })),
+  }));
 
   const renderPane = (pane: string) => {
     switch (pane) {
@@ -90,17 +99,17 @@ export default function OperationPage() {
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={ClipboardCheck}
-              title="To do"
-              subtitle="Decisions to make and mentions to answer."
+              title={t("paneToDo")}
+              subtitle={t("toDoSubtitle")}
               action={
                 <div className="flex items-center gap-4">
                   {/* ADR-642 D4 — the Queue surface is absorbed by Reach; what
                       is about to LEAVE the workspace has its door there. */}
-                  <MirrorLink label="Open Reach" onClick={() => navigateToSurface("reach", { pane: "leaving" })} />
+                  <MirrorLink label={t("openReach")} onClick={() => navigateToSurface("reach", { pane: "leaving" })} />
                   {/* ADR-593 D5 — the window finally links the settings that
                       govern what reaches its viewer. */}
                   <MirrorLink
-                    label="Notification settings"
+                    label={t("notificationSettings")}
                     onClick={() => navigateToSurface("settings", { pane: "notification-settings" })}
                   />
                 </div>
@@ -122,8 +131,8 @@ export default function OperationPage() {
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={ScrollText}
-              title="Activity"
-              subtitle="Everything that happened in this workspace, and who did it."
+              title={t("paneActivity")}
+              subtitle={t("activitySubtitle")}
             />
             <div className="flex-1 min-h-0">
               <ActivityLedger />
@@ -137,8 +146,8 @@ export default function OperationPage() {
           <div className="flex h-full flex-col">
             <PaneHeader
               icon={ClipboardList}
-              title="Standing work"
-              subtitle="Files kept current on a schedule. What's set up, what ran, what changed."
+              title={t("paneStanding")}
+              subtitle={t("standingSubtitle")}
             />
             <div className="flex-1 min-h-0">
               <StandingWork />
@@ -153,11 +162,11 @@ export default function OperationPage() {
   return (
     <SettingsPaneShell
       windowSlug="notifications"
-      paneGroups={PANE_GROUPS}
+      paneGroups={paneGroups}
       defaultPane="resolve"
       renderPane={renderPane}
       fullBleed
-      navLabel="Notifications"
+      navLabel={t("navLabel")}
     />
   );
 }

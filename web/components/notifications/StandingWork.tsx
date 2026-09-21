@@ -25,6 +25,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { RefreshCw } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { StandingRow } from '@/components/standing/StandingRow';
@@ -33,6 +34,7 @@ import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useFeedback } from '@/contexts/FeedbackContext';
 
 export function StandingWork() {
+  const t = useTranslations('supervisor');
   const { navigateToSurface } = useSurfacePreferences();
   const { runAction } = useFeedback();
   const [rows, setRows] = useState<StandingSummary[] | null>(null);
@@ -61,25 +63,28 @@ export function StandingWork() {
       // — the canon's in-surface lane. What was missing is the wait: a run
       // takes seconds and the row said nothing while it ran.
       const res = await runAction(() => api.standing.run(row.topic), {
-        pending: `Running ${row.topic}…`,
+        pending: t('action.runningPending', { topic: row.topic }),
       });
       const line = res.no_change
-        ? 'Ran — nothing changed.'
+        ? t('action.ranNoChange')
         : res.success
-          ? 'Ran — the file was updated.'
+          ? t('action.ranUpdated')
           : res.error_reason === 'shape_violation'
-            ? `Update refused — ${res.detail ?? 'the fetched data broke the declared shape'}.`
+            ? t('action.refusedShape', { detail: res.detail ?? t('action.refusedShapeFallbackDeclared') })
             : res.error_reason === 'router_disabled'
-              ? 'Skipped — the engine is unavailable on this workspace.'
-              : `Run failed (${res.error_reason ?? 'unknown'}).`;
+              ? t('action.skippedRouterDisabled')
+              : t('action.runFailed', { reason: res.error_reason ?? t('action.runFailedUnknown') });
       setNote((n) => ({ ...n, [row.topic]: line }));
     } catch (e) {
-      setNote((n) => ({ ...n, [row.topic]: `Run failed (${e instanceof Error ? e.message : String(e)}).` }));
+      setNote((n) => ({
+        ...n,
+        [row.topic]: t('action.runFailed', { reason: e instanceof Error ? e.message : String(e) }),
+      }));
     } finally {
       setBusy(null);
       void load();
     }
-  }, [busy, load, runAction]);
+  }, [busy, load, runAction, t]);
 
   const togglePause = useCallback(async (row: StandingSummary) => {
     if (busy) return;
@@ -88,8 +93,8 @@ export function StandingWork() {
       // try/finally with NO catch: a failed pause threw into the void, the row
       // reloaded unchanged, and the member read it as the toggle ignoring them.
       await runAction(() => api.standing.update(row.topic, { paused: !row.paused }), {
-        success: row.paused ? 'Resumed' : 'Paused',
-        error: row.paused ? 'Could not resume this' : 'Could not pause this',
+        success: row.paused ? t('action.resumed') : t('action.paused'),
+        error: row.paused ? t('action.couldNotResume') : t('action.couldNotPause'),
       });
     } catch {
       /* reported; the reload below restores the true state */
@@ -97,11 +102,11 @@ export function StandingWork() {
       setBusy(null);
       void load();
     }
-  }, [busy, load, runAction]);
+  }, [busy, load, runAction, t]);
 
   if (rows === null) {
     return (
-      <Working label="Loading…" className="p-6 text-sm" />
+      <Working label={t('notifications.loading')} className="p-6 text-sm" />
     );
   }
 
@@ -109,12 +114,12 @@ export function StandingWork() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-6 py-3">
         <p className="text-xs text-muted-foreground">
-          Files kept current on a schedule. Set one up in Supervisor, or ask an agent in chat.
+          {t('notifications.standingIntro')}
         </p>
         <button
           type="button"
           onClick={() => void load()}
-          title="Refresh"
+          title={t('notifications.refresh')}
           className="rounded border p-1.5 hover:bg-muted"
         >
           <RefreshCw className="h-3.5 w-3.5" />
@@ -124,23 +129,22 @@ export function StandingWork() {
       <div className="flex-1 overflow-y-auto p-6">
         {error && (
           <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            Could not load this: {error}
+            {t('notifications.loadFailed', { error })}
           </p>
         )}
 
         {rows.length === 0 && !error && (
           <div className="rounded-md border border-dashed border-border px-4 py-6 text-center">
-            <p className="text-sm text-foreground">Nothing is kept current yet.</p>
+            <p className="text-sm text-foreground">{t('notifications.emptyTitle')}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Set one up in Supervisor, or ask an agent in chat. The instructions go next to
-              the file and run on a schedule.
+              {t('notifications.emptyBody')}
             </p>
             <button
               type="button"
               onClick={() => navigateToSurface('supervisor')}
               className="mt-3 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
             >
-              Open Supervisor
+              {t('notifications.openSupervisor')}
             </button>
           </div>
         )}

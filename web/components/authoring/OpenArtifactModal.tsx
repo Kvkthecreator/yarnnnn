@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 import { api } from '@/lib/api/client';
 import type { WorkspaceTreeNode } from '@/types';
@@ -60,6 +61,7 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
   // The set of paths this app owns, from the SERVED artifact list (which
   // already carries each artifact's lifted `kind` — no extra content reads,
   // and ownership stays the kernel's answer, not a client-side guess).
+  const t = useTranslations('studio.openArtifact');
   const [owned, setOwned] = useState<Set<string> | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -125,10 +127,10 @@ export function OpenArtifactModal({ open, onClose, onOpen, appSlug }: OpenArtifa
     <WorkspacePickerModal
       open={open}
       mode="file"
-      title="Open…"
-      subtitle="Pick something you’ve made"
-      confirmLabel="Open"
-      emptyMessage="Nothing to open yet — hit New to make something."
+      title={t('title')}
+      subtitle={t('subtitle')}
+      confirmLabel={t('confirm')}
+      emptyMessage={t('empty')}
       selectable={isOpenable}
       leaf={{
         // ADR-571: the NAME rule is the app's, not one hardcoded rule.

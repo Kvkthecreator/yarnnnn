@@ -19,6 +19,7 @@
  */
 
 import { useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { NodeDetailsPanel } from '@/components/workspace/NodeDetailsPanel';
 import type { WorkspaceTreeNode } from '@/types';
@@ -31,6 +32,7 @@ interface PropertiesModalProps {
 }
 
 export function PropertiesModal({ node, onClose, onSelectPath, onRevert }: PropertiesModalProps) {
+  const t = useTranslations('files.properties');
   useEffect(() => {
     if (!node) return;
     const onKey = (e: KeyboardEvent) => {
@@ -48,13 +50,13 @@ export function PropertiesModal({ node, onClose, onSelectPath, onRevert }: Prope
       <div className="relative z-10 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
         <div className="sticky top-0 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
           <h2 className="truncate text-sm font-semibold">
-            Properties — {node.name}
+            {t('title', { name: node.name })}
           </h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Close"
+            aria-label={t('close')}
           >
             <X className="h-4 w-4" />
           </button>

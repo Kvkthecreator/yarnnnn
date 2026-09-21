@@ -20,6 +20,7 @@
  */
 
 import { useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 
 interface ImagePreviewModalProps {
@@ -31,6 +32,7 @@ interface ImagePreviewModalProps {
 }
 
 export function ImagePreviewModal({ url, name, onClose }: ImagePreviewModalProps) {
+  const t = useTranslations('chat.imagePreview');
   useEffect(() => {
     if (!url) return;
     const onKey = (e: KeyboardEvent) => {
@@ -52,7 +54,7 @@ export function ImagePreviewModal({ url, name, onClose }: ImagePreviewModalProps
             type="button"
             onClick={onClose}
             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Close preview"
+            aria-label={t('close')}
           >
             <X className="h-4 w-4" />
           </button>

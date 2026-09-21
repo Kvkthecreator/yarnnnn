@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
@@ -27,6 +28,7 @@ interface RenameModalProps {
 }
 
 export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
+  const t = useTranslations('files.rename');
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -77,7 +79,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 className="text-base font-semibold text-card-foreground">Rename</h3>
+          <h3 className="text-base font-semibold text-card-foreground">{t('title')}</h3>
           <input
             ref={inputRef}
             value={value}
@@ -90,11 +92,11 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
               'mt-3 w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors',
               hasSlash ? 'border-destructive focus:border-destructive' : 'border-border focus:border-primary',
             )}
-            aria-label="New name"
+            aria-label={t('field')}
           />
           {hasSlash && (
             <p className="mt-1.5 text-xs text-destructive">
-              A name can’t contain “/”. To move it to another folder, use “Move to…”.
+              {t('slash')}
             </p>
           )}
           <div className="mt-5 flex justify-end gap-2">
@@ -103,7 +105,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
               onClick={dismissModal(onClose)}
               className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="button"
@@ -116,7 +118,7 @@ export function RenameModal({ target, onClose, onSubmit }: RenameModalProps) {
                   : 'cursor-not-allowed bg-muted text-muted-foreground',
               )}
             >
-              Rename
+              {t('submit')}
             </button>
           </div>
         </div>

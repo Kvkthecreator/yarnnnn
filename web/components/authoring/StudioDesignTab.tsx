@@ -32,6 +32,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   AlignCenter,
   AlignCenterHorizontal,
@@ -78,16 +79,23 @@ import { studioShapeStyle } from './studioShapes';
 import {
   arityOf,
   scopeOf,
-  spanLabel,
+  spanLabelRef,
   unify,
-  withdrawalNotice,
+  withdrawalNoticeRef,
   type PaneScope,
   type SpanShape,
+  type UnifiedSelection,
 } from './selection';
 // ADR-542 D2 — the one token-admittance function (scope × grains).
 import { admits } from './tokenGrammar';
 import { climbChain } from './SelectionBreadcrumb';
-import { labelForElement, STRUCTURAL_PAGE_SEL, type ObjectModel } from './structureLabels';
+import {
+  labelForElement,
+  STRUCTURAL_PAGE_SEL,
+  type ObjectModel,
+  type StructureWords,
+} from './structureLabels';
+import { useStructureWords } from './structureWords';
 // ADR-487 D9: the Design tab reads the skin only to PAINT the controls
 // (skinVarMap + resolveSkinVar). The var-LIST parse belongs to the manage panel
 // alone now — the system-as-object register. Importing it here again would
@@ -153,8 +161,14 @@ export function kindTier(
 
 /** ADR-539 D3 — the heading rungs, derived from the served `heading_rungs`
  *  (the kernel's one declaration; the tag carries the level, ADR-487 D1). */
-export function headingLevels(rungs: number[]): Array<{ tag: string; label: string }> {
-  return rungs.map((r) => ({ tag: `h${r}`, label: `Heading ${r}` }));
+export function headingLevels(
+  rungs: number[],
+  /** ADR-660 — the rung's WORD, supplied by the caller at render. "Heading 2"
+   *  is a sentence with an English word order; built here it would be fixed
+   *  before any member's language is known. */
+  headingLabel: (level: number) => string,
+): Array<{ tag: string; label: string }> {
+  return rungs.map((r) => ({ tag: `h${r}`, label: headingLabel(r) }));
 }
 
 /** Build the Turn-into target list (ONE list, two mounts — the Design tab and
@@ -168,6 +182,8 @@ export function turnIntoTargets(
   headingRungs: number[],
   currentKind: string | null,
   currentTag: string | null,
+  /** ADR-660 — the heading rung's word, from the caller's catalog. */
+  headingLabel: (level: number) => string,
 ): Array<{ key: string; kind: string; label: string; fragment: string }> {
   const out: Array<{ key: string; kind: string; label: string; fragment: string }> = [];
   // ADR-539 D2: iterate the SERVED roster (already app-scoped at the load
@@ -176,7 +192,7 @@ export function turnIntoTargets(
   for (const b of blocks) {
     if (!b.convertible) continue;
     if (b.kind === 'heading') {
-      for (const lvl of headingLevels(headingRungs)) {
+      for (const lvl of headingLevels(headingRungs, headingLabel)) {
         if (currentKind === 'heading' && currentTag?.toLowerCase() === lvl.tag) continue;
         out.push({
           key: `heading-${lvl.tag}`,
@@ -212,6 +228,14 @@ function arrangementCarryNote(
   a: Pick<StudioArrangement, 'areas'>,
   carriedCount: number | null,
   pageNoun: string,
+  /** ADR-660 — the note's WORDS, from the caller's catalog. The clauses were
+   *  joined here with ` · `, which is an English word order for a sentence
+   *  the member reads; each arm is one message now. */
+  words: {
+    ungroupsAndMoves: (groups: number, noun: string) => string;
+    ungroups: (groups: number) => string;
+    contentMoves: (noun: string) => string;
+  },
   /** ADR-519 D2.1 — does this page hold an authored GROUP? Re-arranging
    *  dissolves it, and the member is owed that sentence BEFORE the gesture. */
   groupCount?: number | null,
@@ -229,13 +253,12 @@ function arrangementCarryNote(
   // and the dissolve is the less recoverable of the two (content lands on a
   // new page; a group is gone). Say the surprising thing.
   if (g > 0) {
-    const groups = g === 1 ? 'group' : 'groups';
     return n > 0 && a.areas.length === 0
-      ? `ungroups ${g} ${groups} · content → new ${pageNoun}`
-      : `ungroups ${g} ${groups}`;
+      ? words.ungroupsAndMoves(g, pageNoun)
+      : words.ungroups(g);
   }
   if (n > 0 && a.areas.length === 0) {
-    return `content → new ${pageNoun}`;
+    return words.contentMoves(pageNoun);
   }
   return null;
 }
@@ -418,6 +441,7 @@ function TokenControl({
   current: string | null;
   onSet: (value: string | null) => void;
 }) {
+  const t = useTranslations('studio.designTab');
   const seg =
     'rounded px-1.5 py-0.5 text-[10px] transition-colors border';
   // The default's own glyph, only for a token whose values are glyphed at all
@@ -441,15 +465,15 @@ function TokenControl({
         <button
           type="button"
           onClick={() => onSet(null)}
-          title={autoGlyph ? `${token.label}: default` : undefined}
-          aria-label={autoGlyph ? `${token.label}: default` : undefined}
+          title={autoGlyph ? t('tokenDefault', { token: token.label }) : undefined}
+          aria-label={autoGlyph ? t('tokenDefault', { token: token.label }) : undefined}
           className={`${seg} ${
             current == null
               ? 'border-foreground/50 text-foreground'
               : 'border-border text-muted-foreground hover:bg-muted/40'
           }`}
         >
-          {autoGlyph ? <autoGlyph.Icon className="h-3.5 w-3.5" /> : 'Auto'}
+          {autoGlyph ? <autoGlyph.Icon className="h-3.5 w-3.5" /> : t('auto')}
         </button>
         {token.values.map((v) => {
           const Icon = glyphFor(token.key, v.value);
@@ -567,10 +591,15 @@ function StyleSelect({
 /** The Typography ramp rows (ADR-487 D3 v2) — the tag IS the rung. Order is
  *  the ramp's (largest first), Text closing it, the Figma reading.
  *  ADR-539 D3 — DERIVED from the served rung set, never enumerated. */
-function textStyleRows(rungs: number[]): Array<{ key: string; label: string }> {
+function textStyleRows(
+  rungs: number[],
+  /** ADR-660 — the rows' WORDS come from the caller's catalog; built here
+   *  they would be fixed before the member's language is known. */
+  words: { heading: (level: number) => string; text: string },
+): Array<{ key: string; label: string }> {
   return [
-    ...rungs.map((r) => ({ key: `h${r}`, label: `Heading ${r}` })),
-    { key: 'p', label: 'Text' },
+    ...rungs.map((r) => ({ key: `h${r}`, label: words.heading(r) })),
+    { key: 'p', label: words.text },
   ];
 }
 
@@ -594,6 +623,7 @@ function FaceTokenSelect({
   stacks: Record<string, string>;
   onSet: (value: string | null) => void;
 }) {
+  const t = useTranslations('studio.designTab');
   const ag = (stack?: string) => (
     <span
       className="w-6 shrink-0 text-center text-base leading-none"
@@ -609,13 +639,13 @@ function FaceTokenSelect({
       description={token.description}
       current={{
         preview: ag(current ? stacks[current] : undefined),
-        label: cur?.label ?? 'Auto',
+        label: cur?.label ?? t('auto'),
       }}
       options={[
         {
           key: '__auto',
           preview: ag(undefined),
-          label: 'Auto',
+          label: t('auto'),
           active: current == null,
           onPick: () => onSet(null),
         },
@@ -663,6 +693,7 @@ function ColorTokenSwatches({
   swatches: Record<string, string>;
   onSet: (value: string | null) => void;
 }) {
+  const t = useTranslations('studio.designTab');
   const swatch = (color: string | null, active: boolean, label: string, onClick: () => void) => (
     <button
       key={label}
@@ -700,10 +731,10 @@ function ColorTokenSwatches({
         {/* The resolved choice is NAMED, not only shown: a swatch alone cannot
             say "accent", and the role is the thing the member is choosing
             (ADR-487 D3 — every control names a role, never a raw value). */}
-        <span className="text-[10px] text-muted-foreground">{cur?.label ?? 'Auto'}</span>
+        <span className="text-[10px] text-muted-foreground">{cur?.label ?? t('auto')}</span>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        {swatch(null, current == null, 'Auto', () => onSet(null))}
+        {swatch(null, current == null, t('auto'), () => onSet(null))}
         {token.values.map((v) =>
           swatch(swatches[v.value] ?? null, current === v.value, v.label, () =>
             onSet(current === v.value ? null : v.value),
@@ -735,12 +766,13 @@ function AppliedSystemCue({
   /** Scope-specific clause — what the system is doing HERE. */
   note: string;
 }) {
+  const t = useTranslations('studio.designTab');
   return (
     <p className="text-[10px] leading-snug text-muted-foreground">
       <button
         type="button"
         onClick={() => onOpen(manifestPath)}
-        title="Open this design system — its palette, type, files and what else wears it"
+        title={t('openSystemHint')}
         className="inline-flex items-center gap-1 rounded font-medium text-foreground/80 underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
       >
         <Palette className="h-3 w-3 shrink-0" />
@@ -787,6 +819,7 @@ function VerbRow({
   onVerb: (v: StructVerb) => void;
   reorder?: boolean;
 }) {
+  const t = useTranslations('studio.designTab');
   const [menu, setMenu] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   // Close on an outside press — the same dismissal the FILE card's menu uses.
@@ -806,8 +839,8 @@ function VerbRow({
         type="button"
         className={btn}
         onClick={() => onVerb('duplicate')}
-        title={`Duplicate this ${noun}`}
-        aria-label={`Duplicate this ${noun}`}
+        title={t('verbDuplicate', { noun })}
+        aria-label={t('verbDuplicate', { noun })}
       >
         <Copy className="h-3.5 w-3.5" />
       </button>
@@ -817,8 +850,8 @@ function VerbRow({
             type="button"
             className={btn}
             onClick={() => onVerb('up')}
-            title={`Move ${noun} up`}
-            aria-label={`Move ${noun} up`}
+            title={t('verbMoveUp', { noun })}
+            aria-label={t('verbMoveUp', { noun })}
           >
             <ArrowUp className="h-3.5 w-3.5" />
           </button>
@@ -826,8 +859,8 @@ function VerbRow({
             type="button"
             className={btn}
             onClick={() => onVerb('down')}
-            title={`Move ${noun} down`}
-            aria-label={`Move ${noun} down`}
+            title={t('verbMoveDown', { noun })}
+            aria-label={t('verbMoveDown', { noun })}
           >
             <ArrowDown className="h-3.5 w-3.5" />
           </button>
@@ -837,8 +870,8 @@ function VerbRow({
         type="button"
         className={btn}
         onClick={() => setMenu((v) => !v)}
-        title="More actions"
-        aria-label="More actions"
+        title={t('moreActions')}
+        aria-label={t('moreActions')}
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
@@ -850,10 +883,10 @@ function VerbRow({
               setMenu(false);
               onVerb('delete');
             }}
-            title={`Delete this ${noun} (a revision — revertible)`}
+            title={t('verbDeleteHint', { noun })}
             className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-red-600"
           >
-            <Trash2 className="h-3.5 w-3.5" /> Delete
+            <Trash2 className="h-3.5 w-3.5" /> {t('verbDelete')}
           </button>
         </div>
       )}
@@ -893,17 +926,21 @@ const askBtn =
  *  The EDGE is the vocabulary, not a CSS property: these act on a set of boxes
  *  through `setGeometryMany`, never through `setContainerLayout` (which moves
  *  every child of one parent — the parent-side verb this is the complement of). */
+//
+//  ADR-660 — the rows carry a catalog KEY, never a word. A module table is
+//  evaluated at IMPORT, before any member's language is known, so a literal
+//  title here would be English for everyone; the render words `titleKey`.
 const ALIGN_MANY = [
-  { key: 'left' as const, title: 'Align left edges', Icon: AlignStartVertical },
-  { key: 'hcenter' as const, title: 'Align horizontal centres', Icon: AlignCenterVertical },
-  { key: 'right' as const, title: 'Align right edges', Icon: AlignEndVertical },
-  { key: 'top' as const, title: 'Align top edges', Icon: AlignStartHorizontal },
-  { key: 'vcenter' as const, title: 'Align vertical centres', Icon: AlignCenterHorizontal },
-  { key: 'bottom' as const, title: 'Align bottom edges', Icon: AlignEndHorizontal },
+  { key: 'left' as const, titleKey: 'alignLeft', Icon: AlignStartVertical },
+  { key: 'hcenter' as const, titleKey: 'alignHCenter', Icon: AlignCenterVertical },
+  { key: 'right' as const, titleKey: 'alignRight', Icon: AlignEndVertical },
+  { key: 'top' as const, titleKey: 'alignTop', Icon: AlignStartHorizontal },
+  { key: 'vcenter' as const, titleKey: 'alignVCenter', Icon: AlignCenterHorizontal },
+  { key: 'bottom' as const, titleKey: 'alignBottom', Icon: AlignEndHorizontal },
 ];
 const DISTRIBUTE_MANY = [
-  { key: 'h' as const, title: 'Distribute horizontally', Icon: AlignHorizontalSpaceBetween },
-  { key: 'v' as const, title: 'Distribute vertically', Icon: AlignVerticalSpaceBetween },
+  { key: 'h' as const, titleKey: 'distributeH', Icon: AlignHorizontalSpaceBetween },
+  { key: 'v' as const, titleKey: 'distributeV', Icon: AlignVerticalSpaceBetween },
 ];
 
 /** ADR-527 D2 — the palette roles, as the kernel declares them. Text colour and
@@ -911,12 +948,13 @@ const DISTRIBUTE_MANY = [
  *  callout-variant precedent), so a skin needs no new variables. Closed sets:
  *  the runtime validates against its own copy, so a raw value cannot reach the
  *  DOM even if this list were edited carelessly. */
+//  ADR-660 — `labelKey`, not a word: this table is evaluated at import.
 const MARK_ROLES = [
-  { value: 'muted', label: 'Muted', varName: 'muted', fallback: '#6b6b6b' },
-  { value: 'accent', label: 'Accent', varName: 'accent', fallback: '#b4540a' },
-  { value: 'fresh', label: 'Success', varName: 'fresh', fallback: '#2e7d32' },
-  { value: 'warn', label: 'Warning', varName: 'warn', fallback: '#b45309' },
-  { value: 'danger', label: 'Danger', varName: 'danger', fallback: '#b3261e' },
+  { value: 'muted', labelKey: 'roleMuted', varName: 'muted', fallback: '#6b6b6b' },
+  { value: 'accent', labelKey: 'roleAccent', varName: 'accent', fallback: '#b4540a' },
+  { value: 'fresh', labelKey: 'roleSuccess', varName: 'fresh', fallback: '#2e7d32' },
+  { value: 'warn', labelKey: 'roleWarning', varName: 'warn', fallback: '#b45309' },
+  { value: 'danger', labelKey: 'roleDanger', varName: 'danger', fallback: '#b3261e' },
 ] as const;
 const HIGHLIGHT_ROLES = MARK_ROLES.filter((r) => r.value !== 'muted');
 
@@ -967,47 +1005,50 @@ function TextSection({
   currentOf: (key: string) => string | null;
   onSetToken: (key: string, value: string | null) => void;
 }) {
+  const t = useTranslations('studio.designTab');
   const btn =
     'inline-flex h-6 min-w-6 items-center justify-center rounded border border-border px-1.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground';
   const dot =
     'h-4 w-4 shrink-0 rounded-full border border-border transition-transform hover:scale-110';
   return (
     <div className={SECTION}>
-      <p className={HEADING}>Text</p>
+      <p className={HEADING}>{t('sectionText')}</p>
       <div className="flex flex-wrap items-center gap-1">
-        <button type="button" className={`${btn} font-semibold`} onClick={() => onFormat('bold')} title="Bold (⌘B)">
+        {/* The glyph letters B/I/U/S are the typographic convention every
+            editor uses, in Korean software too — the WORD is the tooltip. */}
+        <button type="button" className={`${btn} font-semibold`} onClick={() => onFormat('bold')} title={t('bold')}>
           B
         </button>
-        <button type="button" className={`${btn} italic`} onClick={() => onFormat('italic')} title="Italic (⌘I)">
+        <button type="button" className={`${btn} italic`} onClick={() => onFormat('italic')} title={t('italic')}>
           I
         </button>
-        <button type="button" className={`${btn} underline`} onClick={() => onFormat('underline')} title="Underline">
+        <button type="button" className={`${btn} underline`} onClick={() => onFormat('underline')} title={t('underline')}>
           U
         </button>
-        <button type="button" className={`${btn} line-through`} onClick={() => onFormat('strike')} title="Strikethrough">
+        <button type="button" className={`${btn} line-through`} onClick={() => onFormat('strike')} title={t('strikethrough')}>
           S
         </button>
-        <button type="button" className={`${btn} font-mono`} onClick={() => onFormat('code')} title="Code">
+        <button type="button" className={`${btn} font-mono`} onClick={() => onFormat('code')} title={t('code')}>
           {'<>'}
         </button>
         <button
           type="button"
           className={btn}
           onClick={() => onFormat('clear')}
-          title="Clear formatting (structure is kept — a heading stays a heading)"
+          title={t('clearFormattingHint')}
         >
-          Clear
+          {t('clearFormatting')}
         </button>
       </div>
       {/* Colour is a ROLE, never a value — the one place this ADR chose canon
           over the benchmark (Google Docs offers a picker; ADR-449 forbids one). */}
       <div className="space-y-1">
-        <p className="text-[10px] text-muted-foreground">Colour</p>
+        <p className="text-[10px] text-muted-foreground">{t('colour')}</p>
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => onFormat('mark', null)}
-            title="Default"
+            title={t('colourDefault')}
             className={`${dot} relative overflow-hidden bg-background`}
           >
             <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 rotate-45 bg-border" />
@@ -1017,7 +1058,7 @@ function TextSection({
               key={r.value}
               type="button"
               onClick={() => onFormat('mark', r.value)}
-              title={r.label}
+              title={t(r.labelKey)}
               className={dot}
               style={{ background: swatch(r.varName, r.fallback) }}
             />
@@ -1025,12 +1066,12 @@ function TextSection({
         </div>
       </div>
       <div className="space-y-1">
-        <p className="text-[10px] text-muted-foreground">Highlight</p>
+        <p className="text-[10px] text-muted-foreground">{t('highlight')}</p>
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => onFormat('highlight', null)}
-            title="None"
+            title={t('highlightNone')}
             className={`${dot} relative overflow-hidden bg-background`}
           >
             <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 rotate-45 bg-border" />
@@ -1040,7 +1081,7 @@ function TextSection({
               key={r.value}
               type="button"
               onClick={() => onFormat('highlight', r.value)}
-              title={r.label}
+              title={t(r.labelKey)}
               className={dot}
               style={{
                 background: `color-mix(in srgb, ${swatch(r.varName, r.fallback)} 30%, transparent)`,
@@ -1049,20 +1090,18 @@ function TextSection({
           ))}
         </div>
       </div>
-      <p className="text-[10px] text-muted-foreground">
-        emphasis via the palette variables — never raw color
-      </p>
+      <p className="text-[10px] text-muted-foreground">{t('paletteOnlyNote')}</p>
       {/* ADR-536 D2 — align + indent, the block-grain rows of the text tier.
           Same TokenControl every other token renders through: one presentation
           for "pick among enumerated values", never a second shape for the same
           idea (the ADR-487 D9 drift). Served rows, so a value added to the
           vocabulary appears here with no edit. */}
-      {flowTokens.map((t) => (
+      {flowTokens.map((tok) => (
         <TokenControl
-          key={t.key}
-          token={t}
-          current={currentOf(t.key)}
-          onSet={(v) => onSetToken(t.key, v)}
+          key={tok.key}
+          token={tok}
+          current={currentOf(tok.key)}
+          onSet={(v) => onSetToken(tok.key, v)}
         />
       ))}
     </div>
@@ -1084,6 +1123,7 @@ function MeasureField({
   onCommit: (v: number) => void;
   onClear?: () => void;
 }) {
+  const t = useTranslations('studio.designTab');
   return (
     // ONE CELL, not a full-width row (2026-08-18). Each measure was a
     // label-left / field-right row of its own, so W and H alone cost two rows
@@ -1105,8 +1145,8 @@ function MeasureField({
           min={m.min}
           max={m.max}
           defaultValue={value ?? ''}
-          placeholder="Auto"
-          aria-label={`${m.label} (${m.unit})`}
+          placeholder={t('auto')}
+          aria-label={t('measureField', { label: m.label, unit: m.unit })}
           onKeyDown={(e) => {
             if (isSubmitKey(e, { allowShift: true })) {
               e.preventDefault();
@@ -1165,6 +1205,9 @@ function walkContents(
   // Contents rows say "Artboard" on a composition surface and "Slide" on a
   // deck. Threaded, never derived here (D2).
   objectModel?: ObjectModel | null,
+  // ADR-660 — the structural vocabulary, resolved by the pane and threaded in;
+  // this helper is module level and cannot read the catalog.
+  words?: StructureWords,
 ): StructNode[] {
   const out: StructNode[] = [];
   const walk = (el: Element, depth: number) => {
@@ -1174,7 +1217,7 @@ function walkContents(
       if (isBlock && id) {
         out.push({
           blockId: id,
-          label: labelForElement(child, labels, mode, objectModel),
+          label: labelForElement(child, labels, mode, objectModel, words),
           kind: child.getAttribute('data-block'),
           depth,
           text: (child.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
@@ -1184,7 +1227,7 @@ function walkContents(
       if (!isBlock && id && child.tagName === 'DIV') {
         out.push({
           blockId: id,
-          label: labelForElement(child, labels, mode, objectModel),
+          label: labelForElement(child, labels, mode, objectModel, words),
           kind: null,
           depth,
           text: '',
@@ -1379,7 +1422,44 @@ export function StudioDesignTab({
   artifactName,
   onRenameCommit,
 }: StudioDesignTabProps) {
+  const t = useTranslations('studio.designTab');
+  // ADR-660 — `selection.ts` derives the span's sentence and the withdrawal
+  // notice as catalog KEYS (module level, no hook), and these word them. One
+  // derivation, one sentence, in the member's language.
+  const tStruct = useTranslations('structure');
+  const structWords = useStructureWords();
+  const wordSpan = useCallback(
+    (shape: SpanShape) => {
+      const ref = spanLabelRef(shape);
+      const args = ref.nameKey
+        ? { ...ref.args, name: tStruct(ref.nameKey) }
+        : ref.args;
+      return tStruct(ref.key, args as never);
+    },
+    [tStruct],
+  );
+  const wordWithdrawal = useCallback(
+    (u: UnifiedSelection) => {
+      const ref = withdrawalNoticeRef(u);
+      return tStruct(ref.key, ref.args);
+    },
+    [tStruct],
+  );
   const { runAction } = useFeedback();
+  /** ADR-660 — the heading rung's word, handed to the module-level builders
+   *  (`headingLevels`, `textStyleRows`, `turnIntoTargets`) that cannot reach a
+   *  hook. "Heading 2" is one ICU message, never a concatenation. */
+  const headingLabel = useCallback((level: number) => t('headingLevel', { level }), [t]);
+  /** ADR-660 — the arrangement note's clauses, likewise. */
+  const carryWords = useMemo(
+    () => ({
+      ungroupsAndMoves: (groups: number, noun: string) =>
+        t('carryUngroupsAndMoves', { groups, noun }),
+      ungroups: (groups: number) => t('carryUngroups', { groups }),
+      contentMoves: (noun: string) => t('carryContentMoves', { noun }),
+    }),
+    [t],
+  );
   const doc = useMemo(() => {
     if (typeof window === 'undefined' || !html) return null;
     return new DOMParser().parseFromString(html, 'text/html');
@@ -1544,7 +1624,7 @@ export function StudioDesignTab({
    *
    *  Undefined until the vocabulary lands — the `?? 'flow'` default matches the
    *  surface's own `layoutMode` (show the flowing, less-chrome reading first). */
-  const pageNoun = mode === 'paged' && layout === 'deck' ? 'slide' : 'section';
+  const pageNoun = mode === 'paged' && layout === 'deck' ? t('slide') : t('section');
 
   /** ADR-528 — a MULTI-BLOCK range is live.
    *
@@ -1632,14 +1712,15 @@ export function StudioDesignTab({
     return climbChain(selectedEl, pageEl)
       .map((el) => ({
         blockId: el.getAttribute('data-block-id') ?? '',
-        label: labelForElement(el, labelMap, mode, objectModel),
+        label: labelForElement(el, labelMap, mode, objectModel, structWords),
       }))
       .filter((c) => c.blockId);
   }, [selectedEl, pageEl, scope, mode, labelMap, objectModel]);
   const contents = useMemo(() => {
     if (!selectedEl || (scope !== 'page' && scope !== 'container')) return [];
-    return walkContents(selectedEl, labelMap, mode, objectModel);
-  }, [selectedEl, scope, mode, labelMap, objectModel]);
+    return walkContents(selectedEl, labelMap, mode, objectModel, structWords);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEl, scope, mode, labelMap, objectModel, structWords]);
   /** ADR-620 D4 — what the compose chip shows the member: this slide's blocks,
    *  by kind, with their current words. Derived HERE because this pane already
    *  holds the parsed document; deriving it again in the surface would be a
@@ -1746,20 +1827,20 @@ export function StudioDesignTab({
           onClick={() =>
             onSelectNode({
               blockId: selection.headingId!,
-              label: selection.headingText ?? 'heading',
+              label: selection.headingText ?? t('headingFallback'),
               kind: null,
             })
           }
-          title="Select this heading"
+          title={t('selectThisHeading')}
           className="max-w-full truncate rounded px-0.5 text-emerald-700 transition-colors hover:bg-muted/40 dark:text-emerald-500"
         >
-          {selection.headingText ?? 'heading'}
+          {selection.headingText ?? t('headingFallback')}
         </button>
         <ChevronRight className="h-2.5 w-2.5 shrink-0 text-muted-foreground/50" />
         <span>
           {selection.label ??
             (selection.blockKind ? (labelMap[selection.blockKind] ?? selection.blockKind) : null) ??
-            'block'}
+            t('blockFallback')}
         </span>
       </div>
     ) : null;
@@ -1792,13 +1873,14 @@ export function StudioDesignTab({
     ((selection?.blockKind && isConvertible(vocabulary?.blocks, selection.blockKind)) ||
       multiBlockRange) ? (
       <div className={SECTION}>
-        <p className={HEADING}>Turn into</p>
+        <p className={HEADING}>{t('turnInto')}</p>
         <div className="flex flex-wrap gap-1">
           {turnIntoTargets(
             vocabulary?.blocks ?? [],
             rungs,
             selection?.blockKind ?? null,
             selectedEl?.tagName ?? null,
+            headingLabel,
           )
             .filter(
               (b) =>
@@ -1934,12 +2016,12 @@ export function StudioDesignTab({
       setImportReceipt(null);
       try {
         const r = await runAction(() => api.studio.importDesignSystem(f), {
-          pending: 'Importing…',
-          success: (res) => `Imported “${res.name}”`,
+          pending: t('importing'),
+          success: (res) => t('imported', { name: res.name }),
           error: (e) =>
             e instanceof APIError
-              ? (e.data as { detail?: string })?.detail || 'Import failed.'
-              : 'Import failed.',
+              ? (e.data as { detail?: string })?.detail || t('importFailed')
+              : t('importFailed'),
         });
         setImportReceipt(r);
         // The picker reads the served vocabulary, so the new system is
@@ -1952,7 +2034,7 @@ export function StudioDesignTab({
         setImporting(false);
       }
     },
-    [onImported, runAction],
+    [onImported, runAction, t],
   );
 
   // ADR-487 D9: INSIDE AN ARTIFACT THE SYSTEM IS WORN, NEVER LISTED.
@@ -2133,7 +2215,7 @@ export function StudioDesignTab({
     multiBlockRange
       ? (() => {
           const tag = selectedEl?.tagName?.toLowerCase() ?? null;
-          const rows = textStyleRows(rungs);
+          const rows = textStyleRows(rungs, { heading: headingLabel, text: t('textRung') });
           const rungTags = rungs.map((r) => `h${r}`);
           const curTag =
             selection?.blockKind === 'heading' && tag && rungTags.includes(tag) ? tag : 'p';
@@ -2158,8 +2240,8 @@ export function StudioDesignTab({
           return (
             <div className={SECTION}>
               <StyleSelect
-                label="Typography"
-                description="The block's place on the type ramp — sized by the layout, themed by the design system"
+                label={t('typography')}
+                description={t('typographyHint')}
                 current={{ preview: ag(curTag), label: curRow.label, detail: tagFontSize(curTag) }}
                 options={rows.map((r) => ({
                   key: r.key,
@@ -2214,7 +2296,7 @@ export function StudioDesignTab({
     try {
       await onApplyDesignSystem(manifestPath);
     } catch (e) {
-      setApplyError(e instanceof Error ? e.message : 'Could not apply the design system.');
+      setApplyError(e instanceof Error ? e.message : t('applyFailed'));
     } finally {
       setApplying(null);
     }
@@ -2338,13 +2420,13 @@ export function StudioDesignTab({
                     }
                   }}
                   className="min-w-0 flex-1 rounded border border-indigo-400/60 bg-background px-1.5 py-0.5 text-xs font-medium outline-none disabled:opacity-50"
-                  aria-label="Rename"
+                  aria-label={t('rename')}
                 />
               ) : (
                 <button
                   type="button"
                   onDoubleClick={() => setNameEditing(true)}
-                  title="Double-click to rename"
+                  title={t('doubleClickToRename')}
                   className="min-w-0 flex-1 cursor-text truncate rounded px-1 py-0.5 text-left text-xs font-medium text-foreground/90 hover:bg-muted/40"
                 >
                   {artifactName}
@@ -2353,24 +2435,25 @@ export function StudioDesignTab({
               <button
                 type="button"
                 onClick={() => setFileMenu((v) => !v)}
-                title="File actions"
-                aria-label="File actions"
+                title={t('fileActions')}
+                aria-label={t('fileActions')}
                 className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </button>
               {fileMenu && (
                 <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-background p-1 shadow-md">
+                  {/* ADR-660 — the rows carry catalog KEYS, worded at render. */}
                   {(
                     [
-                      ['Copy link', Link2, fileVerbs.copyLink],
-                      ['Duplicate', Copy, fileVerbs.duplicate],
-                      ['Rename…', Pencil, () => setNameEditing(true)],
-                      ['Move…', FolderInput, fileVerbs.move],
+                      ['fileCopyLink', Link2, fileVerbs.copyLink],
+                      ['fileDuplicate', Copy, fileVerbs.duplicate],
+                      ['fileRename', Pencil, () => setNameEditing(true)],
+                      ['fileMove', FolderInput, fileVerbs.move],
                     ] as const
-                  ).map(([label, Icon, run]) => (
+                  ).map(([labelKey, Icon, run]) => (
                     <button
-                      key={label}
+                      key={labelKey}
                       type="button"
                       onClick={() => {
                         setFileMenu(false);
@@ -2378,7 +2461,7 @@ export function StudioDesignTab({
                       }}
                       className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] text-foreground/80 transition-colors hover:bg-muted/40"
                     >
-                      <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {label}
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {t(labelKey)}
                     </button>
                   ))}
                   <div className="mx-1 my-1 border-t border-border/60" />
@@ -2388,10 +2471,10 @@ export function StudioDesignTab({
                       setFileMenu(false);
                       fileVerbs.trash();
                     }}
-                    title="Move to Trash (you can restore it from Files)"
+                    title={t('moveToTrashHint')}
                     className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
                   >
-                    <Trash2 className="h-3.5 w-3.5" /> Move to Trash
+                    <Trash2 className="h-3.5 w-3.5" /> {t('moveToTrash')}
                   </button>
                 </div>
               )}
@@ -2404,15 +2487,21 @@ export function StudioDesignTab({
       {scope === 'document' && (
         <>
           <div className={SECTION}>
-            <p className={HEADING}>File</p>
+            <p className={HEADING}>{t('sectionFile')}</p>
             {/* ADR-526: on flow the invitation named a grain the medium does not
                 have — `pageNoun` resolves to "section", and Docs has no section
                 unit (ADR-522 D4). Say what is actually selectable. */}
             <p className="text-xs text-muted-foreground">
-              {vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout} —{' '}
+              {/* ADR-660 — one sentence per medium, the served layout label as
+                  its argument; the em-dash join was an English word order. */}
               {mode === 'flow'
-                ? 'select a block on the canvas to shape it here.'
-                : `select a ${pageNoun} or a block on the canvas to shape it here.`}
+                ? t('documentInviteFlow', {
+                    layout: vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout,
+                  })
+                : t('documentInvitePaged', {
+                    layout: vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout,
+                    noun: pageNoun,
+                  })}
             </p>
           </div>
           {/* ADR-526 D2 — the OUTLINE. The document's headings, read back in
@@ -2425,7 +2514,7 @@ export function StudioDesignTab({
               navigator tree, so Docs inherits it rather than growing a rail. */}
           {mode === 'flow' && (
             <div className={SECTION}>
-              <p className={HEADING}>Outline</p>
+              <p className={HEADING}>{t('sectionOutline')}</p>
               {outline.length > 0 ? (
                 <ContentsRows nodes={outline} onSelect={onSelectNode} />
               ) : (
@@ -2433,28 +2522,28 @@ export function StudioDesignTab({
                 // bold paragraphs has none the system can name. Say that, never
                 // invent one (ADR-526 §7).
                 <p className="text-[10px] text-muted-foreground">
-                  No headings yet — add one and it appears here.
+                  {t('noHeadings')}
                 </p>
               )}
             </div>
           )}
           {docTokens.length > 0 && (
             <div className={SECTION}>
-              {docTokens.map((t) =>
-                t.key === 'font' ? (
+              {docTokens.map((tok) =>
+                tok.key === 'font' ? (
                   <FaceTokenSelect
-                    key={t.key}
-                    token={t}
-                    current={root?.getAttribute(`data-${t.key}`) ?? null}
+                    key={tok.key}
+                    token={tok}
+                    current={root?.getAttribute(`data-${tok.key}`) ?? null}
                     stacks={resolvedFontStacks}
-                    onSet={(v) => onSetToken('document', t.key, v)}
+                    onSet={(v) => onSetToken('document', tok.key, v)}
                   />
                 ) : (
                   <TokenControl
-                    key={t.key}
-                    token={t}
-                    current={root?.getAttribute(`data-${t.key}`) ?? null}
-                    onSet={(v) => onSetToken('document', t.key, v)}
+                    key={tok.key}
+                    token={tok}
+                    current={root?.getAttribute(`data-${tok.key}`) ?? null}
+                    onSet={(v) => onSetToken('document', tok.key, v)}
                   />
                 ),
               )}
@@ -2463,17 +2552,16 @@ export function StudioDesignTab({
                   name={appliedSystem.name}
                   manifestPath={appliedSystem.manifest_path}
                   onOpen={onOpenSystem}
-                  note="is applied — its styles may override these."
+                  note={t('systemNoteDocument')}
                 />
               )}
             </div>
           )}
           <div className={SECTION}>
-            <p className={HEADING}>Design system</p>
+            <p className={HEADING}>{t('sectionDesignSystem')}</p>
             {designSystems.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                No design system yet. Import your brand&apos;s export — tokens, styles, fonts —
-                and every artifact can wear it.
+                {t('noDesignSystem')}
               </p>
             ) : (
               <div className="space-y-1">
@@ -2496,7 +2584,7 @@ export function StudioDesignTab({
                       </span>
                       {active ? (
                         <button type="button" className={askBtn} onClick={onRemoveDesignSystem}>
-                          Remove
+                          {t('remove')}
                         </button>
                       ) : (
                         <button
@@ -2508,7 +2596,7 @@ export function StudioDesignTab({
                           {applying === ds.manifest_path ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            'Apply'
+                            t('apply')
                           )}
                         </button>
                       )}
@@ -2542,12 +2630,12 @@ export function StudioDesignTab({
               {importing ? (
                 <span className="flex items-center gap-1.5">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Importing…
+                  {t('importing')}
                 </span>
               ) : designSystems.length ? (
-                'Import another…'
+                t('importAnother')
               ) : (
-                'Import a design system…'
+                t('importFirst')
               )}
             </button>
             {importReceipt && (
@@ -2556,13 +2644,20 @@ export function StudioDesignTab({
               // what the flatten could not resolve is shown, not swallowed.
               <div className="mt-1.5 space-y-1 rounded-md border border-border bg-muted/20 p-2">
                 <p className="text-[11px] font-medium">
-                  {importReceipt.name} — {importReceipt.written.length} files
+                  {t('receiptFiles', {
+                    name: importReceipt.name,
+                    files: importReceipt.written.length,
+                  })}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {importReceipt.sources.length} stylesheets flattened
+                  {/* ADR-660 — one message per arm; the ` · ` join carried an
+                      English clause order. */}
                   {importReceipt.skipped.length
-                    ? ` · ${importReceipt.skipped.length} vendor files skipped`
-                    : ''}
+                    ? t('receiptFlattenedAndSkipped', {
+                        sheets: importReceipt.sources.length,
+                        skipped: importReceipt.skipped.length,
+                      })
+                    : t('receiptFlattened', { sheets: importReceipt.sources.length })}
                 </p>
                 {importReceipt.warnings.map((w) => (
                   <p key={w} className="text-[10px] text-amber-700 dark:text-amber-500">
@@ -2585,7 +2680,11 @@ export function StudioDesignTab({
         <>
           <div className={SECTION}>
             <p className={HEADING}>
-              {pageNoun} {selection?.slideIndex != null ? selection.slideIndex + 1 : ''}
+              {/* ADR-660 — "Slide 3" is one message; a noun juxtaposed with a
+                  number in JSX is an English word order. */}
+              {selection?.slideIndex != null
+                ? t('pageWithIndex', { noun: pageNoun, n: selection.slideIndex + 1 })
+                : pageNoun}
             </p>
             <VerbRow noun={pageNoun} onVerb={onPageVerb} />
             {/* ADR-620 D1/D4 — COMPOSE, the judged act at slide grain and
@@ -2604,11 +2703,11 @@ export function StudioDesignTab({
               <button
                 type="button"
                 onClick={() => onCompose(composeBlocks)}
-                title={`Compose this ${pageNoun} — opens the chat with it as the target`}
+                title={t('composeHint', { noun: pageNoun })}
                 className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-md border border-amber-300/60 bg-amber-50 px-2 py-1.5 text-[11.5px] font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                Compose this {pageNoun}…
+                {t('compose', { noun: pageNoun })}
               </button>
             )}
             {/* ADR-520 D4 — the page's Contents: the within-page hierarchy,
@@ -2634,16 +2733,22 @@ export function StudioDesignTab({
           {arrangements.length > 0 && (
             <div className={SECTION}>
               <p className={HEADING}>
-                Change this {pageNoun} to
+                {t('changePageTo', { noun: pageNoun })}
                 {planning && (
                   <span className="ml-1.5 font-normal text-muted-foreground">
-                    Refining…
+                    {t('refining')}
                   </span>
                 )}
               </p>
               <div className="grid grid-cols-2 gap-1.5">
                 {arrangements.map((a) => {
-                  const note = arrangementCarryNote(a, carriedCount ?? null, pageNoun, groupCount);
+                  const note = arrangementCarryNote(
+                    a,
+                    carriedCount ?? null,
+                    pageNoun,
+                    carryWords,
+                    groupCount,
+                  );
                   const current = (selection?.arrange ?? null) === a.slug;
                   return (
                     <button
@@ -2652,7 +2757,10 @@ export function StudioDesignTab({
                       disabled={!!planning}
                       title={
                         note
-                          ? `${a.description} — this ${pageNoun}'s content moves to a new content ${pageNoun} after it.`
+                          ? t('arrangementCarryHint', {
+                              description: a.description,
+                              noun: pageNoun,
+                            })
                           : a.description
                       }
                       onClick={() => onApplyArrangement(a)}
@@ -2678,17 +2786,17 @@ export function StudioDesignTab({
               legacy valign/pad tokens read as pressed-state fallback only;
               a write strips them from this element (D2, convergence-by-use). */}
           <div className={SECTION}>
-            <p className={HEADING}>Layout</p>
+            <p className={HEADING}>{t('sectionLayout')}</p>
             {layout === 'deck' && !!selectedEl?.matches('section.slide') ? (
               <LayoutRows
                 rows={[
-                  { key: 'padding', label: 'Padding', css: 'padding', options: [
-                    { v: '2rem 2.5rem', l: 'S' }, { v: '3.5rem 4rem', l: 'M' }, { v: '4.5rem 5.5rem', l: 'L' },
+                  { key: 'padding', label: t('rowPadding'), css: 'padding', options: [
+                    { v: '2rem 2.5rem', l: t('sizeS') }, { v: '3.5rem 4rem', l: t('sizeM') }, { v: '4.5rem 5.5rem', l: t('sizeL') },
                   ] },
-                  { key: 'justify', label: 'Vertical align', css: 'justify-content', options: [
-                    { v: 'flex-start', l: 'Top', Icon: AlignStartHorizontal },
-                    { v: 'center', l: 'Middle', Icon: AlignCenterHorizontal },
-                    { v: 'flex-end', l: 'Bottom', Icon: AlignEndHorizontal },
+                  { key: 'justify', label: t('rowVerticalAlign'), css: 'justify-content', options: [
+                    { v: 'flex-start', l: t('vTop'), Icon: AlignStartHorizontal },
+                    { v: 'center', l: t('vMiddle'), Icon: AlignCenterHorizontal },
+                    { v: 'flex-end', l: t('vBottom'), Icon: AlignEndHorizontal },
                   ] },
                 ]}
                 styleAttr={selectedEl?.getAttribute('style') ?? ''}
@@ -2705,8 +2813,8 @@ export function StudioDesignTab({
             ) : (
               <LayoutRows
                 rows={[
-                  { key: 'padY', label: 'Spacing', css: 'padding-block', options: [
-                    { v: '0.25rem', l: 'Tight' }, { v: '1rem', l: 'M' }, { v: '2.5rem', l: 'Airy' },
+                  { key: 'padY', label: t('rowSpacing'), css: 'padding-block', options: [
+                    { v: '0.25rem', l: t('spacingTight') }, { v: '1rem', l: t('sizeM') }, { v: '2.5rem', l: t('spacingAiry') },
                   ] },
                 ]}
                 styleAttr={selectedEl?.getAttribute('style') ?? ''}
@@ -2727,21 +2835,21 @@ export function StudioDesignTab({
                   shapes of "pick a colour" in one panel two scopes apart —
                   precisely the drift ADR-487 D9 named when one word
                   ("Typography") had two presentations in one scroll. */}
-              {applicable.map((t) =>
-                tokenSwatches[t.key] ? (
+              {applicable.map((tok) =>
+                tokenSwatches[tok.key] ? (
                   <ColorTokenSwatches
-                    key={t.key}
-                    token={t}
-                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                    swatches={tokenSwatches[t.key]}
-                    onSet={(v) => onSetToken('page', t.key, v)}
+                    key={tok.key}
+                    token={tok}
+                    current={selectedEl?.getAttribute(`data-${tok.key}`) ?? null}
+                    swatches={tokenSwatches[tok.key]}
+                    onSet={(v) => onSetToken('page', tok.key, v)}
                   />
                 ) : (
                   <TokenControl
-                    key={t.key}
-                    token={t}
-                    current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                    onSet={(v) => onSetToken('page', t.key, v)}
+                    key={tok.key}
+                    token={tok}
+                    current={selectedEl?.getAttribute(`data-${tok.key}`) ?? null}
+                    onSet={(v) => onSetToken('page', tok.key, v)}
                   />
                 ),
               )}
@@ -2750,21 +2858,19 @@ export function StudioDesignTab({
           {/* Background (ADR-456 W3) — a CITED image on the page element; the
               scrim/focus tokens light up above once one is set. */}
           <div className={SECTION}>
-            <p className={HEADING}>Background</p>
+            <p className={HEADING}>{t('sectionBackground')}</p>
             {pageBgRef ? (
               <div className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-xs">{baseName(pageBgRef)}</span>
                 <button type="button" className={askBtn} onClick={onRemovePageBackground}>
-                  Remove
+                  {t('remove')}
                 </button>
               </div>
             ) : bgPicking ? (
               bgImages == null ? (
-                <Working label="Loading images…" className="text-xs" />
+                <Working label={t('loadingImages')} className="text-xs" />
               ) : bgImages.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No images in the workspace yet — drop one into Files first.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('noImagesBackground')}</p>
               ) : (
                 <div className="max-h-40 space-y-1 overflow-y-auto">
                   {bgImages.map((img) => (
@@ -2787,7 +2893,7 @@ export function StudioDesignTab({
               )
             ) : (
               <button type="button" className={askBtn} onClick={() => setBgPicking(true)}>
-                Set background…
+                {t('setBackground')}
               </button>
             )}
           </div>
@@ -2807,41 +2913,41 @@ export function StudioDesignTab({
       {scope === 'container' && (
         <>
           <div className={SECTION}>
-            <p className={HEADING}>{selection?.label ?? 'group'}</p>
+            <p className={HEADING}>{selection?.label ?? t('groupFallback')}</p>
             {pathRow}
-            <VerbRow noun={selection?.label ?? 'group'} onVerb={onElementVerb} />
+            <VerbRow noun={selection?.label ?? t('groupFallback')} onVerb={onElementVerb} />
             {/* ADR-520 D4 — the container's Contents (structure's one home). */}
             <ContentsRows nodes={contents} onSelect={onSelectNode} />
           </div>
           <div className={SECTION}>
-            <p className={HEADING}>Layout</p>
+            <p className={HEADING}>{t('sectionLayout')}</p>
             <LayoutRows
               rows={[
-                { key: 'padding', label: 'Padding', css: 'padding', options: [
-                  { v: '0', l: 'None' }, { v: '0.5rem', l: 'S' }, { v: '1rem', l: 'M' }, { v: '2rem', l: 'L' },
+                { key: 'padding', label: t('rowPadding'), css: 'padding', options: [
+                  { v: '0', l: t('sizeNone') }, { v: '0.5rem', l: t('sizeS') }, { v: '1rem', l: t('sizeM') }, { v: '2rem', l: t('sizeL') },
                 ] },
-                { key: 'gap', label: 'Gap', css: 'gap', options: [
-                  { v: '0', l: 'None' }, { v: '0.5rem', l: 'S' }, { v: '1rem', l: 'M' }, { v: '2rem', l: 'L' },
+                { key: 'gap', label: t('rowGap'), css: 'gap', options: [
+                  { v: '0', l: t('sizeNone') }, { v: '0.5rem', l: t('sizeS') }, { v: '1rem', l: t('sizeM') }, { v: '2rem', l: t('sizeL') },
                 ] },
                 // ADR-520 D3 — the alignment rows wear the conventional glyphs
                 // (a column container: Align = the cross axis, Justify = the
                 // main axis). Values + the one op unchanged.
-                { key: 'align', label: 'Align', css: 'align-items', options: [
-                  { v: 'flex-start', l: 'Start', Icon: AlignStartVertical },
-                  { v: 'center', l: 'Center', Icon: AlignCenterVertical },
-                  { v: 'flex-end', l: 'End', Icon: AlignEndVertical },
-                  { v: 'stretch', l: 'Stretch', Icon: StretchHorizontal },
+                { key: 'align', label: t('rowAlign'), css: 'align-items', options: [
+                  { v: 'flex-start', l: t('alignStart'), Icon: AlignStartVertical },
+                  { v: 'center', l: t('alignCenter'), Icon: AlignCenterVertical },
+                  { v: 'flex-end', l: t('alignEnd'), Icon: AlignEndVertical },
+                  { v: 'stretch', l: t('alignStretch'), Icon: StretchHorizontal },
                 ] },
-                { key: 'justify', label: 'Justify', css: 'justify-content', options: [
-                  { v: 'flex-start', l: 'Start', Icon: AlignStartHorizontal },
-                  { v: 'center', l: 'Center', Icon: AlignCenterHorizontal },
-                  { v: 'flex-end', l: 'End', Icon: AlignEndHorizontal },
-                  { v: 'space-between', l: 'Between', Icon: AlignVerticalSpaceBetween },
+                { key: 'justify', label: t('rowJustify'), css: 'justify-content', options: [
+                  { v: 'flex-start', l: t('alignStart'), Icon: AlignStartHorizontal },
+                  { v: 'center', l: t('alignCenter'), Icon: AlignCenterHorizontal },
+                  { v: 'flex-end', l: t('alignEnd'), Icon: AlignEndHorizontal },
+                  { v: 'space-between', l: t('alignBetween'), Icon: AlignVerticalSpaceBetween },
                 ] },
                 // ADR-516 D4 — the container's width as intent: Hug | Fill,
                 // the ADR-461 D1 pair at the container grain (Fixed refused).
-                { key: 'width', label: 'Width', css: 'width', options: [
-                  { v: 'fit-content', l: 'Hug' }, { v: '100%', l: 'Fill' },
+                { key: 'width', label: t('rowWidth'), css: 'width', options: [
+                  { v: 'fit-content', l: t('widthHug') }, { v: '100%', l: t('widthFill') },
                 ] },
               ]}
               styleAttr={selectedEl?.getAttribute('style') ?? ''}
@@ -2866,13 +2972,11 @@ export function StudioDesignTab({
               while data-slot survives as an inert name (ADR-511 D8). */}
           {slotRole === 'media' && (
             <div className={SECTION}>
-              <p className={HEADING}>Image</p>
+              <p className={HEADING}>{t('sectionImage')}</p>
               {slotImages == null ? (
-                <Working label="Loading images…" className="text-xs" />
+                <Working label={t('loadingImages')} className="text-xs" />
               ) : slotImages.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No images in the workspace yet — drop one into Files, or ask the chat for an SVG.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('noImagesSlot')}</p>
               ) : (
                 <div className="space-y-1">
                   {slotImages.map((img) => (
@@ -2931,13 +3035,13 @@ export function StudioDesignTab({
                   // and the sentence is derived in selection.ts beside the
                   // withdrawal notice — never a second hand-written string here.
                   // A projection that reported no rungs still gets a true count.
-                  spanLabel(rangeShape ?? { count: rangeBlockIds!.length, lead: null, under: 0 })
+                  wordSpan(rangeShape ?? { count: rangeBlockIds!.length, lead: null, under: 0 })
                 : // ADR-546 D5 — the registry's word or nothing. The
                   // `?? selection.blockKind` fallback is DELETED: it echoed the raw
                   // attribute, which is the same PROSE-vs-Text mis-wire ADR-544 D4
                   // closed for decks, reachable here during the vocabulary's load
                   // window (ADR-482 D3's real gap).
-                  (selection?.label ?? 'Selection')}
+                  (selection?.label ?? t('selectionFallback'))}
             </p>
             {/* ADR-541 D4 — the ONE withdrawal notice, finally mounted. It was
                 exported from selection.ts with NO consumer, so the pane named a
@@ -2946,7 +3050,7 @@ export function StudioDesignTab({
                 one sentence, both scopes (see the object scope below). */}
             {multiBlockRange && (
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                {withdrawalNotice(unified)}
+                {wordWithdrawal(unified)}
               </p>
             )}
             {/* ADR-526 D2 — the enclosing-heading crumb, flow's one honest
@@ -3007,7 +3111,7 @@ export function StudioDesignTab({
                 gone too the section would open with no subject at all. "5
                 objects selected" is the only honest label a set has. */}
             {multiObject ? (
-              <p className={HEADING}>{`${groupIds!.length} objects selected`}</p>
+              <p className={HEADING}>{t('nObjectsSelected', { count: groupIds!.length })}</p>
             ) : (
               // No crumb resolves here (a block on flow with no enclosing
               // heading; a paged block whose page is unresolved) — so the
@@ -3019,14 +3123,14 @@ export function StudioDesignTab({
                     (selection?.blockKind
                       ? (labelMap[selection.blockKind] ?? selection.blockKind)
                       : null) ??
-                    'block'}
+                    t('blockFallback')}
                 </p>
               )
             )}
             {/* ADR-541 D4 — the same one notice at the object tier (see range). */}
             {multiObject && (
               <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                {withdrawalNotice(unified)}
+                {wordWithdrawal(unified)}
               </p>
             )}
             {/* Single-subject rows: the path names ONE ancestry, the verbs act
@@ -3045,17 +3149,17 @@ export function StudioDesignTab({
               <button
                 type="button"
                 onClick={onReturnToFlow}
-                title="Positioned on this slide — it no longer follows the layout. Click to return it."
+                title={t('positionedHint')}
                 className="inline-flex items-center gap-1 rounded border border-amber-300/70 bg-amber-50/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 transition-colors hover:bg-amber-100/70 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-200"
               >
-                <Move className="h-3 w-3 shrink-0" /> Positioned
+                <Move className="h-3 w-3 shrink-0" /> {t('positioned')}
               </button>
             )}
             {!multiObject && pathRow}
             {!multiObject && headingRow}
             {!multiObject && (
               <VerbRow
-                noun={selection?.label ?? 'block'}
+                noun={selection?.label ?? t('blockFallback')}
                 onVerb={onElementVerb}
                 // ADR-525 follow-up: on FLOW the move verbs are withheld even
                 // for objects — the menu already refused them there and the
@@ -3075,15 +3179,15 @@ export function StudioDesignTab({
               "even spacing between them" is just their current spacing. */}
           {multiObject && (onAlignMany || onDistributeMany) && (
             <div className={SECTION}>
-              <p className={HEADING}>Align</p>
+              <p className={HEADING}>{t('sectionAlign')}</p>
               {onAlignMany && (
                 <div className="flex gap-1">
                   {ALIGN_MANY.map((a) => (
                     <button
                       key={a.key}
                       type="button"
-                      title={a.title}
-                      aria-label={a.title}
+                      title={t(a.titleKey)}
+                      aria-label={t(a.titleKey)}
                       onClick={() => onAlignMany(a.key)}
                       className="rounded border border-border px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted/40"
                     >
@@ -3098,8 +3202,8 @@ export function StudioDesignTab({
                     <button
                       key={d.key}
                       type="button"
-                      title={d.title}
-                      aria-label={d.title}
+                      title={t(d.titleKey)}
+                      aria-label={t(d.titleKey)}
                       onClick={() => onDistributeMany(d.key)}
                       className="rounded border border-border px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted/40"
                     >
@@ -3117,8 +3221,7 @@ export function StudioDesignTab({
           {multiObject && (
             <div className={SECTION}>
               <p className="text-[10px] text-muted-foreground">
-                Align and distribute apply to everything selected. Identity,
-                position, layout and style apply to one object at a time.
+                {t('multiObjectNote')}
               </p>
             </div>
           )}
@@ -3150,7 +3253,7 @@ export function StudioDesignTab({
               was already its old guard). */}
           {!multiObject && blockPositioned && posMeasures.length > 0 && (
             <div className={SECTION}>
-              <p className={HEADING}>Position</p>
+              <p className={HEADING}>{t('sectionPosition')}</p>
               <MeasureRow>
                 {/* ADR-520 D3 — X/Y as editable fields (two-clamp, the
                     keyboard beside the drag). The badge stays the clear. */}
@@ -3182,13 +3285,13 @@ export function StudioDesignTab({
               section: they ARE boxes. */}
           {!multiObject && nonColorTokens.length > 0 && (
             <div className={SECTION}>
-              <p className={HEADING}>Layout</p>
-              {nonColorTokens.map((t) => (
+              <p className={HEADING}>{t('sectionLayout')}</p>
+              {nonColorTokens.map((tok) => (
                 <TokenControl
-                  key={t.key}
-                  token={t}
-                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                  onSet={(v) => onSetToken('block', t.key, v)}
+                  key={tok.key}
+                  token={tok}
+                  current={selectedEl?.getAttribute(`data-${tok.key}`) ?? null}
+                  onSet={(v) => onSetToken('block', tok.key, v)}
                 />
               ))}
               {/* THE BLOCK'S W/H FIELDS ARE WITHDRAWN (2026-08-18, operator).
@@ -3216,13 +3319,13 @@ export function StudioDesignTab({
               second mount of it. */}
           {!multiBlockRange && !multiObject && colorTokens.length > 0 && (
             <div className={SECTION}>
-              {colorTokens.map((t) => (
+              {colorTokens.map((tok) => (
                 <ColorTokenSwatches
-                  key={t.key}
-                  token={t}
-                  current={selectedEl?.getAttribute(`data-${t.key}`) ?? null}
-                  swatches={tokenSwatches[t.key]}
-                  onSet={(v) => onSetToken('block', t.key, v)}
+                  key={tok.key}
+                  token={tok}
+                  current={selectedEl?.getAttribute(`data-${tok.key}`) ?? null}
+                  swatches={tokenSwatches[tok.key]}
+                  onSet={(v) => onSetToken('block', tok.key, v)}
                 />
               ))}
             </div>
@@ -3245,7 +3348,7 @@ export function StudioDesignTab({
                 name={appliedSystem.name}
                 manifestPath={appliedSystem.manifest_path}
                 onOpen={onOpenSystem}
-                note="supplies these values."
+                note={t('systemNoteBlock')}
               />
             </div>
           )}

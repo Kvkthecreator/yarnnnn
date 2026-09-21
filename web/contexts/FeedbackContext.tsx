@@ -43,6 +43,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { Check, AlertCircle, Info, Loader2, X, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Z_TOAST, Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
@@ -145,6 +146,11 @@ const nextId = () => `t${++__toastSeq}`;
 // ---------------------------------------------------------------------------
 
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
+  // ADR-660 — this layer's OWN chrome is member-facing copy (the confirm's two
+  // buttons, the toast dismiss, the generic outcome lines). Every caller's
+  // message is its own; only the shell is worded here. `useTranslations` throws
+  // outside a scope, which is why `app/admin` gained one.
+  const t = useTranslations('feedback');
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [confirmState, setConfirmState] = useState<
     (ConfirmOptions & { resolve: (v: boolean) => void }) | null
@@ -236,7 +242,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
             successMsg =
               typeof opts.success === 'function' ? opts.success(result) : opts.success;
           } catch {
-            successMsg = 'Done';
+            successMsg = t('done');
           }
         }
         if (pendingId && successMsg) {
@@ -250,7 +256,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
         const msg =
           typeof opts?.error === 'function'
             ? opts.error(err)
-            : opts?.error ?? defaultErrorMessage(err);
+            : opts?.error ?? defaultErrorMessage(err, t('genericError'));
         if (pendingId) {
           updateToast(pendingId, { kind: 'error', message: msg, durationMs: 6000 });
         } else {
@@ -259,6 +265,7 @@ export function FeedbackProvider({ children }: { children: React.ReactNode }) {
         throw err;
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [toast, updateToast, dismissToast],
   );
 
@@ -353,6 +360,7 @@ const TOAST_ICON: Record<ToastKind, React.ReactNode> = {
 };
 
 function ToastCard({ toast, onDismiss }: { toast: ToastRecord; onDismiss: () => void }) {
+  const t = useTranslations('feedback');
   return (
     <div
       className={cn(
@@ -375,7 +383,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastRecord; onDismiss: () => 
           type="button"
           onClick={onDismiss}
           className="mt-0.5 shrink-0 text-muted-foreground/60 transition-colors hover:text-foreground"
-          aria-label="Dismiss"
+          aria-label={t('dismiss')}
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -397,6 +405,7 @@ function ConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations('feedback');
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -452,7 +461,7 @@ function ConfirmDialog({
                 onClick={dismissModal(onCancel)}
                 className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
               >
-                {opts.cancelLabel ?? 'Cancel'}
+                {opts.cancelLabel ?? t('cancel')}
               </button>
             )}
             <button
@@ -466,7 +475,7 @@ function ConfirmDialog({
                   : 'bg-primary text-primary-foreground hover:bg-primary/90',
               )}
             >
-              {opts.confirmLabel ?? 'Continue'}
+              {opts.confirmLabel ?? t('continue')}
             </button>
           </div>
         </div>
@@ -485,11 +494,13 @@ function ConfirmDialog({
  * `{ detail }` shape (the app's APIError.data), falls back to `.message`,
  * then a generic line. Kept here so `runAction` has a sane default `error`.
  */
-export function defaultErrorMessage(err: unknown): string {
+export function defaultErrorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object') {
     const anyErr = err as { data?: { detail?: string }; message?: string };
     if (anyErr.data?.detail) return anyErr.data.detail;
     if (anyErr.message) return anyErr.message;
   }
-  return 'Something went wrong. Please try again.';
+  // ADR-660 — module level, so it cannot read the catalog; the provider passes
+  // the worded line in. A served `detail` stays as the server sent it (§8).
+  return fallback;
 }

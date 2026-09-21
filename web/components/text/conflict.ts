@@ -8,11 +8,21 @@
  * fallback string reads like intended copy.
  */
 
-import { formatAuthorLabel } from '@/lib/workspace/attribution';
+import { formatAuthorLabelRef, type AuthorLabelRef } from '@/lib/workspace/attribution';
 
-/** What a 409 tells the surface: who moved the head, and to what. */
+/**
+ * What a 409 tells the surface: who moved the head, and to what.
+ *
+ * ⭐ ADR-660 — this is a PLAIN MODULE (the gate transpiles and calls it
+ * directly against a captured production body), so it cannot read the
+ * catalog: `actorRef` is a catalog KEY under `attribution`, or null when the
+ * body names nobody, and the COMPONENT words it — falling back to its own
+ * "Someone else". The pre-ADR-660 shape returned an English sentence, which
+ * would have left one banner in English inside an otherwise Korean editor.
+ */
 export interface ConflictState {
-  actor: string;
+  /** Who moved the head, as a catalog key; null = the body named nobody. */
+  actorRef: AuthorLabelRef | null;
   currentHeadId: string | null;
 }
 
@@ -45,7 +55,7 @@ export function readConflict(data: unknown): ConflictState {
   } | null;
   const head = d?.error?.hint?.current_head ?? d?.detail?.current_head;
   return {
-    actor: formatAuthorLabel(head?.authored_by ?? '') || 'Someone else',
+    actorRef: formatAuthorLabelRef(head?.authored_by ?? ''),
     currentHeadId: head?.id ?? null,
   };
 }

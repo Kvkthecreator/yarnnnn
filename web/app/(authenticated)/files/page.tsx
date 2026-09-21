@@ -61,6 +61,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Info,
   History,
@@ -88,7 +89,7 @@ import { NewFolderModal } from '@/components/workspace/NewFolderModal';
 import { MoveToFolderModal } from '@/components/workspace/MoveToFolderModal';
 import { ShareDialog } from '@/components/workspace/ShareDialog';
 import { cn } from '@/lib/utils';
-import { formatAuthorLabel } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { toWorkspacePath, displayPath } from '@/lib/interop/fileHandle';
 import { CopyField } from '@/components/workspace/CopyField';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
@@ -209,6 +210,11 @@ function buildRootNodes(input: {
   roots: WorkspaceRoot[];
   subtrees: Record<string, TreeNode[]>; // root name → its getTree children
   domainTitles: Record<string, string>; // operation/{folder} → registry display name
+  // ADR-660 — the summaries this function words are the CLIENT's, so they are
+  // looked up at call time. The two home NAMES ("Downloads", "System files")
+  // stay in Latin: they are told-names the substrate and the connectors resolve
+  // (`displayPath` / `parse_file_reference`), not free labels.
+  t: (key: string, values?: Record<string, string | number>) => string;
 }): TreeNode[] {
   // The only path still hidden: operation/signals (temporal churn log).
   const isHidden = (node: TreeNode): boolean =>
@@ -233,7 +239,7 @@ function buildRootNodes(input: {
       name: root.display_name, // friendly label; raw name for unmapped roots
       path: root.path, // the REAL fs path (/workspace/{name}) — clickable, resolves
       type: 'folder' as const,
-      summary: root.description || (count ? `${count} items` : 'Empty'),
+      summary: root.description || (count ? input.t('rootItems', { count }) : input.t('rootEmpty')),
       icon_name: root.icon, // ADR-422 D3: kernel-named glyph
       children,
     } satisfies TreeNode;
@@ -270,7 +276,7 @@ function buildRootNodes(input: {
       name: r.name,
       path: r.path, // /workspace/{name} IS the real file path for a loose root
       type: 'file' as const,
-      summary: 'Workspace machine state (kernel-managed).',
+      summary: input.t('machineState'),
       icon_name: 'file-cog',
     }));
   const realRoots = input.roots.filter((r) => !isLooseMachineRoot(r));
@@ -295,7 +301,7 @@ function buildRootNodes(input: {
       // click still lands somewhere real; legacy uploads/ files show as children.
       path: arrivalRoots.find((r) => r.name === 'inbound')?.path ?? arrivalRoots[0].path,
       type: 'folder' as const,
-      summary: 'What arrived in your workspace — uploads and observations from connected apps. Kept as received.',
+      summary: input.t('downloadsSummary'),
       icon_name: 'arrow-down-to-line',
       children: mergedChildren,
     });
@@ -309,7 +315,7 @@ function buildRootNodes(input: {
       name: 'System files',
       path: SYSTEM_FILES_NODE_PATH,
       type: 'folder' as const,
-      summary: 'Files the system uses to run your workspace — settings, agent homes, runtime state.',
+      summary: input.t('systemFilesSummary'),
       icon_name: 'settings',
       children: [...systemRoots.map(rootToNode), ...looseFileNodes],
     });
@@ -337,26 +343,32 @@ function buildRootNodes(input: {
 //
 // A folder keeps its item count: that is the one fact a folder's identity
 // line carries that nothing else on the screen states.
-function getNodeMetadata(node: TreeNode): string {
+function getNodeMetadata(
+  node: TreeNode,
+  t: (key: string, values?: Record<string, string | number>) => string,
+  // ADR-660 — a plain function cannot call a hook; the component's worder
+  // rides in, so the attribution vocabulary stays the shared one.
+  authorLabel: (authoredBy: string | null | undefined) => string | null,
+): string {
   const parts: string[] = [];
 
   if (node.type === 'folder') {
     const childCount = node.children?.length;
     if (typeof childCount === 'number') {
-      parts.push(`${childCount} ${childCount === 1 ? 'item' : 'items'}`);
+      parts.push(t('rootItems', { count: childCount }));
     }
   }
 
   if (node.updated_at) {
-    parts.push(`Updated ${formatNodeTimestamp(node.updated_at)}`);
+    parts.push(t('updated', { when: formatNodeTimestamp(node.updated_at) }));
   }
 
   // ADR-209 head-revision attribution: show "Last edited by {author}"
   // when authored_by is present on the node (populated by the tree
   // endpoint's workspace_file_versions FK embed).
-  const authorLabel = formatAuthorLabel((node as any).authored_by);
-  if (authorLabel) {
-    parts.push(`Last edited by ${authorLabel}`);
+  const author = authorLabel((node as any).authored_by);
+  if (author) {
+    parts.push(t('lastEditedBy', { author }));
   }
 
   return parts.join(' · ');
@@ -376,8 +388,12 @@ function getNodeMetadata(node: TreeNode): string {
  * bordered input here would out-weigh the title it describes. Same component,
  * same clipboard fallback — presentation differs, mechanism does not.
  */
-function nodeMetadataNode(node: TreeNode): React.ReactNode {
-  const history = getNodeMetadata(node);
+function nodeMetadataNode(
+  node: TreeNode,
+  t: (key: string, values?: Record<string, string | number>) => string,
+  authorLabel: (authoredBy: string | null | undefined) => string | null,
+): React.ReactNode {
+  const history = getNodeMetadata(node, t, authorLabel);
   return (
     // ADR-587 D9: two lines, because they answer two questions. WHERE this
     // object is (its path — the identity D7/D8 established, and the one part
@@ -392,7 +408,7 @@ function nodeMetadataNode(node: TreeNode): React.ReactNode {
           here (2026-09-17). Copy carries the SAME string it shows: what you
           read is what you paste, and `toWorkspacePath` resolves the told-name
           back at the arrival door so the round trip closes. */}
-      <CopyField variant="inline" value={displayPath(node.path)} label="path" />
+      <CopyField variant="inline" value={displayPath(node.path)} label={t('pathLabel')} />
       {history && <span className="truncate">{history}</span>}
     </span>
   );
@@ -417,6 +433,8 @@ export default function ContextPage() {
   // ADR-400 polish (2026-07-03): the universal action-feedback layer replaces
   // window.alert/confirm/prompt for the operator's file verbs. See
   // docs/design/ACTION-FEEDBACK.md.
+  const tSurface = useTranslations('files.surface');
+  const { authorLabel } = useAuthorLabel();
   const { runAction, toast } = useFeedback();
   // The pointer CAPABILITY — it decides whether a single tap opens (the
   // ADR-452 click grammar). It no longer gates the create door: ADR-649 made
@@ -645,7 +663,7 @@ export default function ContextPage() {
       );
       const subtrees: Record<string, TreeNode[]> = Object.fromEntries(subtreeEntries);
 
-      const nodes = buildRootNodes({ roots, subtrees, domainTitles });
+      const nodes = buildRootNodes({ roots, subtrees, domainTitles, t: tSurface });
 
       setTreeNodes(nodes);
       setPhase(nav.readiness?.phase || 'active');
@@ -1349,12 +1367,12 @@ export default function ContextPage() {
     // Virtual /explorer/ groups aren't substrate — refuse honestly up front
     // (the same pre-empt-the-obvious-carve posture as useFileOrganizeVerbs).
     if (parent && !parent.path.startsWith('/workspace/')) {
-      toast({ kind: 'error', message: 'You can’t create a folder here — this is a grouping, not a real folder.' });
+      toast({ kind: 'error', message: tSurface('notARealFolder') });
       return;
     }
     setNewFolderParent(parent);
     setNewFolderOpen(true);
-  }, [toast]);
+  }, [toast, tSurface]);
   const closeNewFolder = useCallback(() => {
     setNewFolderOpen(false);
     setNewFolderParent(null);
@@ -1365,9 +1383,9 @@ export default function ContextPage() {
         ? newFolderParent.path.replace(/^\/workspace\//, '')
         : null;
       const r = await runAction(() => api.documents.createFolder(name, parentRel), {
-        pending: 'Creating folder…',
-        success: 'Folder created',
-        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Could not create the folder' : 'Could not create the folder'),
+        pending: tSurface('creatingFolder'),
+        success: tSurface('folderCreated'),
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || tSurface('createFolderFailed') : tSurface('createFolderFailed')),
       });
       closeNewFolder();
       await loadExplorer();
@@ -1379,7 +1397,7 @@ export default function ContextPage() {
       // are gone; `path` is the folder itself.
       if (r?.path) selectOne(r.path);
     } catch { /* error toast already surfaced; keep the modal open to retry */ }
-  }, [runAction, loadExplorer, selectOne, newFolderParent, closeNewFolder]);
+  }, [runAction, loadExplorer, selectOne, newFolderParent, closeNewFolder, tSurface]);
 
   // Move (deliberate, modal) + drag-move (gesture) both route through the shared
   // hook — `openMove` opens the picker, `commitMove` is the drag fast-path.
@@ -1401,17 +1419,17 @@ export default function ContextPage() {
           toast({
             kind: 'error',
             message: moved.length
-              ? `Moved ${moved.length} of ${paths.length}. ${failed.length} could not be moved.`
-              : `Could not move ${failed.length} file${failed.length === 1 ? '' : 's'}.`,
+              ? tSurface('movedPartial', { moved: moved.length, total: paths.length, failed: failed.length })
+              : tSurface('moveFailed', { count: failed.length }),
           });
         } else {
-          toast({ kind: 'success', message: `Moved ${moved.length} files.` });
+          toast({ kind: 'success', message: tSurface('moved', { count: moved.length }) });
         }
         return;
       }
       await organizeVerbs.commitMove(fromPath, destFolder);
     },
-    [selection, organizeVerbs, clearSelection, toast],
+    [selection, organizeVerbs, clearSelection, toast, tSurface],
   );
 
   // TRASH THE GROUP — the reporting half of the set-taking Trash, and the peer
@@ -1427,24 +1445,24 @@ export default function ContextPage() {
       const { trashed, failed, locked } = await organizeVerbs.commitTrashMany(targets);
       if (!trashed.length && !failed.length) return; // declined at the confirm
       clearSelection();
-      const lockedLine = locked
-        ? ` ${locked} managed by the system stayed where ${locked === 1 ? 'it is' : 'they are'}.`
-        : '';
+      const lockedLine = locked ? tSurface('lockedLine', { count: locked }) : '';
       if (failed.length) {
         toast({
           kind: 'error',
           message: trashed.length
-            ? `Moved ${trashed.length} of ${targets.length} to Trash. ${failed.length} could not be moved.${lockedLine}`
-            : `Could not move ${failed.length} item${failed.length === 1 ? '' : 's'} to Trash.`,
+            ? tSurface('trashedPartial', {
+                trashed: trashed.length, total: targets.length, failed: failed.length, lockedLine,
+              })
+            : tSurface('trashFailed', { count: failed.length }),
         });
       } else {
         toast({
           kind: 'success',
-          message: `Moved ${trashed.length} item${trashed.length === 1 ? '' : 's'} to Trash.${lockedLine}`,
+          message: tSurface('trashed', { count: trashed.length, lockedLine }),
         });
       }
     },
-    [organizeVerbs, clearSelection, toast],
+    [organizeVerbs, clearSelection, toast, tSurface],
   );
 
   // ADR-529 D1: share OPENS THE DIALOG — it no longer mints on click.
@@ -1762,7 +1780,7 @@ export default function ContextPage() {
           (openCanvasMenu) — one menu, two ways in; drag-drop stays the third. */}
       <div className="px-3 pt-3 pb-1 shrink-0 flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-          Explorer
+          {tSurface('explorer')}
         </p>
         <button
           type="button"
@@ -1771,8 +1789,8 @@ export default function ContextPage() {
             const r = e.currentTarget.getBoundingClientRect();
             setCanvasMenu({ x: r.left, y: r.bottom + 4 });
           }}
-          aria-label="New folder or add files"
-          title="New folder · Add files"
+          aria-label={tSurface('newOrAdd')}
+          title={tSurface('newOrAddTitle')}
           className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
         >
           <Plus className="h-4 w-4" />
@@ -1780,7 +1798,7 @@ export default function ContextPage() {
       </div>
       <div className="flex-1 overflow-y-auto">
         {fileTreeLoading && treeNodes.length === 0 ? (
-          <Working label="Loading your files…" fill />
+          <Working label={tSurface('loadingFiles')} fill />
         ) : treeNodes.length > 0 ? (
           <div className="p-2">
             <button
@@ -1792,10 +1810,10 @@ export default function ContextPage() {
                   ? 'bg-primary/10 text-foreground font-medium'
                   : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
               )}
-              title="Recent changes across the workspace"
+              title={tSurface('recentsTitle')}
             >
               <History className="w-4 h-4 shrink-0" />
-              <span>Recents</span>
+              <span>{tSurface('recents')}</span>
             </button>
             {/* ADR-400 D4: Trash — the reversible home of the delete verb. */}
             <button
@@ -1807,10 +1825,10 @@ export default function ContextPage() {
                   ? 'bg-primary/10 text-foreground font-medium'
                   : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
               )}
-              title="Deleted files — recoverable"
+              title={tSurface('trashTitle')}
             >
               <Trash2 className="w-4 h-4 shrink-0" />
-              <span>Trash</span>
+              <span>{tSurface('trash')}</span>
             </button>
             {/* The NAVIGATOR. Folders only, and it takes no selection: the
                 tree moves what the centre pane is SHOWING, and the centre pane
@@ -1835,7 +1853,7 @@ export default function ContextPage() {
             />
           </div>
         ) : (
-          <div className="p-3 text-sm text-muted-foreground">Failed to load explorer</div>
+          <div className="p-3 text-sm text-muted-foreground">{tSurface('explorerFailed')}</div>
         )}
       </div>
     </div>
@@ -1851,7 +1869,7 @@ export default function ContextPage() {
     <div className="flex-1 overflow-auto bg-background flex flex-col min-h-0">
       <SurfaceIdentityHeader
         title={viewNode.name}
-        metadata={nodeMetadataNode(viewNode)}
+        metadata={nodeMetadataNode(viewNode, tSurface, authorLabel)}
         actions={
           <div className="flex items-center gap-2">
             {/* ADR-388 D4: the ONE shared Files view toggle (folder listings honor
@@ -1883,11 +1901,11 @@ export default function ContextPage() {
                 right-click on any tree/row node. */}
             <button
               onClick={() => { setPropertiesPath(null); setDetailsOpen(true); }}
-              title="Properties"
+              title={tSurface('properties')}
               className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
             >
               <Info className="w-3.5 h-3.5" />
-              Properties
+              {tSurface('properties')}
             </button>
           </div>
         }
@@ -1973,7 +1991,7 @@ export default function ContextPage() {
     <>
       <SettingsPaneShell
         windowSlug="files"
-        navLabel="Explorer"
+        navLabel={tSurface('explorer')}
         navContent={treePaneContent}
         navPadded={false}
         resizable
@@ -2058,7 +2076,7 @@ export default function ContextPage() {
           borrowing one member's name, which would be the stale-label failure
           ADR-519 D4.1 names. */}
       <MoveToFolderModal
-        target={moveSetOpen ? { path: selection[0] ?? '', name: `${selection.length} files` } : null}
+        target={moveSetOpen ? { path: selection[0] ?? '', name: tSurface('selectionName', { count: selection.length }) } : null}
         roots={treeNodes}
         canPlace={(node) => node.may_place !== false}
         onClose={() => setMoveSetOpen(false)}
@@ -2073,13 +2091,13 @@ export default function ContextPage() {
             toast({
               kind: 'error',
               message: moved.length
-                ? `Moved ${moved.length} of ${paths.length}. ${failed.length} could not be moved.`
-                : `Could not move ${failed.length} file${failed.length === 1 ? '' : 's'}.`,
+                ? tSurface('movedPartial', { moved: moved.length, total: paths.length, failed: failed.length })
+                : tSurface('moveFailed', { count: failed.length }),
             });
           } else {
             toast({
               kind: 'success',
-              message: `Moved ${moved.length} file${moved.length === 1 ? '' : 's'}.`,
+              message: tSurface('moved', { count: moved.length }),
             });
           }
         }}

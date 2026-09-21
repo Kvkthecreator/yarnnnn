@@ -21,6 +21,7 @@
  * branch inside a mount.
  */
 
+import { useTranslations } from 'next-intl';
 import { FileText } from 'lucide-react';
 import type { WorkspaceFile } from '@/types';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -63,6 +64,7 @@ export const TextViewer: ViewerApp = ({ file }) => (
 // 2. Markdown Viewer — prose; owns the IDENTITY tier-1 case + upload-frontmatter
 // ---------------------------------------------------------------------------
 export const MarkdownViewer: ViewerApp = ({ file }) => {
+  const t = useTranslations('files.viewers');
   if (!file.content) return null;
   if (isIdentityPath(file.path)) {
     return <InferenceContentView content={file.content} target="identity" />;
@@ -78,7 +80,7 @@ export const MarkdownViewer: ViewerApp = ({ file }) => {
         <div className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
           <FileText className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate" title={sourceCaption}>
-            Extracted from {sourceCaption}
+            {t('extractedFrom', { source: sourceCaption })}
           </span>
         </div>
       )}
@@ -135,8 +137,9 @@ export const ImageViewer: ViewerApp = ({ file }) => {
 };
 
 function ImageBlob({ contentUrl, alt }: { contentUrl: string; alt: string }) {
+  const t = useTranslations('files.viewers');
   const { url, loading, error } = useSignedBlobUrl(contentUrl);
-  if (loading) return <BlobLoading label="Loading image…" />;
+  if (loading) return <BlobLoading label={t('loadingImage')} />;
   if (error || !url) return <BlobError />;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={url} alt={alt} className="max-w-full h-auto mx-auto rounded-lg" />;
@@ -155,8 +158,9 @@ export const MediaPlayer: ViewerApp = ({ file }) => {
 };
 
 function VideoBlob({ contentUrl }: { contentUrl: string }) {
+  const t = useTranslations('files.viewers');
   const { url, loading, error } = useSignedBlobUrl(contentUrl);
-  if (loading) return <BlobLoading label="Loading video…" />;
+  if (loading) return <BlobLoading label={t('loadingVideo')} />;
   if (error || !url) return <BlobError />;
   return (
     <video
@@ -169,8 +173,9 @@ function VideoBlob({ contentUrl }: { contentUrl: string }) {
 }
 
 function AudioBlob({ contentUrl }: { contentUrl: string }) {
+  const t = useTranslations('files.viewers');
   const { url, loading, error } = useSignedBlobUrl(contentUrl);
-  if (loading) return <BlobLoading label="Loading audio…" />;
+  if (loading) return <BlobLoading label={t('loadingAudio')} />;
   if (error || !url) return <BlobError />;
   return (
     <div className="rounded-lg border border-border bg-muted/10 p-4">
@@ -189,8 +194,9 @@ export const PdfViewer: ViewerApp = ({ file, compact }) => {
 };
 
 function PdfBlob({ contentUrl, title, compact }: { contentUrl: string; title: string; compact?: boolean }) {
+  const t = useTranslations('files.viewers');
   const { url, loading, error } = useSignedBlobUrl(contentUrl);
-  if (loading) return <BlobLoading label="Loading PDF…" />;
+  if (loading) return <BlobLoading label={t('loadingPdf')} />;
   if (error || !url) return <BlobError />;
   return (
     <iframe
@@ -208,6 +214,7 @@ function PdfBlob({ contentUrl, title, compact }: { contentUrl: string; title: st
 // 7. Table Viewer — CSV preview
 // ---------------------------------------------------------------------------
 export const TableViewer: ViewerApp = ({ file, compact }) => {
+  const t = useTranslations('files.viewers');
   if (!file.content) return null;
   const limit = compact ? 6 : 21;
   const lines = file.content.trim().split('\n');
@@ -241,7 +248,7 @@ export const TableViewer: ViewerApp = ({ file, compact }) => {
       </table>
       {lines.length > limit && (
         <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Preview truncated to first {limit - 1} rows
+          {t('previewTruncated', { count: limit - 1 })}
         </div>
       )}
     </div>
@@ -252,14 +259,15 @@ export const TableViewer: ViewerApp = ({ file, compact }) => {
 // Download Terminal — not an app; the resolver's binary terminal (ADR-436 §1).
 // Where a future Open-With / redirect-launch (App(principal)) will surface.
 // ---------------------------------------------------------------------------
-export const DownloadTerminal: ViewerApp = ({ file }) => (
-  <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center">
-    <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
-    <p className="text-sm font-medium">Preview not available inline</p>
-    <p className="text-xs text-muted-foreground mt-1">
-      {file.content_url
-        ? 'Open or download this file to inspect it in a native viewer.'
-        : 'This file has no bytes to show yet.'}
-    </p>
-  </div>
-);
+export const DownloadTerminal: ViewerApp = ({ file }) => {
+  const t = useTranslations('files.viewers');
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center">
+      <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
+      <p className="text-sm font-medium">{t('noInlinePreview')}</p>
+      <p className="text-xs text-muted-foreground mt-1">
+        {file.content_url ? t('openExternally') : t('noBytes')}
+      </p>
+    </div>
+  );
+};

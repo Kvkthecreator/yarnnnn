@@ -104,20 +104,23 @@ export function fileLegibilityState(node: {
  * Get-Info (ADR-422 D4). Object-focused, no mechanism jargon. `authorLabel` is
  * the resolved operator-facing author name (agent-authored only); pass it so the
  * descriptor can name who.
+ *
+ * ADR-660 — module level, so it names a catalog KEY under `attribution` and the
+ * component words it.
  */
-export function legibilityDescriptor(
+export function legibilityDescriptorRef(
   state: FileLegibilityState,
   authorLabel?: string | null,
-): string | null {
+): { key: string; args?: Record<string, string> } | null {
   switch (state) {
     case 'machine-config':
-      return 'The system reads this to run your workspace. Tune it in Settings — don’t move or rename it.';
+      return { key: 'legibility.machineConfig' };
     case 'raw-intake':
-      return 'A record of something that came into your workspace, kept exactly as it arrived. It doesn’t change.';
+      return { key: 'legibility.rawIntake' };
     case 'agent-authored':
       return authorLabel
-        ? `Authored by ${authorLabel}. You own it — to change it, ask in chat.`
-        : 'Authored by an agent. You own it — to change it, ask in chat.';
+        ? { key: 'legibility.agentAuthoredBy', args: { author: authorLabel } }
+        : { key: 'legibility.agentAuthored' };
     case 'operator':
       return null;
   }

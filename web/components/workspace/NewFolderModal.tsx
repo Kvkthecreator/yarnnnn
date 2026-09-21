@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
@@ -75,6 +76,7 @@ interface NewFolderModalProps {
 }
 
 export function NewFolderModal({ open, onClose, onSubmit, destinationName }: NewFolderModalProps) {
+  const t = useTranslations('files.newFolder');
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -119,11 +121,13 @@ export function NewFolderModal({ open, onClose, onSubmit, destinationName }: New
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 className="text-base font-semibold text-card-foreground">New folder</h3>
+          <h3 className="text-base font-semibold text-card-foreground">{t('title')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             {destinationName
-              ? <>It will be created inside <span className="font-medium text-foreground/80">{destinationName}</span>.</>
-              : 'A folder for your work — it sits alongside Documents and Downloads.'}
+              ? t.rich('insideDestination', {
+                  name: () => <span className="font-medium text-foreground/80">{destinationName}</span>,
+                })
+              : t('topLevel')}
           </p>
           <input
             ref={inputRef}
@@ -133,26 +137,26 @@ export function NewFolderModal({ open, onClose, onSubmit, destinationName }: New
               if (isSubmitKey(e, { allowShift: true })) submit();
               if (e.key === 'Escape') onClose();
             }}
-            placeholder="e.g. The Acme Deal"
+            placeholder={t('placeholder')}
             className={cn(
               'mt-3 w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors',
               hasSlash ? 'border-destructive focus:border-destructive' : 'border-border focus:border-primary',
             )}
-            aria-label="Folder name"
+            aria-label={t('field')}
           />
           {hasSlash && (
             <p className="mt-1.5 text-xs text-destructive">
-              A folder name can’t contain “/”.
+              {t('slash')}
             </p>
           )}
           {!hasSlash && emptyKey && (
             <p className="mt-1.5 text-xs text-destructive">
-              That name has no letters or numbers to build a folder from.
+              {t('emptyKey')}
             </p>
           )}
           {!hasSlash && showsKey && (
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Saved as <span className="font-mono text-foreground/80">{folderKey}</span>
+              {t.rich('savedAs', { key: () => <span className="font-mono text-foreground/80">{folderKey}</span> })}
             </p>
           )}
           <div className="mt-5 flex justify-end gap-2">
@@ -161,7 +165,7 @@ export function NewFolderModal({ open, onClose, onSubmit, destinationName }: New
               onClick={dismissModal(onClose)}
               className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="button"
@@ -174,7 +178,7 @@ export function NewFolderModal({ open, onClose, onSubmit, destinationName }: New
                   : 'cursor-not-allowed bg-muted text-muted-foreground',
               )}
             >
-              Create
+              {t('submit')}
             </button>
           </div>
         </div>

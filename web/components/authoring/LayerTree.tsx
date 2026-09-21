@@ -56,6 +56,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ChevronDown, ChevronRight, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 import { readMeasure } from './artifactOps';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
@@ -155,7 +156,10 @@ export function readLayerTree(html: string, labelFor: (kind: string) => string):
     layers.sort((a, b) => (b.z ?? -1) - (a.z ?? -1));
     return {
       index,
-      name: board.getAttribute('data-title') || `Artboard ${index + 1}`,
+      // ADR-660 — the board's OWN title, or EMPTY. This builder runs outside
+      // React, before any member's language is known, so the positional
+      // fallback ("Artboard 2") is worded at render.
+      name: board.getAttribute('data-title') || '',
       w: Math.round(stage.width),
       h: Math.round(stage.height),
       layers,
@@ -205,6 +209,7 @@ export function LayerTree({
   onRestack,
   onToggleToken,
 }: LayerTreeProps) {
+  const t = useTranslations('studio.layerTree');
   const boards = useMemo(() => readLayerTree(html, labelFor), [html, labelFor]);
   // Collapsed artboards, by index. Every board starts OPEN: a compositor's
   // rail shows the stack, and a member who opens a one-artboard file to a
@@ -278,9 +283,9 @@ export function LayerTree({
     return (
       <div className="flex h-full w-full flex-col p-2">
         <p className="px-1 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Layers
+          {t('layers')}
         </p>
-        <p className="px-1 text-xs text-muted-foreground">No artboards yet.</p>
+        <p className="px-1 text-xs text-muted-foreground">{t('noArtboards')}</p>
       </div>
     );
   }
@@ -289,11 +294,13 @@ export function LayerTree({
     <div className="flex h-full w-full flex-col overflow-y-auto p-2">
       <div className="flex items-center justify-between gap-2 px-1 pb-2 pt-1">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          Layers
+          {t('layers')}
         </p>
       </div>
       <ul className="flex flex-col gap-0.5">
         {boards.map((board) => {
+          // The board's own `data-title`, or the worded positional fallback.
+          const boardName = board.name || t('artboardN', { n: board.index + 1 });
           const isOpen = !collapsed.has(board.index);
           const boardSelected = selectedArtboard === board.index && !selectedBlockId;
           return (
@@ -307,7 +314,11 @@ export function LayerTree({
               >
                 <button
                   type="button"
-                  aria-label={isOpen ? `Collapse ${board.name}` : `Expand ${board.name}`}
+                  aria-label={
+                    isOpen
+                      ? t('collapseBoard', { name: boardName })
+                      : t('expandBoard', { name: boardName })
+                  }
                   className="shrink-0 rounded p-0.5 hover:bg-background/60"
                   onClick={() => toggleCollapse(board.index)}
                 >
@@ -322,7 +333,7 @@ export function LayerTree({
                   className="flex min-w-0 flex-1 items-baseline gap-1.5 text-left"
                   onClick={() => onSelectArtboard(board.index)}
                 >
-                  <span className="truncate font-medium">{board.name}</span>
+                  <span className="truncate font-medium">{boardName}</span>
                   {board.w > 0 && board.h > 0 && (
                     <span className="shrink-0 text-[10px] text-muted-foreground">
                       {board.w}×{board.h}
@@ -334,7 +345,7 @@ export function LayerTree({
                 <ul className="ml-4 flex flex-col gap-0.5 border-l border-border pl-1.5">
                   {board.layers.length === 0 && (
                     <li className="px-1.5 py-1 text-[11px] text-muted-foreground">
-                      No layers yet.
+                      {t('noLayers')}
                     </li>
                   )}
                   {board.layers.map((layer, i) => {
@@ -387,7 +398,11 @@ export function LayerTree({
                               puts them here. */}
                           <button
                             type="button"
-                            aria-label={layer.hidden ? `Show ${layer.name}` : `Hide ${layer.name}`}
+                            aria-label={
+                              layer.hidden
+                                ? t('showLayer', { name: layer.name })
+                                : t('hideLayer', { name: layer.name })
+                            }
                             className={`shrink-0 rounded p-0.5 hover:bg-background/60 ${
                               layer.hidden ? '' : 'opacity-0 group-hover:opacity-100'
                             }`}
@@ -403,7 +418,11 @@ export function LayerTree({
                           </button>
                           <button
                             type="button"
-                            aria-label={layer.locked ? `Unlock ${layer.name}` : `Lock ${layer.name}`}
+                            aria-label={
+                              layer.locked
+                                ? t('unlockLayer', { name: layer.name })
+                                : t('lockLayer', { name: layer.name })
+                            }
                             className={`shrink-0 rounded p-0.5 hover:bg-background/60 ${
                               layer.locked ? '' : 'opacity-0 group-hover:opacity-100'
                             }`}

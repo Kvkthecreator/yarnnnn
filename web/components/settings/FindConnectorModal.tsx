@@ -59,6 +59,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { Loader2, Search, ArrowLeft, X, ExternalLink, ShieldQuestion } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
@@ -83,13 +84,6 @@ interface FindConnectorModalProps {
 }
 
 type Step = 'browse' | 'confirm' | 'curated';
-
-/** ADR-657 D4 — the sentence the open lane owes the member before an attach.
- *  It is the one thing the paste box could never say, and its absence is what
- *  made the box "way too generic": the same keystroke served a dumb peripheral
- *  and a competing commons, with nothing between them. */
-const OPEN_LANE_CAVEAT =
-  'yarnnn has not examined this server. We cannot tell you what it does with what you send it, or whether your work will accumulate on its side instead of here.';
 
 /** The address a curated entry will eventually have, with the member's hole
  *  removed so it parses. A curated entry carries a `url_shape`
@@ -120,6 +114,7 @@ export function FindConnectorModal({
   redirectTo,
   onAttached,
 }: FindConnectorModalProps) {
+  const t = useTranslations('billing.finder');
   const [step, setStep] = useState<Step>('browse');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<DirectoryEntry[]>([]);
@@ -261,7 +256,7 @@ export function FindConnectorModal({
         if (!cancelled) setResults(res.results);
       } catch (e) {
         if (!cancelled) {
-          setListError(e instanceof Error ? e.message : 'Could not search the directory.');
+          setListError(e instanceof Error ? e.message : t('searchError'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -271,7 +266,7 @@ export function FindConnectorModal({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [query, open, step]);
+  }, [query, open, step, t]);
 
   const pick = (entry: DirectoryEntry) => {
     setPicked(entry);
@@ -309,8 +304,11 @@ export function FindConnectorModal({
     } catch (e) {
       setConnectError(
         e instanceof APIError
-          ? `${displayName} could not be reached — ${(e.data as { detail?: string })?.detail ?? 'try again.'}`
-          : `${displayName} could not be reached — try again.`,
+          ? t('connectFailedDetail', {
+              name: displayName,
+              detail: (e.data as { detail?: string })?.detail ?? t('tryAgain'),
+            })
+          : t('connectFailed', { name: displayName }),
       );
       setConnecting(null);
     }
@@ -335,12 +333,14 @@ export function FindConnectorModal({
             redirect_to: redirectTo,
           }),
         {
-          pending: `Connecting to ${entry.title}…`,
-          success: (r) => (r.authorization_url ? '' : `Connected to ${entry.title}`),
+          pending: t('attachPending', { name: entry.title }),
+          success: (r) =>
+            r.authorization_url ? '' : t('attachSuccess', { name: entry.title }),
           error: (e) =>
             e instanceof APIError
-              ? (e.data as { detail?: string })?.detail || `Couldn't connect to ${entry.title}`
-              : `Couldn't connect to ${entry.title}`,
+              ? (e.data as { detail?: string })?.detail ||
+                t('attachError', { name: entry.title })
+              : t('attachError', { name: entry.title }),
         },
       );
       if (res.authorization_url) {
@@ -350,7 +350,7 @@ export function FindConnectorModal({
       onAttached(res.slug);
       onClose();
     } catch (e) {
-      setPickError(e instanceof Error ? e.message : 'Could not attach that server.');
+      setPickError(e instanceof Error ? e.message : t('attachFailed'));
     } finally {
       setAttaching(false);
     }
@@ -379,14 +379,21 @@ export function FindConnectorModal({
             redirect_to: redirectTo,
           }),
         {
-          pending: `Connecting to ${picked.title ?? 'the server'}\u2026`,
+          pending: picked.title
+            ? t('attachPending', { name: picked.title })
+            : t('attachPendingServer'),
           // A redirect leaves the page, so the arrival is the receipt there;
           // the quiet success line is for the attach that finishes here.
-          success: (r) => (r.authorization_url ? '' : `Connected to ${picked.title ?? 'the server'}`),
+          success: (r) =>
+            r.authorization_url
+              ? ''
+              : picked.title
+                ? t('attachSuccess', { name: picked.title })
+                : t('attachSuccessServer'),
           error: (e) =>
             e instanceof APIError
-              ? (e.data as { detail?: string })?.detail || "Couldn't connect to that server"
-              : "Couldn't connect to that server",
+              ? (e.data as { detail?: string })?.detail || t('attachErrorServer')
+              : t('attachErrorServer'),
         },
       );
       if (res.authorization_url) {
@@ -396,7 +403,7 @@ export function FindConnectorModal({
       onAttached(res.slug);
       onClose();
     } catch (e) {
-      setPickError(e instanceof Error ? e.message : 'Could not attach that server.');
+      setPickError(e instanceof Error ? e.message : t('attachFailed'));
     } finally {
       setAttaching(false);
     }
@@ -422,7 +429,7 @@ export function FindConnectorModal({
           className="pointer-events-auto flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border bg-card shadow-xl animate-in fade-in zoom-in-95 duration-150"
           role="dialog"
           aria-modal="true"
-          aria-label="Find a connector"
+          aria-label={t('dialogLabel')}
         >
           {/* ── header ─────────────────────────────────────────────────── */}
           <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -434,7 +441,7 @@ export function FindConnectorModal({
                   setPickError(null);
                 }}
                 className="rounded-md p-1 text-muted-foreground hover:bg-muted"
-                aria-label="Back to search"
+                aria-label={t('back')}
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
@@ -454,16 +461,16 @@ export function FindConnectorModal({
             ) : null}
             <h2 className="flex-1 text-sm font-semibold text-card-foreground">
               {step === 'browse'
-                ? 'Find a connector'
+                ? t('title')
                 : step === 'curated'
-                  ? (pickedCurated?.title ?? 'Connect')
-                  : (picked?.title ?? 'Connect')}
+                  ? (pickedCurated?.title ?? t('connectFallback'))
+                  : (picked?.title ?? t('connectFallback'))}
             </h2>
             <button
               type="button"
               onClick={onClose}
               className="rounded-md p-1 text-muted-foreground hover:bg-muted"
-              aria-label="Close"
+              aria-label={t('close')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -476,9 +483,7 @@ export function FindConnectorModal({
                   {/* The per-tool aperture sentence is an MCP fact — a
                       first-party connector has kernel consumers, not a tool
                       list — so it is now scoped to the servers it describes. */}
-                  yarnnn&apos;s own connectors, a few it has set up, the public directory,
-                  or any server you know. You sign in to each one yourself; for a server,
-                  nothing is used in a chat until you choose which of its tools may run.
+                  {t('lead')}
                 </p>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -487,7 +492,7 @@ export function FindConnectorModal({
                     type="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search — e.g. linear, hubspot, snowflake, docs"
+                    placeholder={t('searchPlaceholder')}
                     className="w-full rounded-md border border-border bg-background py-2 pl-8 pr-3 text-sm"
                   />
                 </div>
@@ -516,7 +521,7 @@ export function FindConnectorModal({
                 {firstParty.length > 0 && (
                   <div className="mb-3 space-y-1">
                     <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                      yarnnn connectors
+                      {t('firstPartyHeading')}
                     </p>
                     {connectError && (
                       <p role="alert" className="px-1 text-[11px] text-destructive">
@@ -539,7 +544,7 @@ export function FindConnectorModal({
                           </div>
                         </div>
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {connecting === meta.provider ? 'Connecting…' : 'Connect'}
+                          {connecting === meta.provider ? t('connecting') : t('connect')}
                         </span>
                       </button>
                     ))}
@@ -548,7 +553,7 @@ export function FindConnectorModal({
                 {curated.length > 0 && !query.trim() && (
                   <div className="mb-3 space-y-1">
                     <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                      Set up by yarnnn
+                      {t('curatedHeading')}
                     </p>
                     {curated.map((entry) => (
                       <button
@@ -579,16 +584,16 @@ export function FindConnectorModal({
                             {entry.description}
                           </div>
                         </div>
-                        <span className="shrink-0 text-xs text-muted-foreground">Set up</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{t('setUp')}</span>
                       </button>
                     ))}
                     <p className="px-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                      From the public directory
+                      {t('directoryHeading')}
                     </p>
                   </div>
                 )}
                 {loading && results.length === 0 ? (
-                  <Working label="Searching…" className="py-2 text-xs" />
+                  <Working label={t('searching')} className="py-2 text-xs" />
                 ) : (
                   results.map((entry) => {
                     const already = attachedUrls.has(entry.url);
@@ -618,11 +623,13 @@ export function FindConnectorModal({
                               className="text-[10px] uppercase tracking-wider text-muted-foreground"
                               title={
                                 entry.source === 'official-plugins'
-                                  ? "An endpoint Anthropic's knowledge-work plugins name"
-                                  : 'Listed in the public MCP registry'
+                                  ? t('sourceOfficialTitle')
+                                  : t('sourceRegistryTitle')
                               }
                             >
-                              {entry.source === 'official-plugins' ? 'official' : 'registry'}
+                              {entry.source === 'official-plugins'
+                                ? t('sourceOfficial')
+                                : t('sourceRegistry')}
                             </span>
                           </div>
                           <div className="truncate text-xs text-muted-foreground">
@@ -630,7 +637,7 @@ export function FindConnectorModal({
                           </div>
                         </div>
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          {already ? 'Attached' : 'Connect'}
+                          {already ? t('attached') : t('connect')}
                         </span>
                       </button>
                     );
@@ -641,7 +648,7 @@ export function FindConnectorModal({
                     would sit under a line saying it found nothing. */}
                 {!loading && query.trim() && results.length === 0 && firstParty.length === 0 && (
                   <p className="py-2 text-xs text-muted-foreground">
-                    Nothing matched. Paste the server&apos;s URL below.
+                    {t('nothingMatched')}
                   </p>
                 )}
               </div>
@@ -658,10 +665,16 @@ export function FindConnectorModal({
                   <ShieldQuestion className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <div className="space-y-0.5">
                     <p className="text-xs font-medium text-foreground/80">
-                      Or attach any other server
+                      {t('openLaneTitle')}
                     </p>
+                    {/* ADR-657 D4 — the sentence the open lane owes the member
+                        before an attach. It is the one thing the paste box
+                        could never say, and its absence is what made the box
+                        "way too generic": the same keystroke served a dumb
+                        peripheral and a competing commons. */}
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      {OPEN_LANE_CAVEAT} You still choose, tool by tool, what may run.
+                      {t('openLaneCaveat')}
+                      {t('openLaneTail')}
                     </p>
                   </div>
                 </div>
@@ -676,7 +689,7 @@ export function FindConnectorModal({
                     type="url"
                     value={pasteUrl}
                     onChange={(e) => setPasteUrl(e.target.value)}
-                    placeholder="https://…"
+                    placeholder={t('urlPlaceholder')}
                     className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                   />
                   <button
@@ -684,7 +697,7 @@ export function FindConnectorModal({
                     disabled={!pasteValid}
                     className="shrink-0 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
                   >
-                    Connect
+                    {t('connect')}
                   </button>
                 </form>
               </div>
@@ -734,7 +747,7 @@ export function FindConnectorModal({
               {pickedCurated.credential_steps.length > 0 && (
                 <div className="mt-4 space-y-1">
                   <p className="text-[11px] font-medium text-muted-foreground">
-                    Where the key comes from
+                    {t('credentialHeading')}
                   </p>
                   <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-relaxed text-muted-foreground">
                     {pickedCurated.credential_steps.map((s) => (
@@ -748,7 +761,7 @@ export function FindConnectorModal({
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                     >
-                      {pickedCurated.title}&apos;s own instructions
+                      {t('ownInstructions', { name: pickedCurated.title })}
                       <ExternalLink className="h-3 w-3" />
                     </a>
                   )}
@@ -763,7 +776,7 @@ export function FindConnectorModal({
                   <input
                     value={headerValue}
                     onChange={(e) => setHeaderValue(e.target.value)}
-                    placeholder="Paste the token"
+                    placeholder={t('tokenPlaceholder')}
                     type="password"
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                   />
@@ -787,7 +800,7 @@ export function FindConnectorModal({
               )}
 
               <p className="mt-3 text-[11px] text-muted-foreground/70">
-                Last checked by yarnnn on {pickedCurated.reviewed_at}.
+                {t('lastChecked', { date: pickedCurated.reviewed_at })}
               </p>
 
               <div className="mt-5 flex justify-end gap-2">
@@ -799,7 +812,7 @@ export function FindConnectorModal({
                   }}
                   className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
                 >
-                  Back
+                  {t('backButton')}
                 </button>
                 <button
                   type="button"
@@ -808,7 +821,7 @@ export function FindConnectorModal({
                   className="inline-flex items-center gap-2 rounded-md border border-border bg-foreground px-3 py-1.5 text-xs text-background hover:opacity-90 disabled:opacity-50"
                 >
                   {attaching && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Continue
+                  {t('continue')}
                 </button>
               </div>
             </div>
@@ -842,15 +855,14 @@ export function FindConnectorModal({
                     htmlFor="connector-category"
                     className="text-[11px] font-medium text-muted-foreground"
                   >
-                    What kind of server is this? (optional — lets skills written
-                    for this kind of work be offered in chat)
+                    {t('categoryLabel')}
                   </label>
                   <input
                     id="connector-category"
                     list="connector-category-options"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    placeholder="Media generation"
+                    placeholder={t('categoryPlaceholder')}
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                   />
                   <datalist id="connector-category-options">
@@ -862,9 +874,9 @@ export function FindConnectorModal({
               )}
 
               <p className="mt-3 text-xs text-muted-foreground">
-                You&apos;ll sign in at {picked?.title} if it asks. yarnnn keeps the
-                sign-in under your account and nothing else. No tool is used in a chat
-                until you choose, tool by tool, on the next screen.
+                {picked?.title
+                  ? t('confirmNote', { name: picked.title })
+                  : t('confirmNoteServer')}
               </p>
 
               {pickError && (
@@ -880,26 +892,26 @@ export function FindConnectorModal({
                 onClick={() => setAdvanced((v) => !v)}
                 className="mt-4 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
               >
-                {advanced ? 'Hide' : 'This server needs an API key or my own app credentials'}
+                {advanced ? t('advancedHide') : t('advancedShow')}
               </button>
 
               {advanced && (
                 <div className="mt-3 space-y-3">
                   <div className="space-y-1">
                     <label className="text-[11px] font-medium text-muted-foreground">
-                      API key header (for servers that authenticate with a key)
+                      {t('headerLabel')}
                     </label>
                     <div className="flex gap-2">
                       <input
                         value={headerName}
                         onChange={(e) => setHeaderName(e.target.value)}
-                        placeholder="Authorization"
+                        placeholder={t('headerNamePlaceholder')}
                         className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                       />
                       <input
                         value={headerValue}
                         onChange={(e) => setHeaderValue(e.target.value)}
-                        placeholder="Bearer …"
+                        placeholder={t('headerValuePlaceholder')}
                         type="password"
                         className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                       />
@@ -907,26 +919,25 @@ export function FindConnectorModal({
                   </div>
                   <div className="space-y-1">
                     <label className="text-[11px] font-medium text-muted-foreground">
-                      OAuth client (only if you registered yarnnn as an app there)
+                      {t('oauthLabel')}
                     </label>
                     <div className="flex gap-2">
                       <input
                         value={clientId}
                         onChange={(e) => setClientId(e.target.value)}
-                        placeholder="Client ID"
+                        placeholder={t('clientIdPlaceholder')}
                         className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                       />
                       <input
                         value={clientSecret}
                         onChange={(e) => setClientSecret(e.target.value)}
-                        placeholder="Client secret (optional)"
+                        placeholder={t('clientSecretPlaceholder')}
                         type="password"
                         className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                       />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Most servers need none of this — yarnnn registers itself
-                      automatically, and asks the server directly when it can&apos;t.
+                      {t('oauthNote')}
                     </p>
                   </div>
                 </div>
@@ -941,7 +952,7 @@ export function FindConnectorModal({
                   }}
                   className="rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
                 >
-                  Back
+                  {t('backButton')}
                 </button>
                 <button
                   type="button"
@@ -950,7 +961,7 @@ export function FindConnectorModal({
                   className="inline-flex items-center gap-2 rounded-md border border-border bg-foreground px-3 py-1.5 text-xs text-background hover:opacity-90 disabled:opacity-50"
                 >
                   {attaching && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Continue
+                  {t('continue')}
                 </button>
               </div>
             </div>

@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,7 @@ export function InteractiveModal({
   children,
   widthClass = 'max-w-md',
 }: InteractiveModalProps) {
+  const t = useTranslations('supervisor.modal');
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose();
   }, [onClose]);
@@ -79,7 +81,7 @@ export function InteractiveModal({
             type="button"
             onClick={onClose}
             className="ml-3 shrink-0 p-1 text-muted-foreground/50 hover:text-foreground rounded-md hover:bg-muted/50 transition-colors"
-            aria-label="Close"
+            aria-label={t('close')}
           >
             <X className="h-4 w-4" />
           </button>

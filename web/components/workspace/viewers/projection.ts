@@ -41,6 +41,7 @@ import { api } from '@/lib/api/client';
 import {
   frameNoun,
   labelForElement,
+  type StructureWords,
   labelForJS,
   STRUCTURAL_PAGE_SEL,
   type ObjectModel,
@@ -4691,6 +4692,12 @@ export async function resolveArtifactHtml(
      *  registry served. Omitted → labels degrade to the raw kind, which is the
      *  pre-544 behaviour and visibly wrong rather than silently plausible. */
     blockLabels?: Record<string, string>;
+    /** ADR-660 — the structural vocabulary, RESOLVED by the caller (the pane
+     *  reads the catalog; this module and the sandboxed runtime cannot). Same
+     *  contract as `blockLabels` directly above: the runtime must never invent
+     *  an operator-facing word, so the parent passes what it resolved. Omitted
+     *  → the ladder's English fallback. */
+    structureWords?: StructureWords;
     /** ADR-633 D2/D3 — the APP's declared property model. The runtime labels a
      *  `section.slide` with the app's word ("Artboard" on IMAGES), never the
      *  class's, so the in-canvas frame label and the pane's crumb say the same
@@ -4782,7 +4789,10 @@ export async function resolveArtifactHtml(
       // ever labels DIVs (the predicate above), so the frame rung is
       // unreachable here today; it is passed anyway because a ladder called
       // with a partial context is how one site comes to disagree with the rest.
-      el.setAttribute('data-yarnnn-label', labelForElement(el, null, null, opts?.objectModel));
+      el.setAttribute(
+        'data-yarnnn-label',
+        labelForElement(el, null, null, opts?.objectModel, opts?.structureWords),
+      );
     });
   }
   if (opts?.pointer) {
@@ -4833,7 +4843,14 @@ export async function resolveArtifactHtml(
     // globals too. One derivation, injected; nothing downstream re-derives it.
     labelData.textContent =
       `window.__yarnnnBlockLabels = ${JSON.stringify(opts?.blockLabels ?? null)};\n` +
-      `window.__yarnnnFrameNoun = ${JSON.stringify(frameNoun(opts?.objectModel))};`;
+      `window.__yarnnnFrameNoun = ${JSON.stringify(frameNoun(opts?.objectModel, opts?.structureWords))};\n` +
+      // ADR-660 — the structural words (Document · Group · Area · the four Area
+      // roles) ride the SAME channel, for the same reason the two above do: the
+      // runtime constants that inline the ladder are module-level template
+      // strings and cannot close over a per-projection value. Omitted → the
+      // ladder's English read fallback, which is what a viewer with no app in
+      // scope already gets.
+      `window.__yarnnnStructureWords = ${JSON.stringify(opts?.structureWords ?? null)};`;
     doc.body?.appendChild(labelData);
     if (opts?.edit) {
       // The edit runtime is injected FIRST so window.__yarnnnEditingId is

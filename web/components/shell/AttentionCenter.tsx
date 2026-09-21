@@ -49,7 +49,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { proposalActionLabel } from '@/lib/proposal-labels';
+import { useProposalLabels } from '@/lib/proposal-labels';
 import { formatRelativeTime, formatLedgerTime, formatAbsolute } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { shellStateSuffix } from '@/lib/shell/surface-preferences';
@@ -57,9 +57,8 @@ import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { cn } from '@/lib/utils';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
-import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
-import { resolveActorForViewer, useWorkspaceRoster } from '@/lib/workspace/viewer';
-import { actorLine } from '@/lib/workspace/timeline-rows';
+import { useActorForViewer, useWorkspaceRoster } from '@/lib/workspace/viewer';
+import { useTimelineRows } from '@/lib/workspace/timeline-rows';
 import { useAttentionRealtime } from '@/lib/realtime/use-attention-realtime';
 
 const REFRESH_INTERVAL_MS = 60_000;
@@ -144,6 +143,11 @@ function writeLastSeen(userId: string, iso: string) {
 export function AttentionCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const t = useTranslations('shell.attention');
+  // ADR-660 — the shared label layers are hooks now (they read the
+  // catalog); the grammar and the vocabulary are unchanged.
+  const { actionLabel, queuedByDialLine } = useProposalLabels();
+  const { actorLine } = useTimelineRows();
+  const resolveActorForViewer = useActorForViewer();
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
   const [mentions, setMentions] = useState<MentionRow[]>([]);
   const [activity, setActivity] = useState<PeerActivity[]>([]);
@@ -375,7 +379,7 @@ export function AttentionCenter() {
   // concept is "a trade wants my approval."
   const proposalLabel = (p: PendingProposal) => {
     const scope = p.task_slug || p.agent_slug;
-    return `${proposalActionLabel(p)}${scope ? ` · ${scope}` : ''}`;
+    return `${actionLabel(p)}${scope ? ` · ${scope}` : ''}`;
   };
 
   // ADR-410 D4 — actor-first activity lines, no internal enums: a revision
@@ -496,7 +500,7 @@ export function AttentionCenter() {
                       {p.source && (
                         <PrincipalBadge authoredBy={p.source} showLabel={false} size={11} />
                       )}
-                      {proposalQueuedByDialLine(p.source) ?? formatRelativeTime(p.created_at)}
+                      {queuedByDialLine(p.source) ?? formatRelativeTime(p.created_at)}
                     </span>
                   </button>
                 ))}

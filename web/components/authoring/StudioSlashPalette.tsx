@@ -25,6 +25,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import type { StudioVocabulary } from './StudioToolbar';
 // ONE rendered list, two mounts (this palette on flow; the native Insert menu
 // on paged). The icon map moved with it — see blockRows.tsx.
@@ -59,6 +60,8 @@ export function StudioSlashPalette({
   onClose,
   onItemsChange,
 }: StudioSlashPaletteProps) {
+  // ADR-660 — the category rail's words; `blockRows` hands over catalog keys.
+  const tStruct = useTranslations('structure');
   const rootRef = useRef<HTMLDivElement>(null);
 
   // ADR-579 D4 — the one provenance grouping (New · Add), shared with the
@@ -116,7 +119,7 @@ export function StudioSlashPalette({
           return groups.map((g) => (
             <div key={g.key}>
               <p className="px-2 pb-0.5 pt-1.5 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
-                {g.label}
+                {tStruct(g.labelKey)}
               </p>
               {g.items.map((b) => {
                 flat += 1;

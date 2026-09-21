@@ -25,7 +25,15 @@
  */
 
 import { useMemo } from 'react';
-import { frameNoun, labelForElement, STRUCTURAL_PAGE_SEL, type ObjectModel } from './structureLabels';
+import {
+  frameNoun,
+  labelForElement,
+  STRUCTURAL_PAGE_SEL,
+  type ObjectModel,
+  type StructureWords,
+} from './structureLabels';
+import { useTranslations } from 'next-intl';
+import { useStructureWords } from './structureWords';
 import type { StudioSelection } from './StudioToolbar';
 
 /** The minimal element surface the climb needs — DOM in the app, stubs in
@@ -76,9 +84,16 @@ interface CrumbSegment {
  *  "Section N" because a document's top-level section is not a frame the app
  *  gives its own noun, and the crumb is paged-only anyway (this component does
  *  not mount on flow). */
-function pageNoun(layout: string, objectModel: ObjectModel, index: number): string {
-  if (objectModel === 'layers') return `${frameNoun(objectModel)} ${index + 1}`;
-  return layout === 'deck' ? `Slide ${index + 1}` : `Section ${index + 1}`;
+function pageNoun(
+  layout: string,
+  objectModel: ObjectModel,
+  index: number,
+  words: StructureWords,
+  numbered: (noun: string, number: number) => string,
+): string {
+  if (objectModel === 'layers') return numbered(frameNoun(objectModel, words), index + 1);
+  // ADR-660 — `{noun} {number}` is one message, so the numeral can move.
+  return numbered(layout === 'deck' ? words.frameSlide : words.frameSection, index + 1);
 }
 
 /** ADR-519 D4.1 — the deepest container that encloses EVERY member of a set.
@@ -131,6 +146,12 @@ export function SelectionBreadcrumb({
   /** Select a container/block — the navigator's structure-tree path. */
   onSelectNode: (node: { blockId: string; label: string; kind: string | null }) => void;
 }) {
+  // ADR-660 — the structural vocabulary, resolved once and threaded into the
+  // one ladder (`structureLabels`), which is shared with the canvas runtime.
+  const words = useStructureWords();
+  const tStruct = useTranslations('structure');
+  const numbered = (noun: string, number: number) =>
+    tStruct('frameNumbered', { noun, number });
   const { pageIndex, segments } = useMemo((): {
     pageIndex: number | null;
     segments: CrumbSegment[];
@@ -147,7 +168,7 @@ export function SelectionBreadcrumb({
       return {
         pageIndex: selectedPageIndex,
         segments: [
-          { blockId: null, label: pageNoun(layout, objectModel, selectedPageIndex), kind: null, current: true },
+          { blockId: null, label: pageNoun(layout, objectModel, selectedPageIndex, words, numbered), kind: null, current: true },
         ],
       };
     }
@@ -164,7 +185,7 @@ export function SelectionBreadcrumb({
     const chain = climbChain(el as unknown as ClimbableElement, pageEl as unknown as ClimbableElement);
     const seg = (node: Element, current: boolean): CrumbSegment => ({
       blockId: node.getAttribute('data-block-id'),
-      label: labelForElement(node, blockLabels, null, objectModel),
+      label: labelForElement(node, blockLabels, null, objectModel, words),
       kind: node.getAttribute('data-block'),
       current,
     });
@@ -193,9 +214,9 @@ export function SelectionBreadcrumb({
         return {
           pageIndex: idx,
           segments: [
-            { blockId: null, label: pageNoun(layout, objectModel, idx), kind: null, current: false },
+            { blockId: null, label: pageNoun(layout, objectModel, idx, words, numbered), kind: null, current: false },
             ...shared.map((c) => seg(c as unknown as Element, false)),
-            { blockId: null, label: `${ids.length} objects`, kind: null, current: true },
+            { blockId: null, label: tStruct('objectCount', { count: ids.length }), kind: null, current: true },
           ],
         };
       }
@@ -204,7 +225,7 @@ export function SelectionBreadcrumb({
     return {
       pageIndex: idx,
       segments: [
-        { blockId: null, label: pageNoun(layout, objectModel, idx), kind: null, current: false },
+        { blockId: null, label: pageNoun(layout, objectModel, idx, words, numbered), kind: null, current: false },
         ...chain.map((c) => seg(c as unknown as Element, false)),
         seg(el, true),
       ],

@@ -29,6 +29,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Upload, Loader2, X, ArrowDownToLine, FileText } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
@@ -69,6 +70,7 @@ export function UploadModal({
    */
   destination?: { path: string; label: string } | null;
 }) {
+  const t = useTranslations('files.upload');
   const inputRef = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<File[]>(initialFiles ?? []);
   const [dragOver, setDragOver] = useState(false);
@@ -119,13 +121,15 @@ export function UploadModal({
       const firstOk = res.results.find((r) => r.success && r.workspace_path);
       if (res.failed > 0) {
         const firstErr = res.results.find((r) => !r.success);
-        const detail = firstErr ? `${firstErr.filename}: ${firstErr.error}` : 'some files failed';
+        const detail = firstErr
+          ? t('fileError', { filename: firstErr.filename, error: String(firstErr.error) })
+          : t('someFailed');
         if (res.succeeded > 0) {
           // Partial success — keep the modal open, report both sides. Still let
           // the surface refresh + jump to the first file that DID land.
           if (firstOk?.workspace_path) await onUploaded?.(firstOk.workspace_path);
-          setNotice(`${res.succeeded} added to Intake`);
-          setError(`${res.failed} failed (${detail})`);
+          setNotice(t('addedToIntake', { count: res.succeeded }));
+          setError(t('failedCount', { count: res.failed, detail }));
           setPicked([]);
         } else {
           setError(detail);
@@ -139,7 +143,7 @@ export function UploadModal({
         onClose();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(err instanceof Error ? err.message : t('failed'));
     } finally {
       setBusy(false);
     }
@@ -150,13 +154,13 @@ export function UploadModal({
       <div className="absolute inset-0 bg-black/50" onClick={() => !busy && onClose()} />
       <div className="relative z-10 mx-4 w-full max-w-md overflow-hidden rounded-lg border border-border bg-background shadow-lg">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-sm font-semibold">Add files</h2>
+          <h2 className="text-sm font-semibold">{t('title')}</h2>
           <button
             type="button"
             onClick={() => !busy && onClose()}
             disabled={busy}
             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-            aria-label="Close"
+            aria-label={t('close')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -173,10 +177,14 @@ export function UploadModal({
                   to read a fixed "Intake" whatever the member had dropped on,
                   which was honest only while the destination was hardcoded. */}
               <p className="font-medium text-foreground">
-                Saved to <span className="font-mono">{destination?.label ?? 'Downloads'}</span>
+                {t.rich('savedTo', {
+                  destination: () => (
+                    <span className="font-mono">{destination?.label ?? 'Downloads'}</span>
+                  ),
+                })}
               </p>
               <p className="text-muted-foreground">
-                Your agents can read these files.
+                {t('agentsCanRead')}
               </p>
             </div>
           </div>
@@ -204,10 +212,10 @@ export function UploadModal({
           >
             <Upload className="h-5 w-5 text-muted-foreground" />
             <span className="text-sm text-foreground">
-              Drop files here or <span className="font-medium underline">browse</span>
+              {t('dropHere')} <span className="font-medium underline">{t('browse')}</span>
             </span>
             <span className="text-[11px] text-muted-foreground">
-              PDF · DOCX · TXT · MD · ZIP
+              {t('formats')}
             </span>
           </button>
 
@@ -226,7 +234,7 @@ export function UploadModal({
                       type="button"
                       onClick={() => removeAt(idx)}
                       className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      aria-label={`Remove ${f.name}`}
+                      aria-label={t('remove', { name: f.name })}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -247,7 +255,7 @@ export function UploadModal({
             disabled={busy}
             className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="button"
@@ -256,7 +264,7 @@ export function UploadModal({
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-            {busy ? 'Uploading…' : picked.length > 1 ? `Upload ${picked.length}` : 'Upload'}
+            {busy ? t('uploading') : picked.length > 1 ? t('uploadCount', { count: picked.length }) : t('upload')}
           </button>
         </div>
       </div>

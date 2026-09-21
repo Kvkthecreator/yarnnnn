@@ -22,6 +22,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Hash } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useFeedback } from '@/contexts/FeedbackContext';
@@ -55,6 +56,7 @@ type Receipt = {
 };
 
 export function SendToSlack({ artifactPath, compact = false, coarsePointer = false }: SendToSlackProps) {
+  const t = useTranslations('studio.sendToSlack');
   const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<ChannelsState>({ kind: 'loading' });
   const [channelId, setChannelId] = useState<string>('');
@@ -125,12 +127,12 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
       const res = await runAction(
         () => api.publish.slack({ path: artifactPath, channel_id: channelId }),
         {
-          pending: 'Sending to Slack…',
-          success: (r) => `Sent to ${r.channel}`,
+          pending: t('sending'),
+          success: (r) => t('sentTo', { channel: r.channel }),
           error: (e) =>
             e instanceof APIError
-              ? (e.data as { detail?: string })?.detail || 'Send failed — try again.'
-              : 'Send failed — try again.',
+              ? (e.data as { detail?: string })?.detail || t('sendFailed')
+              : t('sendFailed'),
         },
       );
       setReceipt({
@@ -145,7 +147,7 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
     } finally {
       setSending(false);
     }
-  }, [artifactPath, channelId, runAction]);
+  }, [artifactPath, channelId, runAction, t]);
 
   const selected =
     channels.kind === 'ready' ? channels.channels.find((c) => c.id === channelId) : undefined;
@@ -166,28 +168,27 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
         type="button"
         className={btn}
         onClick={openPanel}
-        title="Send this file to a Slack channel — your click, your account"
-        aria-label={compact ? 'Send to Slack…' : undefined}
+        title={t('buttonHint')}
+        aria-label={compact ? t('buttonEllipsis') : undefined}
       >
         <Hash className="h-3 w-3" />
-        {!compact && ' Send to Slack…'}
+        {!compact && <span>&nbsp;{t('buttonEllipsis')}</span>}
       </button>
 
       {open && (
         <div className={panel}>
           <p className="px-1 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Send to Slack
+            {t('panelTitle')}
           </p>
           <div className="space-y-2 px-1 pb-1">
             {channels.kind === 'loading' && (
-              <p className="text-[11px] text-muted-foreground">Checking your connection…</p>
+              <p className="text-[11px] text-muted-foreground">{t('checking')}</p>
             )}
 
             {channels.kind === 'unconnected' && (
               <div className="space-y-1.5">
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  Connect Slack once, and any prose file can go to a channel —
-                  your account, your name, your click.
+                  {t('unconnected')}
                 </p>
                 {/* ADR-297 D19 — cross-surface navigation rides the window
                     manager, never a raw href (the nav gate). */}
@@ -196,23 +197,22 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
                   onClick={() => navigateToSurface('reach', { pane: 'connected' })}
                   className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 >
-                  Connect Slack →
+                  {t('connectSlack')}
                 </button>
               </div>
             )}
 
             {channels.kind === 'empty' && (
               <p className="text-[11px] leading-snug text-muted-foreground">
-                Your Slack connection sees no channels yet. Create one in Slack, or
-                invite the yarnnn app to an existing one, and try again.
+                {t('noChannels')}
               </p>
             )}
 
             {channels.kind === 'error' && (
               <p className="text-[11px] text-muted-foreground">
-                Slack did not answer.{' '}
+                {t('noAnswer')}{' '}
                 <button type="button" className="underline" onClick={() => void loadChannels()}>
-                  Retry
+                  {t('retry')}
                 </button>
               </p>
             )}
@@ -220,7 +220,7 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
             {channels.kind === 'ready' && !receipt && (
               <>
                 <label className="block text-[10px] text-muted-foreground">
-                  Channel
+                  {t('channel')}
                   <select
                     value={channelId}
                     onChange={(e) => setChannelId(e.target.value)}
@@ -230,15 +230,16 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
                       <option key={c.id} value={c.id}>
                         {c.is_private ? '🔒 ' : '#'}
                         {c.name}
-                        {c.is_private && !c.is_member ? ' — invite the app first' : ''}
+                        {c.is_private && !c.is_member ? t('inviteFirstSuffix') : ''}
                       </option>
                     ))}
                   </select>
                 </label>
                 {needsInvite && (
                   <p className="text-[10px] leading-snug text-amber-600">
-                    The yarnnn app isn’t in this private channel yet. Run{' '}
-                    <code className="rounded bg-muted px-1">/invite @yarnnn</code> there, then send.
+                    {t.rich('needsInvite', {
+                      cmd: (chunks) => <code className="rounded bg-muted px-1">{chunks}</code>,
+                    })}
                   </p>
                 )}
                 <div className="flex flex-wrap gap-1">
@@ -247,22 +248,26 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
                     className={actBtn}
                     disabled={sending || !channelId || needsInvite}
                     onClick={() => void run()}
-                    title="Send now — the file's text is posted to the channel as one message"
+                    title={t('sendNowHint')}
                   >
-                    {sending ? 'Sending…' : `Send to ${selected?.name ? `#${selected.name}` : 'channel'}`}
+                    {sending
+                      ? t('sendingShort')
+                      : selected?.name
+                        ? t('sendToChannel', { channel: `#${selected.name}` })
+                        : t('sendToUnnamedChannel')}
                   </button>
                 </div>
                 <p className="text-[10px] leading-snug text-muted-foreground">
-                  Sent under your own account, then read back to check it landed as
-                  written. The receipt lands beside the file; nothing here ever sends
-                  on a schedule.
+                  {t('accountNote')}
                 </p>
               </>
             )}
 
             {receipt && (
               <div className="space-y-1">
-                <p className="text-[11px] text-foreground">Sent to {receipt.channel} ✓</p>
+                <p className="text-[11px] text-foreground">
+                  {t('receiptSent', { channel: receipt.channel })}
+                </p>
                 {receipt.url && (
                   <a
                     href={receipt.url}
@@ -270,29 +275,32 @@ export function SendToSlack({ artifactPath, compact = false, coarsePointer = fal
                     rel="noreferrer"
                     className="block truncate text-[10px] text-muted-foreground underline hover:text-foreground"
                   >
-                    Open in Slack
+                    {t('openInSlack')}
                   </a>
                 )}
                 {/* ADR-628 D8 — the read-back verdict. Never a silent "sent". */}
                 {receipt.readBack === 'matched' && (
                   <p className="text-[10px] leading-snug text-muted-foreground">
-                    Read back from Slack: it matches what was sent.
+                    {t('readBackMatched')}
                   </p>
                 )}
                 {receipt.readBack === 'differs' && (
                   <p className="text-[10px] leading-snug text-amber-600">
-                    Read back from Slack: stored differently than sent
-                    {receipt.readBackDetail ? ` (${receipt.readBackDetail})` : ''}. Open it and check.
+                    {receipt.readBackDetail
+                      ? t('readBackDiffersDetail', { detail: receipt.readBackDetail })
+                      : t('readBackDiffers')}
                   </p>
                 )}
                 {receipt.readBack === 'unreadable' && (
                   <p className="text-[10px] leading-snug text-amber-600">
-                    Could not read it back from Slack{receipt.readBackDetail ? ` — ${receipt.readBackDetail}` : ''}. Open it and check.
+                    {receipt.readBackDetail
+                      ? t('readBackUnreadableDetail', { detail: receipt.readBackDetail })
+                      : t('readBackUnreadable')}
                   </p>
                 )}
                 {receipt.folded && (
                   <p className="text-[10px] leading-snug text-muted-foreground">
-                    Long — readers will see “Show more”.
+                    {t('folded')}
                   </p>
                 )}
               </div>

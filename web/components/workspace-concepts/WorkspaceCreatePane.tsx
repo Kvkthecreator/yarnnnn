@@ -27,11 +27,13 @@
 
 import { useState } from "react";
 import { Loader2, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { api, setActiveWorkspace } from "@/lib/api/client";
 import { isSubmitKey } from '@/lib/shell/submit-key';
 
 export function WorkspaceCreatePane() {
+  const t = useTranslations("workspaceSettings.create");
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export function WorkspaceCreatePane() {
     } catch (e) {
       // Stay on the pane and keep the typed name — the workspace was not
       // created, so there is nothing to bind to.
-      setError(e instanceof Error ? e.message : "Couldn't create the workspace");
+      setError(e instanceof Error ? e.message : t("failed"));
       setCreating(false);
     }
   };
@@ -64,10 +66,8 @@ export function WorkspaceCreatePane() {
       <div className="flex items-start gap-3 mb-1">
         <Plus className="w-5 h-5 mt-0.5 text-muted-foreground shrink-0" />
         <div>
-          <h2 className="text-xl font-semibold">Create a workspace</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            A separate commons with its own files, members, and billing.
-          </p>
+          <h2 className="text-xl font-semibold">{t("title")}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{t("subtitle")}</p>
         </div>
       </div>
 
@@ -76,7 +76,7 @@ export function WorkspaceCreatePane() {
           htmlFor="new-workspace-name"
           className="block text-sm font-medium mb-1.5"
         >
-          Workspace name
+          {t("nameLabel")}
         </label>
         <input
           id="new-workspace-name"
@@ -84,17 +84,14 @@ export function WorkspaceCreatePane() {
           value={name}
           maxLength={80}
           disabled={creating}
-          placeholder="e.g. Acme Research"
+          placeholder={t("namePlaceholder")}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
             if (isSubmitKey(e, { allowShift: true })) handleCreate();
           }}
           className="w-full px-3 py-2 rounded-lg border bg-background text-sm disabled:opacity-60"
         />
-        <p className="text-xs text-muted-foreground mt-1.5">
-          You can rename it later in General. You&rsquo;ll be switched into the
-          new workspace.
-        </p>
+        <p className="text-xs text-muted-foreground mt-1.5">{t("nameHint")}</p>
       </div>
 
       {/* The honest consequence, stated before the act (ADR-529's rule: a
@@ -102,9 +99,7 @@ export function WorkspaceCreatePane() {
           ADR-378's ceiling — and each carries its own balance (ADR-416). */}
       <div className="mt-5 rounded-lg border bg-muted/40 px-3.5 py-3">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Workspaces are fully separate. Files, members, and history don&rsquo;t
-          carry over, and the new workspace has its own balance — it starts
-          empty and unfunded.
+          {t("consequence")}
         </p>
       </div>
 
@@ -121,7 +116,7 @@ export function WorkspaceCreatePane() {
         className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
       >
         {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-        {creating ? "Creating…" : "Create workspace"}
+        {creating ? t("creating") : t("submit")}
       </button>
     </div>
   );

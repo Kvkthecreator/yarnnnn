@@ -24,6 +24,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useFeedback } from "@/contexts/FeedbackContext";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
@@ -99,6 +100,7 @@ const TIER_ORDER: SubscriptionTier[] = ["free", "starter"];
 export function SubscriptionCard({ workspaceName }: { workspaceName?: string | null }) {
   // Transient-surfacing streamline 2026-08-22: a money-visible act gets the
   // styled danger gate, not the browser's unstyled window.confirm.
+  const t = useTranslations("billing.subscription");
   const { confirm: confirmDialog } = useFeedback();
   const {
     status,
@@ -246,19 +248,17 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             fact this state exists to deliver, not a restatement of the header. */}
         <CardHeader>
           <CardDescription>
-            {workspaceName ? (
-              <>Billing for <span className="font-medium text-foreground">{workspaceName}</span> is managed by the workspace owner.</>
-            ) : (
-              <>Billing for this workspace is managed by the workspace owner.</>
-            )}
+            {workspaceName
+              ? t.rich("memberBillingNamed", {
+                  name: () => (
+                    <span className="font-medium text-foreground">{workspaceName}</span>
+                  ),
+                })
+              : t("memberBilling")}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            You draw the workspace&rsquo;s shared usage pool — see the Usage pane
-            for what has been used and by whom. Plan changes, seats, and top-ups
-            are the owner&rsquo;s verbs.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("memberBody")}</p>
         </CardContent>
       </Card>
     );
@@ -283,8 +283,11 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
       {workspaceName && (
         <CardHeader>
           <CardDescription>
-            For <span className="font-medium text-foreground">{workspaceName}</span> — switch
-            workspaces from the avatar menu to manage another.
+            {t.rich("forWorkspace", {
+              name: () => (
+                <span className="font-medium text-foreground">{workspaceName}</span>
+              ),
+            })}
           </CardDescription>
         </CardHeader>
       )}
@@ -304,22 +307,20 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             billing is right; silent best-effort is not. */}
         {seatSyncIssue && (
           <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm space-y-1">
-            <p className="font-medium text-foreground">
-              We couldn&rsquo;t update your seat count with the payment provider.
-            </p>
+            <p className="font-medium text-foreground">{t("seatSyncTitle")}</p>
             <p className="text-muted-foreground">
-              Your workspace has{" "}
               {seatSyncIssue.human_seats !== null
-                ? `${seatSyncIssue.human_seats} ${seatSyncIssue.human_seats === 1 ? "person" : "people"}`
-                : "a new headcount"}
-              , but the subscription still bills the old count, so your next
-              invoice may be wrong. Nothing here is lost — open Payment method
-              &amp; invoices to check, or contact support and we&rsquo;ll correct it.
-              {seatSyncIssue.at && (
-                <> (Last attempt {new Date(seatSyncIssue.at).toLocaleString([], {
-                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-                })}.)</>
-              )}
+                ? t("seatSyncBodyKnown", { count: seatSyncIssue.human_seats })
+                : t("seatSyncBodyUnknown")}
+              {seatSyncIssue.at &&
+                t("seatSyncLastAttempt", {
+                  when: new Date(seatSyncIssue.at).toLocaleString([], {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  }),
+                })}
             </p>
           </div>
         )}
@@ -332,24 +333,29 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             never sent would be worse than saying nothing. */}
         {undeliveredTopup && (
           <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-sm space-y-1">
-            <p className="font-medium text-foreground">
-              A recent top-up hasn&rsquo;t been added to your balance.
-            </p>
+            <p className="font-medium text-foreground">{t("topupStuckTitle")}</p>
+            {/* One whole sentence per case, never a verb joined to its object
+                in code: the amount and the date are placeholders, and another
+                language orders them differently. */}
             <p className="text-muted-foreground">
-              You started a{" "}
-              {undeliveredTopup.amount_usd !== null
-                ? `$${undeliveredTopup.amount_usd.toFixed(2)}`
-                : ""}{" "}
-              top-up
-              {undeliveredTopup.at && (
-                <> on {new Date(undeliveredTopup.at).toLocaleString([], {
-                  month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-                })}</>
-              )}
-              , and it hasn&rsquo;t reached your balance. If you completed
-              payment, your money is safe and nothing is lost — contact support
-              with your order number and we&rsquo;ll credit it. If you didn&rsquo;t
-              finish checking out, you can ignore this.
+              {(() => {
+                const amount =
+                  undeliveredTopup.amount_usd !== null
+                    ? `$${undeliveredTopup.amount_usd.toFixed(2)}`
+                    : null;
+                const when = undeliveredTopup.at
+                  ? new Date(undeliveredTopup.at).toLocaleString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })
+                  : null;
+                if (amount && when) return t("topupStuckAmountDated", { amount, when });
+                if (amount) return t("topupStuckAmount", { amount });
+                if (when) return t("topupStuckDated", { when });
+                return t("topupStuckPlain");
+              })()}
             </p>
           </div>
         )}
@@ -373,19 +379,27 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xl font-semibold tracking-tight">{TIER_LABEL[tier]} plan</span>
+                  <span className="text-xl font-semibold tracking-tight">
+                    {t("planName", { tier: TIER_LABEL[tier] })}
+                  </span>
                   <span className="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-950/40 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-                    {tier === "free" ? "Free" : "Monthly"}
+                    {tier === "free" ? t("badgeFree") : t("badgeMonthly")}
                   </span>
                   {exempt && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-                      <ShieldCheck className="w-3 h-3" /> Comped
+                      <ShieldCheck className="w-3 h-3" /> {t("badgeComped")}
                     </span>
                   )}
                 </div>
                 {tier !== "free" && nextRefill && (
                   <p className="text-sm text-muted-foreground">
-                    Current cycle: renews {new Date(nextRefill).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                    {t("cycleRenews", {
+                      date: new Date(nextRefill).toLocaleDateString([], {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      }),
+                    })}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground leading-relaxed">{tierDescriptor(tier)}</p>
@@ -395,7 +409,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   onClick={() => setPanel((p) => (p === "plan" ? null : "plan"))}
                   className="shrink-0 text-sm font-medium px-4 py-2 rounded-full border border-border hover:bg-muted/40 transition-colors"
                 >
-                  Manage plan
+                  {t("managePlan")}
                 </button>
               )}
             </div>
@@ -408,10 +422,10 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               <div className="min-w-0">
                 <div className="text-base font-medium">
                   {humanSeats === 1
-                    ? "1 seat in use"
+                    ? t("seatsOne")
                     : billableSeats > 0
-                    ? `${humanSeats} people · ${billableSeats} ${billableSeats === 1 ? "seat" : "seats"} billed`
-                    : `${humanSeats} people · no billed seats`}
+                      ? t("seatsBilled", { people: humanSeats, billed: billableSeats })
+                      : t("seatsNoneBilled", { people: humanSeats })}
                   {/* The seat TOTAL, on the headline row. `seat_fee_usd` has been
                       computed + returned by /subscription/status all along and
                       rendered nowhere — so a team could see "2 seats billed"
@@ -419,7 +433,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                       meter (ADR-396 governs the consumption figure). */}
                   {seatFee > 0 && (
                     <span className="ml-1.5 font-normal text-muted-foreground">
-                      · {money(seatFee)}/mo
+                      {t("seatFeeSuffix", { amount: money(seatFee) })}
                     </span>
                   )}
                 </div>
@@ -428,23 +442,23 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                       with the allowance: a ≤2-human workspace has no subscription
                       to buy, so "free" is simply true.) */}
                   {exempt
-                    ? "Comped — no seat charge on this workspace."
+                    ? t("seatNoteComped")
                     : seatBillingActive
-                      ? `The first two seats are free; ${billableSeats} additional ${billableSeats === 1 ? "person is a billed seat" : "people are billed seats"} at renewal.`
+                      ? t("seatNoteBilling", { count: billableSeats })
                       : humanSeats === 1
-                        ? "Your seat is free, and a first teammate is too. From the 3rd person, each seat is paid."
-                        : "Two seats are free. From the 3rd person, each additional seat is paid."}
-                  {" · AI connections are free"}
+                        ? t("seatNoteSolo")
+                        : t("seatNoteFree")}
+                  {t("aiFreeSuffix")}
                 </div>
               </div>
               {tier === "free" && humanSeats >= includedSeats ? (
-                <span className="text-xs text-muted-foreground shrink-0">Upgrade to add your team</span>
+                <span className="text-xs text-muted-foreground shrink-0">{t("upgradeToAdd")}</span>
               ) : (
                 <button
                   onClick={onManageSeats}
                   className="shrink-0 text-sm font-medium px-4 py-2 rounded-full border border-border hover:bg-muted/40 transition-colors"
                 >
-                  Manage seats
+                  {t("manageSeats")}
                 </button>
               )}
             </div>
@@ -456,13 +470,13 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
           {tier !== "free" && !exempt && (
             <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/40 px-5 py-3">
               <p className="text-xs text-muted-foreground">
-                Seat changes take effect on your next renewal.
+                {t("seatChangeNote")}
               </p>
               <button
                 onClick={onManageSeats}
                 className="shrink-0 text-xs font-medium underline underline-offset-2 hover:text-foreground transition-colors"
               >
-                Manage seats
+                {t("manageSeats")}
               </button>
             </div>
           )}
@@ -489,16 +503,27 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
           <section className="border border-border rounded-xl p-5 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-medium">Manage plan</h3>
+                <h3 className="text-base font-medium">{t("planPanelTitle")}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {TIER_LABEL[tier]} · {money(TIER_SEAT_PRICE_USD[tier])}/person per month
-                  {nextRefill && ` · renews ${new Date(nextRefill).toLocaleDateString([], { month: "short", day: "numeric" })}`}
+                  {nextRefill
+                    ? t("planPanelPriceRenews", {
+                        tier: TIER_LABEL[tier],
+                        amount: money(TIER_SEAT_PRICE_USD[tier]),
+                        date: new Date(nextRefill).toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        }),
+                      })
+                    : t("planPanelPrice", {
+                        tier: TIER_LABEL[tier],
+                        amount: money(TIER_SEAT_PRICE_USD[tier]),
+                      })}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setPanel(null)}
-                aria-label="Close plan panel"
+                aria-label={t("closePlanPanel")}
                 className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="h-4 w-4" />
@@ -511,11 +536,17 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               // "cancelled" alone would imply the workspace lost its allowance
               // the moment it clicked, which is both wrong and alarming.
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-sm">
-                Plan cancelled. This workspace keeps its current plan until{" "}
-                <span className="font-medium">
-                  {new Date(cancelled).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" })}
-                </span>
-                , then returns to Free. Nothing is deleted.
+                {t.rich("cancelledNote", {
+                  date: () => (
+                    <span className="font-medium">
+                      {new Date(cancelled).toLocaleDateString([], {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                  ),
+                })}
               </div>
             ) : (
               <div className="rounded-lg border border-border divide-y divide-border/60">
@@ -530,7 +561,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                 >
                   <span className="flex items-center gap-2.5">
                     <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Payment method &amp; invoices</span>
+                    <span className="text-sm">{t("paymentMethod")}</span>
                   </span>
                   <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                 </button>
@@ -540,9 +571,9 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   type="button"
                   onClick={async () => {
                     const ok = await confirmDialog({
-                      title: "Cancel this plan?",
-                      body: "The workspace keeps its current plan until the end of the billing period, then returns to Free. Your files and history are not affected.",
-                      confirmLabel: "Cancel plan",
+                      title: t("cancelConfirmTitle"),
+                      body: t("cancelConfirmBody"),
+                      confirmLabel: t("cancelConfirmLabel"),
                       danger: true,
                     });
                     if (!ok) return;
@@ -554,18 +585,14 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                 >
                   <span className="flex items-center gap-2.5">
                     <CircleSlash className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Cancel plan</span>
+                    <span className="text-sm">{t("cancelPlan")}</span>
                   </span>
-                  <span className="shrink-0 text-[11px] text-muted-foreground">at period end</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{t("atPeriodEnd")}</span>
                 </button>
               </div>
             )}
 
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Cancelling stops the subscription only. Your workspace, files, and
-              history stay exactly as they are — a Free workspace keeps everything
-              it made.
-            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t("cancelFootnote")}</p>
           </section>
         )}
 
@@ -586,7 +613,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             everywhere else (per-member %, relative trend, runway in days). */}
         <section className="border border-border rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-base font-medium">Balance</h3>
+            <h3 className="text-base font-medium">{t("balanceTitle")}</h3>
           </div>
           {balance ? (
             <>
@@ -600,7 +627,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                 >
                   {balance.remainingLabel}
                 </span>
-                <span className="text-lg text-muted-foreground">remaining</span>
+                <span className="text-lg text-muted-foreground">{t("remaining")}</span>
               </div>
               {/* The qualifying facts, in one line: what's been drawn, and how
                   long the rest lasts at the observed pace (ADR-491 D3's runway,
@@ -613,15 +640,15 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                       subscription_refill_at → created_at — which moves on the
                       billing cycle only (platform_limits.py). Naming a window
                       the number does not use is a money-visible lie. */}
-                  {balance.spentUsd > 0 && <>{formatUsd(balance.spentUsd)} used this billing cycle</>}
+                  {balance.spentUsd > 0 && t("usedThisCycle", { amount: formatUsd(balance.spentUsd) })}
                   {balance.spentUsd > 0 && runwayDays !== null && " · "}
-                  {runwayDays !== null && <>about {runwayDays} {runwayDays === 1 ? "day" : "days"} left at this pace</>}
+                  {runwayDays !== null && t("runway", { count: runwayDays })}
                 </p>
               )}
               <p className="text-xs text-muted-foreground">{balance.detail}</p>
             </>
           ) : (
-            <Working label="Loading balance…" className="text-xs" />
+            <Working label={t("loadingBalance")} className="text-xs" />
           )}
         </section>
 
@@ -638,10 +665,8 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             receipts, which we do not hold. */}
         {history && history.length > 0 && (
           <section className="border border-border rounded-xl p-5 space-y-3">
-            <h3 className="text-base font-medium">History</h3>
-            <p className="text-sm text-muted-foreground">
-              Every credit added to this workspace&rsquo;s balance.
-            </p>
+            <h3 className="text-base font-medium">{t("historyTitle")}</h3>
+            <p className="text-sm text-muted-foreground">{t("historyLead")}</p>
             <ul className="divide-y divide-border">
               {history.map((entry, i) => (
                 <li
@@ -662,7 +687,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             </ul>
             {historyHasMore && (
               <p className="text-xs text-muted-foreground">
-                Showing the most recent {history.length} credits.
+                {t("historyMore", { count: history.length })}
               </p>
             )}
           </section>
@@ -676,26 +701,23 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
           <section className="p-5 border border-border rounded-xl space-y-3">
             <div className="flex items-center gap-2">
               <ArrowUpCircle className="w-4 h-4 text-primary" />
-              <h3 className="text-base font-medium">Add more seats</h3>
+              <h3 className="text-base font-medium">{t("addSeatsTitle")}</h3>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Two seats are free. The paid plan adds seats for the rest of your
-              team — each additional person from the 3rd onward.
-            </p>
+            <p className="text-sm text-muted-foreground">{t("addSeatsLead")}</p>
             <div className="flex gap-2">
-              {upgradeTargets.map((t) => (
+              {upgradeTargets.map((target) => (
                 <Button
-                  key={t}
+                  key={target}
                   variant="default"
                   size="sm"
-                  onClick={() => handleSubscribe(t)}
+                  onClick={() => handleSubscribe(target)}
                   disabled={isLoading || subscribeLoading !== null}
                   className="flex-1"
                 >
-                  {subscribeLoading === t ? (
+                  {subscribeLoading === target ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    `${TIER_LABEL[t]} · ${tierUpgradeLabel(t)}`
+                    `${TIER_LABEL[target]} · ${tierUpgradeLabel(target)}`
                   )}
                 </Button>
               ))}
@@ -708,12 +730,9 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
         <section className="p-5 border border-border rounded-xl space-y-3">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" />
-            <h3 className="text-base font-medium">Add balance</h3>
+            <h3 className="text-base font-medium">{t("addBalanceTitle")}</h3>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Usage is pay-as-you-go from this workspace&rsquo;s shared balance. A
-            one-time top-up adds headroom; it never expires.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("addBalanceLead")}</p>
           {/* The chooser (2026-07-29, re-shaped 2026-07-30): presets + Custom as
               ONE radio group, rendered as SELECTABLE CARDS — not pills.
 
@@ -728,7 +747,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               action is a button. */}
           <div
             role="radiogroup"
-            aria-label="Top-up amount"
+            aria-label={t("topupGroupLabel")}
             className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2"
           >
             {TOPUP_PRESETS.map((amt) => {
@@ -767,7 +786,7 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   : "border-border hover:bg-muted/40",
               )}
             >
-              <span className="block text-base font-medium">Other</span>
+              <span className="block text-base font-medium">{t("topupOther")}</span>
             </button>
           </div>
           {topupChoice === "custom" && (
@@ -790,12 +809,15 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
                   onChange={(e) => setCustomAmount(e.target.value)}
                   placeholder={String(TOPUP_DEFAULT)}
                   className="w-full bg-transparent text-sm outline-none"
-                  aria-label="Custom top-up amount in whole dollars"
+                  aria-label={t("customAmountLabel")}
                   aria-invalid={customInvalid}
                 />
               </div>
               <p className={customInvalid ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
-                Whole dollars, between {formatUsd(TOPUP_MIN_USD)} and {formatUsd(TOPUP_MAX_USD)}.
+                {t("customAmountRange", {
+                  min: formatUsd(TOPUP_MIN_USD),
+                  max: formatUsd(TOPUP_MAX_USD),
+                })}
               </p>
             </div>
           )}
@@ -807,18 +829,24 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               the commitment is legible before the click, not after. */}
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
             <p className="text-xs text-muted-foreground">
-              {topupUsd !== null ? (
-                <>
-                  Adds <span className="font-medium text-foreground">{formatUsd(topupUsd)}</span> to
-                  this workspace&rsquo;s balance
-                  {balance && (
-                    <> — {formatUsd(balance.remainingUsd + topupUsd)} available after</>
-                  )}
-                  .
-                </>
-              ) : (
-                <>Choose an amount to continue.</>
-              )}
+              {topupUsd !== null
+                ? balance
+                  ? t.rich("topupSummaryWithAfter", {
+                      after: formatUsd(balance.remainingUsd + topupUsd),
+                      amount: () => (
+                        <span className="font-medium text-foreground">
+                          {formatUsd(topupUsd)}
+                        </span>
+                      ),
+                    })
+                  : t.rich("topupSummary", {
+                      amount: () => (
+                        <span className="font-medium text-foreground">
+                          {formatUsd(topupUsd)}
+                        </span>
+                      ),
+                    })
+                : t("topupChoose")}
             </p>
             <Button
               onClick={handleTopup}
@@ -828,9 +856,9 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
               {topupLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : topupUsd !== null ? (
-                `Add ${formatUsd(topupUsd)}`
+                t("topupConfirm", { amount: formatUsd(topupUsd) })
               ) : (
-                "Add balance"
+                t("topupConfirmPlain")
               )}
             </Button>
           </div>
@@ -847,17 +875,16 @@ export function SubscriptionCard({ workspaceName }: { workspaceName?: string | n
             false under ADR-490, where the paid plan buys SEATS and nothing else. */}
         <section className="p-5 border border-border rounded-xl space-y-2 text-sm text-muted-foreground leading-relaxed">
           <p>
-            <strong className="text-foreground">Idle costs nothing.</strong> The workspace and every
-            file are free — only work that runs draws on the balance.
+            <strong className="text-foreground">{t("howIdleTitle")}</strong>
+            {t("howIdleBody")}
           </p>
           <p>
-            <strong className="text-foreground">One shared pool.</strong> Everyone in the workspace —
-            you, your teammates, and any AI you connect — draws the same balance. Usage is
-            attributed per member on the Usage tab.
+            <strong className="text-foreground">{t("howPoolTitle")}</strong>
+            {t("howPoolBody")}
           </p>
           <p>
-            <strong className="text-foreground">Hard stop at zero.</strong> If the balance runs out,
-            work pauses — nothing is lost. Top up to resume.
+            <strong className="text-foreground">{t("howStopTitle")}</strong>
+            {t("howStopBody")}
           </p>
         </section>
       </CardContent>

@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { History, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
@@ -31,9 +32,9 @@ import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 // `freddie:` → "Reviewer" (the pre-ADR-381 label); deleted in favor of the
 // canonical labeler, which now returns "Freddie".
 import {
-  formatAuthorLabelOrSystem,
   authorAccent,
 } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 
 interface Revision {
   path: string;
@@ -54,6 +55,8 @@ interface RecentlyAuthoredProps {
 }
 
 export function RecentlyAuthored({ onSelectPath, selectedPath }: RecentlyAuthoredProps) {
+  const t = useTranslations('files.recentlyAuthored');
+  const { authorLabelOrSystem } = useAuthorLabel();
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(true);
@@ -98,10 +101,10 @@ export function RecentlyAuthored({ onSelectPath, selectedPath }: RecentlyAuthore
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
         )}
         <History className="w-4 h-4 text-muted-foreground shrink-0" />
-        <span className="text-sm font-medium text-foreground">Recently authored</span>
+        <span className="text-sm font-medium text-foreground">{t('title')}</span>
         {!loading && (
           <span className="text-[11px] text-muted-foreground">
-            {revisions.length} change{revisions.length === 1 ? '' : 's'}
+            {t('changes', { count: revisions.length })}
           </span>
         )}
         {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground/60" />}
@@ -125,7 +128,7 @@ export function RecentlyAuthored({ onSelectPath, selectedPath }: RecentlyAuthore
                   {fileName(rev.path)}
                 </span>
                 <span className="text-[11px] text-muted-foreground shrink-0">
-                  {formatAuthorLabelOrSystem(rev.authored_by)}
+                  {authorLabelOrSystem(rev.authored_by)}
                 </span>
                 <span
                   className="text-[11px] text-muted-foreground/70 shrink-0 w-16 text-right"

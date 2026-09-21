@@ -33,6 +33,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api/client';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { PrincipalBadge } from '@/lib/workspace/principal-badge';
@@ -40,35 +41,36 @@ import { formatLedgerTime, formatAbsolute } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { EmissionsView } from '@/components/context/EmissionsView';
 import {
-  resolveActorForViewer,
+  useActorForViewer,
   useWorkspaceRoster,
 } from '@/lib/workspace/viewer';
 import {
   KindGlyph,
-  actorLine,
-  secondaryLine,
+  useTimelineRows,
   type TimelineEntry,
 } from '@/lib/workspace/timeline-rows';
-import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { cn } from '@/lib/utils';
 import { Working } from '@/components/shared/Working';
 
 const PAGE_SIZE = 60;
 
-/** Operator words for the act kinds (never the engine enum — ADR-410 D4). */
-const KIND_FILTERS: Array<{ key: 'all' | TimelineEntry['kind']; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'revision', label: 'File changes' },
-  { key: 'invocation', label: 'Runs' },
-  { key: 'proposal', label: 'Decisions' },
+/** Operator words for the act kinds (never the engine enum — ADR-410 D4).
+ *  ADR-660: the rows hold catalog KEYS — this table is evaluated at import,
+ *  before any member's language is known. */
+const KIND_FILTERS: Array<{ key: 'all' | TimelineEntry['kind']; labelKey: string }> = [
+  { key: 'all', labelKey: 'kindAll' },
+  { key: 'revision', labelKey: 'kindRevision' },
+  { key: 'invocation', labelKey: 'kindInvocation' },
+  { key: 'proposal', labelKey: 'kindProposal' },
 ];
 
 // ADR-415 — the direction lens: the interior timeline vs the outbound
 // emissions ledger (the dissolved Channels Out pane, re-homed).
 type DirectionLens = 'timeline' | 'out';
-const DIRECTION_LENSES: Array<{ key: DirectionLens; label: string }> = [
-  { key: 'timeline', label: 'Timeline' },
-  { key: 'out', label: 'Out' },
+const DIRECTION_LENSES: Array<{ key: DirectionLens; labelKey: string }> = [
+  { key: 'timeline', labelKey: 'lensTimeline' },
+  { key: 'out', labelKey: 'lensOut' },
 ];
 
 // ADR-489 D2 — the weight lens (Axiom 9 rendering-weight taxonomy, derived
@@ -76,14 +78,19 @@ const DIRECTION_LENSES: Array<{ key: DirectionLens; label: string }> = [
 // index regens, `_*.yaml` state); the complete attributed record stays one
 // click away. Missing weight reads material (fail-open).
 type WeightLens = 'matters' | 'all';
-const WEIGHT_LENSES: Array<{ key: WeightLens; label: string }> = [
-  { key: 'matters', label: 'What matters' },
-  { key: 'all', label: 'Everything' },
+const WEIGHT_LENSES: Array<{ key: WeightLens; labelKey: string }> = [
+  { key: 'matters', labelKey: 'weightMatters' },
+  { key: 'all', labelKey: 'weightAll' },
 ];
 
 export function ActivityLedger() {
+  const t = useTranslations('supervisor.activity');
   const { userId } = useSurfacePreferences();
   const roster = useWorkspaceRoster();
+  // ADR-660 — the shared row grammar reads the catalog, so it is a hook.
+  const { actorLine, secondaryLine } = useTimelineRows();
+  const resolveActorForViewer = useActorForViewer();
+  const { authorLabelOrSystem } = useAuthorLabel();
 
   // ADR-415 — Timeline (the three interior ledgers) vs Out (emissions).
   const [lens, setLens] = useState<DirectionLens>('timeline');
@@ -150,7 +157,7 @@ export function ActivityLedger() {
         who: resolveActorForViewer(e.actor, e.actor_id, userId, roster),
         actorKey: e.actor_id ?? e.actor ?? 'unknown',
       })),
-    [entries, userId, roster],
+    [entries, userId, roster, resolveActorForViewer],
   );
 
   // Actor filter options — derived from the loaded window (membership-shaped,
@@ -183,7 +190,7 @@ export function ActivityLedger() {
           shape). Kind + actor filter the loaded window client-side; the date
           jumps the server cursor. */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-6 py-2.5">
-        <div className="flex items-center gap-1" role="group" aria-label="Direction">
+        <div className="flex items-center gap-1" role="group" aria-label={t('groupDirection')}>
           {DIRECTION_LENSES.map((l) => (
             <button
               key={l.key}
@@ -196,14 +203,14 @@ export function ActivityLedger() {
                   : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
               )}
             >
-              {l.label}
+              {t(l.labelKey)}
             </button>
           ))}
         </div>
         {lens === 'timeline' && (
           <>
             <span aria-hidden className="h-4 w-px bg-border/60" />
-            <div className="flex items-center gap-1" role="group" aria-label="Attention weight">
+            <div className="flex items-center gap-1" role="group" aria-label={t('groupWeight')}>
               {WEIGHT_LENSES.map((w) => (
                 <button
                   key={w.key}
@@ -216,12 +223,12 @@ export function ActivityLedger() {
                       : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                   )}
                 >
-                  {w.label}
+                  {t(w.labelKey)}
                 </button>
               ))}
             </div>
             <span aria-hidden className="h-4 w-px bg-border/60" />
-            <div className="flex items-center gap-1" role="group" aria-label="Filter by kind">
+            <div className="flex items-center gap-1" role="group" aria-label={t('groupKind')}>
               {KIND_FILTERS.map((k) => (
                 <button
                   key={k.key}
@@ -234,17 +241,17 @@ export function ActivityLedger() {
                       : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                   )}
                 >
-                  {k.label}
+                  {t(k.labelKey)}
                 </button>
               ))}
             </div>
             <select
               value={actorFilter}
               onChange={(e) => setActorFilter(e.target.value)}
-              aria-label="Filter by actor"
+              aria-label={t('filterActor')}
               className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
             >
-              <option value="all">Everyone</option>
+              <option value="all">{t('everyone')}</option>
               {actorOptions.map(([key, label]) => (
                 <option key={key} value={key}>
                   {label}
@@ -252,12 +259,12 @@ export function ActivityLedger() {
               ))}
             </select>
             <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              Up to
+              {t('upTo')}
               <input
                 type="date"
                 value={beforeDate}
                 onChange={(e) => setBeforeDate(e.target.value)}
-                aria-label="Show history up to a date"
+                aria-label={t('filterDate')}
                 className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
               />
             </label>
@@ -272,7 +279,7 @@ export function ActivityLedger() {
                 }}
                 className="text-[11px] text-primary hover:underline"
               >
-                Clear
+                {t('clear')}
               </button>
             )}
           </>
@@ -288,12 +295,10 @@ export function ActivityLedger() {
       ) : (
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <Working label="Reading the ledger…" fill className="py-12" />
+          <Working label={t('reading')} fill className="py-12" />
         ) : visible.length === 0 ? (
           <p className="px-6 py-8 text-sm text-muted-foreground">
-            Nothing here{entries.length > 0 ? ' under these filters' : ' yet'} —
-            every attributed act across the workspace (file changes, runs,
-            decisions) shows up in this ledger.
+            {entries.length > 0 ? t('emptyFiltered') : t('emptyYet')}
           </p>
         ) : (
           <ul className="divide-y divide-border/30">
@@ -301,7 +306,7 @@ export function ActivityLedger() {
               const secondary = secondaryLine(e, {
                 witnessLabel: (d) =>
                   resolveActorForViewer(d, null, userId, roster).label ||
-                  formatAuthorLabelOrSystem(d),
+                  authorLabelOrSystem(d),
               });
               const line = actorLine(e, who.label);
               return (
@@ -367,7 +372,7 @@ export function ActivityLedger() {
             disabled={loadingMore}
             className="block w-full border-t border-border/30 px-6 py-2.5 text-left text-[11px] text-muted-foreground/70 transition-colors hover:bg-muted/30 hover:text-foreground disabled:opacity-50"
           >
-            {loadingMore ? 'Loading…' : 'Load older activity'}
+            {loadingMore ? t('loadingMore') : t('loadOlder')}
           </button>
         )}
       </div>

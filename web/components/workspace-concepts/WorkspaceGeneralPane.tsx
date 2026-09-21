@@ -26,6 +26,7 @@
 
 import { useState } from "react";
 import { Building2, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Working } from '@/components/shared/Working';
 
 import { api, APIError } from "@/lib/api/client";
@@ -33,6 +34,7 @@ import { useFeedback } from "@/contexts/FeedbackContext";
 import { useWorkspaceMemberships } from "@/lib/workspace/viewer";
 
 export function WorkspaceGeneralPane() {
+  const t = useTranslations("workspaceSettings.general");
   const { memberships, loaded } = useWorkspaceMemberships();
   const active = memberships.find((m) => m.is_active);
   const isOwner = active?.role === "owner";
@@ -52,14 +54,12 @@ export function WorkspaceGeneralPane() {
 
   if (!loaded) {
     return (
-      <Working label="Loading…" className="text-sm" />
+      <Working label={t("loading")} className="text-sm" />
     );
   }
   if (!active) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Couldn&rsquo;t resolve the current workspace.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("unresolved")}</p>
     );
   }
 
@@ -93,7 +93,7 @@ export function WorkspaceGeneralPane() {
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("The workspace needs a name.");
+      setError(t("nameRequired"));
       return;
     }
     setSaving(true);
@@ -107,11 +107,11 @@ export function WorkspaceGeneralPane() {
       // survive it. The pending toast is what makes the wait legible, and the
       // pane coming back with the new name is the receipt.
       await runAction(() => api.workspace.updateIdentity(body), {
-        pending: "Saving…",
+        pending: t("saving"),
         error: (e) =>
           e instanceof APIError
-            ? (e.data as { detail?: string })?.detail || "Couldn't save — try again."
-            : "Couldn't save — try again.",
+            ? (e.data as { detail?: string })?.detail || t("saveFailed")
+            : t("saveFailed"),
       });
       // The switcher label rides the module-cached memberships read
       // (lib/workspace/viewer.ts) and every open surface may render the old
@@ -137,7 +137,7 @@ export function WorkspaceGeneralPane() {
           <Building2 className="w-5 h-5 text-muted-foreground" />
         )}
         <span className="text-sm font-medium truncate">
-          {name.trim() || "Untitled workspace"}
+          {name.trim() || t("untitled")}
         </span>
       </div>
 
@@ -146,7 +146,7 @@ export function WorkspaceGeneralPane() {
           htmlFor="workspace-name"
           className="block text-xs font-medium text-muted-foreground mb-1"
         >
-          Workspace name
+          {t("nameLabel")}
         </label>
         <input
           id="workspace-name"
@@ -157,10 +157,7 @@ export function WorkspaceGeneralPane() {
           onChange={(e) => setNameEdit(e.target.value)}
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
         />
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Shown to members in the workspace switcher, and to invitees in
-          invite emails and share links.
-        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{t("nameHint")}</p>
       </div>
 
       <div>
@@ -168,7 +165,7 @@ export function WorkspaceGeneralPane() {
           htmlFor="workspace-icon"
           className="block text-xs font-medium text-muted-foreground mb-1"
         >
-          Icon
+          {t("iconLabel")}
         </label>
         <input
           id="workspace-icon"
@@ -180,9 +177,7 @@ export function WorkspaceGeneralPane() {
           placeholder="🏢"
           className="w-24 rounded-md border border-border bg-background px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
         />
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          An emoji. Leave empty for the default glyph.
-        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{t("iconHint")}</p>
       </div>
 
       <div>
@@ -190,7 +185,7 @@ export function WorkspaceGeneralPane() {
           htmlFor="workspace-timezone"
           className="block text-xs font-medium text-muted-foreground mb-1"
         >
-          Home timezone
+          {t("timezoneLabel")}
         </label>
         {zones.length ? (
           <select
@@ -200,9 +195,9 @@ export function WorkspaceGeneralPane() {
             onChange={(e) => setTzEdit(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
           >
-            <option value="">Not set — scheduling uses UTC</option>
+            <option value="">{t("timezoneUnset")}</option>
             {browserZone && !serverTz && (
-              <option value={browserZone}>{browserZone} (your browser&rsquo;s zone)</option>
+              <option value={browserZone}>{t("timezoneBrowser", { zone: browserZone })}</option>
             )}
             {zones
               .filter((z) => z !== browserZone || serverTz)
@@ -223,11 +218,7 @@ export function WorkspaceGeneralPane() {
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
           />
         )}
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Scheduled work in this workspace — recurring runs, kept-file
-          cadences — fires on this clock. Until it&rsquo;s set, everything runs
-          on UTC.
-        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground">{t("timezoneHint")}</p>
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
@@ -240,12 +231,10 @@ export function WorkspaceGeneralPane() {
           className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          Save
+          {t("save")}
         </button>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          Only the workspace owner can change the name and icon.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("ownerOnly")}</p>
       )}
     </div>
   );

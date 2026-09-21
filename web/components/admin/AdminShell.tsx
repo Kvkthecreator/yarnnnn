@@ -1,0 +1,107 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { isAdminEmail } from "@/lib/internal-access";
+import { HOME_ROUTE } from "@/lib/routes";
+import { ArrowLeft, Shield } from "lucide-react";
+import { Working } from '@/components/shared/Working';
+// The console is OUTSIDE (authenticated), so it does not inherit
+// AuthenticatedLayout's FeedbackProvider. Its verbs still need the one layer
+// — mount it here rather than growing a second feedback system for one route.
+//
+// ADR-660 — that shared layer is TRANSLATED (its confirm shell's Cancel is a
+// member-facing word), and `useTranslations` throws outside an `IntlScope`.
+// The scope is a server component, so it mounts in `layout.tsx` and this shell
+// is the client body underneath it. The console's OWN chrome stays English:
+// it is a Hat-B operator instrument, outside the member-facing meter.
+import { FeedbackProvider } from '@/contexts/FeedbackContext';
+
+interface AdminShellProps {
+  children: React.ReactNode;
+}
+
+export function AdminShell({ children }: AdminShellProps) {
+  const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace("/auth/login");
+        return;
+      }
+
+      if (!isAdminEmail(user.email)) {
+        router.replace(HOME_ROUTE);
+        return;
+      }
+
+      setUserEmail(user.email ?? null);
+      setLoading(false);
+    };
+
+    checkAdminAccess();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        router.replace("/auth/login");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [router, supabase.auth]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Working label="Verifying admin access…" fill />
+      </div>
+    );
+  }
+
+  return (
+    <FeedbackProvider>
+    <div className="min-h-screen bg-background">
+      {/* One pane since ADR-655 D5 — the persona forensics moved to the Hat-B
+          toolchain, so the Overview/Accounts nav went with them. */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-4">
+              <Link
+                href={HOME_ROUTE}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to App
+              </Link>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-orange-500" />
+                <span className="font-medium">Console</span>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground">{userEmail}</div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {children}
+      </main>
+    </div>
+    </FeedbackProvider>
+  );
+}

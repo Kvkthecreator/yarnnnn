@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Copy, ClipboardPaste, CopyPlus, Plus, Trash2, Type,
   ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, ChevronRight, Sparkles, Link2, History,
@@ -226,6 +227,8 @@ export function StudioBlockMenu({
   onTurnInto, blocks, headingRungs, onMoveUp, onMoveDown, onBringForward, onBringBackward,
   onCopyLink, onHistory, onInsertKind, mode, hasClipboard,
 }: StudioBlockMenuProps) {
+  const t = useTranslations('studio.blockMenu');
+  const tStruct = useTranslations('structure');
   const [turnOpen, setTurnOpen] = useState(false);
   // ADR-579 D5 two-tier — the verb tiers (one open at a time). ADR-586 D6:
   // the toolbar's contextual Update mounts this menu with its tier expanded.
@@ -313,7 +316,15 @@ export function StudioBlockMenu({
   const turnIntoKinds =
     hasBlock && target.blockKind && !target.dataRef
       && isConvertible(blocks, target.blockKind)
-      ? turnIntoTargets(blocks ?? [], headingRungs ?? [...HEADING_RUNGS], target.blockKind, null)
+      ? turnIntoTargets(
+          blocks ?? [],
+          headingRungs ?? [...HEADING_RUNGS],
+          target.blockKind,
+          null,
+          // ADR-660 — the rung's word comes from this mount's catalog: the
+          // builder is module-level and cannot reach a hook.
+          (level) => t('headingLevel', { level }),
+        )
       : [];
 
   // The canvas is an iframe: its coordinates are frame-local. The caller passes
@@ -421,7 +432,7 @@ export function StudioBlockMenu({
                   className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${opened && !inlineTiers ? 'bg-accent' : ''}`}
                 >
                   <span className="text-muted-foreground"><Plus className={ICO} /></span>
-                  <span className="truncate">{g.label}</span>
+                  <span className="truncate">{tStruct(g.labelKey)}</span>
                   <ChevronRight
                     className={`ml-auto h-3.5 w-3.5 text-muted-foreground/60 transition-transform ${opened && inlineTiers ? 'rotate-90' : ''}`}
                   />
@@ -457,7 +468,7 @@ export function StudioBlockMenu({
           rather than a menu of one impossible act. */}
       {hasClipboard && (
         <Row icon={<ClipboardPaste className={ICO} />} onClick={() => run(onPaste)} shortcut="⌘V">
-          Paste here
+          {t('pasteHere')}
         </Row>
       )}
       {hasBlock && (
@@ -476,7 +487,7 @@ export function StudioBlockMenu({
               on flow, while copying a paragraph is always meaningful. It
               therefore renders just above the tier-gated pair. */}
           {SEP}
-          <Row icon={<Copy className={ICO} />} onClick={() => run(onCopy)} shortcut="⌘C">Copy</Row>
+          <Row icon={<Copy className={ICO} />} onClick={() => run(onCopy)} shortcut="⌘C">{t('copy')}</Row>
           {!isTextTier && (
             <>
               {/* ADR-541 D4 — over a live set these rows take the WHOLE set
@@ -487,10 +498,10 @@ export function StudioBlockMenu({
                 onClick={() => run(onDuplicate)}
                 shortcut="⌘D"
               >
-                {inSet ? `Duplicate ${setCount} blocks` : 'Duplicate'}
+                {inSet ? t('duplicateN', { count: setCount ?? 0 }) : t('duplicate')}
               </Row>
               <Row icon={<Trash2 className={ICO} />} onClick={() => run(onDelete)} shortcut="⌫">
-                {inSet ? `Delete ${setCount} blocks` : 'Delete'}
+                {inSet ? t('deleteN', { count: setCount ?? 0 }) : t('delete')}
               </Row>
             </>
           )}
@@ -506,7 +517,7 @@ export function StudioBlockMenu({
               position now that the tier that used to draw it is gone. */}
           {onRewrite && !inSet && (
             <Row icon={<Sparkles className={ICO} />} onClick={() => run(onRewrite)}>
-              Rewrite…
+              {t('rewrite')}
             </Row>
           )}
           {/* ADR-619 D1 — the UPDATE tier is DELETED. It was a submenu holding
@@ -533,7 +544,7 @@ export function StudioBlockMenu({
                 className={`flex w-full items-center gap-2 px-2 py-[5px] text-left text-[12.5px] hover:bg-accent ${turnOpen && !inlineTiers ? 'bg-accent' : ''}`}
               >
                 <span className="text-muted-foreground"><Type className={ICO} /></span>
-                <span className="truncate">Turn into</span>
+                <span className="truncate">{t('turnInto')}</span>
                 <ChevronRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/60" />
               </button>
               <Flyout open={turnOpen} inline={inlineTiers}>
@@ -559,38 +570,38 @@ export function StudioBlockMenu({
               set and SAY so once. */}
           {inSet && (isPaged || target.positioned) && (
             <p className="px-2 py-[5px] text-[10px] leading-snug text-muted-foreground">
-              Move and stacking act on one block at a time ({setCount} selected).
+              {t('singleSubjectOnly', { count: setCount ?? 0 })}
             </p>
           )}
           {isPaged && !inSet && (
             <>
               <Row icon={<ArrowUp className={ICO} />} onClick={() => run(onMoveUp)}>
-                Move up
+                {t('moveUp')}
               </Row>
               <Row icon={<ArrowDown className={ICO} />} onClick={() => run(onMoveDown)}>
-                Move down
+                {t('moveDown')}
               </Row>
             </>
           )}
           {target.positioned && !inSet && (
             <>
               <Row icon={<ChevronsUp className={ICO} />} onClick={() => run(onBringForward)}>
-                Bring forward
+                {t('bringForward')}
               </Row>
               <Row icon={<ChevronsDown className={ICO} />} onClick={() => run(onBringBackward)}>
-                Bring backward
+                {t('bringBackward')}
               </Row>
             </>
           )}
           {SEP}
           <div className="px-2 pb-[3px] pt-[6px] text-[9.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/70">
-            This block
+            {t('thisBlock')}
           </div>
           <Row icon={<Link2 className={ICO} />} onClick={() => run(onCopyLink)}>
-            Copy link to block
+            {t('copyLink')}
           </Row>
           <Row icon={<History className={ICO} />} onClick={() => run(onHistory)}>
-            History
+            {t('history')}
           </Row>
         </>
       )}

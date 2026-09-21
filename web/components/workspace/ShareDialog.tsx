@@ -46,6 +46,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { COPY_FEEDBACK_MS, useFeedback } from '@/contexts/FeedbackContext';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
@@ -101,6 +102,7 @@ function shortDate(iso?: string | null): string {
 }
 
 export function ShareDialog({ target, onClose }: ShareDialogProps) {
+  const t = useTranslations('files.share');
   const { runAction } = useFeedback();
   const [tab, setTab] = useState<Tab>('link');
   const [copied, setCopied] = useState<string | null>(null);
@@ -230,10 +232,10 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
       const res = await runAction(
         () => api.workspace.createShare(path, target.name, undefined, role),
         {
-          pending: 'Creating link…',
+          pending: t('creatingLink'),
           error: (e) =>
             (e instanceof APIError ? (e.data as { detail?: string })?.detail : null)
-            || 'Could not create the link. Try again.',
+            || t('createLinkFailed'),
         },
       );
       if (res.share_link && typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -249,7 +251,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
     } finally {
       setMinting(false);
     }
-  }, [path, target, loadLinks]);
+  }, [path, target, loadLinks, runAction, t]);
 
   const copy = useCallback(async (url: string) => {
     try {
@@ -268,11 +270,11 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
     setRevoking(id);
     try {
       await runAction(() => api.workspace.revokeShare(id), {
-        pending: 'Revoking…',
-        success: 'Link revoked',
+        pending: t('revoking'),
+        success: t('revoked'),
         error: (e) =>
           (e instanceof APIError ? (e.data as { detail?: string })?.detail : null)
-          || 'Could not revoke that link — it is still live.',
+          || t('revokeFailed'),
       });
       await loadLinks();
     } catch {
@@ -280,7 +282,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
     } finally {
       setRevoking(null);
     }
-  }, [loadLinks, runAction]);
+  }, [loadLinks, runAction, t]);
 
   const invite = useCallback(async () => {
     const addr = email.trim();
@@ -291,11 +293,11 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
       // canon bans (rule 6), because a failure then renders in the success
       // dress. Success and failure are two channels now.
       await runAction(() => api.workspace.inviteMember(addr), {
-        pending: 'Sending invite…',
-        success: `Invited ${addr}.`,
+        pending: t('sendingInvite'),
+        success: t('invited_', { email: addr }),
         error: (e) =>
           (e instanceof APIError ? (e.data as { detail?: string })?.detail : null)
-          || 'Could not send that invite.',
+          || t('inviteFailed'),
       });
       setEmail('');
       await loadPeople();
@@ -304,7 +306,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
     } finally {
       setInviting(false);
     }
-  }, [email, loadPeople, runAction]);
+  }, [email, loadPeople, runAction, t]);
 
   if (!target) return null;
 
@@ -316,7 +318,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
         value={row.share_link ?? ''}
         onFocus={(e) => e.currentTarget.select()}
         className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-foreground outline-none focus:border-primary"
-        aria-label="Share link"
+        aria-label={t('linkField')}
       />
       <button
         type="button"
@@ -324,7 +326,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
         className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/60"
       >
         {copied === row.share_link ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-        {copied === row.share_link ? 'Copied' : 'Copy'}
+        {copied === row.share_link ? t('copied') : t('copy')}
       </button>
     </div>
   );
@@ -343,9 +345,9 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
           className="pointer-events-auto w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
           role="dialog"
           aria-modal="true"
-          aria-label={`Share ${target.name}`}
+          aria-label={t('dialogLabel', { name: target.name })}
         >
-          <h3 className="text-base font-semibold text-card-foreground">Share</h3>
+          <h3 className="text-base font-semibold text-card-foreground">{t('title')}</h3>
           {/* ADR-587 D2, extended to the share sheet: the subtitle named the
               LEAF ("deck.html"), which is the one thing that does not identify
               a file — a workspace holds many. The path is what the operator
@@ -372,29 +374,29 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
           <div className="mt-2">
             <CopyField
               value={displayPath(target.path)}
-              label="Workspace path"
-              hint="Where this file lives — paste it back here or to an AI on your workspace."
+              label={t('pathLabel')}
+              hint={t('pathHint')}
             />
           </div>
 
           {/* ── The two tabs: this file · the workspace ── */}
           <div className="mt-4 flex gap-1 border-b border-border/60" role="tablist">
-            {(['link', 'people'] as Tab[]).map((t) => (
+            {(['link', 'people'] as Tab[]).map((which) => (
               <button
-                key={t}
+                key={which}
                 type="button"
                 role="tab"
-                aria-selected={tab === t}
-                onClick={() => setTab(t)}
+                aria-selected={tab === which}
+                onClick={() => setTab(which)}
                 className={cn(
                   'relative -mb-px border-b-2 px-3 py-1.5 text-sm transition-colors',
-                  tab === t
+                  tab === which
                     ? 'border-primary font-medium text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground',
                 )}
               >
-                {t === 'link' ? 'Link' : 'People'}
-                {t === 'people' && peopleBadge > 0 && (
+                {which === 'link' ? t('tabLink') : t('tabPeople')}
+                {which === 'people' && peopleBadge > 0 && (
                   <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                     {peopleBadge}
                   </span>
@@ -407,8 +409,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
             <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-500" />
               <p className="text-[11px] leading-snug text-foreground/80">
-                This file has been moved, renamed, or deleted. Links to it still exist but no
-                longer open anything — anyone using one sees a message saying so.
+                {t('stale')}
               </p>
             </div>
           )}
@@ -420,9 +421,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                 <>
                   {linkField(viewLink)}
                   <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
-                    {stale
-                      ? 'This link no longer opens anything — the file it names is gone.'
-                      : 'Anyone with this link sees the current version, always — until you revoke it.'}
+                    {stale ? t('linkStale') : t('linkLive')}
                   </p>
                   <div className="mt-2 flex items-center gap-3">
                     <button
@@ -430,7 +429,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                       onClick={() => { setForceMint('viewer'); setCopied(null); }}
                       className="text-[11px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
                     >
-                      Create a separate link
+                      {t('createSeparate')}
                     </button>
                     <button
                       type="button"
@@ -438,15 +437,14 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                       disabled={revoking === viewLink.id}
                       className="text-[11px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
                     >
-                      {revoking === viewLink.id ? 'Revoking…' : 'Revoke'}
+                      {revoking === viewLink.id ? t('revoking') : t('revoke')}
                     </button>
                   </div>
                 </>
               ) : (
                 <>
                   <p className="text-xs leading-snug text-muted-foreground">
-                    A link anyone can open to read this file and its history. They cannot change
-                    anything, and it keeps showing the current version until you revoke it.
+                    {t('viewerPitch')}
                   </p>
                   <button
                     type="button"
@@ -460,7 +458,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                     )}
                   >
                     {minting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    Create link
+                    {t('createLink')}
                   </button>
                 </>
               )}
@@ -487,7 +485,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                             : 'bg-muted text-muted-foreground',
                         )}
                       >
-                        {m.can_write ? 'can edit' : 'read-only'}
+                        {m.can_write ? t('canEdit') : t('readOnly')}
                       </span>
                     </li>
                   ))}
@@ -497,7 +495,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                         {i.email}
                       </span>
                       <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        invited{i.expires_at ? ` · expires ${shortDate(i.expires_at)}` : ''}
+                        {i.expires_at ? t('invitedExpires', { date: shortDate(i.expires_at) }) : t('invited')}
                       </span>
                     </li>
                   ))}
@@ -512,9 +510,9 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onKeyDown={(e) => { if (isSubmitKey(e, { allowShift: true })) void invite(); }}
-                    placeholder="name@company.com"
+                    placeholder={t('emailPlaceholder')}
                     className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary"
-                    aria-label="Invite by email"
+                    aria-label={t('emailLabel')}
                   />
                   <button
                     type="button"
@@ -528,13 +526,12 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                     )}
                   >
                     {inviting && <Loader2 className="h-3 w-3 animate-spin" />}
-                    Invite
+                    {t('invite')}
                   </button>
                 </div>
                 {/* ADR-537 D5 — workspace scope and seat cost, both previously silent. */}
                 <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
-                  They&apos;ll get an email. Joining gives full access to this workspace and uses a
-                  seat.
+                  {t('inviteHint')}
                 </p>
                 {inviteNote && (
                   <p className="mt-1.5 text-[11px] text-muted-foreground">{inviteNote}</p>
@@ -546,7 +543,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                 {joinLink?.share_link ? (
                   <>
                     <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Open join link
+                      {t('joinLinkTitle')}
                     </p>
                     {linkField(joinLink)}
                     {/* ADR-537 D4/D5 — redemption stated, forwardability stated, and
@@ -554,11 +551,9 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                         shown: the column is overwritten on every accept. */}
                     <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
                       {joinLink.last_accepted_at
-                        ? `Last joined ${shortDate(joinLink.last_accepted_at)}. `
-                        : 'No one has joined yet. '}
-                      Anyone this link reaches can join — it works for whoever holds it, not just
-                      the person you send it to. Revoking closes the offer; it does not remove
-                      anyone who already joined.
+                        ? t('lastJoined', { date: shortDate(joinLink.last_accepted_at) })
+                        : t('noneJoined')}
+                      {t('joinLinkBody')}
                     </p>
                     <button
                       type="button"
@@ -566,15 +561,13 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                       disabled={revoking === joinLink.id}
                       className="mt-2 text-[11px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-destructive disabled:opacity-50"
                     >
-                      {revoking === joinLink.id ? 'Closing…' : 'Close this offer'}
+                      {revoking === joinLink.id ? t('closing') : t('closeOffer')}
                     </button>
                   </>
                 ) : showJoinLink ? (
                   <>
                     <p className="text-[11px] leading-snug text-muted-foreground">
-                      A link anyone can use to join this workspace with full access. It works for
-                      whoever holds it, not just the person you send it to, and it can be used more
-                      than once.
+                      {t('joinPitch')}
                     </p>
                     <button
                       type="button"
@@ -583,7 +576,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                       className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
                     >
                       {minting && <Loader2 className="h-3 w-3 animate-spin" />}
-                      Create open join link
+                      {t('createJoinLink')}
                     </button>
                   </>
                 ) : (
@@ -592,7 +585,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                     onClick={() => setShowJoinLink(true)}
                     className="text-[11px] text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
                   >
-                    or create an open join link ›
+                    {t('orCreateJoinLink')}
                   </button>
                 )}
               </div>
@@ -601,7 +594,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
                   per-FILE, the rail is per-PRINCIPAL, and until now neither pointed
                   at the other. */}
               <p className="text-[11px] text-muted-foreground">
-                Manage access in Workspace Settings →
+                {t('manageAccess')}
               </p>
             </div>
           )}
@@ -612,7 +605,7 @@ export function ShareDialog({ target, onClose }: ShareDialogProps) {
               onClick={onClose}
               className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
-              Done
+              {t('done')}
             </button>
           </div>
         </div>

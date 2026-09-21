@@ -17,6 +17,7 @@
  */
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { resolveArtifactHtml } from '@/components/workspace/viewers/projection';
 import { STRUCTURAL_PAGE_SEL } from './structureLabels';
@@ -127,9 +128,11 @@ async function buildPagePreviews(html: string, artifactPath: string): Promise<Sl
       id: page.getAttribute('data-block-id') || `@${index}`,
       isSlide,
       arrange: page.getAttribute('data-arrange'),
-      title:
-        (heading?.textContent || '').replace(/\s+/g, ' ').trim() ||
-        (isSlide ? `Slide ${index + 1}` : `Section ${index + 1}`),
+      // The heading is the page's OWN text (content, never copy). When a page
+      // has none, the card needs a worded fallback — but this builder runs
+      // outside React, before any language is known, so it leaves the title
+      // EMPTY and the card words the fallback at render (ADR-660).
+      title: (heading?.textContent || '').replace(/\s+/g, ' ').trim(),
       doc: previewDoc,
     };
   });
@@ -151,6 +154,7 @@ const SlideThumb = memo(function SlideThumb({
   index: number;
   isSlide: boolean;
 }) {
+  const t = useTranslations('studio.pagedNavigator');
   const boxRef = useRef<HTMLSpanElement>(null);
   const [scale, setScale] = useState(0);
   useEffect(() => {
@@ -179,7 +183,7 @@ const SlideThumb = memo(function SlideThumb({
     >
       {scale > 0 && (
         <iframe
-          title={isSlide ? `Slide ${index + 1}` : `Section ${index + 1}`}
+          title={isSlide ? t('slideN', { n: index + 1 }) : t('sectionN', { n: index + 1 })}
           srcDoc={doc}
           sandbox=""
           tabIndex={-1}
@@ -240,6 +244,7 @@ export function PagedNavigator({
 }: PagedNavigatorProps) {
   // The canonical gate (ADR-400) — replaces the unstyled window.confirm on
   // multi-delete (transient-surfacing streamline 2026-08-22).
+  const t = useTranslations('studio.pagedNavigator');
   const { confirm: confirmDialog } = useFeedback();
   const [previews, setPreviews] = useState<SlidePreview[] | null>(null);
   // Drag-to-reorder (PowerPoint): the index being dragged, and the gap the drop
@@ -343,17 +348,19 @@ export function PagedNavigator({
     const list = selectedList();
     if (!list.length || !onDeletePages) return;
     if (list.length > 1) {
-      const noun = layout === 'deck' ? 'slides' : 'sections';
       const ok = await confirmDialog({
-        title: `Delete ${list.length} ${noun}?`,
-        body: '⌘Z undoes it.',
-        confirmLabel: 'Delete',
+        title:
+          layout === 'deck'
+            ? t('confirmDeleteSlides', { count: list.length })
+            : t('confirmDeleteSections', { count: list.length }),
+        body: t('undoHint'),
+        confirmLabel: t('delete'),
         danger: true,
       });
       if (!ok) return;
     }
     onDeletePages(list);
-  }, [selectedList, onDeletePages, layout, confirmDialog]);
+  }, [selectedList, onDeletePages, layout, confirmDialog, t]);
 
   // Keyboard on the focused strip (PowerPoint/Finder ladder): Delete removes the
   // selection; ↑/↓ move the primary (+ scroll); ⌘A selects all; Esc clears to
@@ -508,7 +515,7 @@ export function PagedNavigator({
     };
   }, [dragIndex, gapAtPointer, onReorderSlide, onReorderPages, selected]);
 
-  const noun = layout === 'deck' ? 'Slides' : 'Sections';
+  const noun = layout === 'deck' ? t('slides') : t('sections');
   const selCount = selected.size;
   return (
     <div
@@ -526,19 +533,25 @@ export function PagedNavigator({
             (the key) still works, this is the discoverable path to it. */}
         {selCount > 1 && onDeletePages && (
           <span className="flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground">{selCount} selected</span>
+            <span className="text-[10px] text-muted-foreground">{t('nSelected', { count: selCount })}</span>
             <button
               type="button"
               onClick={deleteSelection}
               className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-red-400 hover:text-red-600"
             >
-              Delete
+              {t('delete')}
             </button>
           </span>
         )}
       </div>
       <ul ref={listRef} className="relative w-full space-y-2">
-        {(previews ?? []).map((s) => (
+        {(previews ?? []).map((s) => {
+          // The page's own heading, or a worded position fallback (the builder
+          // cannot word it — it runs before the language is known).
+          const cardTitle =
+            s.title ||
+            (s.isSlide ? t('slideN', { n: s.index + 1 }) : t('sectionN', { n: s.index + 1 }));
+          return (
           <li key={s.id} data-slide-card className="relative">
             {/* The drop-line: a prediction of where the dragged page will
                 land (above this card when the gap === this index). */}
@@ -583,7 +596,7 @@ export function PagedNavigator({
                   });
                 }
               }}
-              title={s.title}
+              title={cardTitle}
               // select-none on the CARD: a drag over a card must never paint
               // a native text selection across its title/thumb.
               className={`block w-full select-none rounded-md border text-left transition-colors ${
@@ -611,11 +624,12 @@ export function PagedNavigator({
                 </span>
               </div>
               <span className="block truncate px-1.5 pb-1 text-[10px] text-muted-foreground">
-                {s.title}
+                {cardTitle}
               </span>
             </div>
           </li>
-        ))}
+          );
+        })}
         {/* The trailing drop-line — a drop AFTER the last slide. */}
         {dragIndex != null && dropAt === (previews?.length ?? 0) && (previews?.length ?? 0) > 0 && (
           <li className="pointer-events-none relative h-0">
@@ -623,11 +637,11 @@ export function PagedNavigator({
           </li>
         )}
         {previews === null && (
-          <li className="px-1 text-[11px]"><Working label="Loading previews…" /></li>
+          <li className="px-1 text-[11px]"><Working label={t('loadingPreviews')} /></li>
         )}
         {previews?.length === 0 && (
           <li className="px-1 text-[11px] text-muted-foreground">
-            {layout === 'deck' ? 'No slides yet.' : 'No sections yet.'}
+            {layout === 'deck' ? t('noSlides') : t('noSections')}
           </li>
         )}
       </ul>

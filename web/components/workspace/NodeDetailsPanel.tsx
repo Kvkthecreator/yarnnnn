@@ -30,6 +30,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { FileText, Folder, Download } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
@@ -38,10 +39,10 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import {
-  formatAuthorLabelOrSystem as formatAuthorLabel,
   authorAccent,
 } from '@/lib/workspace/attribution';
-import { fileLegibilityState, legibilityDescriptor } from '@/lib/workspace/legibility';
+import { fileLegibilityState, legibilityDescriptorRef } from '@/lib/workspace/legibility';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { resolveHandlers } from '@/lib/file-types/handlers';
 import { CopyField } from '@/components/workspace/CopyField';
 import { displayPath } from '@/lib/interop/fileHandle';
@@ -71,6 +72,8 @@ function FolderDetails({
   node: WorkspaceTreeNode;
   onSelectPath?: (path: string) => void;
 }) {
+  const t = useTranslations('files.details');
+  const { authorLabelOrSystem } = useAuthorLabel();
   const [revisions, setRevisions] = useState<SubtreeRevision[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,28 +108,28 @@ function FolderDetails({
           half the objects it describes. Same row, same shared field, same
           grammar as the file block below it. */}
       <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
-        <PropRow label="Path">
+        <PropRow label={t('path')}>
           <CopyField
             value={displayPath(node.path)}
-            label="Folder path"
-            hint="Paste it anywhere — here, or to an AI on your workspace."
+            label={t('folderPath')}
+            hint={t('pathHint')}
           />
         </PropRow>
       </div>
 
       <div className="border border-border rounded-lg bg-background">
       <div className="px-3 py-2 border-b border-border text-sm font-medium">
-        Recent changes in this folder
+        {t('recentChanges')}
       </div>
       {loading && (
-        <Working label="Loading…" className="px-3 py-4 text-sm" />
+        <Working label={t('loading')} className="px-3 py-4 text-sm" />
       )}
       {!loading && error && (
-        <div className="px-3 py-3 text-xs text-destructive">Failed to load: {error}</div>
+        <div className="px-3 py-3 text-xs text-destructive">{t('loadFailed', { error })}</div>
       )}
       {!loading && !error && revisions.length === 0 && (
         <div className="px-3 py-4 text-xs text-muted-foreground italic">
-          Nothing has changed in this folder yet.
+          {t('nothingChanged')}
         </div>
       )}
       {!loading && !error && revisions.length > 0 && (
@@ -147,7 +150,7 @@ function FolderDetails({
                     {fileName(p)}
                   </span>
                   <span className="text-[11px] text-muted-foreground shrink-0">
-                    {formatAuthorLabel(rev.authored_by)}
+                    {authorLabelOrSystem(rev.authored_by)}
                   </span>
                   <span
                     className="text-[11px] text-muted-foreground/70 shrink-0 w-16 text-right"
@@ -190,6 +193,10 @@ function PropRow({ label, children }: { label: string; children: React.ReactNode
 // Ownership is the ADR-400 two-principal story: "Yours" (you may move/rename/
 // trash it) vs "Managed by Freddie" (an agent authored it — edit through chat).
 function FileProperties({ node }: { node: WorkspaceTreeNode }) {
+  const t = useTranslations('files.details');
+  const tk = useTranslations('files.kind');
+  const tAttr = useTranslations('attribution');
+  const { authorLabelOrSystem } = useAuthorLabel();
   const [contributors, setContributors] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -217,7 +224,7 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
   // ADR-643 D3 — the served decision. Unknown reads as permitted: Get Info
   // then describes what the operator may TRY, and the door answers honestly.
   const canOrganize = node.access?.may_organize !== false;
-  const kind = describeKind(node.path);
+  const kind = describeKind(node.path, tk);
   // ADR-587: the file's NAME, not the folder it sits in. This row previously
   // stripped the filename (`replace(/\/[^/]*$/, '')`) and rendered the parent
   // directory — styled like a path field, muted, uncopyable, and not actually
@@ -230,10 +237,13 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
   // agent-authored, name the most-recent contributor (the head author).
   const legibility = fileLegibilityState(node);
   const headAuthor = node.authored_by ?? contributors?.[0] ?? null;
-  const stateDescriptor = legibilityDescriptor(
+  // ADR-660 — the descriptor names a catalog key under `attribution`; the
+  // author it may carry is the shared attribution vocabulary, worded here.
+  const descriptorRef = legibilityDescriptorRef(
     legibility,
-    legibility === 'agent-authored' ? formatAuthorLabel(headAuthor) : null,
+    legibility === 'agent-authored' ? authorLabelOrSystem(headAuthor) : null,
   );
+  const stateDescriptor = descriptorRef ? tAttr(descriptorRef.key, descriptorRef.args) : null;
 
   return (
     <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
@@ -243,16 +253,16 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
       {stateDescriptor && (
         <p className="mb-2 text-[11px] leading-snug text-muted-foreground">{stateDescriptor}</p>
       )}
-      <PropRow label="Kind">{kind}</PropRow>
+      <PropRow label={t('kind')}>{kind}</PropRow>
       {/* ADR-587: the path is an AFFORDANCE, not metadata. It is the file's
           name everywhere outside this surface — in a connector's `open`, in a
           chat message, in the quick-open box. The operator can no longer be
           expected to retype it from a tooltip. */}
-      <PropRow label="Path">
+      <PropRow label={t('path')}>
         <CopyField
           value={reference}
-          label="Workspace path"
-          hint="Paste it anywhere — here, or to an AI on your workspace."
+          label={t('workspacePath')}
+          hint={t('pathHint')}
         />
       </PropRow>
       {/* ADR-400 Amendment 1: what the operator can DO here (organize). Content
@@ -260,30 +270,30 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
           row is about move/rename/trash. Almost everything is organizable — the
           only carves are system/ runtime + machine-config the system reads by
           name (renaming would break the reader). */}
-      <PropRow label="You can">
+      <PropRow label={t('youCan')}>
         {canOrganize ? (
-          <span className="text-[11px] text-foreground/80">move · rename · trash it · edit via chat</span>
+          <span className="text-[11px] text-foreground/80">{t('youCanOrganize')}</span>
         ) : (
           <span className="inline-flex flex-col gap-0.5">
-            <span className="text-[11px] text-foreground/80">read it · edit via chat</span>
-            <span className="text-[10px] text-muted-foreground">{node.access?.reason ?? 'This item is managed by the system.'}</span>
+            <span className="text-[11px] text-foreground/80">{t('youCanRead')}</span>
+            <span className="text-[10px] text-muted-foreground">{node.access?.reason ?? t('systemManaged')}</span>
           </span>
         )}
       </PropRow>
       {node.updated_at && (
-        <PropRow label="Modified">
+        <PropRow label={t('modified')}>
           <span title={formatAbsolute(node.updated_at)}>
             {formatRelativeTime(node.updated_at, { rollToDate: true })}
           </span>
         </PropRow>
       )}
       {contributors && contributors.length > 0 && (
-        <PropRow label="Contributors">
+        <PropRow label={t('contributors')}>
           <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             {contributors.map((a, i) => (
               <span key={`${a}-${i}`} className="inline-flex items-center gap-1">
                 <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent(a))} />
-                <span className="text-[11px] text-foreground/80">{formatAuthorLabel(a)}</span>
+                <span className="text-[11px] text-foreground/80">{authorLabelOrSystem(a)}</span>
                 {i < contributors.length - 1 && <span className="text-muted-foreground/40">·</span>}
               </span>
             ))}
@@ -295,19 +305,19 @@ function FileProperties({ node }: { node: WorkspaceTreeNode }) {
 }
 
 // Human-readable "Kind" from the filename extension (Properties-dialog style).
-function describeKind(path: string): string {
+// The extension → catalog KEY table is module-level; the WORDS are looked up at
+// render (ADR-660 — a module-level label table is evaluated before the member's
+// language is known).
+const KIND_KEYS = [
+  'md', 'txt', 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'yaml', 'yml', 'json', 'html',
+] as const;
+const KIND_KEY_SET: ReadonlySet<string> = new Set(KIND_KEYS);
+
+function describeKind(path: string, tk: (key: string, values?: Record<string, string>) => string): string {
   const ext = (path.split('.').pop() || '').toLowerCase();
-  const map: Record<string, string> = {
-    md: 'Markdown document', txt: 'Text document', pdf: 'PDF document',
-    docx: 'Word document', doc: 'Word document',
-    xlsx: 'Spreadsheet', xls: 'Spreadsheet', csv: 'CSV data',
-    pptx: 'Presentation', ppt: 'Presentation',
-    png: 'PNG image', jpg: 'JPEG image', jpeg: 'JPEG image', gif: 'GIF image',
-    webp: 'WebP image', svg: 'SVG image',
-    yaml: 'Config (YAML)', yml: 'Config (YAML)', json: 'Data (JSON)',
-    html: 'HTML document',
-  };
-  return map[ext] || (ext ? `${ext.toUpperCase()} file` : 'File');
+  if (KIND_KEY_SET.has(ext)) return tk(ext);
+  return ext ? tk('generic', { ext: ext.toUpperCase() }) : tk('file');
 }
 
 interface NodeDetailsPanelProps {
@@ -319,6 +329,7 @@ interface NodeDetailsPanelProps {
 }
 
 export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPanelProps) {
+  const t = useTranslations('files.details');
   const isFolder = node.type === 'folder';
 
   return (
@@ -336,7 +347,7 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
           <p className="text-sm font-medium truncate">{node.name}</p>
           {isFolder && typeof node.children?.length === 'number' && (
             <p className="text-[11px] text-muted-foreground">
-              {node.children.length} {node.children.length === 1 ? 'item' : 'items'}
+              {t('items', { count: node.children.length })}
             </p>
           )}
         </div>
@@ -390,6 +401,7 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
 // branch only.
 
 function FileDownload({ node }: { node: WorkspaceTreeNode }) {
+  const t = useTranslations('files.details');
   const [dl, setDl] = useState<{ href: string; filename: string } | null>(null);
   // Object URLs minted for the text lane are revoked on unmount. Revoking any
   // earlier would invalidate the href before the browser could follow it.
@@ -414,14 +426,14 @@ function FileDownload({ node }: { node: WorkspaceTreeNode }) {
 
   return (
     <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
-      <PropRow label="Download">
+      <PropRow label={t('download')}>
         <a
           href={dl.href}
           download={dl.filename}
           className="inline-flex items-center gap-1.5 text-[11px] text-foreground/80 underline-offset-2 hover:underline"
         >
           <Download className="h-3.5 w-3.5 text-muted-foreground" />
-          Save to your computer
+          {t('saveToComputer')}
         </a>
       </PropRow>
     </div>
@@ -436,6 +448,7 @@ function FileDownload({ node }: { node: WorkspaceTreeNode }) {
 // dropdown of one is noise.
 
 function FileOpensWith({ path }: { path: string }) {
+  const t = useTranslations('files.details');
   const { runAction } = useFeedback();
   // ADR-518 click-pass run-1 finding: resolve WITH the file's kind, else a
   // document's row read "Studio (default)" and never offered Docs. This
@@ -481,7 +494,7 @@ function FileOpensWith({ path }: { path: string }) {
       // value with no reason given, which reads as the control refusing the
       // click rather than the save failing.
       await runAction(() => api.documents.setLaunchHandler(path, next), {
-        error: 'Could not change which app opens this file',
+        error: t('changeHandlerFailed'),
       });
       setOverride(next);
     } catch {
@@ -494,7 +507,7 @@ function FileOpensWith({ path }: { path: string }) {
   return (
     <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
       <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        Opens with
+        {t('opensWith')}
       </p>
       <select
         value={effective ?? handlers[0].id}
@@ -504,7 +517,7 @@ function FileOpensWith({ path }: { path: string }) {
       >
         {handlers.map((h, i) => (
           <option key={h.id} value={h.id}>
-            {h.label}{i === 0 ? ' (default)' : ''}
+            {h.label}{i === 0 ? t('handlerDefault') : ''}
           </option>
         ))}
       </select>

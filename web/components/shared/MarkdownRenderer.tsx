@@ -7,7 +7,8 @@
  * inline HTML (via rehype-raw), and mermaid code blocks (client-side render).
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -64,7 +65,12 @@ const PROPOSAL_ID_RE = /proposal_id=([0-9a-f]{6,36})(\.{0,3})/g;
 const YARNNN_FILES_PREFIX = '#yarnnn-files:';
 const YARNNN_QUEUE_PREFIX = '#yarnnn-queue:';
 
-function linkifySegment(text: string): string {
+/** The proposal link's own words, worded by the caller (ADR-660) — the one
+ *  member-facing phrase this module mints, so it is passed in rather than
+ *  spelled here where no member's language is known. */
+type ProposalWording = (id: string) => string;
+
+function linkifySegment(text: string, proposalLabel: ProposalWording): string {
   const toLink = (_m: string, lead: string, path: string) => {
     const abs = path.startsWith('/workspace/') ? path : `/workspace/${path}`;
     return `${lead}[${path}](${YARNNN_FILES_PREFIX}${encodeURIComponent(abs)})`;
@@ -74,13 +80,13 @@ function linkifySegment(text: string): string {
   let out = text.replace(SUBSTRATE_PATH_RE, toLink);
   out = out.replace(SUBSTRATE_FILE_RE, toLink);
   out = out.replace(PROPOSAL_ID_RE, (_m, id: string) =>
-    `[proposal ${id.slice(0, 8)}](${YARNNN_QUEUE_PREFIX}${id})`
+    `[${proposalLabel(id.slice(0, 8))}](${YARNNN_QUEUE_PREFIX}${id})`
   );
   return out;
 }
 
 /** Apply linkification outside code spans/fences only. */
-function linkifySubstrateRefs(content: string): string {
+function linkifySubstrateRefs(content: string, proposalLabel: ProposalWording): string {
   // Split on fenced blocks first, then inline code spans within prose parts.
   return content
     .split(/(```[\s\S]*?```)/g)
@@ -89,7 +95,7 @@ function linkifySubstrateRefs(content: string): string {
         ? part
         : part
             .split(/(`[^`\n]*`)/g)
-            .map((seg) => (seg.startsWith('`') ? seg : linkifySegment(seg)))
+            .map((seg) => (seg.startsWith('`') ? seg : linkifySegment(seg, proposalLabel)))
             .join('')
     )
     .join('');
@@ -109,6 +115,7 @@ function MarkdownImage({ src, alt, ...props }: { src: string; alt: string }) {
   const [resolved, setResolved] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const external = isFetchableImageSrc(src);
+  const t = useTranslations('text.markdown');
 
   useEffect(() => {
     if (external || !src) return;
@@ -124,7 +131,10 @@ function MarkdownImage({ src, alt, ...props }: { src: string; alt: string }) {
   if (failed) {
     return (
       <span className="inline-block rounded border border-dashed border-border px-2 py-1 text-xs text-muted-foreground">
-        Image not found: <span className="font-mono">{src}</span>
+        {t.rich('imageNotFound', {
+          src,
+          path: (chunks) => <span className="font-mono">{chunks}</span>,
+        })}
       </span>
     );
   }
@@ -194,7 +204,14 @@ export function MarkdownRenderer({
   linkifySubstrate,
   scale = 'chat',
 }: MarkdownRendererProps) {
-  const rendered = linkifySubstrate ? linkifySubstrateRefs(content) : content;
+  const t = useTranslations('text.markdown');
+  const rendered = useMemo(
+    () => (linkifySubstrate ? linkifySubstrateRefs(content, (id) => t('proposal', { id })) : content),
+    // `t` is stable per locale; re-deriving on every render would re-scan the
+    // whole document for nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [content, linkifySubstrate],
+  );
   const chatScale = scale === 'chat';
   return (
     <div

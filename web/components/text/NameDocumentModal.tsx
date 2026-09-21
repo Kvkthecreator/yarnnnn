@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
@@ -49,6 +50,7 @@ export function NameDocumentModal({
   onCreated: (path: string) => void;
   onError?: (message: string | null) => void;
 }) {
+  const t = useTranslations('text.name');
   const [name, setName] = useState('');
   const [folder, setFolder] = useState(DEFAULT_FOLDER);
   const [pickingFolder, setPickingFolder] = useState(false);
@@ -79,7 +81,7 @@ export function NameDocumentModal({
       onError?.(null);
       onCreated(path);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Could not create the document.';
+      const msg = e instanceof Error ? e.message : t('failed');
       setError(msg);
     } finally {
       setBusy(false);
@@ -90,13 +92,13 @@ export function NameDocumentModal({
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
         <div className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-lg">
-          <h2 className="text-base font-semibold">New document</h2>
+          <h2 className="text-base font-semibold">{t('heading')}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Name it for what it is — the file takes a matching name.
+            {t('lede')}
           </p>
 
           <label className="mt-4 block text-xs font-medium text-muted-foreground">
-            Name
+            {t('nameLabel')}
           </label>
           <input
             autoFocus
@@ -106,12 +108,12 @@ export function NameDocumentModal({
               if (isSubmitKey(e, { allowShift: true })) void create();
               if (e.key === 'Escape') onClose();
             }}
-            placeholder="Founder intro transcript"
+            placeholder={t('namePlaceholder')}
             className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
           />
 
           <label className="mt-3 block text-xs font-medium text-muted-foreground">
-            Where
+            {t('whereLabel')}
           </label>
           <div className="mt-1 flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate rounded-md border border-border bg-muted/20 px-3 py-2 font-mono text-xs">
@@ -122,7 +124,7 @@ export function NameDocumentModal({
               onClick={() => setPickingFolder(true)}
               className="shrink-0 rounded-md border border-border px-2.5 py-2 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
             >
-              Change…
+              {t('change')}
             </button>
           </div>
 
@@ -135,7 +137,7 @@ export function NameDocumentModal({
               disabled={busy}
               className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="button"
@@ -144,7 +146,7 @@ export function NameDocumentModal({
               className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-sm text-background disabled:opacity-50"
             >
               {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-              Create
+              {t('create')}
             </button>
           </div>
         </div>
@@ -153,10 +155,10 @@ export function NameDocumentModal({
       <WorkspacePickerModal
         open={pickingFolder}
         mode="folder"
-        title="Choose a folder"
-        subtitle="Where this document lives"
-        confirmLabel="Choose"
-        emptyMessage="No folders yet."
+        title={t('pickerTitle')}
+        subtitle={t('pickerSubtitle')}
+        confirmLabel={t('pickerConfirm')}
+        emptyMessage={t('pickerEmpty')}
         selectable={(node) => node.type === 'folder'}
         onClose={() => setPickingFolder(false)}
         onConfirm={(path) => {

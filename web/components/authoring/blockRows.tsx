@@ -95,7 +95,8 @@ export function blockFamily(b: BlockRowItem): BlockFamily {
 
 export interface BlockRowGroup {
   key: 'new' | 'add';
-  label: string;
+  /** A catalog key under `structure` — the door words it (ADR-660). */
+  labelKey: string;
   items: BlockRowItem[];
 }
 
@@ -120,16 +121,20 @@ export function blockCategory(b: BlockRowItem): BlockCategory {
   return b.tier === 'object' ? 'components' : 'text';
 }
 
-export const CATEGORY_LABELS: Record<BlockCategory, string> = {
-  components: 'Components',
-  text: 'Text',
-  media: 'Media',
-  data: 'Data',
+/** ADR-660 — module level, evaluated before any member's language is known, so
+ *  it holds catalog KEYS under `structure.categories`. The three insert doors
+ *  word them at render. */
+export const CATEGORY_LABEL_KEYS: Record<BlockCategory, string> = {
+  components: 'categories.components',
+  text: 'categories.text',
+  media: 'categories.media',
+  data: 'categories.data',
 };
 
 export interface BlockCategoryGroup {
   key: BlockCategory;
-  label: string;
+  /** A catalog key under `structure` — the door words it (ADR-660). */
+  labelKey: string;
   items: BlockRowItem[];
 }
 
@@ -151,7 +156,7 @@ export function categorizeBlockRows(
   return order
     .map((key) => ({
       key,
-      label: CATEGORY_LABELS[key],
+      labelKey: CATEGORY_LABEL_KEYS[key],
       items: items.filter((b) => blockCategory(b) === key),
     }))
     .filter((g) => g.items.length > 0);
@@ -184,8 +189,8 @@ export function groupBlockRows(
   // an order, not a filter.
   const newItems = medium === 'paged' ? [...composed, ...prose] : [...prose, ...composed];
   return [
-    { key: 'new' as const, label: 'New', items: newItems },
-    { key: 'add' as const, label: 'Add — from the workspace', items: cited },
+    { key: 'new' as const, labelKey: 'blockGroups.new', items: newItems },
+    { key: 'add' as const, labelKey: 'blockGroups.add', items: cited },
   ].filter((g) => g.items.length > 0);
 }
 

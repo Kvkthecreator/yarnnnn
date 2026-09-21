@@ -28,11 +28,13 @@
  * no parallel labeler; non-human classes pass through the existing one).
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api, getActiveWorkspaceId } from '@/lib/api/client';
 import {
-  formatAuthorLabelOrSystem,
+  formatAuthorLabelRefOrSystem,
   memberEmbodiment,
+  laneModelName,
 } from '@/lib/workspace/attribution';
 
 /** One principal of the acting workspace (GET /api/workspace/members row). */
@@ -273,6 +275,21 @@ export interface ResolvedActor {
 }
 
 /**
+ * A resolved actor before it is worded (ADR-660). Either a NAME the roster
+ * already holds (a peer's label — served, never translated) or a catalog
+ * `key` + `args` under the `supervisor.viewer` / `attribution` namespaces.
+ *
+ * ⚠️ The pre-ADR-660 shape composed the lane-embodiment line by SLICING the
+ * English label at `"(via"` and re-joining it to the member's name. That is an
+ * English-only parse: it silently produced `"김"` with no transport in any
+ * language whose label does not carry that literal. The parts travel
+ * separately now and the WHOLE sentence is one catalog message.
+ */
+export type ResolvedActorRef =
+  | { kind: 'name'; label: string; isSelf: boolean }
+  | { kind: 'key'; ns: 'viewer' | 'attribution'; key: string; args?: Record<string, string>; isSelf: boolean };
+
+/**
  * First-person resolution of a timeline/ledger actor.
  *
  * @param actor    the ledger's actor string (authored_by taxonomy, a raw
@@ -287,40 +304,85 @@ export interface ResolvedActor {
  * as peer activity is noise; new writes carry identity, and the read
  * cursor ages legacy rows out of the unseen count quickly).
  */
-export function resolveActorForViewer(
+export function resolveActorRefForViewer(
   actor: string | null | undefined,
   actorId: string | null | undefined,
   viewerId: string | null | undefined,
   roster: WorkspaceRoster,
-): ResolvedActor {
-  const peerLabel = (id: string) => roster.labels.get(id) ?? 'A member';
+): ResolvedActorRef {
+  /** A peer's roster label is SERVED — it rides as it came. A principal the
+   *  roster does not hold has no name, and the catalog supplies the word. */
+  const peer = (id: string, isSelf: boolean): ResolvedActorRef => {
+    const label = roster.labels.get(id);
+    return label
+      ? { kind: 'name', label, isSelf }
+      : { kind: 'key', ns: 'viewer', key: 'aMember', isSelf };
+  };
+  const you = (isSelf: boolean): ResolvedActorRef =>
+    ({ kind: 'key', ns: 'attribution', key: 'you', isSelf });
 
   // Lane embodiment — "You via GPT-4o mini" / "‹member› via ‹model›".
+  // ⚠️ The transport rides as an ARGUMENT of one whole sentence; it is never
+  // sliced out of a rendered English label (see ResolvedActorRef).
   const emb = memberEmbodiment(actor);
   if (emb) {
     const isSelf = !!viewerId && emb.memberId === viewerId;
-    const base = formatAuthorLabelOrSystem(actor); // "Member (via ‹Model›)"
-    const via = base.includes('(via') ? base.slice(base.indexOf('(via')) : '';
-    const who = isSelf ? 'You' : peerLabel(emb.memberId);
-    return { label: via ? `${who} ${via}` : who, isSelf };
+    if (!emb.model) return isSelf ? you(true) : peer(emb.memberId, false);
+    const model = laneModelName(emb.model);
+    const name = isSelf ? null : roster.labels.get(emb.memberId) ?? null;
+    return name
+      ? { kind: 'key', ns: 'viewer', key: 'peerVia', args: { who: name, model }, isSelf }
+      : {
+          kind: 'key',
+          ns: 'viewer',
+          key: isSelf ? 'youVia' : 'aMemberVia',
+          args: { model },
+          isSelf,
+        };
   }
 
   // Direct human act (operator-class revision).
   if (actor === 'operator') {
     if (actorId) {
       const isSelf = !!viewerId && actorId === viewerId;
-      return { label: isSelf ? 'You' : peerLabel(actorId), isSelf };
+      return isSelf ? you(true) : peer(actorId, false);
     }
-    return { label: 'You', isSelf: true }; // legacy identity-less row
+    return you(true); // legacy identity-less row
   }
 
   // Raw principal uuid (invocation principal_id for a human principal).
   if (actor && UUID_RE.test(actor)) {
     const isSelf = !!viewerId && actor === viewerId;
-    return { label: isSelf ? 'You' : peerLabel(actor), isSelf };
+    return isSelf ? you(true) : peer(actor, false);
   }
 
   // Everything else (freddie:, agent:, system:, yarnnn:mcp:, provider
   // host ids) — the existing labeler; never self.
-  return { label: formatAuthorLabelOrSystem(actor), isSelf: false };
+  const ref = formatAuthorLabelRefOrSystem(actor);
+  return { kind: 'key', ns: 'attribution', key: ref.key, args: ref.args, isSelf: false };
+}
+
+/**
+ * The ONE hook that words a resolved actor. Every mount (the bell, the
+ * Activity workbench, the boundary ledger) calls this rather than spelling
+ * "You" itself — one vocabulary, N mounts.
+ */
+export function useActorForViewer() {
+  const tAttribution = useTranslations('attribution');
+  const tViewer = useTranslations('supervisor.viewer');
+
+  return useCallback(
+    (
+      actor: string | null | undefined,
+      actorId: string | null | undefined,
+      viewerId: string | null | undefined,
+      roster: WorkspaceRoster,
+    ): ResolvedActor => {
+      const ref = resolveActorRefForViewer(actor, actorId, viewerId, roster);
+      if (ref.kind === 'name') return { label: ref.label, isSelf: ref.isSelf };
+      const t = ref.ns === 'viewer' ? tViewer : tAttribution;
+      return { label: t(ref.key, ref.args), isSelf: ref.isSelf };
+    },
+    [tAttribution, tViewer],
+  );
 }

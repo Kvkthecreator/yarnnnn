@@ -26,18 +26,20 @@
 
 import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Working } from '@/components/shared/Working';
 
 export default function AgentIdRedirectPage() {
   const params = useParams<{ id: string }>();
   const { navigateToSurface } = useSurfacePreferences();
+  const t = useTranslations('text.agents');
 
   useEffect(() => {
     navigateToSurface('agents', params.id ? { agent: params.id } : undefined);
   }, [params.id, navigateToSurface]);
 
   return (
-    <Working label="Opening the agent…" fill />
+    <Working label={t('openingAgent')} fill />
   );
 }

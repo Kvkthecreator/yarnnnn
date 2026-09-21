@@ -29,10 +29,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import {
   SupervisorSection,
-  type SupervisorSectionDecl,
   type SupervisorStateData,
   type WorkBand,
 } from '@/components/supervisor/SupervisorSection';
@@ -53,13 +53,17 @@ import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePr
  * ⭐ Ordered by what a member manages first: the work itself, then what is
  * waiting on them, then the decisions note — reference, not a call to act.
  */
-const SECTIONS: SupervisorSectionDecl[] = [
-  { kind: 'work', title: 'Standing work' },
-  { kind: 'needs-you', title: 'Waiting on you' },
-  { kind: 'note', title: 'What we decided' },
+/** ADR-660 — the declaration holds catalog KEYS: this table is evaluated at
+ *  import, before any member's language is known. The title is worded at
+ *  render, so the DECLARED shape is unchanged. */
+const SECTIONS: Array<{ kind: string; titleKey: string }> = [
+  { kind: 'work', titleKey: 'sectionWork' },
+  { kind: 'needs-you', titleKey: 'sectionNeedsYou' },
+  { kind: 'note', titleKey: 'sectionNote' },
 ];
 
 export function SupervisorSurface() {
+  const t = useTranslations('supervisor');
   const [data, setData] = useState<SupervisorStateData | null>(null);
   const [failed, setFailed] = useState(false);
   const [rows, setRows] = useState<StandingSummary[] | null>(null);
@@ -138,35 +142,38 @@ export function SupervisorSurface() {
     setBusy(row.topic);
     try {
       const res = await runAction(() => api.standing.run(row.topic), {
-        pending: `Running ${row.topic}…`,
+        pending: t('action.runningPending', { topic: row.topic }),
       });
       const line = res.no_change
-        ? 'Ran — nothing changed.'
+        ? t('action.ranNoChange')
         : res.success
-          ? 'Ran — the file was updated.'
+          ? t('action.ranUpdated')
           : res.error_reason === 'shape_violation'
-            ? `Update refused — ${res.detail ?? 'the fetched data broke the file’s shape'}.`
+            ? t('action.refusedShape', { detail: res.detail ?? t('action.refusedShapeFallback') })
             : res.error_reason === 'output_truncated'
-              ? 'Update refused — the file has grown too long to keep current in one run. It was left as it was.'
+              ? t('action.refusedTruncated')
             : res.error_reason === 'router_disabled'
-              ? 'Skipped — the engine is unavailable on this workspace.'
-              : `Run failed (${res.error_reason ?? 'unknown'}).`;
+              ? t('action.skippedRouterDisabled')
+              : t('action.runFailed', { reason: res.error_reason ?? t('action.runFailedUnknown') });
       setNotes((n) => ({ ...n, [row.topic]: line }));
     } catch (e) {
-      setNotes((n) => ({ ...n, [row.topic]: `Run failed (${e instanceof Error ? e.message : String(e)}).` }));
+      setNotes((n) => ({
+        ...n,
+        [row.topic]: t('action.runFailed', { reason: e instanceof Error ? e.message : String(e) }),
+      }));
     } finally {
       setBusy(null);
       void loadRoster();
     }
-  }, [busy, loadRoster, runAction]);
+  }, [busy, loadRoster, runAction, t]);
 
   const togglePause = useCallback(async (row: StandingSummary) => {
     if (busy) return;
     setBusy(row.topic);
     try {
       await runAction(() => api.standing.update(row.topic, { paused: !row.paused }), {
-        success: row.paused ? 'Resumed' : 'Paused',
-        error: row.paused ? 'Could not resume this' : 'Could not pause this',
+        success: row.paused ? t('action.resumed') : t('action.paused'),
+        error: row.paused ? t('action.couldNotResume') : t('action.couldNotPause'),
       });
     } catch {
       /* reported; the reload below restores the true state */
@@ -174,7 +181,7 @@ export function SupervisorSurface() {
       setBusy(null);
       void loadRoster();
     }
-  }, [busy, loadRoster, runAction]);
+  }, [busy, loadRoster, runAction, t]);
 
   const work: WorkBand = {
     rows,
@@ -198,7 +205,7 @@ export function SupervisorSurface() {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-          Couldn&apos;t read your work just now.
+          {t('surface.unreadable')}
         </div>
       </div>
     );
@@ -208,7 +215,7 @@ export function SupervisorSurface() {
   // INDEPENDENTLY (ADR-658 D5), so a slow mentions read never holds the work
   // band — the app's reason — behind a spinner, and an opened detail reads
   // only its own route. A band whose read is still out says "Loading…" itself.
-  if (!openTopic && !data && !failed && rows === null && !rosterFailed) return <Working label="Loading…" fill />;
+  if (!openTopic && !data && !failed && rows === null && !rosterFailed) return <Working label={t('surface.loading')} fill />;
 
   // null = the composed bands' read is still out (or failed); each band says so.
   const state: SupervisorStateData | null = data ?? (failed ? { needs_you: [], note: null } : null);
@@ -217,15 +224,15 @@ export function SupervisorSurface() {
     <div className="flex h-full flex-col overflow-y-auto">
       {/* Band 1 — the visible claim. */}
       <header className="border-b border-border/60 px-5 py-4">
-        <h1 className="text-[15px] font-semibold text-foreground">Supervisor</h1>
+        <h1 className="text-[15px] font-semibold text-foreground">{t('surface.title')}</h1>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          The work that runs on its own, and what needs you.
+          {t('surface.claim')}
         </p>
       </header>
 
       {/* Band 2 — who is minding it. Resting: calm, not absent. */}
       <div className="border-b border-border/60 bg-muted/20 px-5 py-2.5">
-        <p className="text-[13px] text-foreground/80">Supervisor looks after this.</p>
+        <p className="text-[13px] text-foreground/80">{t('surface.minder')}</p>
       </div>
 
       {/* Band 3 — the declared sections, or one piece of work opened (D6). */}
@@ -240,7 +247,7 @@ export function SupervisorSurface() {
           {SECTIONS.map((section) => (
             <SupervisorSection
               key={section.kind}
-              section={section}
+              section={{ kind: section.kind, title: t(`surface.${section.titleKey}`) }}
               data={state}
               work={work}
               onOpenLane={openLane}

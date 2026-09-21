@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Folder, Loader2, Trash2, FileQuestion } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
@@ -50,7 +51,8 @@ import { describeViewerApplication } from '@/lib/file-types';
 import { formatTimestamp } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 import { displayPath as workspaceDisplayPath } from '@/lib/interop/fileHandle';
-import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
+import { authorAccent } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { useFileContextMenu, type FileVerbs } from '@/components/workspace/FileContextMenu';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import type { WorkspaceTreeNode, WorkspaceFile, FileClickIntent } from '@/types';
@@ -180,11 +182,7 @@ export function ContentViewer({
   dnd,
 }: ContentViewerProps) {
   if (!node) {
-    return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        Select a file or folder from the explorer
-      </div>
-    );
+    return <EmptySelection />;
   }
 
   if (node.type === 'folder') {
@@ -217,6 +215,15 @@ export function ContentViewer({
   );
 }
 
+function EmptySelection() {
+  const t = useTranslations('files.viewer');
+  return (
+    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+      {t('pickSomething')}
+    </div>
+  );
+}
+
 function DirectoryView({
   node,
   onNavigate,
@@ -244,6 +251,8 @@ function DirectoryView({
   verbs?: FileVerbs;
   dnd?: ListingDnd;
 }) {
+  const t = useTranslations('files.viewer');
+  const { authorLabel } = useAuthorLabel();
   // ADR-400: right-click a folder-listing row → the shared file context menu.
   // Falls back to onGetInfo-only when verbs aren't wired (Home/other mounts).
   const { openMenu, menu, Kebab } = useFileContextMenu(verbs);
@@ -319,7 +328,7 @@ function DirectoryView({
 
   if (fetchLoading) {
     return (
-      <Working label="Loading…" fill />
+      <Working label={t('loading')} fill />
     );
   }
 
@@ -328,7 +337,7 @@ function DirectoryView({
       <>
         <div className="p-8 text-center text-muted-foreground text-sm">
           <Folder className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">Empty folder</p>
+          <p className="font-medium">{t('emptyFolder')}</p>
           <p className="text-xs mt-1">{node.path}</p>
         </div>
       </>
@@ -343,14 +352,13 @@ function DirectoryView({
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-medium">{node.name}</h2>
-              <p className="text-xs text-muted-foreground">{children.length} items</p>
+              <p className="text-xs text-muted-foreground">{t('items', { count: children.length })}</p>
             </div>
             {onOpenChatDraft && (
               <EditInChatButton
-                prompt={(() => {
-                  const folderName = node.name || node.path.split('/').filter(Boolean).pop() || 'this folder';
-                  return `About the ${folderName} context: `;
-                })()}
+                prompt={t('folderChatPrompt', {
+                  name: node.name || node.path.split('/').filter(Boolean).pop() || t('thisFolder'),
+                })}
                 onOpenChatDraft={onOpenChatDraft}
               />
             )}
@@ -441,7 +449,7 @@ function DirectoryView({
                 author={
                   <span className="inline-flex items-center gap-1.5">
                     <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent((child as any).authored_by))} />
-                    <span className="truncate">{formatAuthorLabel((child as any).authored_by)}</span>
+                    <span className="truncate">{authorLabel((child as any).authored_by)}</span>
                   </span>
                 }
                 onClick={(e) => onNavigate(child, e)}
@@ -457,11 +465,6 @@ function DirectoryView({
     </>
   );
 }
-
-// ADR-388 D3: the file-header author line uses the ONE shared attribution
-// formatter (was a local formatHeadAuthor duplicate). The MCP-host form
-// "ChatGPT (via MCP)" now shows on the file header too.
-const formatHeadAuthor = formatAuthorLabel;
 
 // ADR-400 Amendment 1: the file-header Trash button shows for anything the
 // operator can organize (the shared mirror of the backend gate). Optimistic:
@@ -490,6 +493,8 @@ function FileView({
    */
   verbs?: FileVerbs;
 }) {
+  const t = useTranslations('files.viewer');
+  const { authorLabel } = useAuthorLabel();
   const { openMenu, menu } = useFileContextMenu(verbs);
   const { confirm, runAction } = useFeedback();
   const [deleting, setDeleting] = useState(false);
@@ -508,18 +513,18 @@ function FileView({
   const handleDelete = async () => {
     if (deleting) return;
     const ok = await confirm({
-      title: 'Move to Trash?',
-      body: 'It leaves your active workspace but stays recoverable — you can restore it from Trash any time.',
-      confirmLabel: 'Move to Trash',
+      title: t('confirmTrashTitle'),
+      body: t('confirmTrashBody'),
+      confirmLabel: t('confirmTrashLabel'),
       danger: true,
     });
     if (!ok) return;
     setDeleting(true);
     try {
       await runAction(() => api.documents.delete(path), {
-        pending: 'Moving to Trash…',
-        success: 'Moved to Trash',
-        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || 'Delete failed' : 'Delete failed'),
+        pending: t('movingToTrash'),
+        success: t('movedToTrash'),
+        error: (e) => (e instanceof APIError ? (e.data as { detail?: string })?.detail || t('deleteFailed') : t('deleteFailed')),
       });
       onDeleted?.();
     } catch {
@@ -535,7 +540,7 @@ function FileView({
 
   if (loading) {
     return (
-      <Working label="Opening the file…" fill />
+      <Working label={t('opening')} fill />
     );
   }
 
@@ -545,15 +550,15 @@ function FileView({
     return (
       <div className="p-8 text-center text-muted-foreground text-sm">
         <FileQuestion className="mx-auto mb-3 h-10 w-10 opacity-40" />
-        <p className="font-medium text-foreground/80">This file isn’t here</p>
+        <p className="font-medium text-foreground/80">{t('notFoundTitle')}</p>
         {/* A 404 is scoped to ONE workspace, so it cannot say "nothing exists"
             — the wording this carried, which was wrong on 2026-09-13 when the
             file was sitting one workspace over (ADR-548 D9). State the fact we
             have, and say plainly that nothing was deleted. */}
         <p className="mt-1 text-xs max-w-sm mx-auto">
-          No file at <span className="font-mono">{path}</span> in this workspace.
-          It may be in another workspace, or not written yet — nothing has been
-          deleted. Pick a file from the explorer.
+          {t.rich('notFoundBody', {
+            path: () => <span className="font-mono">{path}</span>,
+          })}
         </p>
       </div>
     );
@@ -562,7 +567,7 @@ function FileView({
   if (error) {
     return (
       <div className="p-6 text-center text-red-500 text-sm">
-        <p>Error loading file</p>
+        <p>{t('loadErrorTitle')}</p>
         <p className="text-xs mt-1">{error}</p>
       </div>
     );
@@ -575,10 +580,10 @@ function FileView({
   if (!file || (!file.content && !file.content_url)) {
     return (
       <div className="p-6 text-center text-muted-foreground text-sm">
-        <p>Empty file</p>
+        <p>{t('emptyFileTitle')}</p>
         <p className="text-xs mt-1">{path}</p>
         <p className="text-xs mt-2 text-muted-foreground/70">
-          Chat with YARNNN to author content for this file.
+          {t('emptyFileHint')}
         </p>
       </div>
     );
@@ -620,10 +625,12 @@ function FileView({
                     "Last edited by You" etc. Substrate observability via
                     ADR-209 authored_by; falls back silently on read error. */}
                 {headRevision && (() => {
-                  const label = formatHeadAuthor(headRevision.authored_by);
+                  // ADR-388 D3: the file-header author line uses the ONE
+                  // shared attribution vocabulary (was a local duplicate).
+                  const label = authorLabel(headRevision.authored_by);
                   return label ? (
                     <span title={`authored_by: ${headRevision.authored_by}`}>
-                      Last edited by {label}
+                      {t('lastEditedBy', { author: label })}
                     </span>
                   ) : null;
                 })()}
@@ -637,10 +644,9 @@ function FileView({
                   WriteFile primitive (ADR-235). */}
               {onOpenChatDraft && (
                 <EditInChatButton
-                  prompt={(() => {
-                    const relPath = path.replace('/workspace/', '').replace('/tasks/', 'tasks/');
-                    return `About this file (${relPath}): `;
-                  })()}
+                  prompt={t('fileChatPrompt', {
+                    path: path.replace('/workspace/', '').replace('/tasks/', 'tasks/'),
+                  })}
                   onOpenChatDraft={onOpenChatDraft}
                 />
               )}
@@ -651,7 +657,7 @@ function FileView({
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  title="Move to trash (recoverable)"
+                  title={t('trashButtonTitle')}
                   className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-50"
                 >
                   {deleting ? (
@@ -659,7 +665,7 @@ function FileView({
                   ) : (
                     <Trash2 className="w-3.5 h-3.5" />
                   )}
-                  Move to Trash
+                  {t('trashButton')}
                 </button>
               )}
             </div>

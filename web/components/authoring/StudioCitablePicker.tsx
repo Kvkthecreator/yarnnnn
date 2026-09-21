@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api } from '@/lib/api/client';
 import { Working } from '@/components/shared/Working';
 
@@ -66,6 +67,7 @@ export function StudioCitablePicker({
   onPickGallery,
   onClose,
 }: StudioCitablePickerProps) {
+  const t = useTranslations('studio.citablePicker');
   const rootRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<CitableItem[] | null>(null);
   // Multi-pick kinds (gallery, and the ADR-581 D4 logo-row): taps toggle, the
@@ -124,29 +126,29 @@ export function StudioCitablePicker({
     >
       <p className="px-2 pb-0.5 pt-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         {kind === 'chart'
-          ? 'Chart a CSV from the workspace'
+          ? t('headingChart')
           : kind === 'table'
-            ? 'Insert a table from a CSV'
+            ? t('headingTable')
             : kind === 'gallery'
-              ? 'Pick images for the gallery'
+              ? t('headingGallery')
               : kind === 'logo-row'
-                ? 'Pick marks for the logo row'
+                ? t('headingLogoRow')
                 : kind === 'component'
-                  ? 'Insert a component from the workspace'
-                  : 'Insert an image from the workspace'}
+                  ? t('headingComponent')
+                  : t('headingImage')}
       </p>
       {items == null && (
         <div className="flex justify-center p-3 text-xs">
-          <Working label="Loading…" />
+          <Working label={t('loading')} />
         </div>
       )}
       {items != null && items.length === 0 && (
         <p className="p-3 text-xs text-muted-foreground">
           {cites === 'source'
-            ? 'No CSV files in the workspace yet.'
+            ? t('emptyTables')
             : cites === 'fragment'
-              ? 'No components yet — ask the chat to compose one from a screenshot or a source.'
-              : 'No images in the workspace yet — drop one into Files, or ask the chat for an SVG.'}
+              ? t('emptyComponents')
+              : t('emptyImages')}
         </p>
       )}
       {multi && items != null && items.length > 0 && (
@@ -161,7 +163,11 @@ export function StudioCitablePicker({
             }}
             className={`${btn} w-full justify-center`}
           >
-            {kind === 'logo-row' ? 'Insert logo row' : 'Insert gallery'} ({picked.length})
+            {/* ADR-660 — one message per button: the count is an ICU
+                argument, never a clause joined in code. */}
+            {kind === 'logo-row'
+              ? t('insertLogoRow', { count: picked.length })
+              : t('insertGallery', { count: picked.length })}
           </button>
         </div>
       )}

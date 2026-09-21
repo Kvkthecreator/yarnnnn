@@ -21,6 +21,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Send } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useFeedback } from '@/contexts/FeedbackContext';
@@ -45,6 +46,7 @@ export function StudioPublish({
   compact = false,
   coarsePointer = false,
 }: StudioPublishProps) {
+  const t = useTranslations('studio.publish');
   const [open, setOpen] = useState(false);
   const [sites, setSites] = useState<SitesState>({ kind: 'loading' });
   const [siteId, setSiteId] = useState<string>('');
@@ -124,13 +126,12 @@ export function StudioPublish({
               status,
             }),
           {
-            pending: status === 'draft' ? 'Saving draft…' : 'Publishing…',
-            success: (r) =>
-              r.status === 'draft' ? 'Draft saved on your site' : 'Published',
+            pending: status === 'draft' ? t('savingDraft') : t('publishing'),
+            success: (r) => (r.status === 'draft' ? t('draftSaved') : t('published')),
             error: (e) =>
               e instanceof APIError
-                ? (e.data as { detail?: string })?.detail || 'Publish failed — try again.'
-                : 'Publish failed — try again.',
+                ? (e.data as { detail?: string })?.detail || t('publishFailed')
+                : t('publishFailed'),
           },
         );
         setReceipt({
@@ -144,7 +145,7 @@ export function StudioPublish({
         setPublishing(false);
       }
     },
-    [artifactPath, siteId, runAction],
+    [artifactPath, siteId, runAction, t],
   );
 
   const btn =
@@ -162,28 +163,27 @@ export function StudioPublish({
         type="button"
         className={btn}
         onClick={openPanel}
-        title="Publish this post to your blog — your click, your account"
-        aria-label={compact ? 'Publish…' : undefined}
+        title={t('publishHint')}
+        aria-label={compact ? t('publishEllipsis') : undefined}
       >
         <Send className="h-3 w-3" />
-        {!compact && ' Publish…'}
+        {!compact && <span>&nbsp;{t('publishEllipsis')}</span>}
       </button>
 
       {open && (
         <div className={panel}>
           <p className="px-1 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Publish to WordPress
+            {t('panelTitle')}
           </p>
           <div className="space-y-2 px-1 pb-1">
             {sites.kind === 'loading' && (
-              <p className="text-[11px] text-muted-foreground">Checking your connection…</p>
+              <p className="text-[11px] text-muted-foreground">{t('checking')}</p>
             )}
 
             {sites.kind === 'unconnected' && (
               <div className="space-y-1.5">
                 <p className="text-[11px] leading-snug text-muted-foreground">
-                  Connect WordPress once, and every post can publish to your own
-                  blog — your account, your name, your click.
+                  {t('unconnected')}
                 </p>
                 {/* ADR-297 D19 — cross-surface navigation rides the window
                     manager, never a raw anchor. (Was a raw anchor to the
@@ -194,32 +194,33 @@ export function StudioPublish({
                   onClick={() => navigateToSurface('reach', { pane: 'connected' })}
                   className="inline-flex items-center rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 >
-                  Connect WordPress →
+                  {t('connectWordpress')}
                 </button>
               </div>
             )}
 
             {sites.kind === 'empty' && (
               <p className="text-[11px] leading-snug text-muted-foreground">
-                Your WordPress account has no site yet. A free blog
-                (yourname.wordpress.com) takes about a minute at{' '}
-                <a
-                  href="https://wordpress.com/start"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline hover:text-foreground"
-                >
-                  wordpress.com/start
-                </a>
-                {' '}— after that, publishing from here is one click.
+                {t.rich('noSite', {
+                  link: (chunks) => (
+                    <a
+                      href="https://wordpress.com/start"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      {chunks}
+                    </a>
+                  ),
+                })}
               </p>
             )}
 
             {sites.kind === 'error' && (
               <p className="text-[11px] text-muted-foreground">
-                WordPress did not answer.{' '}
+                {t('noAnswer')}{' '}
                 <button type="button" className="underline" onClick={() => void loadSites()}>
-                  Retry
+                  {t('retry')}
                 </button>
               </p>
             )}
@@ -227,7 +228,7 @@ export function StudioPublish({
             {sites.kind === 'ready' && !receipt && (
               <>
                 <label className="block text-[10px] text-muted-foreground">
-                  Site
+                  {t('site')}
                   <select
                     value={siteId}
                     onChange={(e) => setSiteId(e.target.value)}
@@ -246,23 +247,22 @@ export function StudioPublish({
                     className={actBtn}
                     disabled={publishing || !siteId}
                     onClick={() => void run('publish')}
-                    title="Publish live, now — the post goes public on your site"
+                    title={t('publishNowHint')}
                   >
-                    {publishing ? 'Publishing…' : 'Publish'}
+                    {publishing ? t('publishing') : t('publish')}
                   </button>
                   <button
                     type="button"
                     className={actBtn}
                     disabled={publishing || !siteId}
                     onClick={() => void run('draft')}
-                    title="Send as a draft — it lands on your site unpublished, for a final look there"
+                    title={t('draftHint')}
                   >
-                    Save as draft there
+                    {t('saveAsDraft')}
                   </button>
                 </div>
                 <p className="text-[10px] leading-snug text-muted-foreground">
-                  Published under your own account. The receipt lands beside the
-                  post; nothing here ever publishes on a schedule.
+                  {t('accountNote')}
                 </p>
               </>
             )}
@@ -270,7 +270,7 @@ export function StudioPublish({
             {receipt && (
               <div className="space-y-1">
                 <p className="text-[11px] text-foreground">
-                  {receipt.status === 'draft' ? 'Draft saved on your site ✓' : 'Published ✓'}
+                  {receipt.status === 'draft' ? t('receiptDraft') : t('receiptPublished')}
                 </p>
                 {receipt.url && (
                   <a
@@ -288,8 +288,8 @@ export function StudioPublish({
                 {receipt.publiclyReadable === false && (
                   <p className="text-[10px] leading-snug text-amber-600">
                     {receipt.status === 'draft'
-                      ? 'Your site is not launched yet — launch it in WordPress when you want readers.'
-                      : 'Live on your site, but no one can read it yet — the site is private or still “coming soon”. Launch it in WordPress to make this public.'}
+                      ? t('notReadableDraft')
+                      : t('notReadableLive')}
                   </p>
                 )}
               </div>

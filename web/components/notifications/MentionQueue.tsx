@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { AtSign } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
@@ -30,6 +31,7 @@ interface MentionRow {
 }
 
 export function MentionQueue() {
+  const t = useTranslations('supervisor.mentions');
   const { runAction } = useFeedback();
   const [rows, setRows] = useState<MentionRow[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -62,7 +64,7 @@ export function MentionQueue() {
         // unread) — but it did so in silence, so a failed dismiss looked like
         // a click that missed. The row still stays; now it says why.
         await runAction(() => api.mentions.markRead(m.conversation_id, m.sequence), {
-          error: 'Could not clear that mention',
+          error: t('couldNotClear'),
         });
         // Optimistic local clear of everything the cursor now covers.
         setRows((prev) =>
@@ -77,7 +79,7 @@ export function MentionQueue() {
         setResolving(null);
       }
     },
-    [runAction],
+    [runAction, t],
   );
 
   if (!loaded || rows.length === 0) return null;
@@ -86,7 +88,7 @@ export function MentionQueue() {
     <div className="mb-6">
       <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <AtSign className="h-3.5 w-3.5" />
-        Mentions
+        {t('heading')}
       </div>
       <div className="space-y-2">
         {rows.map((m) => {
@@ -98,8 +100,13 @@ export function MentionQueue() {
             >
               <div className="min-w-0">
                 <div className="text-sm">
-                  <span className="font-medium">{m.author}</span> mentioned you in{' '}
-                  <span className="font-medium">{m.conversation_name}</span>
+                  {/* ADR-660 — one ICU message, not a verb joined to its
+                      objects: Korean puts the conversation before the verb. */}
+                  {t.rich('line', {
+                    author: m.author,
+                    conversation: m.conversation_name,
+                    name: (chunks) => <span className="font-medium">{chunks}</span>,
+                  })}
                   {m.at && (
                     <span className="ml-2 text-xs text-muted-foreground">
                       {formatRelativeTime(m.at)}
@@ -120,16 +127,16 @@ export function MentionQueue() {
                   }
                   className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted transition-colors"
                 >
-                  Open conversation
+                  {t('openConversation')}
                 </button>
                 <button
                   type="button"
                   disabled={resolving === key}
                   onClick={() => dismiss(m)}
-                  title="Clear without opening"
+                  title={t('dismissTitle')}
                   className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
                 >
-                  Dismiss
+                  {t('dismiss')}
                 </button>
               </div>
             </div>

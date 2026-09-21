@@ -33,6 +33,7 @@
  * app-seam analysis says we lose.
  */
 
+import { useTranslations } from 'next-intl';
 import { AlertTriangle, Link2, MessageSquare, Plus } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { StandingRow, lowerFirst } from '@/components/standing/StandingRow';
@@ -93,12 +94,12 @@ export interface SupervisorSectionDecl {
  * member cannot tell a limit from an emptiness.
  */
 function SectionMiss({ kind }: { kind: string }) {
+  const t = useTranslations('supervisor.section');
   return (
     <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-500" />
       <div className="text-[12px] text-foreground/80">
-        This app asks for a <span className="font-medium">{kind || 'nameless'}</span>{' '}
-        section, which this workspace cannot show yet.
+        {t('miss', { kind: kind || t('missNameless') })}
       </div>
     </div>
   );
@@ -150,13 +151,14 @@ function Row({
 
 /** `work` — *what standing work do I have, and is it running?* (ADR-658 D5) */
 function WorkSection({ work }: { work: WorkBand }) {
+  const t = useTranslations('supervisor.section');
   const connectorStarts = work.starts.filter((s) => s.kind === 'connector');
 
   if (work.failed) {
-    return <SectionEmpty>Couldn&apos;t read your standing work just now.</SectionEmpty>;
+    return <SectionEmpty>{t('workUnreadable')}</SectionEmpty>;
   }
   if (work.rows === null) {
-    return <SectionEmpty>Loading…</SectionEmpty>;
+    return <SectionEmpty>{t('loading')}</SectionEmpty>;
   }
 
   if (work.rows.length === 0) {
@@ -166,11 +168,9 @@ function WorkSection({ work }: { work: WorkBand }) {
     // connection — and the web-page start is still offered.
     return (
       <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5">
-        <p className="text-sm text-foreground">Nothing runs on its own yet.</p>
+        <p className="text-sm text-foreground">{t('workEmptyTitle')}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {connectorStarts.length > 0
-            ? 'Pick a start below. It runs on a schedule and keeps one file current.'
-            : 'Connect Slack, Notion or GitHub in Reach to start from what they read, or start from a web page.'}
+          {connectorStarts.length > 0 ? t('workEmptyWithStarts') : t('workEmptyNoStarts')}
         </p>
         <ul className="mt-3 space-y-2">
           {work.starts.map((s) => (
@@ -184,7 +184,12 @@ function WorkSection({ work }: { work: WorkBand }) {
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] text-foreground">{s.title}</span>
                   <span className="block text-[12px] text-muted-foreground">
-                    {s.kind === 'connector' ? `${s.name} · reads ${lowerFirst(s.reads ?? 'what you chose')}` : 'Name a page. Its summary stays current.'}
+                    {s.kind === 'connector'
+                      ? t('startConnector', {
+                          name: s.name,
+                          reads: s.reads ? lowerFirst(s.reads) : t('startConnectorFallback'),
+                        })
+                      : t('startPage')}
                   </span>
                 </span>
               </button>
@@ -197,7 +202,7 @@ function WorkSection({ work }: { work: WorkBand }) {
             onClick={() => work.onNew(null)}
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
           >
-            <Plus className="h-3.5 w-3.5" /> Set up from scratch
+            <Plus className="h-3.5 w-3.5" /> {t('setUpFromScratch')}
           </button>
           {connectorStarts.length === 0 && (
             <button
@@ -205,7 +210,7 @@ function WorkSection({ work }: { work: WorkBand }) {
               onClick={work.onOpenReach}
               className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
             >
-              Open Reach
+              {t('openReach')}
             </button>
           )}
         </div>
@@ -217,14 +222,14 @@ function WorkSection({ work }: { work: WorkBand }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          Files kept current on a schedule. Open one to see its runs and instructions.
+          {t('workIntro')}
         </p>
         <button
           type="button"
           onClick={() => work.onNew(null)}
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground hover:bg-muted/40"
         >
-          <Plus className="h-3.5 w-3.5" /> New standing work
+          <Plus className="h-3.5 w-3.5" /> {t('newStandingWork')}
         </button>
       </div>
       <ul className="space-y-3">
@@ -248,14 +253,15 @@ function WorkSection({ work }: { work: WorkBand }) {
 function NeedsYouSection({
   rows, onOpenLane,
 }: { rows: SupervisorNeed[] | null; onOpenLane: (id: string) => void }) {
+  const t = useTranslations('supervisor.section');
   if (rows === null) {
-    return <SectionEmpty>Loading…</SectionEmpty>;
+    return <SectionEmpty>{t('loading')}</SectionEmpty>;
   }
   if (rows.length === 0) {
     // ⭐ Not an empty state — the RESTING state. "Nothing is waiting on you" is
     // a complete, reassuring sentence; "No items" says the same thing and reads
     // like a failure (APP-BUILDER-UX §4.1).
-    return <SectionEmpty>Nothing is waiting on you.</SectionEmpty>;
+    return <SectionEmpty>{t('needsYouEmpty')}</SectionEmpty>;
   }
   return (
     <div className="rounded-md border border-border/60">
@@ -276,11 +282,12 @@ function NeedsYouSection({
 
 /** `note` — *what did we decide?* */
 function NoteSection({ note, loading }: { note: SupervisorNote | null; loading: boolean }) {
+  const t = useTranslations('supervisor.section');
   if (loading) {
-    return <SectionEmpty>Loading…</SectionEmpty>;
+    return <SectionEmpty>{t('loading')}</SectionEmpty>;
   }
   if (!note) {
-    return <SectionEmpty>Nothing written down yet.</SectionEmpty>;
+    return <SectionEmpty>{t('noteEmpty')}</SectionEmpty>;
   }
   return (
     <div className="rounded-md border border-border/60 px-4 py-3">

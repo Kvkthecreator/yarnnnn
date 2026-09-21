@@ -87,11 +87,15 @@ export function arityOf(u: UnifiedSelection): Arity {
 /** The one withdrawal sentence (ADR-541 D4): every single-subject section or
  *  menu row that withdraws over a set says WHY with the same words, derived
  *  from the set — never a second hand-written string. */
-export function withdrawalNotice(u: UnifiedSelection): string {
+export function withdrawalNoticeRef(u: UnifiedSelection): {
+  key: string;
+  args: Record<string, string>;
+} {
   const n = u.set.length;
-  return u.setKind === 'range'
-    ? `Formatting applies to everything selected. Identity and single-block controls apply to one block at a time (${n} selected).`
-    : `Align and distribute apply to everything selected. Identity, position, layout and style apply to one object at a time (${n} selected).`;
+  return {
+    key: u.setKind === 'range' ? 'selection.withdrawRange' : 'selection.withdrawSet',
+    args: { count: String(n) },
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -183,12 +187,19 @@ export function spanShapeOf(
  *  One home for the words, beside `withdrawalNotice` and for the same reason: a
  *  second hand-written string is how two surfaces start describing one selection
  *  differently. A shapeless span still gets a truthful count. */
-export function spanLabel(s: SpanShape): string {
-  if (s.count === 0) return 'Selection';
-  if (s.count === 1) return '1 block selected';
+export function spanLabelRef(s: SpanShape): {
+  key: string;
+  args?: Record<string, string | number>;
+  /** When the lead heading has no text of its own, the caller words this key
+   *  and passes it back in as `name` — a nested message, not a joined string. */
+  nameKey?: string;
+} {
+  if (s.count === 0) return { key: 'selection.none' };
+  if (s.count === 1) return { key: 'selection.one' };
   if (s.lead) {
-    const name = s.lead.text || 'this heading';
-    return `${name} and the ${s.under} block${s.under === 1 ? '' : 's'} under it`;
+    return s.lead.text
+      ? { key: 'selection.underHeading', args: { name: s.lead.text, count: s.under } }
+      : { key: 'selection.underHeading', args: { count: s.under }, nameKey: 'selection.thisHeading' };
   }
-  return `${s.count} blocks selected`;
+  return { key: 'selection.many', args: { count: s.count } };
 }

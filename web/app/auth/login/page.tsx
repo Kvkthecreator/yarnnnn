@@ -77,6 +77,10 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+  // ADR-660 — the fallback is rendered by THIS component, so the word is bound
+  // here; `Working` itself stays locale-free (it is also mounted by routes
+  // outside every scope, where a translation hook would throw).
+  const t = useTranslations("auth");
   return (
     <Suspense
       fallback={
@@ -84,7 +88,7 @@ export default function LoginPage() {
           <div className="relative z-10 w-full max-w-md space-y-8">
             <div className="text-center">
               <h1 className="text-[#1a1a1a]"><Wordmark className="text-3xl" /></h1>
-              <div className="mt-2 flex justify-center"><Working label="Loading…" /></div>
+              <div className="mt-2 flex justify-center"><Working label={t('loading')} /></div>
             </div>
           </div>
         </div>

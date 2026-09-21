@@ -37,6 +37,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -80,10 +81,13 @@ function SectionShell({ title, children }: { title: string; children: React.Reac
   );
 }
 
-const MODES: Array<{ value: Mode; label: string; hint: string }> = [
-  { value: "off", label: "Off", hint: "Not offered to any conversation." },
-  { value: "propose", label: "Ask first", hint: "Each call is queued for you to run." },
-  { value: "direct", label: "Direct", hint: "Runs in your turn, under your credential." },
+/** The three modes, as catalog KEYS. A module-level table is evaluated at
+ *  IMPORT, before any member's language is known, so it may hold only keys —
+ *  the words are resolved at render below. */
+const MODES: Array<{ value: Mode; labelKey: string; hintKey: string }> = [
+  { value: "off", labelKey: "modeOff", hintKey: "modeOffHint" },
+  { value: "propose", labelKey: "modePropose", hintKey: "modeProposeHint" },
+  { value: "direct", labelKey: "modeDirect", hintKey: "modeDirectHint" },
 ];
 
 export function AttachedConnectorSubsurface({
@@ -92,6 +96,7 @@ export function AttachedConnectorSubsurface({
   onDisconnect,
   disconnecting = false,
 }: AttachedConnectorSubsurfaceProps) {
+  const t = useTranslations("billing.attached");
   const slug = provider.startsWith("mcp:") ? provider.slice(4) : provider;
   const [row, setRow] = useState<AttachedConnector | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,14 +117,14 @@ export function AttachedConnectorSubsurface({
       const c = await api.connectors.get(slug);
       setRow(c);
       const next: Record<string, Mode> = {};
-      for (const t of c.tools) next[t.name] = (t.mode ?? "off") as Mode;
+      for (const tool of c.tools) next[tool.name] = (tool.mode ?? "off") as Mode;
       setDraft(next);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load this connector.");
+      setError(e instanceof Error ? e.message : t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, t]);
 
   useEffect(() => {
     void load();
@@ -127,7 +132,9 @@ export function AttachedConnectorSubsurface({
 
   const dirty =
     !!row &&
-    row.tools.some((t) => (draft[t.name] ?? "off") !== ((t.mode ?? "off") as Mode));
+    row.tools.some(
+      (tool) => (draft[tool.name] ?? "off") !== ((tool.mode ?? "off") as Mode),
+    );
 
   const save = async () => {
     setSaving(true);
@@ -137,12 +144,12 @@ export function AttachedConnectorSubsurface({
         if (mode === "direct" || mode === "propose") aperture[tool] = mode;
       }
       const res = await runAction(() => api.connectors.setAperture(slug, aperture), {
-        pending: "Saving\u2026",
-        success: "Saved what this connector may do",
+        pending: t("savePending"),
+        success: t("saveSuccess"),
         error: (e) =>
           e instanceof APIError
-            ? (e.data as { detail?: string })?.detail || "Couldn't save that setting"
-            : "Couldn't save that setting",
+            ? (e.data as { detail?: string })?.detail || t("saveError")
+            : t("saveError"),
       });
       if (res.connector) setRow(res.connector);
     } catch {
@@ -160,21 +167,21 @@ export function AttachedConnectorSubsurface({
       // that changed nothing and of one that withdrew a tool the member had
       // allowed, which is the silence this amendment exists to end.
       await runAction(() => api.connectors.refresh(slug), {
-        pending: "Checking what this server offers\u2026",
+        pending: t("refreshPending"),
         success: (res) => {
           const d = res?.connector?.drift;
           if (d?.withdrawn.length) {
-            return `${d.withdrawn.length} tool${d.withdrawn.length === 1 ? "" : "s"} you allowed ${d.withdrawn.length === 1 ? "is" : "are"} gone from this server`;
+            return t("refreshWithdrawn", { count: d.withdrawn.length });
           }
           if (d?.appeared.length) {
-            return `${d.appeared.length} new tool${d.appeared.length === 1 ? "" : "s"} offered \u2014 none allowed yet`;
+            return t("refreshAppeared", { count: d.appeared.length });
           }
-          return "Nothing changed on this server";
+          return t("refreshNoChange");
         },
         error: (e) =>
           e instanceof APIError
-            ? (e.data as { detail?: string })?.detail || "Couldn't reach that server"
-            : "Couldn't reach that server",
+            ? (e.data as { detail?: string })?.detail || t("refreshError")
+            : t("refreshError"),
       });
       await load();
     } catch {
@@ -193,26 +200,26 @@ export function AttachedConnectorSubsurface({
   const groups = useMemo(() => {
     const q = filter.trim().toLowerCase();
     const shown = (row?.tools ?? []).filter(
-      (t) =>
+      (tool) =>
         !q ||
-        t.name.toLowerCase().includes(q) ||
-        (t.description ?? "").toLowerCase().includes(q),
+        tool.name.toLowerCase().includes(q) ||
+        (tool.description ?? "").toLowerCase().includes(q),
     );
     return [
       {
         key: "reads" as const,
-        label: "The server says these only read",
-        note: "Its own hint, not a guarantee — you still choose each one.",
-        tools: shown.filter((t) => t.read_only_hint),
+        label: t("groupReads"),
+        note: t("groupReadsNote"),
+        tools: shown.filter((tool) => tool.read_only_hint),
       },
       {
         key: "writes" as const,
-        label: "These can change things there",
-        note: "The server does not mark them read-only. Ask first queues each call for you.",
-        tools: shown.filter((t) => !t.read_only_hint),
+        label: t("groupWrites"),
+        note: t("groupWritesNote"),
+        tools: shown.filter((tool) => !tool.read_only_hint),
       },
     ].filter((g) => g.tools.length > 0);
-  }, [row?.tools, filter]);
+  }, [row?.tools, filter, t]);
 
   const shownCount = groups.reduce((n, g) => n + g.tools.length, 0);
 
@@ -234,7 +241,7 @@ export function AttachedConnectorSubsurface({
         className="mb-4 inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Connections
+        {t("back")}
       </button>
 
       <div className="flex items-start gap-3">
@@ -245,9 +252,9 @@ export function AttachedConnectorSubsurface({
             <p className="truncate text-sm text-muted-foreground">{row.server_url}</p>
           )}
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {row?.category ? `${row.category} · ` : ""}
-            {row?.auth === "none" ? "no sign-in required" : "authorized by you"}
-            {since ? ` · since ${since}` : ""}
+            {row?.category ? t("categoryPrefix", { category: row.category }) : ""}
+            {row?.auth === "none" ? t("noSignIn") : t("authorized")}
+            {since ? t("sinceSuffix", { since }) : ""}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -256,10 +263,10 @@ export function AttachedConnectorSubsurface({
             onClick={() => void refreshTools()}
             disabled={refreshing || loading}
             className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2.5 py-1 text-xs hover:bg-muted"
-            title="Re-list the server's tools"
+            title={t("refreshTitle")}
           >
             {refreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Refresh
+            {t("refresh")}
           </button>
           {onDisconnect && (
             <button
@@ -269,7 +276,7 @@ export function AttachedConnectorSubsurface({
               className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2.5 py-1 text-xs text-muted-foreground hover:border-destructive/30 hover:text-destructive"
             >
               {disconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-              Disconnect
+              {t("disconnect")}
             </button>
           )}
         </div>
@@ -282,15 +289,18 @@ export function AttachedConnectorSubsurface({
       )}
 
       {loading ? (
-        <Working label="Loading the connector…" fill />
+        <Working label={t("loading")} fill />
       ) : row ? (
         <div className="mt-4 space-y-3">
-          <SectionShell title="What you allow">
+          <SectionShell title={t("allowTitle")}>
+            {/* The two mode names are emphasised INSIDE the sentence, so they
+                ride as rich-text tags — a language orders the clause its own
+                way and the bold has to travel with the word. */}
             <p className="mb-3 text-xs text-muted-foreground">
-              Nothing is offered until you choose it. <strong>Ask first</strong> queues
-              each call as a proposal you run from your queue. <strong>Direct</strong>{" "}
-              runs in your conversation under your own credential. A lock means the
-              server says the tool only reads — a hint for you, not a decision.
+              {t.rich("allowLead", {
+                askFirst: () => <strong>{t("modePropose")}</strong>,
+                direct: () => <strong>{t("modeDirect")}</strong>,
+              })}
             </p>
             {/* ADR-635 D4 am.1 — the server moved under the member's consent.
                 A tool they ALLOWED that is gone now refuses every call; this
@@ -303,23 +313,23 @@ export function AttachedConnectorSubsurface({
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
                 <div className="min-w-0">
                   <p className="font-medium text-amber-700 dark:text-amber-500">
-                    This server&rsquo;s tools changed since you last chose.
+                    {t("driftTitle")}
                   </p>
                   {row.drift.withdrawn.length > 0 && (
                     <p className="mt-0.5 text-muted-foreground">
-                      {row.drift.withdrawn.length === 1 ? "A tool you allowed is" : "Tools you allowed are"}{" "}
-                      no longer offered, so {row.drift.withdrawn.length === 1 ? "it is" : "they are"}{" "}
-                      no longer allowed:{" "}
-                      <span className="text-foreground">{row.drift.withdrawn.join(", ")}</span>. If the
-                      server renamed {row.drift.withdrawn.length === 1 ? "it" : "them"}, choose the new
-                      name below.
+                      {t.rich("driftWithdrawn", {
+                        count: row.drift.withdrawn.length,
+                        names: () => (
+                          <span className="text-foreground">
+                            {row.drift?.withdrawn.join(", ")}
+                          </span>
+                        ),
+                      })}
                     </p>
                   )}
                   {row.drift.appeared.length > 0 && (
                     <p className="mt-0.5 text-muted-foreground">
-                      {row.drift.appeared.length} new tool
-                      {row.drift.appeared.length === 1 ? " is" : "s are"} offered. Nothing is allowed
-                      until you choose it.
+                      {t("driftAppeared", { count: row.drift.appeared.length })}
                     </p>
                   )}
                 </div>
@@ -327,9 +337,7 @@ export function AttachedConnectorSubsurface({
             )}
 
             {row.tools.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">
-                No tools listed yet. Try Refresh.
-              </p>
+              <p className="py-2 text-sm text-muted-foreground">{t("noTools")}</p>
             ) : (
               <>
                 {/* At a handful of tools this is noise; at ~31 it is the only
@@ -341,8 +349,8 @@ export function AttachedConnectorSubsurface({
                       type="search"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
-                      placeholder={`Find among ${row.tools.length} tools…`}
-                      aria-label="Filter tools"
+                      placeholder={t("filterPlaceholder", { count: row.tools.length })}
+                      aria-label={t("filterLabel")}
                       className="w-full rounded-md border border-border/60 bg-transparent py-1.5 pl-8 pr-2 text-xs outline-none focus:border-foreground/30"
                     />
                   </div>
@@ -350,11 +358,11 @@ export function AttachedConnectorSubsurface({
 
                 {shownCount === 0 ? (
                   <p className="py-2 text-sm text-muted-foreground">
-                    No tool matches &ldquo;{filter}&rdquo;.
+                    {t("noMatch", { query: filter })}
                   </p>
                 ) : (
                   groups.map((g) => {
-                    const names = g.tools.map((t) => t.name);
+                    const names = g.tools.map((tool) => tool.name);
                     return (
                       <div key={g.key} className="mb-3 last:mb-0">
                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border/60 pb-1.5">
@@ -371,48 +379,51 @@ export function AttachedConnectorSubsurface({
                               default and nothing turns on by itself. */}
                           <div className="ml-auto flex shrink-0 items-center gap-1 text-[11px]">
                             <span className="text-muted-foreground">
-                              Set {filter.trim() ? "these" : "all"}:
+                              {filter.trim() ? t("setThese") : t("setAll")}
                             </span>
                             {MODES.map((m) => (
                               <button
                                 key={m.value}
                                 type="button"
-                                title={`${m.label} — ${m.hint}`}
+                                title={t("modeTitle", {
+                                  label: t(m.labelKey),
+                                  hint: t(m.hintKey),
+                                })}
                                 onClick={() => setGroup(names, m.value)}
                                 className="rounded border border-border/60 px-1.5 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                               >
-                                {m.label}
+                                {t(m.labelKey)}
                               </button>
                             ))}
                           </div>
                         </div>
                         <ul className="divide-y divide-border/60">
-                          {g.tools.map((t) => {
-                            const mode = draft[t.name] ?? "off";
+                          {g.tools.map((tool) => {
+                            const mode = draft[tool.name] ?? "off";
                             return (
-                              <li key={t.name} className="flex items-start gap-3 py-2">
+                              <li key={tool.name} className="flex items-start gap-3 py-2">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <code className="truncate text-sm">{t.name}</code>
-                                    {t.read_only_hint && (
+                                    <code className="truncate text-sm">{tool.name}</code>
+                                    {tool.read_only_hint && (
                                       <span
                                         className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"
-                                        title="The server marks this tool read-only (a hint, not a guarantee)"
+                                        title={t("readsBadgeTitle")}
                                       >
                                         <ShieldCheck className="h-3 w-3" />
-                                        reads
+                                        {t("readsBadge")}
                                       </span>
                                     )}
                                   </div>
-                                  {t.description && (
+                                  {tool.description && (
                                     <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                                      {t.description}
+                                      {tool.description}
                                     </p>
                                   )}
                                 </div>
                                 <div
                                   role="radiogroup"
-                                  aria-label={`${t.name} mode`}
+                                  aria-label={t("toolModeLabel", { tool: tool.name })}
                                   className="flex shrink-0 overflow-hidden rounded-md border border-border/60 text-xs"
                                 >
                                   {MODES.map((m) => (
@@ -421,9 +432,9 @@ export function AttachedConnectorSubsurface({
                                       type="button"
                                       role="radio"
                                       aria-checked={mode === m.value}
-                                      title={m.hint}
+                                      title={t(m.hintKey)}
                                       onClick={() => {
-                                        setDraft((d) => ({ ...d, [t.name]: m.value }));
+                                        setDraft((d) => ({ ...d, [tool.name]: m.value }));
                                       }}
                                       className={`px-2.5 py-1 ${
                                         mode === m.value
@@ -431,7 +442,7 @@ export function AttachedConnectorSubsurface({
                                           : "text-muted-foreground hover:bg-muted"
                                       }`}
                                     >
-                                      {m.label}
+                                      {t(m.labelKey)}
                                     </button>
                                   ))}
                                 </div>
@@ -453,31 +464,23 @@ export function AttachedConnectorSubsurface({
                 className="inline-flex items-center gap-1 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                Save
+                {t("save")}
               </button>
               <span className="text-xs text-muted-foreground">
-                {exposed} of {row.tools.length} tools offered
-                {filter.trim() ? ` · ${shownCount} shown` : ""}
+                {t("exposedCount", { exposed, total: row.tools.length })}
+                {filter.trim() ? t("shownSuffix", { count: shownCount }) : ""}
               </span>
             </div>
           </SectionShell>
 
-          <SectionShell title="What this connection does">
+          <SectionShell title={t("doesTitle")}>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-              <dt className="text-muted-foreground">Reads / writes</dt>
-              <dd>
-                Whatever tools you allow above, in your own chats, as you. A tool set
-                to Ask first waits in To do before it runs.
-              </dd>
-              <dt className="text-muted-foreground">Agents</dt>
-              <dd>
-                Never on their own. Only a chat you are in can reach this server.
-              </dd>
-              <dt className="text-muted-foreground">Where it goes</dt>
-              <dd>
-                What a chat fetches stays in that chat unless it is saved to a file.
-                It goes to the engine you chose for that chat.
-              </dd>
+              <dt className="text-muted-foreground">{t("readsWrites")}</dt>
+              <dd>{t("readsWritesBody")}</dd>
+              <dt className="text-muted-foreground">{t("agents")}</dt>
+              <dd>{t("agentsBody")}</dd>
+              <dt className="text-muted-foreground">{t("whereItGoes")}</dt>
+              <dd>{t("whereItGoesBody")}</dd>
             </dl>
             {row.server_url && (
               <a

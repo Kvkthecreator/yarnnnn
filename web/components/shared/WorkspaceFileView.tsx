@@ -22,10 +22,11 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { type LucideIcon } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
-import { formatAuthorLabel } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
@@ -88,6 +89,8 @@ export function WorkspaceFileView({
   maxLines,
   className,
 }: WorkspaceFileViewProps) {
+  const t = useTranslations('text.file');
+  const { authorLabel } = useAuthorLabel();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [authoredBy, setAuthoredBy] = useState<string | null>(null);
@@ -109,7 +112,7 @@ export function WorkspaceFileView({
             // labeler (lib/workspace/attribution.ts) instead of an inline
             // ternary. It returns "Freddie" for the `freddie:` slug per the
             // ADR-381/251 relabel; the old ternary said "Reviewer".
-            const label = formatAuthorLabel(revs.revisions[0].authored_by);
+            const label = authorLabel(revs.revisions[0].authored_by);
             if (!cancelled) setAuthoredBy(label);
           }
         } catch { /* non-fatal */ }
@@ -122,7 +125,7 @@ export function WorkspaceFileView({
       }
     })();
     return () => { cancelled = true; };
-  }, [path]);
+  }, [path, authorLabel]);
 
   const isEmpty = !content || !content.trim();
   const displayContent = content && maxLines ? tailMarkdown(content.trim(), maxLines) : content?.trim() ?? '';
@@ -146,7 +149,7 @@ export function WorkspaceFileView({
             )}
             {authoredBy && (
               <p className="mt-0.5 text-[10px] text-muted-foreground/50">
-                Last edited by {authoredBy}
+                {t('lastEditedBy', { author: authoredBy })}
               </p>
             )}
           </div>
@@ -162,21 +165,24 @@ export function WorkspaceFileView({
 
       {/* Content */}
       {loading ? (
-        <Working label="Loading…" fill />
+        <Working label={t('loading')} fill />
       ) : isEmpty ? (
         <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
           {emptyBody ?? (
             <p className="text-center text-xs">
-              No content yet.{' '}
-              {editPrompt && onEdit && (
-                <button
-                  type="button"
-                  onClick={() => onEdit(editPrompt)}
-                  className="font-medium underline underline-offset-4 hover:no-underline"
-                >
-                  Author in chat
-                </button>
-              )}
+              {editPrompt && onEdit
+                ? t.rich('noContent', {
+                    author: (chunks) => (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(editPrompt)}
+                        className="font-medium underline underline-offset-4 hover:no-underline"
+                      >
+                        {chunks}
+                      </button>
+                    ),
+                  })
+                : t('noContentPlain')}
             </p>
           )}
         </div>
@@ -185,10 +191,14 @@ export function WorkspaceFileView({
           <MarkdownRenderer content={displayContent} compact />
           {maxLines && content && content.split('\n').length > maxLines && (
             <p className="mt-1 text-[10px] text-muted-foreground/50 italic">
-              Showing last {maxLines} lines —{' '}
-              <SurfaceLink to="files" params={{ path }} className="underline underline-offset-4">
-                open full file
-              </SurfaceLink>
+              {t.rich('showingLastLines', {
+                count: maxLines,
+                link: (chunks) => (
+                  <SurfaceLink to="files" params={{ path }} className="underline underline-offset-4">
+                    {chunks}
+                  </SurfaceLink>
+                ),
+              })}
             </p>
           )}
         </div>

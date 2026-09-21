@@ -3,8 +3,8 @@
 > **Status**: **Accepted + Implemented — the mechanism, the sign-in path, and the shell** (2026-09-20, operator:
 > *"consistent request to support korean language as an optionality … industry conventions, just fitting to our
 > service specifics"*). D1–D6 shipped and driven (§9); the shell pass and its ruling on served titles in §10.
-> **Coverage is the open half**: 875 lines of literal copy across 93 files remain English, held by D4's
-> ratchet; §8 names what is not decided here. §10 shell · §11 chat · §12 the account door.
+> **Coverage is DONE** (2026-09-21, §13). Every member-facing surface reads the catalog; what stays English
+> is what the operator ruled stays English. §10 shell · §11 chat · §12 the account door · §13 the rest.
 > **Date**: 2026-09-20
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Who** (a preference of the human, not of the commons).
@@ -304,3 +304,115 @@ the gate's one-level import check does cover it, because `app/admin/layout.tsx` 
 directly.
 
 Still served, so still §8: the notification kinds' labels and descriptions (the backend registry).
+
+---
+
+## 13. Full coverage (2026-09-21)
+
+The operator asked for the whole scope rather than a half measure: *"it doesn't make sense to do half measure
+translation (albeit, if some wording can remain english that is perfectly fine). i just mean we should
+complete the scope itself."*
+
+**2330 keys across 17 namespaces.** Seven surface groups converted in parallel, plus the shared layers below.
+The meter reads **262 lines / 43 files** (from 875 / 93), and that number now means something different —
+see *What the ceiling measures now*.
+
+### D7 — a fourth scope, because a MOUNT decides where a scope is needed
+
+`FeedbackContext`'s confirm shell (Cancel · Continue · Dismiss · the generic outcome lines) is member-facing
+copy on every destructive flow in the app. `FeedbackProvider` mounts in `AuthenticatedLayout` **and** in
+`app/admin/layout.tsx`, which is outside `(authenticated)`. Translating the shell as-is would have thrown at
+render on `/admin` — the §4 `AuthForm` hazard exactly, one layer deeper. So `app/admin` gained the fourth
+`IntlScope`: a server layout over a client `AdminShell`. The console's OWN chrome stays English (operator
+ruling — it is a Hat-B instrument, outside the member-facing meter); the scope exists so the shared layer can
+render. **A shared component's mounts decide where a scope is needed, never the route's own audience.**
+
+Build receipt: **136 → 135** prerendered routes. `/admin` is the one that left, and it is `noindex` and
+already resolved its viewer client-side. Every marketing route is still `○`.
+
+### D8 — the entry routes stay English, and a gate holds the consequence
+
+Four member-facing entry routes are outside every scope: `/invite/{token}`, `/s/{token}`, `/mcp/authorize`,
+`/auth/callback`. Scoping them would have cost two more prerendered routes; **the operator ruled they stay
+English.** The consequence is not obvious and had to be made mechanical: four components are reachable only
+from them — `NewArtifactModal`, `WorkspacePicker`, `Working`, `BlogPostList`. A translation hook in any of
+those ships a **runtime crash on a signed-out entry path that `tsc`, the build and every other arm pass
+cleanly.** `SCOPELESS_BY_RULING` in the gate forbids the import; proven RED in place.
+
+Their 36 metered lines are a **permanent floor**. If a later ruling scopes those routes, that set is the one
+line to delete.
+
+### The shared label layers — one implementation each
+
+These were the real work, and none of them was visible to the meter:
+
+- **`formatAuthorLabel`** (`lib/workspace/attribution.ts`) reaches **17 files**. Translating any one surface
+  alone would have split the vocabulary — "나" on one row, "You" on the next. It returns a catalog key now;
+  `useAuthorLabel` words it.
+- **`resolveActorForViewer`** sliced the rendered English label at the literal `"(via"` to rebuild
+  "You via GPT-4o mini". In Korean that produced a name with **no transport at all**. The transport is an ICU
+  argument of one whole message now.
+- **`toolLabels.ts`** (§11), **`proposal-labels.ts`**, **`timeline-rows.tsx`**, **`StandingRow`**'s schedule
+  words, **`legibilityDescriptor`**, and **`conflict.ts`** — all module-level, all now key-returning or hooks.
+- **`structureLabels.ts`** is the interesting one: it is the ONE label ladder, called from panes *and*
+  serialised into the sandboxed canvas runtime by `labelForJS`. The runtime cannot read a catalog — a key
+  baked into the iframe would render as `roles.body` on the member's canvas. So the WORDS ride the same
+  global channel `__yarnnnBlockLabels` and `__yarnnnFrameNoun` already use (ADR-544 D4 / ADR-633 D3),
+  resolved once at the injection site. One derivation, injected.
+
+### ⭐ Three defect classes no existing arm could see
+
+1. **`\w` matches Hangul in Python.** `{count, plural, other {다른 멤버 #명}}` read `다른` as a second ICU
+   argument, so a *correct* Korean plural registered as argument drift against its English twin. Two agents
+   had already contorted their Korean word order around it before it was found. `ICU_ARG` anchors on a real
+   argument now (ASCII identifier followed by `}` or `,`); genuine drift still fails in both directions.
+2. **English sentences carrying Korean counters.** A pass that writes one plural arm and uses it for both
+   locales shipped "2개 of the tools…" and "5명 · 3석 billed" — 25 of them. Argument parity cannot see it: the
+   arguments are identical, the TEXT is in the wrong language. New arm: no Hangul in an English value.
+3. **English plurals that lost their `one` arm** — the inverse, and it shipped: **"1 people"**, rendered on
+   the Workspace Members pane and found by DRIVING it, not by reading. Korean has no plural form and takes
+   `other` alone; copying that shape to English breaks every singular. 13 of them. New arm holds the default
+   locale only.
+
+All three arms were falsified in place and restored byte-identical.
+
+### The voice guard finally reads the copy
+
+Moving strings into the catalogs put them where `test_voice_no_kernel_nouns_in_copy.py` can read them, and it
+immediately found **27 violations** that had been invisible inside JSX: `artifact` (11 of them — a kernel
+noun on the Studio surface), `lane`, `commons`, `principals`, `attributed`, `re-scaffolded`, `no-op`, and an
+**ADR reference in member copy** (`"Markdown export arrives with the interchange wave (ADR-456 W4)"`). All 27
+were reworded in both languages rather than allowlisted. The allowlist did not grow: its two `Freddie`
+entries were re-keyed from the old call sites to the catalog keys they became.
+
+### What the ceiling measures now
+
+**226 of the remaining 262 lines are false positives** inside fully-translated files: the meter marks
+JSX-text continuation lines, and Prettier wraps a long `t('…', { … })` call across several, so it counts JS
+identifiers and date-format options as prose. Reflowing real code to satisfy a meter would be the tail
+wagging the dog. The other **36** are D8's floor. So coverage is done, and `LITERAL_COPY_CEILING` now guards
+against NEW literal copy rather than measuring remaining work.
+
+### Receipts
+
+- **ADR-660 gate 36/36** (29 → 36; seven arms added across §10–§13, each falsified in place).
+- **Voice guard 0 violations**, allowlist unchanged in size.
+- **`tsc` 0 errors**; **`next build`** clean, **135** prerendered, every marketing route static.
+- **198 gates that read `web/` source, re-run against a stashed baseline: ZERO regressions.** ADR-571 was the
+  one gate this pass broke (286 → 274; it asserts Text-app copy as English source literals) and it is back at
+  **286/288**, its two remaining failures pre-existing and untouched. Its checks are keyed on catalog keys
+  now, which is language-independent and stronger than the literal match; its node probes mount the real
+  `NextIntlClientProvider` with the shipped English catalog, because rendering a translated component bare is
+  testing a shape production never has.
+- **Driven in Korean** on the `bare-kernel` rig across Files, Agents, Reach, Supervisor, Notifications,
+  Workspace settings, Text and Studio — every surface renders Korean, 0 page errors. The same rig at
+  `locale: "en"` renders correct English on all eight. Account restored to no `locale` key.
+
+### Still English, by ruling or by rule
+
+The four scopeless components and their entry routes (D8). The `/admin` console chrome. Every **served**
+string, which §8 still defers: surface titles beyond the shell's slug map, agent names and blurbs, the
+notification-kind registry, connector titles, `HTTPException` details, the lane's default name, revision
+messages (substrate data, ADR-209), and `blockLabels` (the served block vocabulary, ADR-544 D4). Brand and
+app names in Latin script per D6. `lib/formatting.ts`'s relative times, which are a shared layer on 15
+surfaces and translate with their own pass.

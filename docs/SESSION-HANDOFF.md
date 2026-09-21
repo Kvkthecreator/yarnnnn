@@ -6,37 +6,26 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## Korean: the shell, chat and the account door speak it (ADR-660, 2026-09-20)
+## Korean: coverage is COMPLETE (ADR-660 §13, 2026-09-21)
 
-The mechanism, the sign-in path, the SHELL (§10), the CHAT SURFACE (§11) and the ACCOUNT DOOR (§12) are live
-and driven. **875 lines of literal copy in 93 files are still English** — `LITERAL_COPY_CEILING` in
-`api/test_adr660_the_interface_speaks_korean.py` is the meter; lower it in the commit that lowers the count.
-Next by measurement: `StudioDesignTab` (61), `SubscriptionCard` (46), `ManageConnectionSubsurface` (38),
-`FindConnectorModal` (35), `WorkspaceMembersCard` (32), `TextEditor` (31), `StudioSurface` (29),
-`AgentsSurface` (26).
+The interface speaks Korean. 2330 keys / 17 namespaces; every member-facing surface reads the catalog.
+Driven in both languages across eight surfaces. Gate **36/36**, voice guard 0, tsc 0, build 135 prerendered.
 
-⚠️ **The shared confirm shell is the next blocker, and it is a MOUNT problem.** `FeedbackContext`'s Cancel
-button is English; `FeedbackProvider` mounts in `AuthenticatedLayout` (in scope) **and**
-`app/admin/layout.tsx` (out of scope), so translating it as-is throws at render on `/admin`. Decide first:
-an `IntlScope` on the admin layout, or a locale-free shell.
+**`LITERAL_COPY_CEILING` now means something different.** It reads 262, but **226 of those are FALSE
+POSITIVES** inside fully-translated files (the meter marks Prettier-wrapped continuation lines of `t(…)`
+calls and counts JS identifiers as prose). The other 36 are the ruled-English floor. Do not chase either —
+the ceiling now guards against NEW literal copy, not remaining work.
 
-The meter is a FLOOR — it cannot see module-level tables, toasts, template literals, or a lowercase DB enum
-made English by CSS `capitalize`. **Read the file, not the meter.** Convert a table by holding catalog KEYS
-and wording at render (D3); convert a `verb + subject` concatenation into a whole ICU message, because the
-join order is English grammar.
+⚠️ **`SCOPELESS_BY_RULING` in the gate is load-bearing.** `NewArtifactModal`, `WorkspacePicker`, `Working`
+and `BlogPostList` are reachable only from `/invite/{token}`, `/s/{token}`, `/mcp/authorize`,
+`/auth/callback` and `/blog` — all outside every `IntlScope` by operator ruling. A translation hook in any of
+them is a **runtime crash on a signed-out entry path** that tsc, the build and every other arm pass cleanly.
+If a later ruling scopes those routes, delete that set in the same commit.
 
-⚠️ **The gate's key arm was found narrow TWICE on 2026-09-20**: first it bound only a double-quoted
-namespace (17 of 22 bindings unchecked, green over a shipped commit), then it still required a bare `t(`, so
-`t.rich`/`t.has`/`t.raw` keys went unchecked. Both fixed and falsified in place. The lesson stands: a
-source-reading gate is only as wide as its syntax assumptions, and finding one narrowing is a reason to look
-for the next. Dynamic keys (`` t(`${name}.doing`) ``) can never be scanned — they have two dedicated arms.
-
-Two shared label layers still need their own pass, each reaching many surfaces: `actorLine` /
-`proposalLabel` / `proposalQueuedByDialLine` (AttentionCenter + Notifications + Reach) and
-`formatRelativeTime` in `lib/formatting.ts` (**15 surfaces**). Translate them with their surfaces.
-Undecided, ADR §8: served error details (136 `HTTPException`), the lane's default name
-(`_DEFAULT_LANE_NAME` in `api/routes/lanes.py`), the served agent roster, outbound email, the marketing
-site, the sign-up stage notice.
+**Still English and still open**: served strings (ADR-660 §8) — surface titles beyond the shell's slug map,
+agent names/blurbs, the notification-kind registry, connector titles, 136 `HTTPException` details, the lane's
+default name. Plus `lib/formatting.ts`'s relative times (`just now`, `2m ago`), a shared layer on **15
+surfaces** that wants its own pass. The `/admin` console chrome stays English by ruling.
 
 ## The local `node_modules` does not match what Vercel installs (found 2026-09-20)
 

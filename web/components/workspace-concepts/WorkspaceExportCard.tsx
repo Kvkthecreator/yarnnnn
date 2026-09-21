@@ -22,10 +22,12 @@
 
 import { useCallback, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { api } from "@/lib/api/client";
 
 export function WorkspaceExportCard() {
+  const t = useTranslations("workspaceSettings.export");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,22 +37,19 @@ export function WorkspaceExportCard() {
     try {
       await api.workspace.exportWorkspace();
     } catch {
-      setError("Couldn't build the download. Try again in a moment.");
+      setError(t("failed"));
     } finally {
       setPending(false);
     }
-  }, []);
+  }, [t]);
 
   return (
     <div className="rounded-lg border border-border p-4">
       <div className="flex items-start gap-3">
         <Download className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium">Download Workspace</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Get every file, plus every earlier version and who wrote it. Opens
-            with any tool that reads folders — nothing here needs yarnnn.
-          </p>
+          <h3 className="text-sm font-medium">{t("title")}</h3>
+          <p className="text-sm text-muted-foreground mt-1">{t("body")}</p>
 
           {error && (
             <p className="text-sm text-destructive mt-2" role="alert">
@@ -66,7 +65,7 @@ export function WorkspaceExportCard() {
               className="px-3 py-1.5 rounded-md border border-border text-sm disabled:opacity-50 inline-flex items-center gap-2"
             >
               {pending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {pending ? "Preparing…" : "Download"}
+              {pending ? t("preparing") : t("download")}
             </button>
           </div>
         </div>

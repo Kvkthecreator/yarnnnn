@@ -15,11 +15,12 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Inbox, ShieldCheck } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { useProposalModal, type ProposalData } from '@/components/queue/ProposalCard';
 import { api } from '@/lib/api/client';
-import { proposalQueuedByDialLine } from '@/lib/proposal-labels';
+import { useProposalLabels } from '@/lib/proposal-labels';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
 
@@ -39,33 +40,25 @@ type QueueFamily = 'capital' | 'external-write' | 'substrate';
 // addressing sends (Slack channel post, Notion page/block, email blast) the
 // operator must approve under bounded/manual — a third-party-affecting effect,
 // not a money move and not a file diff.
-const FAMILY_META: Record<QueueFamily, { label: string; help: string; dot: string }> = {
+// ADR-660 — the table holds catalog KEYS (it is evaluated at import, before
+// any member's language is known); the dot class is not copy and stays.
+const FAMILY_META: Record<QueueFamily, { labelKey: string; helpKey: string; dot: string }> = {
   capital: {
-    label: 'Spending',
-    help: 'Actions that spend money or commit you to a transaction.',
+    labelKey: 'familyCapital',
+    helpKey: 'familyCapitalHelp',
     dot: 'bg-amber-500',
   },
   'external-write': {
-    label: 'Outbound messages',
-    help: 'Posts, pages, or emails sent to an audience outside your workspace.',
+    labelKey: 'familyExternalWrite',
+    helpKey: 'familyExternalWriteHelp',
     dot: 'bg-violet-500',
   },
   substrate: {
-    label: 'Workspace changes',
-    help: 'Edits to your workspace files. You can undo them from the file’s history.',
+    labelKey: 'familySubstrate',
+    helpKey: 'familySubstrateHelp',
     dot: 'bg-sky-500',
   },
 };
-
-function rowLabel(p: QueueProposal): string {
-  if (p.family === 'substrate') {
-    const dc = (p.decision_context ?? {}) as Record<string, unknown>;
-    const path = (dc.path as string) ?? ((dc.diff as { path?: string })?.path) ?? '';
-    return path ? `Edit · ${path}` : 'File edit';
-  }
-  const prim = p.primitive.replace(/^platform_/, '').replace(/_/g, ' ');
-  return prim.charAt(0).toUpperCase() + prim.slice(1);
-}
 
 interface QueueBodyProps {
   /** ADR-642 D2 — which families this mount shows. Notifications → To do
@@ -79,7 +72,19 @@ interface QueueBodyProps {
 const ALL_FAMILIES: readonly QueueFamily[] = ['capital', 'external-write', 'substrate'];
 
 export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
+  const t = useTranslations('supervisor.queue');
+  const { queuedByDialLine } = useProposalLabels();
   const [proposals, setProposals] = useState<QueueProposal[] | null>(null);
+
+  const rowLabel = (p: QueueProposal): string => {
+    if (p.family === 'substrate') {
+      const dc = (p.decision_context ?? {}) as Record<string, unknown>;
+      const path = (dc.path as string) ?? ((dc.diff as { path?: string })?.path) ?? '';
+      return path ? t('rowEdit', { path }) : t('rowFileEdit');
+    }
+    const prim = p.primitive.replace(/^platform_/, '').replace(/_/g, ' ');
+    return prim.charAt(0).toUpperCase() + prim.slice(1);
+  };
   const [occupant, setOccupant] = useState<Occupant | null>(null);
 
   const load = useCallback(async () => {
@@ -106,13 +111,13 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
   return (
     <>
       {proposals === null ? (
-        <Working label="Loading…" fill />
+        <Working label={t('loading')} fill />
       ) : proposals.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border/60 px-6 py-10 text-center">
           <Inbox className="mx-auto mb-3 h-6 w-6 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-foreground/80">Nothing to decide</p>
+          <p className="text-sm font-medium text-foreground/80">{t('emptyTitle')}</p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            When an agent wants to do something that needs your OK, it shows up here.
+            {t('emptyBody')}
           </p>
         </div>
       ) : (
@@ -121,7 +126,11 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
               <ShieldCheck className="h-3 w-3" />
               <span>
-                Decided by <span className="font-medium">{occupant.display_label}</span>
+                {/* One ICU message, not a verb joined to a name. */}
+                {t.rich('decidedBy', {
+                  who: occupant.display_label,
+                  name: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
               </span>
             </div>
           )}
@@ -134,10 +143,10 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
                 <header className="flex items-center gap-2 border-b border-border/60 bg-muted/20 px-4 py-2">
                   <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)} aria-hidden />
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {meta.label}
+                    {t(meta.labelKey)}
                   </span>
                   <span className="text-[11px] text-muted-foreground/50">{group.length}</span>
-                  <span className="ml-auto hidden sm:block text-[11px] text-muted-foreground/50">{meta.help}</span>
+                  <span className="ml-auto hidden sm:block text-[11px] text-muted-foreground/50">{t(meta.helpKey)}</span>
                 </header>
                 <ul className="divide-y divide-border/40">
                   {group.map((p) => (
@@ -153,15 +162,15 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
                           {/* ADR-408 D5.2: agent-queued rows attribute the
                               queuing to the agent's witness dial (ADR-405),
                               not a permission failure. */}
-                          {proposalQueuedByDialLine(p.source) && (
+                          {queuedByDialLine(p.source) && (
                             <span className="block text-[11px] text-muted-foreground/50 truncate">
-                              {proposalQueuedByDialLine(p.source)}
+                              {queuedByDialLine(p.source)}
                             </span>
                           )}
                         </span>
                         {(p.agent_identity ?? p.reviewer_identity)?.startsWith('ai:') && (
                           <span className="shrink-0 text-[10px] rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-400">
-                            Agent approved
+                            {t('agentApproved')}
                           </span>
                         )}
                         <span className="shrink-0 text-[11px] text-muted-foreground/50" title={formatAbsolute(p.created_at)}>{formatRelativeTime(p.created_at)}</span>

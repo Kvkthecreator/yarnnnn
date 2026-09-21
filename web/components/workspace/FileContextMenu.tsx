@@ -34,6 +34,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useViewportClamp } from '@/hooks/useViewportClamp';
 import { Info, ExternalLink, Pencil, FolderInput, FolderPlus, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -218,6 +219,7 @@ export function FileContextMenu({
   target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
   onDuplicate, onOpenWith, handlers, onNewFolder, extraItems, download, deleteLabel,
 }: FileContextMenuProps) {
+  const t = useTranslations('files.menu');
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -258,7 +260,7 @@ export function FileContextMenu({
     >
       {onOpen && (
         <MenuItem icon={<ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onOpen)}>
-          Open
+          {t('open')}
         </MenuItem>
       )}
       {/* ADR-514 D2.2 — Open With, directly under Open (the Finder ordering).
@@ -282,17 +284,17 @@ export function FileContextMenu({
           className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent/60"
         >
           <Download className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="flex-1">Download</span>
+          <span className="flex-1">{t('download')}</span>
         </a>
       )}
       {onProperties && (
         <MenuItem icon={<Info className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onProperties)}>
-          Properties
+          {t('properties')}
         </MenuItem>
       )}
       {onShare && (
         <MenuItem icon={<Share2 className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onShare)}>
-          Share…
+          {t('share')}
         </MenuItem>
       )}
       {extraItems?.map((it) => (
@@ -311,7 +313,7 @@ export function FileContextMenu({
         <>
           <div className="my-1 h-px bg-border/60" />
           <MenuItem icon={<FolderPlus className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onNewFolder)}>
-            New Folder
+            {t('newFolder')}
           </MenuItem>
         </>
       )}
@@ -335,22 +337,22 @@ export function FileContextMenu({
       {(onRename || onMove || onDelete || (isFile && onDuplicate)) && <div className="my-1 h-px bg-border/60" />}
       {isFile && onDuplicate && (
         <MenuItem icon={<CopyPlus className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onDuplicate)}>
-          Duplicate
+          {t('duplicate')}
         </MenuItem>
       )}
       {onRename && (
         <MenuItem icon={<Pencil className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onRename)}>
-          Rename…
+          {t('rename')}
         </MenuItem>
       )}
       {onMove && (
         <MenuItem icon={<FolderInput className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onMove)}>
-          Move to…
+          {t('move')}
         </MenuItem>
       )}
       {onDelete && (
         <MenuItem icon={<Trash2 className="w-3.5 h-3.5 text-destructive" />} onClick={() => run(onDelete)} danger>
-          {deleteLabel ?? 'Move to Trash'}
+          {deleteLabel ?? t('trash')}
         </MenuItem>
       )}
     </div>
@@ -371,6 +373,7 @@ function OpenWithItem({
   handlers: MenuHandler[];
   onPick: (id: string) => void;
 }) {
+  const t = useTranslations('files.menu');
   const [open, setOpen] = useState(false);
   // Which way the flyout opens, decided from the real box on the tick it
   // appears. `open` is the only dep: the handler list cannot change while it
@@ -404,7 +407,7 @@ function OpenWithItem({
         onClick={() => setOpen((v) => !v)}
       >
         <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="flex-1">Open With</span>
+        <span className="flex-1">{t('openWith')}</span>
         <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
       </button>
       {open && (
@@ -431,7 +434,7 @@ function OpenWithItem({
             >
               <span className="flex-1">{h.label}</span>
               {i === 0 && (
-                <span className="text-xs text-muted-foreground">(default)</span>
+                <span className="text-xs text-muted-foreground">{t('default')}</span>
               )}
             </button>
           ))}
@@ -480,6 +483,7 @@ export function useFileContextMenu(
    */
   extraItemsFor?: (target: FileMenuTarget) => FileMenuExtraItem[],
 ) {
+  const t = useTranslations('files.menu');
   const [state, setState] = useState<{ target: FileMenuTarget; x: number; y: number } | null>(null);
   // The resolved download for the OPEN menu's target. Minted per open (a signed
   // URL is short-lived; caching one across opens would hand the operator an
@@ -550,7 +554,7 @@ export function useFileContextMenu(
     return (
       <button
         type="button"
-        aria-label="File actions"
+        aria-label={t('fileActions')}
         onClick={(e) => openMenuFromButton(target, e)}
         className={cn(
           'shrink-0 rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground',
@@ -560,7 +564,7 @@ export function useFileContextMenu(
         <MoreVertical className="h-4 w-4" />
       </button>
     );
-  }, [coarse, hasVerbs, openMenuFromButton]);
+  }, [coarse, hasVerbs, openMenuFromButton, t]);
 
   const menu = state && verbs ? (
     <FileContextMenu
@@ -581,9 +585,7 @@ export function useFileContextMenu(
       extraItems={(extraItemsFor ?? verbs.extraItemsFor)?.(state.target)}
       download={download}
       deleteLabel={
-        blastRadius === null
-          ? undefined
-          : `Move to Trash (${blastRadius} item${blastRadius === 1 ? '' : 's'})`
+        blastRadius === null ? undefined : t('trashCount', { count: blastRadius })
       }
     />
   ) : null;

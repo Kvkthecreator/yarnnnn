@@ -39,11 +39,10 @@ import { getMcpHostIcon } from '@/components/ui/PlatformIcons';
 import {
   authorClass,
   authorAccent,
-  formatAuthorLabel,
-  formatAuthorLabelOrSystem,
   mcpHostId,
   type AuthorClass,
 } from './attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { cn } from '@/lib/utils';
 
 /**
@@ -141,9 +140,11 @@ export function PrincipalBadge({
   className,
 }: PrincipalBadgeProps) {
   const cls = authorClass(authoredBy);
+  // ADR-660 — the vocabulary is the shared one, worded here.
+  const { authorLabel, authorLabelOrSystem } = useAuthorLabel();
   const label = fallbackToSystem
-    ? formatAuthorLabelOrSystem(authoredBy)
-    : formatAuthorLabel(authoredBy);
+    ? authorLabelOrSystem(authoredBy)
+    : authorLabel(authoredBy);
   const accent = accentText(cls);
   const dim = { width: size, height: size };
 

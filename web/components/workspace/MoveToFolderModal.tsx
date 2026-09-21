@@ -24,6 +24,7 @@
  */
 
 import { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import type { WorkspaceTreeNode } from '@/types';
 import { WorkspacePickerModal } from './WorkspacePicker';
 
@@ -53,6 +54,7 @@ interface MoveToFolderModalProps {
 }
 
 export function MoveToFolderModal({ target, roots, canPlace, onClose, onMove }: MoveToFolderModalProps) {
+  const t = useTranslations('files.move');
   // The file's current parent — moving there is a no-op, so reject it.
   const currentParent = useMemo(
     () => (target ? target.path.slice(0, target.path.lastIndexOf('/')) : null),
@@ -102,30 +104,30 @@ export function MoveToFolderModal({ target, roots, canPlace, onClose, onMove }: 
     <WorkspacePickerModal
       open={!!target}
       mode="folder"
-      title="Move to…"
-      subtitle={`Moving “${target.name}”`}
-      confirmLabel="Move here"
-      emptyMessage="No folders to move into."
+      title={t('title')}
+      subtitle={t('subtitle', { name: target.name })}
+      confirmLabel={t('confirm')}
+      emptyMessage={t('empty')}
       roots={roots}
       selectable={folderSelectable}
       folderDisabledTitle={(node) =>
         node.path === currentParent
-          ? `${target.isFolder ? 'The folder' : 'The file'} is already here`
+          ? t(target.isFolder ? 'alreadyHereFolder' : 'alreadyHereFile')
           : isInsideSelf(node.path)
-            ? 'A folder can’t be moved inside itself'
+            ? t('insideItself')
             : !canPlace(node)
-              ? 'This folder is managed by the system'
+              ? t('systemManaged')
               : undefined
       }
       canConfirm={(sel) =>
         sel !== currentParent && !blocked.has(sel) && !isInsideSelf(sel)
       }
       footerHint={(sel) =>
-        sel ? (
-          <>Into <span className="font-mono">{sel.replace(/^\/workspace\//, '')}</span></>
-        ) : (
-          'Pick a destination folder'
-        )
+        sel
+          ? t.rich('into', {
+              path: () => <span className="font-mono">{sel.replace(/^\/workspace\//, '')}</span>,
+            })
+          : t('pickDestination')
       }
       onClose={onClose}
       onConfirm={(destFolder) => onMove(destFolder)}

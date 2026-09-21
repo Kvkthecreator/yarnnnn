@@ -89,13 +89,20 @@ function MCPAuthInner() {
 }
 
 export default function MCPAuthPage() {
+  // ADR-660 — the fallback is rendered by THIS component, so the word is bound
+  // here; `Working` itself stays locale-free (it is also mounted by routes
+  // outside every scope, where a translation hook would throw). Named `tAuth`,
+  // not `t`: the inner component binds `auth.connect` under the name `t`, and a
+  // second `t` in one file is a key that resolves by luck of which binding a
+  // reader (or a gate) reaches first.
+  const tAuth = useTranslations("auth");
   return (
     <Suspense
       fallback={
         <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
           <div className="text-center">
             <h1 className="text-[#1a1a1a]"><Wordmark className="text-3xl" /></h1>
-            <div className="mt-2 flex justify-center"><Working label="Loading…" /></div>
+            <div className="mt-2 flex justify-center"><Working label={tAuth('loading')} /></div>
           </div>
         </div>
       }

@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { COPY_FEEDBACK_MS } from '@/contexts/FeedbackContext';
 import { Check, Download, Link2, Printer, Share2, Upload } from 'lucide-react';
 import { printProse } from '@/components/text/printProse';
@@ -40,6 +41,7 @@ export function TextExport({
   path: string;
   compact?: boolean;
 }) {
+  const t = useTranslations('text.export');
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -84,21 +86,21 @@ export function TextExport({
       <button
         type="button"
         onClick={share}
-        title="Share this document"
+        title={t('shareTitle')}
         className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
       >
         <Share2 className="h-3.5 w-3.5" />
-        {!compact && 'Share…'}
+        {!compact && t('share')}
       </button>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        title="Export"
+        title={t('exportTitle')}
         aria-expanded={open}
         className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
       >
         <Upload className="h-3.5 w-3.5" />
-        {!compact && 'Export'}
+        {!compact && t('export')}
       </button>
 
       {open && (
@@ -110,9 +112,9 @@ export function TextExport({
           >
             <Printer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span>
-              <span className="block text-xs font-medium">Print / PDF…</span>
+              <span className="block text-xs font-medium">{t('printTitle')}</span>
               <span className="block text-[11px] text-muted-foreground">
-                The document as you read it, on A4.
+                {t('printBody')}
               </span>
             </span>
           </button>
@@ -123,9 +125,9 @@ export function TextExport({
           >
             <Download className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span>
-              <span className="block text-xs font-medium">Download .md</span>
+              <span className="block text-xs font-medium">{t('downloadTitle')}</span>
               <span className="block text-[11px] text-muted-foreground">
-                The exact bytes, as they are on the head.
+                {t('downloadBody')}
               </span>
             </span>
           </button>
@@ -141,10 +143,10 @@ export function TextExport({
             )}
             <span>
               <span className="block text-xs font-medium">
-                {copied ? 'Copied' : 'Copy reference for AI'}
+                {copied ? t('copied') : t('copyReference')}
               </span>
               <span className="block text-[11px] text-muted-foreground">
-                Paste into another AI — with the connector it reads the live version.
+                {t('copyBody')}
               </span>
             </span>
           </button>

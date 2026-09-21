@@ -49,6 +49,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -63,7 +64,7 @@ import { PANE_HEADING, PANE_SECTION } from '@/lib/authoring/pane-spine';
 import { useFileLoad } from '@/components/workspace/useFileLoad';
 import { useFileContextMenu } from '@/components/workspace/FileContextMenu';
 import { useFileOrganizeVerbs } from '@/hooks/useFileOrganizeVerbs';
-import { formatAuthorLabel } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { useWorkspaceMemberships } from '@/lib/workspace/viewer';
 import { formatRelativeTime } from '@/lib/formatting';
 import { LanePanel, type SeedTarget } from '@/components/chat-surface/LanePanel';
@@ -121,11 +122,13 @@ const ZOOM_MAX = 2;
  */
 const COMMIT_IDLE_MS = 2000;
 
-const SUGGESTIONS = [
-  'Tighten this — same meaning, fewer words',
-  'What is unclear to someone reading this cold?',
-  'Restructure so the main point lands first',
-];
+/** ADR-660 — CATALOG KEYS, never words. Evaluated at import, before any
+ *  member's language is known; worded at render under `text.editor`. */
+const SUGGESTION_KEYS = [
+  'suggestTighten',
+  'suggestUnclear',
+  'suggestRestructure',
+] as const;
 
 
 export function TextEditor({
@@ -139,6 +142,13 @@ export function TextEditor({
   onSaved?: () => void;
   onRenamed?: (nextPath: string) => void;
 }) {
+  const t = useTranslations('text.editor');
+  const tAttr = useTranslations('attribution');
+  const tViewer = useTranslations('supervisor.viewer');
+  const { authorLabel } = useAuthorLabel();
+  // The app's own name, from the SURFACE roster — the crumb and the Dock show
+  // one word for this app.
+  const surfaces = useTranslations('surfaces');
   const [setWorkbenchNode, wb] = usePaneLadder();
   const [reloadKey, setReloadKey] = useState(0);
   const { file, loading, notFound, error, headRevision, refreshRevision } = useFileLoad(path, {
@@ -355,7 +365,7 @@ export function TextEditor({
             // without inventing a merge. So the member is told, and chooses.
             setConflict(readConflict(err.data));
           } else {
-            setSaveError(err instanceof Error ? err.message : 'Save failed');
+            setSaveError(err instanceof Error ? err.message : t('saveFailed'));
           }
         } finally {
           savingRef.current = false;
@@ -366,7 +376,7 @@ export function TextEditor({
       writeTail.current = next.catch(() => undefined);
       return next;
     },
-    [path, onSaved, refreshRevision],
+    [path, onSaved, refreshRevision, t],
   );
 
   // ── Hearing about other principals' writes (ADR-575) ────────────────────
@@ -548,15 +558,16 @@ export function TextEditor({
             applyEdit(insertCsvTable(current, where, where, relPath(path), file.content ?? '', new Date()));
           },
           {
-            pending: 'Reading the CSV…',
-            error: `Couldn’t read ${relPath(path)} — nothing was inserted.`,
+            pending: t('csvPending'),
+            // ONE message with a placeholder, never a join.
+            error: t('csvError', { path: relPath(path) }),
           },
         );
       } catch {
         // Reported by the toast; nothing was inserted.
       }
     },
-    [picker, text, applyEdit, reportAction],
+    [picker, text, applyEdit, reportAction, t],
   );
 
   /**
@@ -575,7 +586,14 @@ export function TextEditor({
   // here beside the toolbar it shares its actions with.
   const [slash, setSlash] = useState<SlashRun | null>(null);
   const [slashIndex, setSlashIndex] = useState(0);
-  const slashItems = useMemo(() => filterSlashItems(slash?.filter ?? ''), [slash]);
+  // ADR-660 — the palette filters on the WORDED label, so a member types what
+  // they can read. `tSlash` is stable per locale.
+  const tSlash = useTranslations('text.slash');
+  const slashItems = useMemo(
+    () => filterSlashItems(slash?.filter ?? '', (i) => tSlash(i.labelKey)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slash],
+  );
   // A filter that matches nothing closes the palette rather than showing an
   // empty box — the member is typing prose that happens to start with `/`.
   const slashOpen = slash !== null && slashItems.length > 0;
@@ -725,7 +743,7 @@ export function TextEditor({
     () => [
       {
         id: 'copy-link',
-        label: 'Copy link',
+        label: t('copyLink'),
         icon: <Link2 className="h-3.5 w-3.5 text-muted-foreground" />,
         onClick: copyLink,
       },
@@ -1066,8 +1084,8 @@ export function TextEditor({
           <button
             type="button"
             onClick={onClose}
-            title="Back to documents"
-            aria-label="Back to documents"
+            title={t('back')}
+            aria-label={t('back')}
             className="inline-flex shrink-0 items-center rounded px-1 py-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -1085,7 +1103,7 @@ export function TextEditor({
                 onClick={onClose}
                 className="shrink-0 text-muted-foreground hover:text-foreground"
               >
-                Text
+                {surfaces('text.title')}
               </button>
               <span className="text-muted-foreground/60">/</span>
             </>
@@ -1093,7 +1111,7 @@ export function TextEditor({
           <button
             type="button"
             onClick={() => organizeVerbs.onRename?.({ path, name: leafOf(path), access: file?.access ?? undefined })}
-            title={`${relPath(path)} — click to rename`}
+            title={t('renameTitle', { path: relPath(path) })}
             className="flex min-w-0 items-center gap-1.5 truncate rounded px-1.5 py-0.5 font-medium text-foreground/90 hover:bg-muted/50"
           >
             <FileText className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
@@ -1132,8 +1150,8 @@ export function TextEditor({
             type="button"
             onClick={() => setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - 0.1) * 100) / 100))}
             className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
-            title="Zoom out"
-            aria-label="Zoom out"
+            title={t('zoomOut')}
+            aria-label={t('zoomOut')}
           >
             −
           </button>
@@ -1141,7 +1159,7 @@ export function TextEditor({
             type="button"
             onClick={() => setZoom(1)}
             className="min-w-[3ch] rounded px-1 py-0.5 text-[11px] tabular-nums text-muted-foreground hover:bg-muted/40"
-            title="Reset zoom to 100%"
+            title={t('zoomReset')}
           >
             {Math.round(zoom * 100)}%
           </button>
@@ -1149,8 +1167,8 @@ export function TextEditor({
             type="button"
             onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + 0.1) * 100) / 100))}
             className="rounded px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted/40"
-            title="Zoom in"
-            aria-label="Zoom in"
+            title={t('zoomIn')}
+            aria-label={t('zoomIn')}
           >
             +
           </button>
@@ -1166,7 +1184,7 @@ export function TextEditor({
         >
           {saving ? (
             <>
-              <WorkingGlyph /> Saving…
+              <WorkingGlyph /> {t('saving')}
             </>
           ) : conflict ? (
             // ADR-575. A conflict SUSPENDS autosave (the effect returns early
@@ -1174,16 +1192,17 @@ export function TextEditor({
             // whose whole point is that nothing is at risk. During a conflict
             // something is: nothing will be written until the member chooses.
             <span className="flex items-center gap-1 text-amber-600">
-              <AlertTriangle className="h-3 w-3" aria-hidden /> Paused — resolve above
+              <AlertTriangle className="h-3 w-3" aria-hidden /> {t('paused')}
             </span>
           ) : dirty ? (
-            'Editing…'
+            t('editing')
           ) : savedAt ? (
             <>
-              <Check className="h-3 w-3" aria-hidden /> Saved
+              <Check className="h-3 w-3" aria-hidden /> {t('saved')}
             </>
           ) : (
-            `${words} words`
+            // Korean has no plural form — one `other` arm (ADR-660).
+            t('wordCount', { count: words })
           )}
         </span>
 
@@ -1204,8 +1223,9 @@ export function TextEditor({
           <button
             type="button"
             onClick={side.toggle}
-            title={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
-            aria-label={`${sideOpen ? 'Hide' : 'Show'} properties and chat`}
+            // TWO whole sentences, never a verb joined to its object.
+            title={sideOpen ? t('hideRail') : t('showRail')}
+            aria-label={sideOpen ? t('hideRail') : t('showRail')}
             aria-expanded={sideOpen}
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
           >
@@ -1231,13 +1251,24 @@ export function TextEditor({
               <div className="flex items-start gap-2">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <div className="space-y-2">
+                  {/* ONE sentence per arm with the actor as a placeholder —
+                      the actor's name is a served attribution, the sentence
+                      around it is ours (ADR-660). */}
                   <p className="text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {formatAuthorLabel(peerEdit.actor) || peerEdit.actor}
-                    </span>{' '}
-                    saved a new version of this document
-                    {peerEdit.at ? ` ${formatRelativeTime(peerEdit.at, { rollToDate: true })}` : ''}.
-                    Your text here is untouched — saving will put your version on top.
+                    {peerEdit.at
+                      ? t.rich('peerSavedAt', {
+                          actor: authorLabel(peerEdit.actor) || peerEdit.actor,
+                          when: formatRelativeTime(peerEdit.at, { rollToDate: true }),
+                          b: (chunks) => (
+                            <span className="font-medium text-foreground">{chunks}</span>
+                          ),
+                        })
+                      : t.rich('peerSaved', {
+                          actor: authorLabel(peerEdit.actor) || peerEdit.actor,
+                          b: (chunks) => (
+                            <span className="font-medium text-foreground">{chunks}</span>
+                          ),
+                        })}
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -1245,14 +1276,14 @@ export function TextEditor({
                       onClick={() => { setPeerEdit(null); setReloadKey((n) => n + 1); }}
                       className="rounded-md border border-border px-2 py-1 hover:bg-muted/40"
                     >
-                      Discard mine, show theirs
+                      {t('discardMine')}
                     </button>
                     <button
                       type="button"
                       onClick={() => setPeerEdit(null)}
                       className="rounded-md px-2 py-1 text-muted-foreground hover:bg-muted/40"
                     >
-                      Keep writing
+                      {t('keepWriting')}
                     </button>
                   </div>
                 </div>
@@ -1265,9 +1296,12 @@ export function TextEditor({
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
                 <div className="space-y-2">
                   <p>
-                    <span className="font-medium">{conflict.actor}</span> revised this
-                    document while you were editing. Your text is still here — nothing
-                    was lost, and nothing merges silently.
+                    {t.rich('conflictBody', {
+                      actor: conflict.actorRef
+                        ? tAttr(conflict.actorRef.key, conflict.actorRef.args)
+                        : tViewer('someoneElse'),
+                      b: (chunks) => <span className="font-medium">{chunks}</span>,
+                    })}
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -1275,7 +1309,7 @@ export function TextEditor({
                       onClick={() => { setConflict(null); setReloadKey((n) => n + 1); }}
                       className="rounded-md border border-border px-2 py-1 hover:bg-muted/40"
                     >
-                      Discard mine, show theirs
+                      {t('discardMine')}
                     </button>
                     {/* ADR-572 D11 — the override is ALWAYS offered.
                         It was conditional on `currentHeadId`, so whenever the
@@ -1295,7 +1329,7 @@ export function TextEditor({
                       onClick={() => void commit(conflict.currentHeadId)}
                       className="rounded-md border border-border px-2 py-1 hover:bg-muted/40"
                     >
-                      Save mine over theirs
+                      {t('saveOverTheirs')}
                     </button>
                   </div>
                 </div>
@@ -1314,12 +1348,12 @@ export function TextEditor({
               uses for the same file, because both read one decider. */}
           {readOnly && !loading && (
             <p className="border-b border-border bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
-              {file?.access?.reason ?? 'This document can’t be edited here.'}
+              {file?.access?.reason ?? t('readOnly')}
             </p>
           )}
 
           {loading ? (
-            <Working label="Opening…" fill className="flex-1 text-xs" />
+            <Working label={t('opening')} fill className="flex-1 text-xs" />
           ) : notFound ? (
             /* ⭐ A 404 IS A FACT ABOUT ONE WORKSPACE, NOT ABOUT THE WORLD.
                This branch used to read "Nothing exists at <path> — it may have
@@ -1341,14 +1375,24 @@ export function TextEditor({
                look again (the write may simply have landed after this read),
                and go back to the list. */
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+              {/* TWO whole sentences, not one with a clause bolted on: the
+                  workspace clause is an English word order (ADR-660). */}
               <p className="max-w-sm text-sm text-muted-foreground">
-                No file at{' '}
-                <span className="font-mono text-xs text-foreground">{relPath(path)}</span>
-                {activeWorkspaceLabel ? <> in {activeWorkspaceLabel}</> : null}.
+                {activeWorkspaceLabel
+                  ? t.rich('notFoundIn', {
+                      path: (chunks) => (
+                        <span className="font-mono text-xs text-foreground">{chunks}</span>
+                      ),
+                      workspace: activeWorkspaceLabel,
+                    })
+                  : t.rich('notFound', {
+                      path: (chunks) => (
+                        <span className="font-mono text-xs text-foreground">{chunks}</span>
+                      ),
+                    })}
               </p>
               <p className="max-w-sm text-xs text-muted-foreground">
-                It may be in another workspace, or it may not have been written
-                yet. Nothing has been deleted.
+                {t('notFoundBody')}
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -1356,14 +1400,14 @@ export function TextEditor({
                   onClick={() => setReloadKey((n) => n + 1)}
                   className="rounded border border-border px-2.5 py-1 text-xs hover:bg-muted/40"
                 >
-                  Look again
+                  {t('lookAgain')}
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
                   className="rounded border border-border px-2.5 py-1 text-xs hover:bg-muted/40"
                 >
-                  Back to documents
+                  {t('back')}
                 </button>
               </div>
             </div>
@@ -1372,15 +1416,14 @@ export function TextEditor({
                exist", which reads as data loss (the Docs honesty rule). */
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
               <p className="text-sm text-muted-foreground">
-                Couldn’t load {relPath(path)}. The document is still there — the
-                request failed.
+                {t('loadFailed', { path: relPath(path) })}
               </p>
               <button
                 type="button"
                 onClick={() => setReloadKey((n) => n + 1)}
                 className="rounded border border-border px-2.5 py-1 text-xs hover:bg-muted/40"
               >
-                Try again
+                {t('tryAgain')}
               </button>
             </div>
           ) : (
@@ -1423,7 +1466,7 @@ export function TextEditor({
               {!slashOpen && !seedHeld && (
                 <SelectionGesture
                   anchor={selectionAnchor}
-                  label="the selection"
+                  label={t('selectionLabel')}
                   onClick={rewriteSelection}
                   pending={pendingRewrite !== null}
                 />
@@ -1443,7 +1486,7 @@ export function TextEditor({
             onPointerDown={side.startResize}
             role="separator"
             aria-orientation="vertical"
-            title="Drag to resize"
+            title={t('dragToResize')}
             className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
           />
         )}
@@ -1466,7 +1509,9 @@ export function TextEditor({
               selection — with chat a level below a tab named for the agent. */}
           {!singlePane && (
           <div className="flex shrink-0 border-b border-border">
-            {([['properties', 'Properties'], ['chat', 'Chat']] as const).map(([tab, label]) => (
+            {/* The tuples hold CATALOG KEYS; the word is taken at render
+                (ADR-660). */}
+            {([['properties', 'tabProperties'], ['chat', 'tabChat']] as const).map(([tab, labelKey]) => (
               <button
                 key={tab}
                 type="button"
@@ -1478,7 +1523,7 @@ export function TextEditor({
                     : 'border-b-2 border-transparent text-muted-foreground hover:text-foreground',
                 )}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
@@ -1503,8 +1548,8 @@ export function TextEditor({
                   </span>
                   <button
                     type="button"
-                    aria-label="File actions"
-                    title="File actions"
+                    aria-label={t('fileActions')}
+                    title={t('fileActions')}
                     onClick={(e) => openMenuFromButton({ path, name: leafOf(path), isFile: true }, e)}
                     className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
                   >
@@ -1519,7 +1564,7 @@ export function TextEditor({
                   a coordinate into the bytes, not an annotation on them. */}
               <section className="space-y-1">
                 <p className={PANE_HEADING}>
-                  Outline
+                  {t('outline')}
                 </p>
                 {outline.length > 0 ? (
                   <ul className="space-y-px">
@@ -1549,7 +1594,7 @@ export function TextEditor({
                   // The honest empty state — never invent a structure the
                   // document doesn't have (Docs' rule, ADR-526 §7).
                   <p className="text-[10px] text-muted-foreground">
-                    No headings yet — add one and it appears here.
+                    {t('outlineEmpty')}
                   </p>
                 )}
               </section>
@@ -1568,44 +1613,51 @@ export function TextEditor({
                   no reason but the order they were written in. */}
               <section className="space-y-1">
                 <p className={PANE_HEADING}>
-                  Length
+                  {t('length')}
                 </p>
                 <p className="text-muted-foreground">
-                  {words.toLocaleString()} words · {text.length.toLocaleString()} characters
+                  {t('lengthBody', {
+                    words: words.toLocaleString(),
+                    chars: text.length.toLocaleString(),
+                  })}
                 </p>
+                {/* An English plural RULE, replaced by ICU with a single
+                    `other` arm — Korean has no plural form (ADR-660). */}
                 <p className="text-muted-foreground">
-                  {outline.length.toLocaleString()} heading{outline.length === 1 ? '' : 's'} ·
-                  {' '}about {readingMinutes(words)} min read
+                  {t('headingCount', {
+                    count: outline.length,
+                    minutes: readingMinutes(words),
+                  })}
                 </p>
               </section>
 
               <section className="space-y-1">
                 <p className={PANE_HEADING}>
-                  Format
+                  {t('format')}
                 </p>
                 <p className="text-muted-foreground">
-                  Markdown, plain text. It stays a <span className="font-mono">.md</span> file —
-                  the same one your connectors read and write.
+                  {t.rich('formatBody', {
+                    code: (chunks) => <span className="font-mono">{chunks}</span>,
+                  })}
                 </p>
               </section>
 
               <section className="space-y-1">
                 <p className={PANE_HEADING}>
-                  Last edited
+                  {t('lastEdited')}
                 </p>
                 {headRevision ? (
                   <p className="text-muted-foreground">
-                    {formatAuthorLabel(headRevision.authored_by) || headRevision.authored_by}
+                    {authorLabel(headRevision.authored_by) || headRevision.authored_by}
                     {headRevision.created_at
                       ? ` · ${formatRelativeTime(headRevision.created_at, { rollToDate: true })}`
                       : ''}
                   </p>
                 ) : (
-                  <p className="text-muted-foreground">No saves yet.</p>
+                  <p className="text-muted-foreground">{t('noSaves')}</p>
                 )}
                 <p className="text-muted-foreground/80">
-                  Every save is kept under your name and can be undone. The full
-                  history is in Files → Get Info.
+                  {t('historyNote')}
                 </p>
               </section>
 
@@ -1616,7 +1668,7 @@ export function TextEditor({
           <div className={cn('min-h-0 flex-1 flex-col', railTab === 'chat' ? 'flex' : 'hidden')}>
             {lanesEnabled === false ? (
               <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                Editor isn&apos;t available here yet. The document still opens and saves.
+                {t('lanesOff')}
               </div>
             ) : boundLane ? (
               <LanePanel
@@ -1649,22 +1701,24 @@ export function TextEditor({
                   preWriteRef.current = textRef.current;
                   setReloadKey((n) => n + 1);
                 }}
-                suggestions={SUGGESTIONS}
+                suggestions={SUGGESTION_KEYS.map((k) => t(k))}
               composerSeed={seed}
                 emptyState={
                   <div className="space-y-2 text-center text-xs text-muted-foreground">
-                    <p className="text-sm font-medium text-foreground/80">Editor is reading this document.</p>
+                    <p className="text-sm font-medium text-foreground/80">{t('chatEmptyTitle')}</p>
                     <p>
-                      Ask for a tighter draft, a new structure, or a second opinion.
-                      Every change is saved to{' '}
-                      <span className="font-medium text-foreground/70">{leafOf(path)}</span>,
-                      and the page updates as it works.
+                      {t.rich('chatEmptyBody', {
+                        file: leafOf(path),
+                        b: (chunks) => (
+                          <span className="font-medium text-foreground/70">{chunks}</span>
+                        ),
+                      })}
                     </p>
                   </div>
                 }
               />
             ) : (
-              <Working label="Opening Editor…" fill className="flex-1 text-xs" />
+              <Working label={t('openingEditor')} fill className="flex-1 text-xs" />
             )}
           </div>
         </aside>
@@ -1687,11 +1741,12 @@ export function TextEditor({
           conversation inside the pane, where it already appears. */}
       {singlePane && (
         <nav className="flex shrink-0 border-t border-border">
+          {/* The tuples hold CATALOG KEYS; the word is taken at render. */}
           {([
-            ['canvas', 'Document'],
-            ['properties', 'Properties'],
-            ['chat', 'Chat'],
-          ] as const).map(([pane, label]) => (
+            ['canvas', 'tabDocument'],
+            ['properties', 'tabProperties'],
+            ['chat', 'tabChat'],
+          ] as const).map(([pane, labelKey]) => (
             <button
               key={pane}
               type="button"
@@ -1704,7 +1759,7 @@ export function TextEditor({
                   : 'border-t-2 border-transparent text-muted-foreground',
               )}
             >
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </nav>

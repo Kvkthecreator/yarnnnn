@@ -18,34 +18,44 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { ArrowLeft, CalendarClock, FolderOpen, Loader2, Pause, Play, Trash2, Zap } from 'lucide-react';
 import { api, type StandingDetailData, type StandingRun } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { Working } from '@/components/shared/Working';
-import { PROBLEM_COPY, describeSchedule, lowerFirst, minderLine, scheduleLine } from '@/components/standing/StandingRow';
+import { lowerFirst, useStandingWords } from '@/components/standing/StandingRow';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { formatLedgerTime } from '@/lib/formatting';
 
-function runLine(r: StandingRun): string {
-  const what = r.step === 'write' ? 'Update' : 'Read sources';
-  if (r.status === 'success') return `${what} — done`;
-  if (r.status === 'skipped' && r.error_reason === 'no_change') return `${what} — nothing changed`;
-  if (r.status === 'skipped' && r.error_reason === 'sources_unchanged') return `${what} — not needed, nothing new to read`;
-  if (r.status === 'skipped') return `${what} — skipped${r.error_reason ? ` (${r.error_reason})` : ''}`;
-  if (r.error_reason === 'shape_violation') return `${what} — refused, the data didn’t fit the file’s shape`;
-  if (r.error_reason === 'no_sources_fetched') return `${what} — no source could be read`;
-  if (r.error_reason === 'balance_exhausted') return `${what} — did not run, the balance is used up`;
-  if (r.error_reason === 'output_truncated') return `${what} — refused, the file has grown too long to keep current in one run`;
-  return `${what} — failed${r.error_reason ? ` (${r.error_reason})` : ''}`;
-}
-
-const PRESETS: Array<{ label: string; cron: string }> = [
-  { label: 'Every weekday at 09:00', cron: '0 9 * * 1-5' },
-  { label: 'Every day at 09:00', cron: '0 9 * * *' },
-  { label: 'Every Monday at 09:00', cron: '0 9 * * 1' },
-  { label: 'Every hour', cron: '0 * * * *' },
+/** ADR-660 — the presets hold catalog KEYS, not words: this table is evaluated
+ *  at import, before any member's language is known. */
+const PRESETS: Array<{ labelKey: string; cron: string }> = [
+  { labelKey: 'preset.weekdays9', cron: '0 9 * * 1-5' },
+  { labelKey: 'preset.daily9', cron: '0 9 * * *' },
+  { labelKey: 'preset.monday9', cron: '0 9 * * 1' },
+  { labelKey: 'preset.hourly', cron: '0 * * * *' },
 ];
+
+/** One run's line, worded. The whole sentence is one ICU message so the
+ *  step and its outcome are not joined in English word order. */
+function useRunLine() {
+  const t = useTranslations('supervisor.runLine');
+  return (r: StandingRun): string => {
+    const what = r.step === 'write' ? t('write') : t('read');
+    if (r.status === 'success') return t('done', { what });
+    if (r.status === 'skipped' && r.error_reason === 'no_change') return t('noChange', { what });
+    if (r.status === 'skipped' && r.error_reason === 'sources_unchanged') return t('sourcesUnchanged', { what });
+    if (r.status === 'skipped') {
+      return r.error_reason ? t('skippedWithReason', { what, reason: r.error_reason }) : t('skipped', { what });
+    }
+    if (r.error_reason === 'shape_violation') return t('shapeViolation', { what });
+    if (r.error_reason === 'no_sources_fetched') return t('noSourcesFetched', { what });
+    if (r.error_reason === 'balance_exhausted') return t('balanceExhausted', { what });
+    if (r.error_reason === 'output_truncated') return t('outputTruncated', { what });
+    return r.error_reason ? t('failedWithReason', { what, reason: r.error_reason }) : t('failed', { what });
+  };
+}
 
 export function StandingDetail({
   topic, onBack, onChanged,
@@ -54,8 +64,11 @@ export function StandingDetail({
   onBack: () => void;
   onChanged: () => void;
 }) {
+  const t = useTranslations('supervisor');
   const { runAction } = useFeedback();
   const { navigateToSurface } = useSurfacePreferences();
+  const { problemCopy, describeSchedule, minderLine, scheduleLine } = useStandingWords();
+  const runLine = useRunLine();
   const [detail, setDetail] = useState<StandingDetailData | null>(null);
   const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -82,15 +95,15 @@ export function StandingDetail({
     return (
       <div className="flex-1 px-5 py-4">
         <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-3.5 w-3.5" /> All standing work
+          <ArrowLeft className="h-3.5 w-3.5" /> {t('detail.back')}
         </button>
         <div className="mt-4 rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-          This standing work is no longer here. It may have been retired.
+          {t('detail.gone')}
         </div>
       </div>
     );
   }
-  if (!detail) return <Working label="Loading…" fill />;
+  if (!detail) return <Working label={t('detail.loading')} fill />;
 
   const s = detail.summary;
   const kept = s.target_path ?? `/workspace/${s.topic}/${s.target}`;
@@ -101,10 +114,16 @@ export function StandingDetail({
     if (busy) return;
     setBusy(true);
     try {
-      const res = await runAction(() => api.standing.run(s.topic), { pending: `Running ${s.topic}…` });
-      setNote(res.no_change ? 'Ran — nothing changed.' : res.success ? 'Ran — the file was updated.' : `Run failed (${res.error_reason ?? 'unknown'}).`);
+      const res = await runAction(() => api.standing.run(s.topic), { pending: t('action.runningPending', { topic: s.topic }) });
+      setNote(
+        res.no_change
+          ? t('action.ranNoChange')
+          : res.success
+            ? t('action.ranUpdated')
+            : t('action.runFailed', { reason: res.error_reason ?? t('action.runFailedUnknown') }),
+      );
     } catch (e) {
-      setNote(`Run failed (${e instanceof Error ? e.message : String(e)}).`);
+      setNote(t('action.runFailed', { reason: e instanceof Error ? e.message : String(e) }));
     } finally {
       setBusy(false);
       void load();
@@ -117,8 +136,8 @@ export function StandingDetail({
     setBusy(true);
     try {
       await runAction(() => api.standing.update(s.topic, { paused: !s.paused }), {
-        success: s.paused ? 'Resumed' : 'Paused',
-        error: s.paused ? 'Could not resume this' : 'Could not pause this',
+        success: s.paused ? t('action.resumed') : t('action.paused'),
+        error: s.paused ? t('action.couldNotResume') : t('action.couldNotPause'),
       });
     } catch {
       /* reported; the reload restores the true state */
@@ -135,8 +154,8 @@ export function StandingDetail({
     setBusy(true);
     try {
       await runAction(() => api.standing.update(s.topic, { schedule: next }), {
-        success: `Now ${describeSchedule(next)}`,
-        error: 'Could not change the schedule',
+        success: t('detail.scheduleChanged', { cadence: describeSchedule(next) }),
+        error: t('detail.couldNotChangeSchedule'),
       });
       setEditingSchedule(false);
     } catch {
@@ -153,8 +172,8 @@ export function StandingDetail({
     setBusy(true);
     try {
       await runAction(
-        () => api.workspace.editFile(detail.contract_path, text, undefined, `edit the instructions for ${s.topic}`),
-        { success: 'Instructions saved', error: 'Could not save the instructions' },
+        () => api.workspace.editFile(detail.contract_path, text, undefined, t('detail.editMessage', { topic: s.topic })),
+        { success: t('detail.instructionsSaved'), error: t('detail.couldNotSaveInstructions') },
       );
       setEditingText(false);
     } catch {
@@ -170,8 +189,8 @@ export function StandingDetail({
     setBusy(true);
     try {
       await runAction(() => api.standing.retire(s.topic), {
-        success: `${s.target} is no longer kept current. The file stays.`,
-        error: 'Could not retire this',
+        success: t('detail.retired', { target: s.target }),
+        error: t('detail.couldNotRetire'),
       });
       onChanged();
       onBack();
@@ -184,7 +203,7 @@ export function StandingDetail({
   return (
     <div className="flex-1 space-y-5 px-5 py-4">
       <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-3.5 w-3.5" /> All standing work
+        <ArrowLeft className="h-3.5 w-3.5" /> {t('detail.back')}
       </button>
 
       <section className="rounded-lg border border-border/70 bg-background p-4">
@@ -194,13 +213,13 @@ export function StandingDetail({
               type="button"
               onClick={() => navigateToSurface('files', { path: kept })}
               className="flex items-center gap-1.5 text-[15px] font-semibold text-foreground hover:underline"
-              title="Open in Files"
+              title={t('detail.openInFiles')}
             >
               <FolderOpen className="h-4 w-4 text-muted-foreground" />
-              <span className="truncate">{s.target || '(no file named)'}</span>
+              <span className="truncate">{s.target || t('detail.noFileNamed')}</span>
             </button>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {s.topic}{minder ? ` · ${minder}` : ''}
+              {minder ? t('row.withTopic', { topic: s.topic, minder }) : s.topic}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -208,10 +227,10 @@ export function StandingDetail({
               type="button"
               onClick={() => void runNow()}
               disabled={busy || s.problem != null}
-              title={s.problem != null ? 'It can’t run until its instructions are fixed' : 'Update the file now'}
+              title={s.problem != null ? t('row.blockedTitle') : t('row.runNowTitle')}
               className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
             >
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />} Run now
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />} {t('detail.runNow')}
             </button>
             <button
               type="button"
@@ -219,14 +238,14 @@ export function StandingDetail({
               disabled={busy}
               className="flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-xs hover:bg-muted disabled:opacity-40"
             >
-              {s.paused ? (<><Play className="h-3.5 w-3.5" /> Resume</>) : (<><Pause className="h-3.5 w-3.5" /> Pause</>)}
+              {s.paused ? (<><Play className="h-3.5 w-3.5" /> {t('detail.resume')}</>) : (<><Pause className="h-3.5 w-3.5" /> {t('detail.pause')}</>)}
             </button>
           </div>
         </div>
 
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
           <div>
-            <dt className="text-muted-foreground">When</dt>
+            <dt className="text-muted-foreground">{t('detail.when')}</dt>
             <dd className="mt-0.5 text-foreground">
               {editingSchedule ? (
                 <span className="flex flex-wrap items-center gap-2">
@@ -235,8 +254,8 @@ export function StandingDetail({
                     onChange={(e) => setCron(e.target.value === 'custom' ? currentCron : e.target.value)}
                     className="rounded-md border border-border bg-background px-2 py-1 text-xs"
                   >
-                    {PRESETS.map((p) => <option key={p.cron} value={p.cron}>{p.label}</option>)}
-                    <option value="custom">Custom…</option>
+                    {PRESETS.map((p) => <option key={p.cron} value={p.cron}>{t(p.labelKey)}</option>)}
+                    <option value="custom">{t('detail.custom')}</option>
                   </select>
                   {!PRESETS.some((p) => p.cron === cron) && (
                     <input
@@ -245,33 +264,33 @@ export function StandingDetail({
                       className="w-32 rounded-md border border-border bg-background px-2 py-1 font-mono text-xs"
                     />
                   )}
-                  <button type="button" onClick={() => void saveSchedule()} disabled={busy} className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40">Save</button>
-                  <button type="button" onClick={() => setEditingSchedule(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                  <button type="button" onClick={() => void saveSchedule()} disabled={busy} className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-40">{t('detail.save')}</button>
+                  <button type="button" onClick={() => setEditingSchedule(false)} className="text-xs text-muted-foreground hover:text-foreground">{t('detail.cancel')}</button>
                 </span>
               ) : (
                 <span className="inline-flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1"><CalendarClock className="h-3 w-3" /> {scheduleLine(s.schedule, s.timezone)}</span>
-                  {s.paused && <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground/70">Paused</span>}
-                  <button type="button" onClick={() => { setCron(currentCron); setEditingSchedule(true); }} className="text-[11px] text-muted-foreground underline hover:text-foreground">Change</button>
+                  {s.paused && <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground/70">{t('detail.paused')}</span>}
+                  <button type="button" onClick={() => { setCron(currentCron); setEditingSchedule(true); }} className="text-[11px] text-muted-foreground underline hover:text-foreground">{t('detail.change')}</button>
                 </span>
               )}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Next</dt>
-            <dd className="mt-0.5 text-foreground">{s.paused ? 'Paused' : s.next_run_at ? formatLedgerTime(s.next_run_at) : 'Soon'}</dd>
+            <dt className="text-muted-foreground">{t('detail.next')}</dt>
+            <dd className="mt-0.5 text-foreground">{s.paused ? t('detail.paused') : s.next_run_at ? formatLedgerTime(s.next_run_at) : t('detail.soon')}</dd>
           </div>
           <div className="sm:col-span-2">
-            <dt className="text-muted-foreground">Where its updates come from</dt>
+            <dt className="text-muted-foreground">{t('detail.sourcesLabel')}</dt>
             <dd className="mt-0.5 text-foreground">
-              {s.sources.length === 0 ? 'No sources named.' : (
+              {s.sources.length === 0 ? t('detail.noSources') : (
                 <ul className="space-y-0.5">
                   {s.sources.map((src) => (
                     <li key={src.id} className="truncate">
                       {src.connector
-                        ? <><span className="font-medium">{src.connector}</span>{src.selector ? ` · ${src.selector}` : ''}{src.reads ? <span className="text-muted-foreground"> — reads {lowerFirst(src.reads)}</span> : null}</>
+                        ? <><span className="font-medium">{src.connector}</span>{src.selector ? ` · ${src.selector}` : ''}{src.reads ? <span className="text-muted-foreground">{t('row.readsSuffix', { reads: lowerFirst(src.reads) })}</span> : null}</>
                         : src.path
-                          ? <><span className="font-mono">{src.path}</span><span className="text-muted-foreground"> — {src.path.endsWith('/') ? 'a folder in this workspace, newest files first' : 'a file in this workspace'}</span></>
+                          ? <><span className="font-mono">{src.path}</span><span className="text-muted-foreground"> — {src.path.endsWith('/') ? t('detail.sourceFolder') : t('detail.sourceFile')}</span></>
                           : <span className="font-mono">{src.url}</span>}
                     </li>
                   ))}
@@ -283,7 +302,7 @@ export function StandingDetail({
 
         {s.problem != null && (
           <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-            {PROBLEM_COPY[s.problem] ?? `Cannot run: ${s.problem}`}
+            {problemCopy(s.problem)}
           </p>
         )}
         {note && <p className="mt-3 text-xs text-foreground">{note}</p>}
@@ -291,14 +310,14 @@ export function StandingDetail({
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-[13px] font-medium text-foreground/80">Instructions</h3>
+          <h3 className="text-[13px] font-medium text-foreground/80">{t('detail.instructions')}</h3>
           {!editingText && (
             <button
               type="button"
               onClick={() => { setText(detail.contract ?? ''); setEditingText(true); }}
               className="text-[11px] text-muted-foreground underline hover:text-foreground"
             >
-              Edit
+              {t('detail.edit')}
             </button>
           )}
         </div>
@@ -311,8 +330,8 @@ export function StandingDetail({
               className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
             />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setEditingText(false)} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40">Cancel</button>
-              <button type="button" onClick={() => void saveText()} disabled={busy || !text.trim()} className="rounded-md bg-foreground px-3 py-1.5 text-xs text-background disabled:opacity-50">Save</button>
+              <button type="button" onClick={() => setEditingText(false)} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40">{t('detail.cancel')}</button>
+              <button type="button" onClick={() => void saveText()} disabled={busy || !text.trim()} className="rounded-md bg-foreground px-3 py-1.5 text-xs text-background disabled:opacity-50">{t('detail.save')}</button>
             </div>
           </div>
         ) : detail.contract ? (
@@ -321,16 +340,16 @@ export function StandingDetail({
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-            No instructions yet. Write what the file must stay true to.
+            {t('detail.instructionsEmpty')}
           </div>
         )}
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-[13px] font-medium text-foreground/80">Runs</h3>
+        <h3 className="text-[13px] font-medium text-foreground/80">{t('detail.runs')}</h3>
         {detail.runs.length === 0 ? (
           <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-            Nothing has run yet. The first run starts within a few minutes.
+            {t('detail.runsEmpty')}
           </div>
         ) : (
           <ul className="rounded-md border border-border/60">
@@ -343,8 +362,14 @@ export function StandingDetail({
                       say that a run happened, never what it produced. */}
                   {r.derived_from && r.derived_from.length > 0 && (
                     <span className="block truncate text-muted-foreground">
-                      from {r.derived_from.slice(0, 3).map((p) => p.replace(/^\/workspace\//, '')).join(', ')}
-                      {r.derived_from.length > 3 ? ` and ${r.derived_from.length - 3} more` : ''}
+                      {r.derived_from.length > 3
+                        ? t('detail.derivedFromMore', {
+                            paths: r.derived_from.slice(0, 3).map((p) => p.replace(/^\/workspace\//, '')).join(', '),
+                            count: r.derived_from.length - 3,
+                          })
+                        : t('detail.derivedFrom', {
+                            paths: r.derived_from.map((p) => p.replace(/^\/workspace\//, '')).join(', '),
+                          })}
                     </span>
                   )}
                 </span>
@@ -358,20 +383,20 @@ export function StandingDetail({
       <section className="rounded-md border border-border/60 px-4 py-3">
         {confirmRetire ? (
           <div className="space-y-2">
-            <p className="text-sm text-foreground">Stop keeping {s.target} current?</p>
-            <p className="text-xs text-muted-foreground">The file and its history stay. Only the schedule and its instructions are retired, and you can set them up again.</p>
+            <p className="text-sm text-foreground">{t('detail.retireConfirmTitle', { target: s.target })}</p>
+            <p className="text-xs text-muted-foreground">{t('detail.retireConfirmBody')}</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirmRetire(false)} disabled={busy} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40">Keep it running</button>
+              <button type="button" onClick={() => setConfirmRetire(false)} disabled={busy} className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/40">{t('detail.keepRunning')}</button>
               <button type="button" onClick={() => void retire()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/5 disabled:opacity-50">
-                {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />} Retire
+                {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />} {t('detail.retire')}
               </button>
             </div>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">Retiring stops the updates. The file stays.</p>
+            <p className="text-xs text-muted-foreground">{t('detail.retireHint')}</p>
             <button type="button" onClick={() => setConfirmRetire(true)} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground">
-              <Trash2 className="h-3 w-3" /> Retire
+              <Trash2 className="h-3 w-3" /> {t('detail.retire')}
             </button>
           </div>
         )}

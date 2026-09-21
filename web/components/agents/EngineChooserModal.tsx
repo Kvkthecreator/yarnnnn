@@ -28,6 +28,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { Z_CONFIRM_BACKDROP, Z_CONFIRM_DIALOG, dismissModal } from '@/lib/shell/z-tiers';
@@ -79,6 +80,7 @@ interface Props {
 export function EngineChooserModal({
   open, onClose, agentName, models, current, declared, override, onConfirm,
 }: Props) {
+  const t = useTranslations('text.engineChooser');
   // The PENDING selection — the whole point of the modal. Nothing is written
   // until Confirm, so a mis-click costs a Cancel rather than a re-point.
   const [picked, setPicked] = useState<string | null>(override ?? null);
@@ -107,7 +109,7 @@ export function EngineChooserModal({
       await onConfirm(picked);
       onClose();
     } catch {
-      setError('That did not save. Nothing changed — try again.');
+      setError(t('saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -171,25 +173,26 @@ export function EngineChooserModal({
           className="pointer-events-auto flex max-h-[80vh] w-full max-w-md flex-col rounded-lg border border-border bg-card shadow-xl animate-in fade-in zoom-in-95 duration-150"
           role="dialog"
           aria-modal="true"
-          aria-label={`Engine for ${agentName}`}
+          aria-label={t('dialogLabel', { name: agentName })}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
         >
           <div className="border-b border-border/60 p-5 pb-3">
             <h3 className="text-base font-semibold text-card-foreground">
-              Engine for {agentName}
+              {t('heading', { name: agentName })}
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              Runs {agentName} in new conversations. Ones already running keep the
-              engine they started with.
+              {t('lede', { name: agentName })}
             </p>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-5 pt-3" role="radiogroup">
             <Row
               id={null}
-              label={declared ? `Default — ${labelFor(declared)}` : 'Default'}
-              note="What yarnnn chose for this agent."
+              // ONE message per arm, never a join: a word glued to a label in
+              // code is an English word order (ADR-660).
+              label={declared ? t('defaultNamed', { label: labelFor(declared) }) : t('defaultBare')}
+              note={t('defaultNote')}
             />
             {groups.map((g) => (
               <div key={g.provider} className="mt-4 space-y-1.5">
@@ -204,7 +207,7 @@ export function EngineChooserModal({
                     disabled={m.available === false}
                     note={
                       m.available === false
-                        ? m.unavailable_detail || 'Not available right now'
+                        ? m.unavailable_detail || t('notAvailable')
                         : undefined
                     }
                   />
@@ -217,11 +220,12 @@ export function EngineChooserModal({
             {error && <p className="mb-2 text-[11px] text-destructive">{error}</p>}
             <div className="flex items-center justify-between gap-3">
               <p className="min-w-0 text-[11px] text-muted-foreground">
-                {dirty ? (
-                  <>Now: {labelFor(current)} → {picked ? labelFor(picked) : labelFor(declared)}</>
-                ) : (
-                  <>Running {labelFor(current)}</>
-                )}
+                {dirty
+                  ? t('changeTo', {
+                      from: labelFor(current),
+                      to: picked ? labelFor(picked) : labelFor(declared),
+                    })
+                  : t('running', { label: labelFor(current) })}
               </p>
               <div className="flex shrink-0 gap-2">
                 <button
@@ -230,7 +234,7 @@ export function EngineChooserModal({
                   disabled={busy}
                   className="rounded-md border border-border px-3.5 py-1.5 text-sm text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="button"
@@ -243,7 +247,7 @@ export function EngineChooserModal({
                       : 'cursor-not-allowed bg-muted text-muted-foreground',
                   )}
                 >
-                  {busy ? 'Saving…' : 'Change engine'}
+                  {busy ? t('saving') : t('confirm')}
                 </button>
               </div>
             </div>

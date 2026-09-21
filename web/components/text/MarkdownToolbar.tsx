@@ -33,6 +33,7 @@ import {
   Table,
   Workflow,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 
 export type ToolbarAction =
@@ -61,7 +62,10 @@ export type ToolbarAction =
 
 interface Item {
   icon: LucideIcon;
-  label: string;
+  /** ADR-660 — a CATALOG KEY, never a word. This table is evaluated at import,
+   *  before any member's language is known, so the label is resolved at render
+   *  under `text.toolbar`. */
+  labelKey: string;
   action: ToolbarAction;
   /** Rendered as a trailing hint in the tooltip. */
   keys?: string;
@@ -69,40 +73,40 @@ interface Item {
 
 const GROUPS: Item[][] = [
   [
-    { icon: Heading1, label: 'Heading 1', action: { kind: 'heading', level: 1 } },
-    { icon: Heading2, label: 'Heading 2', action: { kind: 'heading', level: 2 } },
-    { icon: Heading3, label: 'Heading 3', action: { kind: 'heading', level: 3 } },
+    { icon: Heading1, labelKey: 'h1', action: { kind: 'heading', level: 1 } },
+    { icon: Heading2, labelKey: 'h2', action: { kind: 'heading', level: 2 } },
+    { icon: Heading3, labelKey: 'h3', action: { kind: 'heading', level: 3 } },
   ],
   [
-    { icon: Bold, label: 'Bold', action: { kind: 'wrap', marker: '**' }, keys: '⌘B' },
-    { icon: Italic, label: 'Italic', action: { kind: 'wrap', marker: '_' }, keys: '⌘I' },
-    { icon: Strikethrough, label: 'Strikethrough', action: { kind: 'wrap', marker: '~~' } },
-    { icon: Link2, label: 'Link', action: { kind: 'link' }, keys: '⌘K' },
+    { icon: Bold, labelKey: 'bold', action: { kind: 'wrap', marker: '**' }, keys: '⌘B' },
+    { icon: Italic, labelKey: 'italic', action: { kind: 'wrap', marker: '_' }, keys: '⌘I' },
+    { icon: Strikethrough, labelKey: 'strikethrough', action: { kind: 'wrap', marker: '~~' } },
+    { icon: Link2, labelKey: 'link', action: { kind: 'link' }, keys: '⌘K' },
   ],
   [
-    { icon: List, label: 'Bulleted list', action: { kind: 'list', ordered: false } },
-    { icon: ListOrdered, label: 'Numbered list', action: { kind: 'list', ordered: true } },
+    { icon: List, labelKey: 'bullet', action: { kind: 'list', ordered: false } },
+    { icon: ListOrdered, labelKey: 'number', action: { kind: 'list', ordered: true } },
     // Docs' `checklist` kind, which markdown expresses natively (GFM task
     // list) and the shared renderer already paints — the one Insert row that
     // survives the medium translation with no annotation.
-    { icon: ListChecks, label: 'Task list', action: { kind: 'checklist' } },
-    { icon: Quote, label: 'Quote', action: { kind: 'quote' } },
+    { icon: ListChecks, labelKey: 'task', action: { kind: 'checklist' } },
+    { icon: Quote, labelKey: 'quote', action: { kind: 'quote' } },
   ],
   // ADR-572 D17 — every kind here keeps its content in the `.md`: a diagram
   // is its own source, code is fenced.
   [
-    { icon: Table, label: 'Table', action: { kind: 'table' } },
-    { icon: Minus, label: 'Divider', action: { kind: 'rule' } },
-    { icon: Workflow, label: 'Diagram', action: { kind: 'mermaid' } },
-    { icon: Code, label: 'Code block', action: { kind: 'code' } },
+    { icon: Table, labelKey: 'table', action: { kind: 'table' } },
+    { icon: Minus, labelKey: 'divider', action: { kind: 'rule' } },
+    { icon: Workflow, labelKey: 'mermaid', action: { kind: 'mermaid' } },
+    { icon: Code, labelKey: 'code', action: { kind: 'code' } },
   ],
   // ADR-579 D4 — the ADD pair, from the workspace: the two picker-backed
   // kinds (ADR-572 D17/D18) sit together as the toolbar's mirror of the slash
   // palette's Add group. An image is a path; the CSV's rows land as real
   // markdown (which is what Docs' citation block cannot do).
   [
-    { icon: ImageIcon, label: 'Image', action: { kind: 'image' } },
-    { icon: Sheet, label: 'Table from CSV', action: { kind: 'csvtable' } },
+    { icon: ImageIcon, labelKey: 'image', action: { kind: 'image' } },
+    { icon: Sheet, labelKey: 'csvtable', action: { kind: 'csvtable' } },
   ],
 ];
 
@@ -113,6 +117,7 @@ export function MarkdownToolbar({
   onAction: (action: ToolbarAction) => void;
   className?: string;
 }) {
+  const t = useTranslations('text.toolbar');
   return (
     /* The verbs live in the HEADER's centre zone (TextEditor), which is already
        the canvas column — so this component owns no border, no ground and no
@@ -126,7 +131,7 @@ export function MarkdownToolbar({
        hidden — chrome on chrome, on a row one line tall. */
     <div
       role="toolbar"
-      aria-label="Markdown formatting"
+      aria-label={t('label')}
       className={cn(
         'flex w-full items-center gap-0.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]',
         className,
@@ -135,9 +140,11 @@ export function MarkdownToolbar({
       {GROUPS.map((group, gi) => (
         <div key={gi} className="flex shrink-0 items-center gap-0.5">
           {gi > 0 && <span className="mx-1.5 h-5 w-px bg-border/60" aria-hidden />}
-          {group.map((item) => (
+          {group.map((item) => {
+            const label = t(item.labelKey);
+            return (
             <button
-              key={item.label}
+              key={item.labelKey}
               type="button"
               // `onMouseDown` + preventDefault, never `onClick`: a click would
               // blur the textarea first, and the browser drops the selection
@@ -147,8 +154,10 @@ export function MarkdownToolbar({
                 e.preventDefault();
                 onAction(item.action);
               }}
-              title={item.keys ? `${item.label} (${item.keys})` : item.label}
-              aria-label={item.label}
+              // ONE message, never a join: a label glued to its shortcut in
+              // code is an English word order (ADR-660).
+              title={item.keys ? t('withKeys', { label, keys: item.keys }) : label}
+              aria-label={label}
               // Sized to the Docs reference: a 32px target with a 16px glyph
               // reads as a real button rather than a hairline mark, and meets
               // the touch floor closely enough at desktop density.
@@ -156,7 +165,8 @@ export function MarkdownToolbar({
             >
               <item.icon className="h-4 w-4" />
             </button>
-          ))}
+            );
+          })}
         </div>
       ))}
     </div>

@@ -69,19 +69,59 @@ export const REGION_SEL = '[data-area], [data-slot]';
  *  `data-area` name is never a display word; the ROLE is the Area's identity
  *  and this is where it becomes English. `place` disambiguates same-role
  *  siblings ("Body (left)"), which is what `main`/`side` were doing badly. */
-export const AREA_ROLE_LABELS: Record<string, string> = {
-  heading: 'Heading',
-  body: 'Body',
-  media: 'Media',
-  aside: 'Aside',
+export const AREA_ROLE_LABEL_KEYS: Record<string, string> = {
+  heading: 'roles.heading',
+  body: 'roles.body',
+  media: 'roles.media',
+  aside: 'roles.aside',
+};
+
+/**
+ * ADR-660 — the structural words, RESOLVED. This ladder is called from panes
+ * (which can read the catalog) and mirrored into the sandboxed canvas runtime
+ * (which cannot — `labelForJS` serialises words, not keys, and a key baked into
+ * the iframe would render as `roles.body` on the canvas). So the words are
+ * resolved ONCE by the caller and threaded through, exactly as `blockLabels`
+ * and `__yarnnnFrameNoun` already are: one derivation, injected.
+ *
+ * `useStructureWords()` in `structureWords.ts` builds this from the catalog.
+ */
+export interface StructureWords {
+  document: string;
+  group: string;
+  area: string;
+  frameSlide: string;
+  frameArtboard: string;
+  frameSection: string;
+  roles: Record<string, string>;
+  /** `{role} ({place})` — a whole message, so the parenthetical can move. */
+  areaWithPlace: (role: string, place: string) => string;
+}
+
+/** The pre-ADR-660 English words. The FALLBACK only — used where no catalog is
+ *  reachable (a module-level default, a test). Never a default for a render
+ *  path a member can see. */
+export const ENGLISH_STRUCTURE_WORDS: StructureWords = {
+  document: 'Document',
+  group: 'Group',
+  area: 'Area',
+  frameSlide: 'Slide',
+  frameArtboard: 'Artboard',
+  frameSection: 'Section',
+  roles: { heading: 'Heading', body: 'Body', media: 'Media', aside: 'Aside' },
+  areaWithPlace: (role, place) => `${role} (${place})`,
 };
 
 /** The label for an Area, from its role and optional place. Unknown roles
  *  degrade to "Area" rather than leaking the authored name — the whole point
  *  of D4 is that a free-form string never reaches the operator. */
-export function areaLabel(role: string | null, place?: string | null): string {
-  const base = (role && AREA_ROLE_LABELS[role]) || 'Area';
-  return place ? `${base} (${place})` : base;
+export function areaLabel(
+  role: string | null,
+  place?: string | null,
+  words: StructureWords = ENGLISH_STRUCTURE_WORDS,
+): string {
+  const base = (role && words.roles[role]) || words.area;
+  return place ? words.areaWithPlace(base, place) : base;
 }
 
 /** ADR-633 D2/D3 — the app's property model, as the label ladder reads it.
@@ -109,8 +149,11 @@ export type ObjectModel = 'flow' | 'pages' | 'layers';
  *  ladder without an app in scope (the projection's own hover-label pass). It
  *  is NOT a default for an app row — D2 forbids that, and `objectModel` is
  *  required precisely so no app can arrive here undeclared. */
-export function frameNoun(objectModel?: ObjectModel | null): string {
-  return objectModel === 'layers' ? 'Artboard' : 'Slide';
+export function frameNoun(
+  objectModel?: ObjectModel | null,
+  words: StructureWords = ENGLISH_STRUCTURE_WORDS,
+): string {
+  return objectModel === 'layers' ? words.frameArtboard : words.frameSlide;
 }
 
 /** Label a structural element from its cheap, serializable facts. Mirrors the
@@ -134,6 +177,7 @@ export function labelForElement(
   blockLabels?: Record<string, string> | null,
   mode?: 'flow' | 'paged' | null,
   objectModel?: ObjectModel | null,
+  words: StructureWords = ENGLISH_STRUCTURE_WORDS,
 ): string {
   const kind = el.getAttribute('data-block');
   if (kind) return blockLabels?.[kind] ?? kind; // the REGISTRY's word, not the attribute's
@@ -154,14 +198,14 @@ export function labelForElement(
   // On flow the honest answer for a structural element is the DOCUMENT itself:
   // the member never addresses a container there, so naming one is the chrome
   // promising a grain the medium does not have (rule 6).
-  if (mode === 'flow') return 'Document';
+  if (mode === 'flow') return words.document;
   const cl = el.classList ?? null;
   // ADR-633 D3 — the frame's noun is the APP's word, not the class's. `.slide`
   // stays the class (D1: it is the kernel's grain boundary and forking it to
   // fix a display string is the over-reach this ADR refuses).
-  if (cl?.contains('slide')) return frameNoun(objectModel);
+  if (cl?.contains('slide')) return frameNoun(objectModel, words);
   const role = el.getAttribute('data-area-role');
-  if (role) return areaLabel(role, el.getAttribute('data-area-place'));
+  if (role) return areaLabel(role, el.getAttribute('data-area-place'), words);
   // ADR-544 D7 — the LEGACY rung. An un-healed document still carries
   // `data-slot`, and every OTHER consumer of the region grain reads
   // `[data-area], [data-slot]` (projection's payload + climb, applyArrangement's
@@ -172,7 +216,7 @@ export function labelForElement(
   //
   // A legacy region is an Area whose role was never stamped: label it "Area",
   // never its authored name (D4 — a free-form string is data, not a word).
-  if (el.getAttribute('data-slot') !== null) return areaLabel(null);
+  if (el.getAttribute('data-slot') !== null) return areaLabel(null, null, words);
   // ADR-544 D2 — `.cols`/`.col` are the parent Area's declared LAYOUT, not a
   // grain. A `.col` that holds blocks carries the Area markers and was caught
   // above; a bare grid wrapper is structure the operator never addresses.
@@ -180,9 +224,9 @@ export function labelForElement(
   // ADR-633 D3 — the same frame, reached by tag rather than class (an artboard
   // or slide whose class was stripped). Both rungs name ONE object, so both
   // take the app's noun; splitting them is how §1.1's two-nouns defect starts.
-  if (tag === 'SECTION') return frameNoun(objectModel);
-  if (tag === 'MAIN' || tag === 'ARTICLE') return 'Document';
-  return 'Group';
+  if (tag === 'SECTION') return frameNoun(objectModel, words);
+  if (tag === 'MAIN' || tag === 'ARTICLE') return words.document;
+  return words.group;
 }
 
 /** The same ladder as a self-contained JS function body, for injection into
@@ -211,12 +255,29 @@ export function labelForElement(
  *  projection composed without the global (a viewer with no app in scope). It
  *  is a READ fallback, not an app default: D2 forbids the latter. */
 export function labelForJS(fnName: string): string {
-  const roles = JSON.stringify(AREA_ROLE_LABELS);
+  // ADR-660 — the canvas runtime cannot read the catalog, and the two constants
+  // that inline this ladder (`POINTER_SCRIPT`, `OBJECT_SCRIPT`) are module-level
+  // template strings evaluated at import, so a per-projection value cannot reach
+  // them as a baked literal. The WORDS therefore ride the same global channel
+  // `__yarnnnBlockLabels` and `__yarnnnFrameNoun` already use: resolved once at
+  // the injection site, read here. The English defaults are the read fallback
+  // for a projection composed without a scope (a viewer with no app).
+  const roles = JSON.stringify(ENGLISH_STRUCTURE_WORDS.roles);
   const frame = JSON.stringify(frameNoun(null));
+  const W = {
+    document: JSON.stringify(ENGLISH_STRUCTURE_WORDS.document),
+    group: JSON.stringify(ENGLISH_STRUCTURE_WORDS.group),
+    area: JSON.stringify(ENGLISH_STRUCTURE_WORDS.area),
+  };
   return `function ${fnName}(el) {
-    if (!el || !el.getAttribute) return 'Group';
+    // ADR-660 — the structural words, injected beside the block labels.
+    var SW = window.__yarnnnStructureWords || {};
+    var DOCUMENT_W = SW.document || ${W.document};
+    var GROUP_W = SW.group || ${W.group};
+    var AREA_W = SW.area || ${W.area};
+    if (!el || !el.getAttribute) return GROUP_W;
     var LABELS = window.__yarnnnBlockLabels || {};
-    var ROLES = ${roles};
+    var ROLES = SW.roles || ${roles};
     // ADR-633 D3 — the frame's noun, RESOLVED by frameNoun() at the injection
     // site and read here. The runtime does not know what a 'layers' app is; it
     // knows the word the chrome chose (see the docstring).
@@ -226,21 +287,21 @@ export function labelForJS(fnName: string): string {
     // ADR-546 D5 — the flow rung of the ladder (see labelForElement). The mode
     // reaches the runtime the same way every other served fact does: as a global
     // read off the document, never a baked literal.
-    if (document.documentElement.getAttribute('data-yarnnn-mode') === 'flow') return 'Document';
+    if (document.documentElement.getAttribute('data-yarnnn-mode') === 'flow') return DOCUMENT_W;
     var cl = el.classList;
     // ADR-633 D3 — the app's word, resolved at composition (see the docstring).
     if (cl && cl.contains('slide')) return FRAME;
     var role = el.getAttribute('data-area-role');
     if (role) {
-      var base = ROLES[role] || 'Area';
+      var base = ROLES[role] || AREA_W;
       var place = el.getAttribute('data-area-place');
       return place ? base + ' (' + place + ')' : base;
     }
     // ADR-544 D7 — the legacy rung (see labelForElement; change both together).
-    if (el.getAttribute('data-slot') !== null) return 'Area';
+    if (el.getAttribute('data-slot') !== null) return AREA_W;
     var tag = (el.tagName || '').toUpperCase();
     if (tag === 'SECTION') return FRAME;
-    if (tag === 'MAIN' || tag === 'ARTICLE') return 'Document';
-    return 'Group';
+    if (tag === 'MAIN' || tag === 'ARTICLE') return DOCUMENT_W;
+    return GROUP_W;
   }`;
 }

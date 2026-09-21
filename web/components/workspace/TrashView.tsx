@@ -23,11 +23,12 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Loader2, Trash2, Undo2, FileText, FolderClosed } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { FileIcon } from './FileIcon';
-import { formatAuthorLabelOrSystem } from '@/lib/workspace/attribution';
+import { useAuthorLabel } from '@/lib/workspace/useAuthorLabel';
 import { useFeedback } from '@/contexts/FeedbackContext';
 
 interface TrashItem {
@@ -53,6 +54,8 @@ function detail(e: unknown, fallback: string): string {
 }
 
 export function TrashView() {
+  const t = useTranslations('files.trash');
+  const { authorLabelOrSystem } = useAuthorLabel();
   // Gates AND outcomes both ride the canonical layer now — this file used
   // runAction for its outcomes while hand-rolling inline "second-click"
   // gates, which made permanent delete (the MOST destructive act on the
@@ -82,9 +85,9 @@ export function TrashView() {
     setBusy(root);
     try {
       await runAction(() => api.documents.restoreTrashGroup(root), {
-        pending: 'Restoring folder…',
-        success: (res) => res.message || 'Restored',
-        error: (e) => detail(e, 'Restore failed'),
+        pending: t('restoringFolder'),
+        success: (res) => res.message || t('restored'),
+        error: (e) => detail(e, t('restoreFailed')),
       });
       setGroups((prev) => prev.filter((g) => g.root !== root));
     } catch {
@@ -92,7 +95,7 @@ export function TrashView() {
     } finally {
       setBusy(null);
     }
-  }, [runAction]);
+  }, [runAction, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -100,9 +103,9 @@ export function TrashView() {
     setBusy(path);
     try {
       await runAction(() => api.documents.restore(path), {
-        pending: 'Restoring…',
-        success: 'Restored',
-        error: (e) => detail(e, 'Restore failed'),
+        pending: t('restoring'),
+        success: t('restored'),
+        error: (e) => detail(e, t('restoreFailed')),
       });
       setItems((prev) => prev.filter((it) => it.path !== path));
     } catch {
@@ -110,22 +113,22 @@ export function TrashView() {
     } finally {
       setBusy(null);
     }
-  }, [runAction]);
+  }, [runAction, t]);
 
   const permanentDelete = useCallback(async (path: string, filename: string) => {
     const ok = await confirmDialog({
-      title: 'Delete forever?',
-      body: `"${filename}" cannot be recovered after this.`,
-      confirmLabel: 'Delete forever',
+      title: t('confirmDeleteTitle'),
+      body: t('confirmDeleteBody', { name: filename }),
+      confirmLabel: t('confirmDeleteLabel'),
       danger: true,
     });
     if (!ok) return;
     setBusy(path);
     try {
       await runAction(() => api.documents.permanentDelete(path), {
-        pending: 'Deleting permanently…',
-        success: 'Permanently deleted',
-        error: (e) => detail(e, 'Delete failed'),
+        pending: t('deletingPermanently'),
+        success: t('permanentlyDeleted'),
+        error: (e) => detail(e, t('deleteFailed')),
       });
       setItems((prev) => prev.filter((it) => it.path !== path));
     } catch {
@@ -133,22 +136,22 @@ export function TrashView() {
     } finally {
       setBusy(null);
     }
-  }, [runAction, confirmDialog]);
+  }, [runAction, confirmDialog, t]);
 
   const emptyTrash = useCallback(async () => {
     const ok = await confirmDialog({
-      title: 'Empty Trash?',
-      body: 'Everything here is deleted permanently. Files other work was made from are kept.',
-      confirmLabel: 'Empty Trash',
+      title: t('confirmEmptyTitle'),
+      body: t('confirmEmptyBody'),
+      confirmLabel: t('empty'),
       danger: true,
     });
     if (!ok) return;
     setBusy('__empty__');
     try {
       const res = await runAction(() => api.documents.emptyTrash(), {
-        pending: 'Emptying trash…',
-        success: 'Trash emptied',
-        error: (e) => detail(e, 'Empty trash failed'),
+        pending: t('emptying'),
+        success: t('emptied'),
+        error: (e) => detail(e, t('emptyFailed')),
       });
       // The per-file skip detail (cited files kept) isn't a failure, so surface
       // it as its own note rather than losing it behind the generic success line.
@@ -162,7 +165,7 @@ export function TrashView() {
     } finally {
       setBusy(null);
     }
-  }, [runAction, load, confirmDialog]);
+  }, [runAction, load, confirmDialog, t]);
 
   // Groups and loose files are both ROWS. Counted together so the header, the
   // empty state and the Empty-Trash affordance all agree on "is there anything
@@ -174,12 +177,12 @@ export function TrashView() {
     <div className="h-full overflow-y-auto px-6 py-4">
       <div className="mb-4 flex items-center gap-2">
         <Trash2 className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-medium text-foreground">Trash</h2>
+        <h2 className="text-sm font-medium text-foreground">{t('title')}</h2>
         {/* The header count is ROWS — what the operator is looking at — so a
             trashed folder counts as one thing, matching the one act that put it
             here. Its 40 files are named on the row itself. */}
         <span className="text-[11px] text-muted-foreground">
-          {loading ? '' : `${rowCount} item${rowCount === 1 ? '' : 's'}`}
+          {loading ? '' : t('items', { count: rowCount })}
         </span>
         {!loading && rowCount > 0 && (
           <div className="ml-auto">
@@ -190,21 +193,20 @@ export function TrashView() {
               className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
             >
               {busy === '__empty__' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              Empty Trash
+              {t('empty')}
             </button>
           </div>
         )}
       </div>
 
       {loading ? (
-        <Working label="Loading trash…" className="py-6 text-sm" />
+        <Working label={t('loading')} className="py-6 text-sm" />
       ) : rowCount === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Trash2 className="mb-3 h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">Trash is empty.</p>
+          <p className="text-sm text-muted-foreground">{t('isEmpty')}</p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            Files you delete land here — recoverable until you permanently delete
-            them. Permanent delete cannot be undone.
+            {t('isEmptyHint')}
           </p>
         </div>
       ) : (
@@ -223,8 +225,8 @@ export function TrashView() {
                 <div className="truncate text-sm text-foreground">{g.name}</div>
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <span className="truncate">{g.root.replace('/workspace/', '')}</span>
-                  <span>· {g.count} item{g.count === 1 ? '' : 's'}</span>
-                  {g.archived_at && <span>· deleted {g.archived_at.slice(0, 10)}</span>}
+                  <span>· {t('items', { count: g.count })}</span>
+                  {g.archived_at && <span>{t('deletedOn', { date: g.archived_at.slice(0, 10) })}</span>}
                 </div>
               </div>
               <button
@@ -234,7 +236,7 @@ export function TrashView() {
                 className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
               >
                 {busy === g.root ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
-                Restore all
+                {t('restoreAll')}
               </button>
             </div>
           ))}
@@ -246,8 +248,8 @@ export function TrashView() {
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   <FileText className="h-3 w-3 shrink-0" />
                   <span className="truncate">{it.path.replace('/workspace/', '')}</span>
-                  {it.archived_at && <span>· deleted {it.archived_at.slice(0, 10)}</span>}
-                  {it.authored_by && <span>· by {formatAuthorLabelOrSystem(it.authored_by)}</span>}
+                  {it.archived_at && <span>{t('deletedOn', { date: it.archived_at.slice(0, 10) })}</span>}
+                  {it.authored_by && <span>{t('by', { author: authorLabelOrSystem(it.authored_by) })}</span>}
                 </div>
               </div>
 
@@ -259,17 +261,17 @@ export function TrashView() {
                   className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
                 >
                   {busy === it.path ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
-                  Restore
+                  {t('restore')}
                 </button>
                 <button
                   type="button"
                   onClick={() => permanentDelete(it.path, it.filename)}
                   disabled={busy === it.path}
                   className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-                  title="Permanently delete — cannot be undone"
+                  title={t('deleteTitle')}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  Delete
+                  {t('delete')}
                 </button>
               </div>
             </div>

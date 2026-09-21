@@ -25,6 +25,7 @@
  */
 
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { FileIcon } from './FileIcon';
 import { TILE_DRAG_MIME } from './FileTile';
@@ -36,12 +37,13 @@ import { Folder } from 'lucide-react';
 const GRID = 'grid grid-cols-[minmax(0,1fr)_120px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_130px_120px]';
 
 export function FileListHeader() {
+  const t = useTranslations('files.list');
   return (
     <div className={cn(GRID, 'border-b border-border/60 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground')}>
-      <span>Name</span>
-      <span className="hidden md:block">Where</span>
-      <span>Author</span>
-      <span className="text-right">When</span>
+      <span>{t('name')}</span>
+      <span className="hidden md:block">{t('where')}</span>
+      <span>{t('author')}</span>
+      <span className="text-right">{t('when')}</span>
     </div>
   );
 }

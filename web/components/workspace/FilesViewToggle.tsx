@@ -12,6 +12,7 @@
  * Finder has one view control; so do we.
  */
 
+import { useTranslations } from 'next-intl';
 import { LayoutGrid, List as ListIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { FilesViewMode } from '@/lib/workspace/useFilesViewMode';
@@ -23,11 +24,12 @@ export function FilesViewToggle({
   mode: FilesViewMode;
   onChange: (m: FilesViewMode) => void;
 }) {
+  const t = useTranslations('files.viewToggle');
   return (
-    <div className="inline-flex items-center rounded-md border border-border p-0.5" role="group" aria-label="View">
+    <div className="inline-flex items-center rounded-md border border-border p-0.5" role="group" aria-label={t('group')}>
       <button
         type="button"
-        aria-label="Icon view"
+        aria-label={t('icon')}
         aria-pressed={mode === 'icon'}
         onClick={() => onChange('icon')}
         className={cn(
@@ -39,7 +41,7 @@ export function FilesViewToggle({
       </button>
       <button
         type="button"
-        aria-label="List view"
+        aria-label={t('list')}
         aria-pressed={mode === 'list'}
         onClick={() => onChange('list')}
         className={cn(

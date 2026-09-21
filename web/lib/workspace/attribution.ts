@@ -102,7 +102,10 @@ const LANE_MODEL_NAMES: Record<string, string> = {
   'gemini/gemini-2.5-flash': 'Gemini 2.5 Flash',
 };
 
-function laneModelName(raw: string): string {
+/** A lane engine id → the name the product shows. Exported so the viewer
+ *  layer can name the transport as an ARGUMENT rather than slicing it out of
+ *  a rendered English label (ADR-660). */
+export function laneModelName(raw: string): string {
   if (LANE_MODEL_NAMES[raw]) return LANE_MODEL_NAMES[raw];
   return raw.includes('/') ? raw.split('/').slice(1).join('/') : raw;
 }
@@ -145,28 +148,44 @@ export function authorClass(authored_by: string | null | undefined): AuthorClass
  * show (callers decide whether to render "System" or nothing). The MCP form
  * is the load-bearing one — it surfaces *which* external LLM wrote, by name.
  */
-export function formatAuthorLabel(authored_by: string | null | undefined): string | null {
+/** A catalog key under `attribution`, plus its ICU arguments. */
+export type AuthorLabelRef = { key: string; args?: Record<string, string> };
+
+/**
+ * The operator-facing label, as a catalog KEY (ADR-660). Returns null when
+ * there is no attribution to show (callers decide whether to render "System"
+ * or nothing). The MCP form is the load-bearing one — it surfaces *which*
+ * external LLM wrote, by name.
+ *
+ * ⭐ This is module-level and 17 files call it, so it cannot read the catalog
+ * itself: it names a key and the component words it (`useAuthorLabel`). Before
+ * ADR-660 it returned English sentences, which would have split the vocabulary
+ * across every surface that shows attribution — one row "나", the next "You".
+ */
+export function formatAuthorLabelRef(
+  authored_by: string | null | undefined,
+): AuthorLabelRef | null {
   if (!authored_by) return null;
   const cls = authorClass(authored_by);
   switch (cls) {
     case 'you':
-      return 'You';
+      return { key: 'you' };
     case 'mcp':
-      return `${mcpHostName(authored_by.slice('yarnnn:mcp:'.length))} (via MCP)`;
+      return { key: 'mcp', args: { host: mcpHostName(authored_by.slice('yarnnn:mcp:'.length)) } };
     case 'yarnnn':
-      return 'YARNNN';
+      return { key: 'yarnnn' };
     // ADR-381/251 relabel-keep-slug: the `reviewer`/`freddie:` slug is internal;
     // the operator-facing label is "Freddie". (Persona-aware surfaces — chat
     // header, bubble, streaming status — resolve the authored persona name via
     // useFreddiePersona/getFreddiePersonaName; this sync labeler is the generic
     // fallback for glance contexts (Recents, revision panels, routine rows).)
     case 'reviewer':
-      return 'Freddie';
+      return { key: 'freddie' };
     case 'agent': {
       const slug = authored_by.startsWith('agent:')
         ? authored_by.slice('agent:'.length)
         : null;
-      return slug ? `Agent (${slug})` : 'Agent (A2A)';
+      return slug ? { key: 'agentNamed', args: { slug } } : { key: 'agentA2A' };
     }
     // ADR-411 lane embodiment — the member's hands, transport named (ADR-408
     // D2). The sync fallback can't resolve the member id to a name; viewer-
@@ -174,12 +193,14 @@ export function formatAuthorLabel(authored_by: string | null | undefined): strin
     // "You via GPT-4o mini" / "seulkim88 via GPT-4o mini".
     case 'member': {
       const emb = memberEmbodiment(authored_by);
-      return emb?.model ? `Member (via ${laneModelName(emb.model)})` : 'Member';
+      return emb?.model
+        ? { key: 'memberVia', args: { model: laneModelName(emb.model) } }
+        : { key: 'member' };
     }
     case 'specialist':
-      return 'Specialist';
+      return { key: 'specialist' };
     case 'platform':
-      return 'Platform';
+      return { key: 'platform' };
     case 'system':
       // ADR-486 D2 / ADR-489 D3 — the face is the resident, the fact is the
       // ledger: the standing Radar sweep's briefs read as its Researcher;
@@ -187,16 +208,19 @@ export function formatAuthorLabel(authored_by: string | null | undefined): strin
       // ADR-639 D5 — the kept file's standing run is machinery with NO face
       // (its app and agent are deleted): the live prefix and the historical
       // one both read as the work. Never rewritten on the rows.
-      if (authored_by === 'system:standing' || authored_by === 'system:strings') return 'Standing work';
-      return authored_by === 'system:radar' ? 'Researcher' : 'System';
+      if (authored_by === 'system:standing' || authored_by === 'system:strings')
+        return { key: 'standingWork' };
+      return authored_by === 'system:radar' ? { key: 'researcher' } : { key: 'system' };
     default:
       return null;
   }
 }
 
-/** Like formatAuthorLabel but never null — for glance contexts (Recents/tree). */
-export function formatAuthorLabelOrSystem(authored_by: string | null | undefined): string {
-  return formatAuthorLabel(authored_by) ?? 'System';
+/** Like formatAuthorLabelRef but never null — for glance contexts (Recents/tree). */
+export function formatAuthorLabelRefOrSystem(
+  authored_by: string | null | undefined,
+): AuthorLabelRef {
+  return formatAuthorLabelRef(authored_by) ?? { key: 'system' };
 }
 
 /**
