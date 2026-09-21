@@ -195,6 +195,30 @@ lexemes cannot contain the separator."* Measured: `plainto_tsquery('english','�
 `'매출' & '보고서'`, which rewrites correctly — so the premise happens to hold for Hangul. But the
 comment's reasoning is about English specifically, and it should be restated rather than relied on.
 
+**Receipt F — pgroonga MEASURED, 2026-09-21, inside rolled-back transactions.** The 09-16 analysis
+could not check this and §7 below listed it as unverified. Now driven:
+
+- `CREATE EXTENSION pgroonga` **succeeds** on this instance (3.2.5).
+- Recall on the 34 Korean-bearing rows — pgroonga fixes exactly the failures, and never returns fewer:
+
+| Query | in the file as | english FTS | pgroonga | **hybrid (OR)** |
+|---|---|---|---|---|
+| `본문` | `본문이` (particle) | **0** ❌ | 1 | **1** ✅ |
+| `삭제` | `삭제하거나` (conjugated) | **0** ❌ | 1 | **1** ✅ |
+| `파일` | bare + `파일은` | 1 | 2 | **2** ✅ |
+| `커넥터` | bare | 2 | 2 | 2 |
+
+- ⚠️ **pgroonga ALONE regresses English**, because it substring-matches without stemming:
+  `reports` 181 → **103** (it no longer matches `report`). So pgroonga is **not a replacement** for
+  the English config.
+- ⭐ **The hybrid is strictly better than either**: `reports` 181 → **187**, `workspace` 387 → **412**,
+  while the Korean failures go 0 → 1. The design is therefore *keep `to_tsvector('english', …)`,
+  add a pgroonga index, and OR the two* — which is the shape `search_workspace`'s existing
+  strict/loose CTE already has.
+- **Cost, measured**: indexing all 902 rows (8657 kB of content) grew the database **312 MB → 402 MB**,
+  i.e. **~90 MB of index for ~8.6 MB of content (~10×)**. Not free; `pg_relation_size` reads 0 because
+  pgroonga stores outside the Postgres relation, so measure by database-size delta, not relation size.
+
 **Severity: HIGH — blocks real Korean use.** This is the one that cannot be retrofitted by any
 translation effort and degrades silently.
 
@@ -485,11 +509,14 @@ path, and that no `workspace_files.path` differs from its NFC form.
 ⚠️ Must be driven, not read: re-run the two live NFD rows' lookups before and after.
 
 **2. Search under Korean.** *The one that cannot be retrofitted.*
-`pgroonga` 3.2.5 is available (§3.2 Receipt D), which is the real unlock. Alternative: a `pg_trgm`
-or bigram `simple`-config index. Either way it is a migration + an index + a rewrite of
-`search_workspace`'s six `'english'` sites, and the honest gate is the smoke-test file's own question:
-`삭제` and `본문` must return ≥1. Also restate mig 246:84's English-specific comment.
-⚠️ Measure index size before committing — a bigram index over `content` is not free.
+Now measured (§3.2 Receipt F), so the shape is settled: **keep `to_tsvector('english', …)`, add a
+pgroonga index, and OR the two.** pgroonga alone would regress English (`reports` 181 → 103); the
+hybrid beats both (181 → 187) while taking the Korean failures 0 → 1. That maps onto
+`search_workspace`'s existing strict/loose CTE structure. The honest gate is the smoke-test file's
+own question: `삭제` and `본문` must return ≥1, AND an English control must not drop. Also restate
+mig 246:84's English-specific comment.
+⚠️ **The cost is real and should be the operator's call**: ~90MB of index for ~8.6MB of content
+(database 312MB → 402MB) on today's corpus.
 
 **3. `lib/formatting.ts` + the locale argument.** One shared layer, 15 surfaces, ~30 call sites.
 Moves `just now` / `Today` / `Yesterday` / `2m ago` into the catalog and threads the member's locale
@@ -515,8 +542,9 @@ RFC-2047 subject encoding with a Hangul workspace name (§3.9's untested edge).
 Per the standing correction (*classify each limit by its stated reason — law / deferral / cost scar /
 never ruled — and ask rather than lean on ADR precedent*):
 
-- **N1 — Search.** Is Korean search worth a Postgres extension (`pgroonga`) and an index? This is the
-  only finding that blocks real use, and it is invisible in session one. **Never ruled.**
+- **N1 — Search.** Is Korean search worth a Postgres extension (`pgroonga`) and an index? Now costed
+  rather than guessed: it **works** (0 → 1 on the failures, and the hybrid improves English too), and
+  it costs **~90MB of index for ~8.6MB of content**. That ratio is the decision. **Never ruled.**
 - **N2 — NFC normalization.** Should `(workspace_id, path)` be normalization-insensitive? I believe
   yes and cheaply, but it touches the substrate's binding unit (ADR-373/286/209), so it is not mine
   to assume. **Never thought of by anyone.**
@@ -542,8 +570,11 @@ whose reasons still hold; they need scheduling, not re-deciding.
   would be stronger.
 - **Did not send a real email** with a Hangul workspace name, so §3.9's MIME-encoding question is
   open, stated rather than answered.
-- **Did not test `pgroonga` behaviour** — only confirmed availability. Its actual Korean recall, its
-  index size on 902 files, and whether Supabase permits `CREATE EXTENSION` for it are unverified.
+- ~~Did not test `pgroonga`~~ — **DONE 2026-09-21** (§3.2 Receipt F): it installs, it fixes the exact
+  Korean failures, it regresses English stemming ALONE so the hybrid is the design, and it costs
+  ~90MB of index for ~8.6MB of content. Measured inside rolled-back transactions; production
+  untouched. What is still unverified: recall on a Korean corpus larger than 34 rows, and query
+  latency under the hybrid.
 - **Did not probe the MCP surface end-to-end** under a Hangul path — the NFC/NFD receipt is at the
   `parse_file_reference` chokepoint, not through a live connector call.
 - **No Korean speaker reviewed** the linguistic claims about particles and conjugation. The FTS
