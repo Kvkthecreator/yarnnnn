@@ -6,6 +6,12 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## Vercel skip rule not yet observed skipping (2026-09-23)
+
+`web/vercel.json` (`037f838`) skips builds unless `web/` or `content/` changed. Unverified on Vercel:
+the next docs/api-only push should show "Canceled — Ignored Build Step". If it builds instead, check the
+project's Root Directory is `web`. Delete this item once one skip is seen.
+
 ## A member's workspace pin does not survive the first landing — CAUSE STILL OPEN (2026-09-21)
 
 **Driven on production** with the declared rig pair (`kvkthecreator@yarnnn.com` owner of
