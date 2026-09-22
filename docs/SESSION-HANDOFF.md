@@ -186,6 +186,56 @@ platform-divergent APIs there are, so that ADR scopes ONE platform at a time.
 ⚠️ `docs/analysis/src_claudeCC/` is a vendored copy of Claude Code's own source (untracked,
 gitignored). **22 of 28 "computer use" matches under `docs/` are that tree, not canon.**
 
+## Slides: driven in ENGLISH — the deck path is sound (2026-09-22)
+
+Deliberately driven with the account locale set to **English** (via the in-product
+Settings → Language pane, which persists to `user_metadata.locale` — verified), because the
+earlier Text/Chat passes ran in Korean by accident and that skewed their findings toward
+locale defects. This pass is core-feature only.
+
+**What works, driven end to end**: New deck → named "Seed round narrative" → created at
+`operation/seed-round-narrative/deck.html` with two starter slides; slide selection drives a
+slide-scoped Properties pane (block tree, reorder/duplicate, a "CHANGE THIS SLIDE TO"
+arrangement gallery); Compose scoped to slide 2 with explicit Fill-in / Replace semantics;
+the turn rewrote the slide, **left the numbers as placeholders rather than inventing figures
+for an investor deck**, said so, and reported its steps. Export offers Print/PDF + Copy AI
+reference and names its own limit ("Markdown export is not offered yet"). Console clean.
+
+**THE RECEIPT THAT MATTERS**: the Compose revision is attributed
+`member:500f3ae7… **via** anthropic/claude-sonnet-5`, parent-pointered to v1. The member is
+the principal, the model is the tool they held — the attribution model the canon promises,
+holding on the AI-authoring path.
+
+**Fixed** (`8785490`): `StudioSurface` mounted `LanePanel` without `viewerId` or `agentFaces`,
+two props that surface has always accepted. `viewerId` null → `isOwn` false for the member's
+OWN turns → their message labelled "A member" as if a stranger sent it, rendered left-aligned
+in the muted bubble, and **edit-and-resend never appeared** (it is gated on `isOwn`). Missing
+`agentFaces` → the reply row fell back to the raw slug, so one agent read as lowercase
+"editor" on its turn, "Editor" in the picker and "Message Editor…" in the composer — three
+spellings in one viewport. Both also applied to Blogger, which mounts the same surface.
+
+⚠️ **Two things I nearly reported and did NOT — both were measurement errors, recorded so the
+next session does not re-find them:**
+- "The canvas clips the slide." At 1158px the stage iframe measured 0.71 (portrait) and the
+  slide filled only the top strip. At 1600px it is 1.36 and renders correctly. The stage is
+  width-driven by design (`StudioCanvas`: "scale the stage down so it fits the actual column
+  width… it SCALES, never RESIZES"), the slide honours its baked `--stage-w/--stage-h`
+  (992×558, present in the file — checked), and the leftover iframe height (~162px) is the
+  scroll gutter. **Measure at two viewport widths before calling a layout bug.**
+- "The canvas does not follow slide selection." Re-tested by clicking slide 1 then 2: the
+  badge tracked correctly both times. The first observation was a transient mid-recompose
+  state.
+
+**Pre-existing red gates at HEAD, NOT caused by this pass** (measured before touching
+anything): `test_adr544_containment_law.py` 3 failures (D7 legacy `data-slot` rungs in
+`labelForElement`/`labelForJS`; ADR-541 D4 withdrawal notice scope),
+`test_adr620_compose_at_slide_grain.py` 2 failures (the pane offers Compose at page scope;
+`seedTargetNoun` unreadable by the gate), `test_adr443_studio_model.py` 1 failure (the
+'New ‹slide|section›' gallery door). `test_adr440_studio.py` is 44/44. These want their own
+session — three of them are gates asserting shapes the product may have moved past, which is
+the stale-gate class, and one (Compose at page scope) may be a real regression against
+ADR-620's whole thesis.
+
 ## Chat: the lane works end to end — four copy gaps (2026-09-21)
 
 Driven in Korean on production as a real member, with a real turn against a real file.
