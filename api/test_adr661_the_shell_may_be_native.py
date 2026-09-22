@@ -299,6 +299,20 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         "a web-only route lost its .web suffix and would enter the shell build",
     )
 
+# ------------------------------------------------- §7e the app must hydrate
+print("\n§7e the shell ships a LIVE app, not dead HTML")
+
+# Tauri injects a nonce into script-src whenever a CSP is set, and a nonce makes
+# the browser IGNORE 'unsafe-inline'. Next delivers React's hydration payload
+# through INLINE scripts, so any CSP here ships an app that renders and does
+# nothing — measured: the sign-in button was inert.
+csp = ((conf.get("app") or {}).get("security") or {}).get("csp")
+check(
+    "no CSP is set (a nonce would block Next's inline hydration)",
+    csp is None,
+    f"a CSP would ship dead HTML: {str(csp)[:60]!r}",
+)
+
 # --------------------------------------- §8 step 5a the sign-in round trip
 print("\n§8 step 5a sign-in leaves, comes back, and stays")
 

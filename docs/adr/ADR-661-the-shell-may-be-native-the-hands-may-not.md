@@ -319,6 +319,27 @@ yarnnn://auth/callback?next=%2Ffiles     → host received it
 
 ---
 
+## 7e. The CSP that shipped a dead app (2026-09-22)
+
+`tauri.conf.json` carries **no CSP** (`"csp": null`), deliberately, and the reasoning belongs here because JSON cannot hold a comment and "we removed the security header" must never read as an oversight.
+
+**What happened.** The shell rendered its sign-in page and **no button did anything**. Reported by the operator with a screenshot.
+
+**Why.** Tauri injects a **nonce** into `script-src` whenever a CSP is set. Per the CSP spec, the presence of a nonce makes a browser **ignore `'unsafe-inline'`** — so every inline script was blocked no matter what the policy string said. Next.js delivers React's hydration payload through inline scripts (`self.__next_f.push(...)`), so the app shipped as **dead HTML**: it looked right and was inert.
+
+Confirmed by isolating the halves — the same static export served over plain HTTP and driven in a headless browser reported `hydrated=true buttons=4`. **The export was always fine; the policy killed it.**
+
+**What still bounds the shell without a CSP:**
+- the content is **local**, compiled into the binary — there is no server to inject into it, and no third-party script tag anywhere in the bundle;
+- the **capability roster** (`capabilities/default.json`) is what actually limits what the page may ask the host to do, and it is three entries;
+- Tauri's IPC boundary is unaffected by this field.
+
+⭐⭐⭐ **A security header that silently disables the product is worse than none.** The right long-term fix is a nonce-aware integration with Next's own `nonce` support, not a hand-written policy; until Tauri supports that, the policy comes out.
+
+⚠️ **The debugging lesson, and the operator's correction that produced it.** I chased this through four layers of custom instrumentation — a console-forwarding fetch, a log server, a self-driving click probe, a window-title channel — before checking whether the export hydrates *at all* outside Tauri. The operator's note mid-way (*"let's make sure we don't implement something that isn't conventional… this should be straightforward using existing industry standards"*) was the right instinct: **isolate the two halves with the plainest possible tool before instrumenting either.** One `python3 -m http.server` and one headless browser answered in two minutes what the probes had not in twenty.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).
