@@ -2274,6 +2274,20 @@ def _turn_stream_response(
                 if kind == "delta":
                     accumulated.append(payload)
                     yield sse({"text_delta": payload})
+                elif kind == "round_break":
+                    # A tool round closed and more prose is coming. Deltas are
+                    # FRAGMENTS joined with "" (correct within a round), so
+                    # without a separator here the model's pre-tool plan welds
+                    # to its post-tool report: "…keeping everything else
+                    # intact.Done. Title and standfirst are in".
+                    #
+                    # Only between two pieces of REAL text — a break with
+                    # nothing before it, or two breaks in a row (a round that
+                    # narrated nothing, which is the common case), must not
+                    # open the reply with blank lines or stack them up.
+                    if accumulated and accumulated[-1].strip():
+                        accumulated.append("\n\n")
+                        yield sse({"text_delta": "\n\n"})
                 elif kind == "tool":
                     tools_called.append(payload["name"])
                     # The step frame is an OBJECT (name + optional subject).

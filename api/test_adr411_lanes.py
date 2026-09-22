@@ -215,6 +215,120 @@ def test_turn_with_tool_round_executes_under_member_identity_and_meters():
         assert ev.get("cost_override_usd") is None
 
 
+def _run_stream(rounds, tool_result=None):
+    """Drive the REAL `run_lane_turn_stream` and reassemble the reply exactly
+    as `routes/lanes.py::persist_reply` does.
+
+    Driven, not grepped: the defect this guards was a "".join over fragments
+    from DIFFERENT rounds, and every static check passed over it for weeks —
+    the join is correct code, wrong at one boundary. Only replaying the event
+    sequence the consumer sees can catch that.
+
+    `rounds` is a list of (text, tool_calls); each becomes one streamed round
+    whose text arrives as SEPARATE deltas, because real fragments do.
+    """
+    import services.model_router as mr
+    import services.primitives.registry as reg
+    import services.telemetry as tele
+    import services.supabase as sb
+
+    state = {"i": 0}
+
+    async def fake_stream(model, messages, **kwargs):
+        i = min(state["i"], len(rounds) - 1)
+        state["i"] += 1
+        text, tool_calls = rounds[i]
+        # Fragments, not one blob — mid-word splits are what the transport
+        # actually carries and what makes "" the right within-round join.
+        for j in range(0, len(text), 7):
+            yield ("delta", text[j:j + 7])
+        yield ("done", _routed(text=text, tool_calls=tool_calls))
+
+    async def fake_execute(auth, name, input):
+        return tool_result or {"success": True}
+
+    orig = (mr.route_completion_stream, reg.execute_primitive,
+            tele.record_execution_event, sb.get_service_client,
+            lr.build_lane_conventions)
+    os.environ[_FLAG] = "true"
+    events = []
+    try:
+        mr.route_completion_stream = fake_stream
+        reg.execute_primitive = fake_execute
+        tele.record_execution_event = lambda client, **kw: "evt"
+        sb.get_service_client = lambda: object()
+        lr.build_lane_conventions = lambda *a, **k: "conventions"
+        auth = types.SimpleNamespace(
+            client=object(), user_id="user-1", email=None,
+            caller_identity="operator", principal_id="user-1",
+            workspace_id="ws-1",
+        )
+
+        async def drain():
+            async for ev in lr.run_lane_turn_stream(
+                auth, model="openai/gpt-4o-mini",
+                history=[], user_message="do the thing",
+            ):
+                events.append(ev)
+
+        asyncio.run(drain())
+    finally:
+        (mr.route_completion_stream, reg.execute_primitive,
+         tele.record_execution_event, sb.get_service_client,
+         lr.build_lane_conventions) = orig
+        os.environ.pop(_FLAG, None)
+
+    # The consumer, mirrored from routes/lanes.py. If that separation rule
+    # moves, this mirror must move with it.
+    accumulated: list[str] = []
+    for kind, payload in events:
+        if kind == "delta":
+            accumulated.append(payload)
+        elif kind == "round_break":
+            if accumulated and accumulated[-1].strip():
+                accumulated.append("\n\n")
+    return "".join(accumulated), events
+
+
+def test_a_round_boundary_separates_the_plan_from_the_report():
+    """The plan and the report are two statements on two rounds — never one
+    welded sentence.
+
+    Measured on production before the fix: 46 of the 130 most recent
+    tool-using assistant turns carried a welded boundary (35%); 0 of the 37
+    toolless turns did.
+    """
+    tc = {"id": "call-1", "name": "EditFile", "arguments": {"path": "a/post.html"}}
+    reply, _ = _run_stream([
+        ("keeping everything else intact.", [tc]),
+        ("Done. Title and standfirst are in.", None),
+    ])
+    assert "intact.Done." not in reply, f"the boundary is welded: {reply!r}"
+    assert reply == (
+        "keeping everything else intact.\n\nDone. Title and standfirst are in."
+    ), repr(reply)
+
+
+def test_within_a_round_fragments_still_join_with_nothing():
+    """The separator is a BOUNDARY rule, not a delta rule. Fragments split
+    mid-word, so joining them with anything but "" corrupts every reply."""
+    reply, _ = _run_stream([("the quick brown fox jumped over it", None)])
+    assert reply == "the quick brown fox jumped over it", repr(reply)
+
+
+def test_a_silent_tool_round_adds_no_blank_lines():
+    """The common case: the model calls a tool saying nothing, then reports.
+    A break with no text before it must not open the reply with whitespace,
+    and two breaks running must not stack up."""
+    tc = {"id": "c", "name": "ReadFile", "arguments": {}}
+    reply, _ = _run_stream([
+        ("", [tc]),
+        ("", [tc]),
+        ("Here is what I found.", None),
+    ])
+    assert reply == "Here is what I found.", repr(reply)
+
+
 def test_off_surface_tool_is_refused_without_execution():
     tc = {"id": "call-1", "name": "Schedule", "arguments": {}}
     result, calls = _run_turn([

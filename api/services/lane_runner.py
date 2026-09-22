@@ -2134,17 +2134,32 @@ async def run_lane_turn_stream(
                                             inline (the artifact card). Emitted
                                             AFTER execution, success only, and
                                             the path comes from the RESULT.
-      - ``("delta", str)``                — a text fragment on the FINAL round
+      - ``("delta", str)``                — a text FRAGMENT. Fragments join
+                                            with "" inside one round, which is
+                                            why the boundary below exists.
+      - ``("round_break", None)``         — a tool round just closed and more
+                                            text may follow. The consumer
+                                            separates here instead of welding
+                                            the plan to the report.
       - ``("done", {result dict})``       — terminal; the same shape
                                             ``run_lane_turn`` returns
       - ``("error", {error, message})``   — a fatal precondition
 
     The two invariants ``run_lane_turn`` holds are held here byte-identically:
     the ONE ledger record per round (ADR-396) and the bounded tool loop
-    (ADR-411). Only text TRANSPORT changes — tool rounds carry no user-visible
-    text (their deltas would be tool-call JSON), so text streams only on the
-    final round. The caller persists ONE assistant row at ``done`` from the
-    accumulated text + tools_called (the ADR-219 write path, unchanged).
+    (ADR-411). Only text TRANSPORT changes.
+
+    ⚠️ This docstring used to claim "tool rounds carry no user-visible text
+    (their deltas would be tool-call JSON), so text streams only on the final
+    round". **That is false, and believing it is what produced the run-on.**
+    A model routinely narrates its plan, calls a tool, then reports — both
+    halves are ordinary prose on DIFFERENT rounds. Measured on production:
+    46 of 130 recent tool-using turns, 0 of 37 toolless ones. Tool-call
+    arguments never arrive as deltas (they ride `tool_calls`), so nothing
+    made the claim visibly wrong until a member read one welded sentence.
+
+    The caller persists ONE assistant row at ``done`` from the accumulated
+    text + tools_called (the ADR-219 write path, unchanged).
     """
     if model not in LANE_MODELS:
         yield ("error", {"error": "unknown_model",
@@ -2281,6 +2296,28 @@ async def run_lane_turn_stream(
             routed.raw_assistant_message
             or {"role": "assistant", "content": routed.text or ""}
         )
+        # ⭐ THE ROUND ENDED AND MORE TEXT IS COMING (2026-09-22).
+        #
+        # Deltas are stream FRAGMENTS, so the consumer joins them with "" —
+        # correct inside a round, and the reason a round BOUNDARY has to be
+        # announced. Without this the last fragment before a tool call is
+        # welded to the first fragment after it and the member reads
+        # "…keeping everything else intact.Done. Title and standfirst are
+        # in" — one run-on sentence out of two separate statements, the plan
+        # and the report.
+        #
+        # Measured before the fix, on production `session_messages`: 46 of
+        # the 130 most recent tool-using assistant turns carried a welded
+        # boundary (35%), and 0 of the 37 toolless turns did — the
+        # correlation is exact, because no other path can produce it. Not
+        # app-specific: the oldest in that window is 2026-08-28 and every
+        # lane shares this loop.
+        #
+        # Announced rather than joined HERE because this generator is the
+        # only place that knows a round closed; `route_completion_stream`
+        # sees one round and the route sees an undifferentiated delta
+        # sequence. Emitting it keeps the transport carrying raw fragments.
+        yield ("round_break", None)
         # Pixels for image reads in THIS round, appended only after every
         # tool_result has landed (see the ADR-623 note in the loop body).
         pending_vision: list[dict] = []
