@@ -438,6 +438,65 @@ check(
     "a widened exemption re-opens the login loop the prefix guard exists to prevent",
 )
 
+# ---------------------------- §7m a shipped binary reaches production
+print("\n§7m the shell build cannot freeze a developer's origin into the app")
+
+# The first signed-in build baked `.env.local`'s `http://localhost:8000` into
+# the binary: sign-in worked (Supabase's URL happened to be production) and
+# then every API call went to the member's own machine — "Couldn't load your
+# workspaces", an empty desktop (observed, screenshot). Load the REAL config
+# with a scrubbed env, the way `next build` does.
+def _load_next_config(api_url: str, node_env: str = "production") -> str | None:
+    env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": os.environ.get("HOME", ""),
+        "NODE_ENV": node_env,
+        "YARNNN_SHELL": "1",
+        "NEXT_PUBLIC_API_URL": api_url,
+        "NEXT_PUBLIC_SUPABASE_URL": "https://example.supabase.co",
+    }
+    prog = 'try{require("./next.config.js");console.log("LOADED")}catch(e){console.log("REFUSED")}'
+    try:
+        out = subprocess.run(
+            ["node", "-e", prog], cwd=REPO / "web", env=env,
+            capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    lines = out.stdout.strip().splitlines()
+    return lines[-1] if lines else None
+
+_prod_ok = _load_next_config("https://yarnnn-api.onrender.com")
+check(
+    "the shell config loads with a production https origin",
+    _prod_ok == "LOADED",
+    f"the guard (or the config) refuses a correct origin — got {_prod_ok!r}",
+)
+check(
+    "a shell production build refuses a loopback API origin",
+    _load_next_config("http://localhost:8000") == "REFUSED",
+    "a developer's .env.local ships in the DMG and every API call goes to the member's own machine",
+)
+check(
+    "a shell production build refuses a plain-http API origin",
+    _load_next_config("http://yarnnn-api.onrender.com") == "REFUSED",
+    "a distributed binary must reach production over https",
+)
+check(
+    "a shell DEV build may point at a local API",
+    _load_next_config("http://localhost:8000", node_env="development") == "LOADED",
+    "the guard must not break `cargo tauri dev` against a local API",
+)
+
+_before = json.loads(read("src-tauri/tauri.conf.json"))["build"]["beforeBuildCommand"]
+_pinned = re.search(r"\bNEXT_PUBLIC_API_URL=(\S+)", _before)
+check(
+    "the release build pins the API origin, not the developer's env",
+    bool(_pinned) and _pinned.group(1).startswith("https://")
+    and "localhost" not in _pinned.group(1) and "next build" in _before,
+    "the build falls back to .env.local — the guard will refuse it, but the release cannot be cut",
+)
+
 # ------------------------------------- §7h a failed sign-in says why
 print("\n§7h a failed sign-in gives the member a reason")
 

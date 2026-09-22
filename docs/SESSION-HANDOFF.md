@@ -114,11 +114,11 @@ The earlier design (browser starts OAuth, app finishes it via `yarnnn://auth/cal
 SUPERSEDED — four correct fixes never produced a working sign-in because it split the PKCE
 verifier across two contexts.
 
-**OPEN — one confirmation.** The first real sign-in after §7k (2026-09-23) landed the browser
-on `/desktop` and never handed back: our own `getSafeNextPath` refused `next=/auth/desktop`
-(every `/auth/` target). Fixed in §7l — a WEB change, so it is live once Vercel deploys; the
-installed app needs no rebuild. Still owed: one real sign-in completing in the app. If it
-fails, the login page SHOWS the reason (§7h) — that sentence is the diagnosis.
+**Sign-in CONFIRMED by a real member (2026-09-23)** after §7l (our own `getSafeNextPath`
+refused `next=/auth/desktop`). **OPEN — confirm the Desktop loads**: the first signed-in build
+shipped `.env.local`'s `http://localhost:8000` as its API origin (§7m) — "Couldn't load your
+workspaces". Fixed by a pin in `beforeBuildCommand` + a build-time refusal; the app must be
+REBUILT and reinstalled for it to take effect.
 ⚠️ Watch after it works: the browser and the app now share one refresh-token lineage. If the
 app is signed out ~1h later, suspect Supabase's reuse detection revoking the family when the
 browser refreshes with the token the app already spent — unverified, a hypothesis.

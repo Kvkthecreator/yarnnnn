@@ -28,6 +28,34 @@ const withNextIntl = require("next-intl/plugin")("./i18n/request.ts");
 //     which is why it is mounted unconditionally on both builds.
 const SHELL = process.env.YARNNN_SHELL === "1";
 
+// ADR-661 §7m — a shell PRODUCTION build is a distributed binary: every
+// `NEXT_PUBLIC_*` origin is frozen into it. A developer's `.env.local` points
+// the API at `http://localhost:8000`, and the first signed-in build shipped
+// exactly that — the member signed in (Supabase's URL happened to be
+// production) and then every API call went to a port on their own machine:
+// "Couldn't load your workspaces", an empty desktop. The web build never hit
+// this because Vercel supplies its own env. `beforeBuildCommand` pins the API
+// origin; this refuses the build if anything still resolves to a loopback or
+// plain-http origin, so the mistake cannot reach a DMG. `next dev` is exempt —
+// pointing a dev shell at a local API is the point of dev.
+if (SHELL && process.env.NODE_ENV === "production") {
+  const frozen = ["NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_SUPABASE_URL"];
+  for (const name of frozen) {
+    const value = process.env[name] || "";
+    let host = "";
+    try {
+      host = new URL(value).hostname;
+    } catch {}
+    const loopback = /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/.test(host);
+    if (!value.startsWith("https://") || loopback) {
+      throw new Error(
+        `ADR-661 §7m: the shell build would freeze ${name}=${value || "(unset)"} into the app. ` +
+          "A distributed binary must reach production over https — set it in beforeBuildCommand, not .env.local.",
+      );
+    }
+  }
+}
+
 // WHICH ROUTES ARE IN WHICH BUILD, declared rather than moved.
 //
 // Six marketing/SEO route handlers and three legacy dynamic stubs cannot be

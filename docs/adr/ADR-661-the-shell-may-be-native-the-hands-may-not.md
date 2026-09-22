@@ -467,6 +467,22 @@ The fix is an **exact-match** exemption for the one `/auth/` page that is a dest
 
 The gate arm **runs the real function** under Node's type stripping rather than reading its text, with three arms: the harness ran (a crash reports nothing, so it is its own check), `/auth/desktop` survives, and the exemption is exact. Each proven RED in place: exemption removed, exemption widened to a prefix, module broken.
 
+**Confirmed by a real sign-in the same morning**: the browser showed *"You're signed in… you can close this tab"* and the app booted to the Desktop. The §7i hand-off works end to end.
+
+---
+
+## 7m. The binary shipped the developer's API origin (2026-09-23)
+
+The first signed-in app booted to an **empty Desktop** reading *"Couldn't load your workspaces"*, with a `?` avatar. Sign-in had worked; nothing after it did.
+
+`NEXT_PUBLIC_*` values are frozen into a static export at build time, and the shell is built on a developer's machine, so Next read `web/.env.local` — `NEXT_PUBLIC_API_URL=http://localhost:8000`. The export carried exactly one API origin and it was that one. Supabase worked only because the same file happened to hold the production Supabase URL. The web build never meets this because Vercel supplies its own env. CORS was checked and was never the problem: production preflights `tauri://localhost` and `http://tauri.localhost` with 200.
+
+**Two parts, because either alone fails.** `beforeBuildCommand` pins `NEXT_PUBLIC_API_URL=https://yarnnn-api.onrender.com` — process env outranks `.env.local`, verified by the export (0 `localhost:8000`, the production host present). And `next.config.js` **refuses** a shell production build whose API or Supabase origin is loopback or not https, so a missing pin fails the build instead of shipping. `next dev` is exempt: a dev shell pointed at a local API is the point of dev.
+
+⭐⭐ **This is §7f's class in the other direction.** §7f was a server-ism a static export silently made inert; this is a local-ism a static export silently made permanent. Both are values that are correct in one build mode and wrong in the other, and neither fails a build unless something is told to refuse it.
+
+Gate arms load the **real** `next.config.js` with a scrubbed env, the way `next build` does: a production origin loads, loopback is refused, plain http is refused, dev may point locally, and the release command pins an https origin. Each proven RED in place — guard disabled, guard run in dev, the https check dropped, the guard refusing everything, the pin removed.
+
 ---
 
 ## 8. The order — built so the hands fit later

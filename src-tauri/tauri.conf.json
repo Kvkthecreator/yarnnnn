@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "cd web && YARNNN_SHELL=1 npx next dev -p 3000",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "cd web && YARNNN_SHELL=1 npx next build",
+    "beforeBuildCommand": "cd web && YARNNN_SHELL=1 NEXT_PUBLIC_API_URL=https://yarnnn-api.onrender.com npx next build",
     "frontendDist": "../web/.next-shell"
   },
   "app": {
