@@ -382,12 +382,11 @@ _server_url = os.environ.get(
 _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
     (
         "whoami",
-        "name WHERE YOU ARE STANDING — which workspace this connection is bound "
-        "to, whether that is the one the operator chose, who your writes will be "
-        "signed as, and which of these verbs your token actually authorizes. "
-        "Call it once at the start of real work, and ALWAYS before writing "
-        "somewhere the user assumed: a shared workspace has more than one "
-        "commons, and the reference grammar cannot tell them apart.",
+        "identify which workspace this connection is bound to, whether that is "
+        "the one the operator chose, the attribution this connection's writes "
+        "carry, and which of these verbs its token authorizes. A person can "
+        "reach more than one workspace and the reference grammar is identical "
+        "in all of them, so a path alone does not identify one.",
     ),
     (
         "open",
@@ -410,10 +409,11 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
     ),
     (
         "search",
-        "find files by meaning when you don't hold a path. Returns ranked "
-        "paths + excerpts + a `confidence` signal; YOU explain the material in "
-        "your own voice. On confidence='ambiguous' (several matches, none "
-        "dominant) ASK which the user means. Then open the file for exact content.",
+        "find files by meaning when no path is known. Returns ranked paths + "
+        "excerpts + a `confidence` grade: 'high' one dominant match, "
+        "'ambiguous' several with none dominant, 'weak' partial matches only, "
+        "'none' no match. It returns source material, not a composed answer; "
+        "open a result's path for that file's exact content.",
     ),
     (
         "save",
@@ -463,16 +463,18 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
     ),
     (
         "history",
-        "show how one EXACT file changed over time (who changed it, when, what "
-        "the change was, with diffs and cited sources) — the attributed "
-        "provenance a plain storage connector cannot show. Takes the same "
-        "reference as open; when you only know the topic, search first.",
+        "show how one EXACT file changed over time: who changed it, when, the "
+        "change message, a per-revision diff, and the chains of any cited "
+        "sources it was built from. Takes the same reference as open; search "
+        "resolves a path when only the topic is known.",
     ),
     (
         "share",
         "mint a link for a file (or the workspace) when the user wants someone "
-        "else in: 'member' grants full access, 'viewer' is read-only. You relay "
-        "the link; whoever opens it sees the work and who made it, no account needed.",
+        "else in. 'member' grants full access, including write access to the "
+        "workspace, to every holder of the link; 'viewer' is read-only. The link "
+        "is returned in the response — yarnnn sends nothing outbound. Whoever "
+        "opens it sees the work and who made it, without an account.",
     ),
 )
 
@@ -742,31 +744,28 @@ def file_header_widget() -> str:
     ),
 )
 async def whoami(ctx: Context) -> dict:
-    """Name WHERE THIS CONNECTION IS STANDING in the user's yarnnn workspace.
+    """Identify which yarnnn workspace this connection is bound to.
 
-    Call this at the start of real work, and ALWAYS before writing somewhere the
-    user assumed — a person can reach more than one workspace, and the
-    `yarnnn://workspace/…` grammar is the same in all of them, so no path or
-    handle can tell you which commons you are in.
+    Applies when the workspace behind a reference is not already established: a
+    person can reach more than one workspace, and the `yarnnn://workspace/…`
+    grammar is identical in all of them, so a path or handle alone does not
+    identify which workspace it belongs to.
 
-    Returns the workspace's name (the operator chose it at consent), whether that
-    is the workspace this connection was BOUND to or a fallback, the attribution
-    your writes will carry, and exactly which verbs your token authorizes.
+    Returns the workspace's name (set by its operator at consent), how this
+    connection resolved to it, the attribution this connection's writes carry,
+    and which verbs its token authorizes.
 
-    Read `binding` before writing:
-      • "chosen"   — you are where the operator chose. Proceed.
-      • "default"  — no explicit choice on this connection; you are in their
-                     default workspace.
-      • "fallback" — the bound workspace is UNREACHABLE and this is NOT where the
-                     operator chose. Writes still succeed and are attributed —
-                     SAY SO before writing, rather than filing into the wrong
-                     commons silently.
-      • "unresolved" — resolution FAILED and `workspace_id` is null. Do not
-                     write: say the connection could not name its workspace and
-                     ask the user to re-check it.
+    `binding` reports how the workspace was resolved:
+      • "chosen"     — the workspace the operator selected for this connection.
+      • "default"    — no explicit choice on this connection; their default
+                       workspace.
+      • "fallback"   — the bound workspace is unreachable and this is not the
+                       one the operator chose. Writes still succeed and are
+                       attributed. The response's `explanation` says so.
+      • "unresolved" — resolution failed and `workspace_id` is null.
 
-    An unnamed workspace returns `workspace: null` with `workspace_named: false`
-    — describe it by its address, and don't invent a name for it.
+    A workspace with no name returns `workspace: null` with
+    `workspace_named: false`; it is identified by its address instead.
     """
     auth = resolve_request_client(verb="whoami")
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -873,29 +872,25 @@ async def search(
 ) -> dict:
     """Search the user's yarnnn workspace by meaning.
 
-    Call this when you're after a file you don't hold a path for — the user
-    references a topic, project, person, or decision that may live in the
-    workspace. Don't wait to be asked: if they mention something the workspace
-    might hold, search it first and weave what you find into your answer.
+    Applies when the user refers to a topic, project, person or decision that
+    may be written down in their workspace and no exact path is known.
 
-    YARNNN RETURNS the material — ranked results with paths, excerpts,
-    timestamps, and a `confidence` signal. It does NOT write an answer for
-    you, and it does NOT decide whether to clarify: YOU reason over what it
-    returns and explain in your own voice. Every result's path is `open`-able
-    for the exact current content; `search` returns leads, `open` returns truth.
+    Returns ranked results — path, excerpt, timestamp and a `confidence` grade.
+    It returns source material rather than a composed answer, and it does not
+    resolve ambiguity on its own. Every result's path can be passed to `open`
+    for that file's exact current content; `search` matches by meaning, `open`
+    returns the stored file.
 
-    The `confidence` field is ALWAYS present (even on a miss) — use it to
-    decide how to respond:
-      • "high"      — a clear, dominant match. Use it.
-      • "ambiguous" — several files match and none dominates. Do NOT silently
-                      pick the first; surface the candidates (in `results`) and
-                      ASK the user which they mean. This is the clarify case.
-      • "weak"      — only loose matches below the confidence bar. A lead, not
-                      an answer; answer from your own knowledge or ask the user
-                      to be specific.
-      • "none"      — NOTHING matched (a true miss; `results` empty). The
-                      strongest "nothing here" signal — answer from your own
-                      knowledge, or `list` to see what exists.
+    `confidence` is always present, including on a miss, and grades the result
+    set:
+      • "high"      — one clear, dominant match.
+      • "ambiguous" — several files match and none dominates; the candidates
+                      are in `results` with their `similarity`.
+      • "weak"      — only partial or substring matches, below the dominant bar.
+      • "none"      — nothing matched; `results` is empty.
+
+    For "ambiguous", "weak" and "none" the response's `explanation` states what
+    the grade means for the result set in hand.
 
     Args:
         query: What to find (topic, entity, keywords). Required.
@@ -942,23 +937,19 @@ async def history(
 ):
     """Show how one EXACT file in the user's yarnnn workspace changed over time.
 
-    Call this when the user asks about a file's history — "when did I decide
-    that," "how has this document changed," "who added this," "what did this
-    used to say." This is YARNNN's distinguishing capability: the authored
-    revision chain — who changed the file, when, and what the change was (with
-    per-revision diffs, and the chains of any cited sources it was made from)
-    — which a plain storage connector cannot show.
+    Applies to questions about how a file came to be as it is — when something
+    was decided, who added a passage, what it used to say. Returns the file's
+    authored revision chain: who changed it, when, the change message, a
+    per-revision diff, and the chains of any cited sources it was built from.
 
     Pass the same reference `open` takes (yarnnn://workspace/… handle,
     /workspace/… absolute, or a workspace-relative path). `history` is exact:
-    an unknown path returns `found: false` — when you only know the topic,
-    `search` first, then history the path you found. Reason over the chain and
-    narrate the evolution in your own voice.
+    an unknown path returns `found: false`. `search` resolves a path when only
+    the topic is known.
 
-    On a rich-render host (ChatGPT / MCP Apps) the revision chain ALSO renders
-    as an interactive timeline widget (ADR-372) — but you STILL narrate the
-    evolution in prose: the widget is additive, not a replacement for your
-    explanation. On a text-only host you get the full chain as text.
+    On a host that renders MCP widgets the chain is additionally returned as an
+    interactive timeline (ADR-372); on a text-only host the full chain is in the
+    text channel. Both carry the same revision data.
 
     Args:
         reference: The file — yarnnn://workspace/{path}, /workspace/{path},
@@ -1078,9 +1069,15 @@ async def open_file(
 
 @mcp.tool(
     # ADR-512 §8a — the write half of the exact-version guarantee. Overwrites
-    # are never destructive in the ledger sense (every prior version stays on
+    # are never destructive in the LEDGER sense (every prior version stays on
     # the attributed chain, ADR-209) and blind overwrites are refused by the
-    # base_revision contract, so destructiveHint stays False honestly.
+    # base_revision contract.
+    # destructiveHint=True regardless (2026-09-22): the hint is not a claim
+    # about recoverability, it is what a host reads to decide whether to ASK
+    # before running the tool. `save` replaces a file's current content, which
+    # is the criterion Anthropic's directory review states — "tools that modify
+    # or delete data". Revertibility is the operator's safety net; the hint is
+    # the user's.
     # ADR-533 D4: the save-receipt widget exists for the CONFLICT state —
     # stale_write/base_required carry who holds the head and what to do next,
     # which a chat host renders as a paragraph the user skims past.
@@ -1088,7 +1085,7 @@ async def open_file(
     annotations=ToolAnnotations(
         title="Save",
         readOnlyHint=False,
-        destructiveHint=False,
+        destructiveHint=True,
         idempotentHint=False,
         openWorldHint=True,
     ),
@@ -1253,12 +1250,14 @@ async def request_upload(
     # ADR-545 D1 — the anchored write (binds ADR-337 EditFile). Only the change
     # travels; the anchor is the precondition (no base_revision — a stale view
     # fails loudly as no-match, and the kernel's head-read CAS closes the
-    # apply-window race per ADR-406 D4). Non-destructive in the ledger sense:
-    # one attributed revision, prior content on the chain.
+    # apply-window race per ADR-406 D4). Non-destructive in the LEDGER sense:
+    # one attributed revision, prior content on the chain — but
+    # destructiveHint=True (2026-09-22), for the reason stated on `save`: the
+    # hint governs whether a host asks first, and `edit` modifies stored data.
     annotations=ToolAnnotations(
         title="Edit",
         readOnlyHint=False,
-        destructiveHint=False,
+        destructiveHint=True,
         idempotentHint=False,
         openWorldHint=True,
     ),
@@ -1395,10 +1394,12 @@ async def delete(
     # ADR-545 D2 — binds ADR-337 MoveFile. One attributed operation: content
     # revision at the destination + tombstone at the origin pointing there.
     # Refuses to overwrite an existing destination (delete first, by intent).
+    # destructiveHint=True (2026-09-22): a move changes where a file is for
+    # every other member and breaks paths others hold. Same reasoning as `save`.
     annotations=ToolAnnotations(
         title="Move",
         readOnlyHint=False,
-        destructiveHint=False,
+        destructiveHint=True,
         idempotentHint=False,
         openWorldHint=True,
     ),
@@ -1458,10 +1459,14 @@ async def move(
     # verb beside the content verbs: the commons ABI's access half. Mints a
     # share row and returns the link for the host to RELAY (yarnnn sends
     # nothing outbound — ADR-404 honesty line: models come IN).
+    # destructiveHint=True (2026-09-22): the default `access="member"` grants
+    # every holder of the link full WRITE access to the workspace. That is the
+    # most consequential act on this server, and destructiveHint=False was
+    # telling hosts they could mint one without asking.
     annotations=ToolAnnotations(
         title="Share",
         readOnlyHint=False,
-        destructiveHint=False,
+        destructiveHint=True,
         idempotentHint=False,
         openWorldHint=True,
     ),
@@ -1473,19 +1478,19 @@ async def share(
 ) -> dict:
     """Create a share link for the user's yarnnn workspace (or one exact file in it).
 
-    Call this when the user asks to share their work — "share this with my
-    team", "send this doc to Alex", "make a link for this". Pass the file's
-    reference (a yarnnn://workspace/… handle or workspace-relative path) to
-    share that artifact; omit it to share the workspace itself.
+    Applies when the user asks to share their work — "share this with my team",
+    "send this doc to Alex", "make a link for this". Pass the file's reference
+    (a yarnnn://workspace/… handle or workspace-relative path) to share that
+    artifact; omit it to share the workspace itself.
 
-    Returns a link. YOU relay it — in this conversation, for the user to send.
-    Whoever opens the link SEES the artifact and who changed it (no account
-    needed); joining the workspace requires signing in.
+    Returns the share link in the response. yarnnn sends nothing outbound: the
+    link is returned as text. Whoever opens it sees the artifact and who changed
+    it without an account; joining the workspace requires signing in.
 
-    `access` picks what accepting grants (the user's choice, not yours — ask if
-    unclear): "member" = full access to work in the workspace (the default);
-    "viewer" = read-only (they see the document and its history, and can
-    change nothing).
+    `access` sets what accepting the link grants. "member" (the default) grants
+    full access to work in the workspace, including writing to it — every holder
+    of a member link can change the workspace's files. "viewer" is read-only:
+    the document and its history, with no ability to change anything.
 
     Args:
         reference: Optional file to share — yarnnn://workspace/{path},
@@ -1591,6 +1596,17 @@ async def share(
             "Relay it to the user — anyone who opens it sees the "
             + ("document and who changed it" if artifact_rel else "workspace invitation")
             + "; joining requires sign-in. The user can revoke it in their yarnnn workspace."
+            # The member-link warning lives HERE, not in the tool description:
+            # the description states what `access` grants (policy-scanned text
+            # describes the tool), and the envelope carries what the host should
+            # do about it on this particular mint (ADR-584's `explanation` seam).
+            + (
+                " This is a MEMBER link: every person who opens it can write to "
+                "this workspace and their changes are attributed to them. If the "
+                "user wanted to show the work rather than hand over write access, "
+                "mint a `viewer` link instead."
+                if access == "member" else ""
+            )
         ),
     }, client_name=client_name)
 
