@@ -104,6 +104,42 @@ not ready to publish.
 
 ---
 
+## Testing leaves ghosts
+
+Every `cargo tauri build` writes a `yarnnn.app` into `src-tauri/target/`, and
+every DMG you mount registers the copy inside it. macOS **remembers all of
+them**: Spotlight offers several yarnnns, and `yarnnn://` may resolve to a copy
+that no longer exists.
+
+Ten stale registrations accumulated during this build-out. To see what macOS
+thinks exists:
+
+```bash
+LSR=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+$LSR -dump | grep -oE "/[^ ]*yarnnn\.app" | sort -u
+```
+
+Anything other than `/Applications/yarnnn.app` is a ghost. Unregister each:
+
+```bash
+$LSR -u "/path/to/the/ghost/yarnnn.app"
+```
+
+⚠️ `lsregister -kill -r` (the "rebuild the whole database" incantation every
+answer online recommends) **did not clear them** — the entries survived the
+rebuild and had to be unregistered by path. Register the installed copy again
+afterwards, or the `yarnnn://` deep link has no handler:
+
+```bash
+$LSR -f /Applications/yarnnn.app
+```
+
+Unmount DMGs when you are done with them (`hdiutil detach /Volumes/yarnnn`), and
+prefer testing the copy in `/Applications` over one in `/tmp` — Launch Services
+indexes `/Applications` reliably and a temp directory inconsistently.
+
+---
+
 ## Two settings outside this repo
 
 **1. The Supabase redirect allowlist.** The shell signs in through
