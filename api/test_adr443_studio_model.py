@@ -362,7 +362,7 @@ def run() -> bool:
     #  pageSection.onPick.)
     insert_menu = (repo / "web/components/authoring/StudioBlockInsertMenu.tsx").read_text()
     _check("New door: 'New ‹slide|section›' gallery (page-grain add, all types)",
-           "label: `New ${pageSection!.noun}`" in insert_menu
+           "t('newPage', { noun: pageSection!.noun })" in insert_menu
            and "pageSection!.arrangements.map" in insert_menu
            and "pageSection!.onPick" in insert_menu)
     # ADR-466 D5 (2026-07-21) REVERSED this: Re-arrange pairs with New ‹noun›

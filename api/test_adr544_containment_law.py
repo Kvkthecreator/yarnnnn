@@ -307,13 +307,19 @@ for rung in ("data-area-role", "data-area-place", "data-slot", "data-block"):
 # The LEGACY rung specifically: an un-healed document's region must read as an
 # Area, never fall through to "Group" (the `Slide 2 > Group > Group` crumb the
 # operator's click-pass caught) and never leak its authored name.
+# ADR-660 threaded the member's words through both ladders: `areaLabel` gained
+# a `words` argument and the injected twin's literal 'Area' became the `AREA_W`
+# constant it resolves from the catalog. The RUNG is what this arm defends, so
+# assert the guard and that it answers with the AREA word — not the pre-i18n
+# spelling of the answer, which a correct product no longer contains.
+_slot_rung = "if (el.getAttribute('data-slot') !== null) return "
 check(
-    "if (el.getAttribute('data-slot') !== null) return areaLabel(null);" in _labels_src,
+    _slot_rung + "areaLabel(null, null, words);" in _labels_src,
     "D7: labelForElement has no legacy data-slot rung — a pre-heal deck's "
     "regions fall through to 'Group'",
 )
 check(
-    "if (el.getAttribute('data-slot') !== null) return 'Area';" in _labels_src,
+    _slot_rung + "AREA_W;" in _labels_src,
     "D7: labelForJS has no legacy data-slot rung — the canvas chrome and the "
     "pane would disagree on an un-healed deck",
 )
@@ -377,12 +383,16 @@ check(
 # defect class. Asserted by COUNT — both multi scopes (range + objects) show it.
 _tab = (REPO / "web/components/authoring/StudioDesignTab.tsx").read_text()
 check(
-    "withdrawalNotice" in _tab,
+    "withdrawalNoticeRef" in _tab,
     "ADR-541 D4: withdrawalNotice has no consumer — the one notice is computed "
     "and never mounted",
 )
+# ADR-660 renamed the producer `withdrawalNotice` -> `withdrawalNoticeRef`
+# (a catalog key + args, module-level) and the component words it through one
+# `wordWithdrawal` callback. Count THAT — it is the same single producer with
+# the same two mounts.
 check(
-    _tab.count("withdrawalNotice(unified)") >= 2,
+    _tab.count("wordWithdrawal(unified)") >= 2,
     "ADR-541 D4: the withdrawal notice mounts at fewer than both multi scopes "
     "(range + objects)",
 )

@@ -62,6 +62,21 @@ def strip_ts_comments(src: str) -> str:
     return re.sub(r"^\s*//.*$", "", src, flags=re.MULTILINE)
 
 
+import json as _json
+
+_EN = _json.loads((WEB / "messages/en.json").read_text())
+
+
+def _en(dotted: str) -> str:
+    """Resolve a catalog key the way the runtime does. ADR-660 moved copy out
+    of the .tsx; a gate that greps English in a component is blind to a correct
+    product, so every copy assertion here reads the catalog instead."""
+    node = _EN
+    for part in dotted.split("."):
+        node = node[part]
+    return node
+
+
 AUTH = WEB / "components/authoring"
 surface = strip_ts_comments((AUTH / "StudioSurface.tsx").read_text())
 pane = strip_ts_comments((AUTH / "StudioDesignTab.tsx").read_text())
@@ -131,9 +146,15 @@ if _c:
 
 
 # ── 3. The door is the PANE, and Add gained no AI row ───────────────────────
+# ADR-660 moved the pane's words into `web/messages/*.json`, so the SENTENCE
+# is no longer in the .tsx and a literal grep reads a correct product as red.
+# Resolve the key the way the runtime does: the pane must mount the handler AND
+# word it from the catalog, and the catalog's English must still say it.
 check(
     "the pane offers Compose at page scope",
-    "onCompose" in pane and "Compose this {pageNoun}" in pane,
+    "onCompose" in pane
+    and "t('compose', { noun: pageNoun })" in pane
+    and _en("studio.designTab.compose").startswith("Compose this {noun}"),
 )
 check("the surface wires it", "onCompose={composeSlide}" in surface)
 # D5 — the catalog stays a catalog. A second Add door differing by a modifier
@@ -203,12 +224,20 @@ check(
 )
 # The chip mirrors it — the same gesture is rendered before Send (chip) and
 # after (transcript), and reading differently is the drift.
-_noun = re.search(r"function seedTargetNoun\(t: SeedTarget\): string \{(.*?)\n\}", lane_panel, flags=re.DOTALL)
-check("seedTargetNoun is readable by the gate", _noun is not None)
+# ADR-660 D3 turned this module-level noun into a catalog REF (key + args) —
+# it is evaluated before the member's language is known, so it names no words.
+# The invariant is unchanged and the gate follows the rename.
+_noun = re.search(
+    r"function seedTargetRef\(t: SeedTarget\)[^{]*\{(.*?)\n\}",
+    lane_panel,
+    flags=re.DOTALL,
+)
+check("seedTargetRef is readable by the gate", _noun is not None)
 if _noun:
     check(
         "the chip reads the LABEL for the page grain, like the frame",
-        "t.label === 'slide'" in _noun.group(1),
+        "t.label === 'slide'" in _noun.group(1)
+        and "t.label === 'section'" in _noun.group(1),
         "`!t.blockId` alone would call a composed slide a block",
     )
 
