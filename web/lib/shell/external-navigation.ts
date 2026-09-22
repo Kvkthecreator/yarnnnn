@@ -76,12 +76,18 @@ export function openExternal(url: string): boolean {
     // shell they never are.
     void import("@tauri-apps/plugin-opener")
       .then(({ openUrl }) => openUrl(url))
-      .catch(() => {
-        // The plugin missing is a packaging bug, not a runtime condition. The
-        // member sees a button that did nothing, which is the symptom that
-        // gets reported — so fall back to the browser-shaped behaviour rather
-        // than leaving them with no path at all.
-        window.location.href = url;
+      .catch((err) => {
+        // NO `window.location.href` FALLBACK. An earlier cut had one, and it
+        // navigated the APP'S OWN WINDOW to the external page — which is the
+        // exact trap this helper exists to prevent. The member ended up with
+        // yarnnn.com's sign-in hand-off rendering inside the app, spinning
+        // for ever because it had no session there. A fallback that
+        // reintroduces the failure mode is worse than an error.
+        //
+        // Failing loudly instead: a refusal here is a scope or packaging bug,
+        // and it should be reported as one rather than disguised as a
+        // half-working flow.
+        console.error("[yarnnn] could not open an external URL", url, err);
       });
     return false;
   }

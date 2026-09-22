@@ -284,7 +284,13 @@ check(
 # staying small is what makes that addition visible.
 cap_path = TAURI / "capabilities" / "default.json"
 caps = json.loads(cap_path.read_text(encoding="utf-8")) if cap_path.exists() else {}
-perms = set(caps.get("permissions") or [])
+# A permission is either a bare string or a SCOPED object ({identifier, allow}).
+# `opener:allow-open-url` needs the scoped form: the plugin's scope defaults to
+# EMPTY, which refuses every URL, and the refusal is silent to the caller — the
+# sign-in button opened nothing and the member watched a spinner.
+_raw_perms = caps.get("permissions") or []
+perms = {p if isinstance(p, str) else p.get("identifier") for p in _raw_perms}
+_scoped = {p.get("identifier"): p for p in _raw_perms if isinstance(p, dict)}
 check(
     "the host grants only what the product needs today",
     perms and perms <= {"core:default", "opener:allow-open-url", "deep-link:default"},
@@ -298,6 +304,43 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         (REPO / rel).exists(),
         "a web-only route lost its .web suffix and would enter the shell build",
     )
+
+# ------------------------------------ §7j the opener has a URL scope
+print("\n§7j the opener is allowed to open the URLs the product uses")
+
+opener = _scoped.get("opener:allow-open-url")
+check(
+    "opener:allow-open-url carries an explicit URL scope",
+    bool(opener and opener.get("allow")),
+    "an empty scope refuses every URL, silently — the button opens nothing",
+)
+allowed = " ".join(a.get("url", "") for a in (opener or {}).get("allow", []))
+check(
+    "the sign-in hand-off host is in scope",
+    "yarnnn.com" in allowed,
+    "the shell could not open its own sign-in page",
+)
+check(
+    "the scope is not a blanket wildcard",
+    "https://*/*" not in allowed and "https://*" not in allowed.replace("https://*.", ""),
+    "any page the app renders could ask the OS to open anything",
+)
+
+# A fallback that navigates the APP'S OWN WINDOW reintroduces the exact trap
+# this helper prevents: the external page renders inside the app, with no
+# address bar and no way back.
+# Slice the shell branch by its OWN closing `return false;`, not by the string
+# it must not contain — splitting on that string truncates the slice before the
+# code it is checking, and the arm stays green through the very edit it exists
+# to catch. Found by falsifying it.
+nav_src = strip_comments(read("web/lib/shell/external-navigation.ts"))
+_after = nav_src.split("if (isNativeShell())", 1)
+shell_branch = _after[1].split("return false;", 1)[0] if len(_after) > 1 else ""
+check(
+    "the shell branch never falls back to navigating its own window",
+    "window.location.href" not in shell_branch,
+    "a refusal would render the external page inside the app",
+)
 
 # --------------------------------- §7i the browser completes the sign-in
 print("\n§7i the browser signs in, the app receives a session")

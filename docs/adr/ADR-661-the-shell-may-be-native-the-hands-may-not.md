@@ -403,6 +403,24 @@ The flow: the shell's sign-in opens `https://www.yarnnn.com/auth/desktop`. That 
 
 ---
 
+## 7j. The opener had permission but no scope (2026-09-22)
+
+§7i's hand-off shipped and the member saw *"Signing you in…"* **inside the app**, spinning. The string exists only in `page.web.tsx`, which the shell does not ship — so the app was rendering the WEBSITE's page in its own window.
+
+**Two faults, and the second hid the first.**
+
+1. **`opener:allow-open-url` was granted without a URL scope.** The plugin's scope defaults to EMPTY, which refuses every URL. The permission was present, the command was callable, and every call was denied — **silently**, since `openUrl` rejects rather than throwing anywhere visible.
+
+2. **`openExternal` caught that rejection and fell back to `window.location.href`** — navigating the app's own window to the external page. That is the exact trap the helper exists to prevent, so the fallback converted a clean failure into the failure mode the design was built around. The member got yarnnn.com's sign-in hand-off rendering inside the app, spinning for ever because it had no session there.
+
+The scope is now explicit and narrow: our own hosts, the provider consent screens, the payment pages. **Not `https://*`** — a wildcard would let any page the app renders ask the OS to open anything. And the fallback is gone: a refusal now logs and stops, because a fallback that reintroduces the failure mode is worse than an error.
+
+⭐⭐⭐ **A permission is not a capability.** Tauri's roster says which commands the page may CALL; the scope says what it may call them WITH. Granting the first and leaving the second empty produces a build where everything looks wired and nothing works — and the gate arm that read the roster was green throughout, because it checked for the identifier and not for its scope.
+
+⚠️ Two gate arms in this section were blind on their first cut, both from slicing on the string they were testing for: one split the shell branch on `window.location.href = url;`, which appears in the comment forbidding it, truncating the slice before the code. **A check that searches for a string must not also use it as a delimiter.**
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

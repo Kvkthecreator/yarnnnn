@@ -7,7 +7,26 @@
   ],
   "permissions": [
     "core:default",
-    "opener:allow-open-url",
-    "deep-link:default"
+    "deep-link:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://www.yarnnn.com/*"
+        },
+        {
+          "url": "https://yarnnn.com/*"
+        },
+        {
+          "url": "https://accounts.google.com/*"
+        },
+        {
+          "url": "https://*.supabase.co/*"
+        },
+        {
+          "url": "https://*.lemonsqueezy.com/*"
+        }
+      ]
+    }
   ]
 }
