@@ -319,6 +319,53 @@ drive = [
 bad = [f"{i!r}->{plain(i)!r} want {e!r}" for i, e in drive if plain(i) != e]
 check("_plain_summary behaves, driven", not bad, "; ".join(bad))
 
+# D4, the THIRD reader. `_thumb_preview` feeds the Files Recents tiles and
+# preferred `summary` outright — "prefers the curated summary" silently meant
+# "prefers whatever is in the column", and the substrate stamps the lane's own
+# write log there. Two .md tiles rendered "Workspace edit: operation/
+# adr575-canvas-clickpass.md" as if it were the file's text (driven in Files
+# 2026-09-22; receipted on the wire from GET /workspace/recent-revisions).
+#
+# Driven, not grepped: the failure was a reader that did not CALL the shared
+# helper, and a call-count grep cannot say which summaries survive it.
+import re as _re
+
+_thumb_src = _re.search(
+    r"\ndef _thumb_preview\(.*?\n(?=\n@|\ndef |\nclass )",
+    routes_ws,
+    flags=_re.DOTALL,
+)
+check(
+    "_thumb_preview is readable by the gate",
+    _thumb_src is not None,
+    "the thumbnail reader moved or changed shape",
+)
+if _thumb_src:
+    ns2 = dict(ns)
+    ns2["re"] = _re
+    exec(_thumb_src.group(0), ns2)  # noqa: S102 — the module's own source
+    thumb = ns2["_thumb_preview"]
+    real_body = "# Heading\nThe real first line."
+    thumb_drive = [
+        # A machine line must never BE the preview — fall through to content.
+        (("/w/a.md", "Workspace edit: operation/a.md", real_body),
+         "Heading The real first line."),
+        (("/w/b.md", "Workspace write: operation/b.md", "The criterion body."),
+         "The criterion body."),
+        # A real curated summary still wins over the body.
+        (("/w/c.md", "Q3 growth plan", real_body), "Q3 growth plan"),
+        # No summary at all: derive, exactly as before.
+        (("/w/d.md", None, real_body), "Heading The real first line."),
+        # Not a text file: no preview, whatever the summary says.
+        (("/w/e.png", "Workspace edit: e.png", "x"), None),
+    ]
+    bad2 = [
+        f"{a!r}->{thumb(*a)!r} want {e!r}"
+        for a, e in thumb_drive
+        if thumb(*a) != e
+    ]
+    check("_thumb_preview drops a machine line, driven", not bad2, "; ".join(bad2))
+
 print()
 print("D5-one-sentence — the AI reference is built once, and names a real verb")
 handle_ts = (WEB / "lib" / "interop" / "fileHandle.ts").read_text()

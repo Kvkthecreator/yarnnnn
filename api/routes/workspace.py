@@ -3080,15 +3080,28 @@ def _thumb_preview(path: str, summary: Optional[str], content: Optional[str]) ->
     in a substrate workspace), so a `.md` tile shows its first real line instead
     of a generic glyph — better than Explorer, which only shows a doc icon.
     Returns None for non-text files (images render a real thumbnail; binaries
-    keep a branded glyph). Prefers the curated `summary`; else derives from
+    keep a branded glyph). Prefers a REAL curated `summary`; else derives from
     `content`, stripping frontmatter, a `derived_from:` citation line, markdown
     heading/list markers, and blank lines.
+
+    ⚠️ "Prefers the curated summary" used to mean "prefers whatever is in the
+    summary column", and the substrate stamps MACHINE lines there — the lane's
+    own write log, `Workspace edit: {path}`. So two `.md` tiles in Recents
+    rendered "Workspace edit: operation/adr575-canvas-clickpass.md" as though
+    it were the file's text: a record of the ACT that made the file, shown in
+    place of the file (driven in Files, 2026-09-22; receipted on the wire from
+    GET /workspace/recent-revisions).
+
+    ADR-587 D4 already ruled this and `_plain_summary` already implements it —
+    it returns None for a machine line so the caller falls back to what it
+    really knows. This reader simply never asked. One helper, both readers.
     """
     lower = path.lower()
     if not (lower.endswith(".md") or lower.endswith(".txt")):
         return None
-    if summary and summary.strip():
-        return summary.strip()[:140]
+    plain = _plain_summary(summary)
+    if plain:
+        return plain[:140]
     body = content or ""
     if not body.strip():
         return None
