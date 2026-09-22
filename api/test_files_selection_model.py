@@ -746,6 +746,52 @@ console.log(JSON.stringify({
         and any("ring-primary/" in a for a in row_arms),
     )
 
+    # ── 14. The list's columns cannot starve each other ──────────────────
+    #
+    # AUTHOR was a fixed 130px against NAME's `1fr`, so Name absorbed every
+    # spare pixel and Author never widened. "Member (via Claude Sonnet 5)" —
+    # 220px of content — clipped to "Member (via Clauc" at 1600px AND at
+    # 1920px, with ~600px of empty space in Name. Measured at both widths on
+    # the live DOM, so this is not the narrow-window artifact it looks like.
+    #
+    # A bigger constant is not the fix: the widest labels interpolate
+    # arbitrary values (`{host} (via MCP)`, `Agent ({slug})`, every model id),
+    # so no fixed width fits them all. What is gated is the SHAPE — Author
+    # sized by its content, Name given a floor so it can never be starved in
+    # return.
+    grid_line = next(
+        (l for l in listrow.splitlines() if l.startswith("const GRID")), ""
+    )
+    passed &= _check(
+        "14a. the list grid is readable by the gate",
+        bool(grid_line),
+        grid_line[:80],
+    )
+    md_cols = grid_line.split("md:grid-cols-[")[-1].split("]")[0] if grid_line else ""
+    cols = md_cols.split("_")
+    passed &= _check(
+        "14b. the desktop grid still has four columns",
+        len(cols) == 4,
+        f"cols={cols}",
+    )
+    passed &= _check(
+        "14c. AUTHOR is sized by its content, never a fixed width",
+        len(cols) == 4 and cols[2].startswith(("fit-content", "minmax", "auto", "max-content")),
+        f"author column = {cols[2] if len(cols) == 4 else '?'} — a constant "
+        f"cannot fit `{{host}} (via MCP)`, `Agent ({{slug}})` and every model id",
+    )
+    passed &= _check(
+        "14d. AUTHOR has a ceiling — it may not grow without bound",
+        len(cols) == 4 and ("rem)" in cols[2] or "px)" in cols[2]),
+        f"author column = {cols[2] if len(cols) == 4 else '?'}",
+    )
+    passed &= _check(
+        "14e. NAME has a floor, so a long attribution cannot starve it",
+        len(cols) == 4 and cols[0].startswith("minmax(") and not cols[0].startswith("minmax(0,"),
+        f"name column = {cols[0] if len(cols) == 4 else '?'} — with a 0 floor "
+        f"the filename collapses when Author takes what it needs",
+    )
+
     return 0 if passed else 1
 
 

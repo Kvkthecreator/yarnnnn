@@ -31,10 +31,28 @@ import { FileIcon } from './FileIcon';
 import { TILE_DRAG_MIME } from './FileTile';
 import { Folder } from 'lucide-react';
 
-// The single column grid — Name (flex) · Where (fixed) · Author (fixed) · When
-// (fixed). `md:` drops the Where column on narrow widths (Finder collapses
+// The single column grid — Name (flex) · Where (flex) · Author (flex, capped) ·
+// When (fixed). `md:` drops the Where column on narrow widths (Finder collapses
 // columns the same way). Header and rows share this template verbatim.
-const GRID = 'grid grid-cols-[minmax(0,1fr)_120px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,14rem)_130px_120px]';
+//
+// AUTHOR was a fixed 130px against Name's `1fr`, so Name absorbed every spare
+// pixel and Author never widened: "Member (via Claude)" clipped to "Member
+// (via Clauc" at 1600px AND at 1920px, with ~600px of empty space in Name
+// (measured both widths, 2026-09-22 — this is not a narrow-window artifact).
+//
+// Not a bigger magic number: the widest labels interpolate arbitrary values
+// (`{host} (via MCP)`, `Agent ({slug})`, and every model id), so no constant
+// fits them all. `fit-content(14rem)` sizes Author to what its text actually
+// needs and stops there, and Name gains a 12rem FLOOR so a long attribution
+// can never starve the filename. `When` stays fixed: a relative timestamp has
+// a real upper bound.
+//
+// Measured on the live DOM at four widths with the real string ("Member (via
+// Claude Sonnet 5)", 220px of content in a 130px column):
+//   1600 -> name 599 · author 209 · unclipped     1440 -> 439 · 209 · unclipped
+//   1280 -> name 279 · author 209 · unclipped     1100 -> 192 · 170 · degrades
+// Below the md: breakpoint Where already drops, as it did before.
+const GRID = 'grid grid-cols-[minmax(0,1fr)_120px] gap-3 md:grid-cols-[minmax(12rem,1fr)_minmax(0,14rem)_fit-content(14rem)_120px]';
 
 export function FileListHeader() {
   const t = useTranslations('files.list');
