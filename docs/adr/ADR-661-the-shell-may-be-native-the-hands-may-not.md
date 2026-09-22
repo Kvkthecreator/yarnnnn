@@ -405,9 +405,9 @@ After three rounds of fixes to a design where the browser STARTED OAuth and the 
 | App receives | a raw `?code=` to exchange | a session already established |
 | Auth implementations | two (auth-helpers + a hand-rolled client) | **one** |
 
-The flow: the shell's sign-in opens `https://www.yarnnn.com/auth/desktop`. That page signs the member in with the ordinary web flow — the same one that has always worked — and hands the session back over `yarnnn://auth/session?refresh_token=…`. `DeepLinkBridge` calls `setSession` and routes to the desktop.
+The flow: the shell's sign-in opens `https://www.yarnnn.com/auth/desktop`. That page signs the member in with the ordinary web flow — the same one that has always worked — and hands the session back over `yarnnn://auth/session?refresh_token=…`. `DeepLinkBridge` calls `refreshSession` (§7k — the first cut called `setSession`, which needs both tokens) and routes to the desktop.
 
-**Why this is not a bespoke credential.** `setSession({ refresh_token })` is the primitive supabase-js provides for exactly this hand-off, so nothing is minted and nothing routes around the one credential path. ADR-645 D2 forbids a second store and a mirrored token; this is the SAME member's own session moving to the device they are sitting at, which is what a refresh token is for.
+**Why this is not a bespoke credential.** `refreshSession({ refresh_token })` is the primitive supabase-js provides for exactly this hand-off, so nothing is minted and nothing routes around the one credential path. ADR-645 D2 forbids a second store and a mirrored token; this is the SAME member's own session moving to the device they are sitting at, which is what a refresh token is for.
 
 ⚠️ **The token rides a URL**, and that is a real exposure bounded three ways: the scheme hands it to a LOCAL app rather than over a network, macOS routes it only to the registered bundle, and it is consumed once — Supabase rotates refresh tokens on use, so a replayed URL is already spent.
 
@@ -452,6 +452,20 @@ if (!currentSession.access_token || !currentSession.refresh_token) {
 ⭐⭐ **The error message was the whole diagnosis.** "Auth session missing!" is `AuthSessionMissingError` by name, and one grep of the library found the guard that throws it. This was the first failure in the arc that the product reported in words a member could relay — because §7h had just fixed the notice that silently swallowed them. **The error-surfacing fix paid for itself on the next bug.**
 
 ⚠️ This is also the fourth time in this arc that a library's contract differed from what I assumed while writing a plausible-looking call (`window.open` routing to the browser, `flowType` defaulting to pkce, a permission implying a scope, `setSession` accepting a partial session). The pattern is mine: **reading the function's guard clauses costs a minute and would have caught all four.**
+
+---
+
+## 7l. The return target was refused by our own guard (2026-09-23)
+
+The first real sign-in after §7k: the app opened the browser, the member signed in, and the browser landed on **`/desktop`** — the web product, signed in — while the app waited for a deep link that never came. Reported with a screenshot.
+
+The hand-off page is `/auth/desktop`. A signed-out member reaching it is bounced through login with `?next=/auth/desktop`. `getSafeNextPath` (`web/lib/auth/redirect.ts`, since 2026-02-26) refuses **every** `next` beginning with `/auth/` — correctly, for its original purpose: a `next` of `/auth/login` or `/auth/callback` would loop. All three stages that carry `next` — middleware, the login page, the callback — run it, so the hand-off target was rewritten to `HOME_ROUTE` at each.
+
+The fix is an **exact-match** exemption for the one `/auth/` page that is a destination rather than a step of the sign-in. No loop is possible: `/auth/desktop` bounces to login only when there is no session, and it is reached from login only once there is one. Every other `/auth/` path — including `/auth/desktop/x` — stays refused.
+
+⭐⭐⭐ **This time the guard clause was ours.** §7k's lesson was to read a library's guards before writing a call; the same applies to a route handed to our own redirect chain. `/auth/desktop` was placed under `/auth/` because it is an auth page, and that placement is exactly what the guard keys on. §7i's design never ran end to end until today, because §7j and §7k failed first — each fix revealed the next stage, not a regression.
+
+The gate arm **runs the real function** under Node's type stripping rather than reading its text, with three arms: the harness ran (a crash reports nothing, so it is its own check), `/auth/desktop` survives, and the exemption is exact. Each proven RED in place: exemption removed, exemption widened to a prefix, module broken.
 
 ---
 

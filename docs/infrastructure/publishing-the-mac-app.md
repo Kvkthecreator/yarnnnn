@@ -142,17 +142,13 @@ indexes `/Applications` reliably and a temp directory inconsistently.
 
 ## Two settings outside this repo
 
-**1. The Supabase redirect allowlist.** The shell signs in through
-`yarnnn://auth/callback`, which the provider will refuse unless it is listed.
-In the Supabase dashboard → Authentication → URL Configuration → Redirect URLs,
-add:
-
-```
-yarnnn://auth/callback
-```
-
-alongside the existing `https://` entries. Without it a member reaches the
-consent screen, approves, and lands on an error they cannot act on.
+**1. The Supabase redirect allowlist — nothing to add.** The shell does not
+authenticate (ADR-661 §7i): it opens `https://www.yarnnn.com/auth/desktop`,
+the website signs the member in through its existing `https://` callback, and
+the page hands the session to the app over `yarnnn://auth/session`. That last
+hop is a browser navigation to a local scheme, not a provider redirect, so
+Supabase never sees it. A `yarnnn://auth/callback` entry left over from the
+superseded design is harmless and unused.
 
 **2. The API's CORS allowlist** already carries the shell's origins
 (`tauri://localhost`, `http://tauri.localhost` — `api/main.py`). They ship with

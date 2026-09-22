@@ -389,6 +389,55 @@ check(
     "setSession throws AuthSessionMissingError on an empty access_token",
 )
 
+# ------------------------------- §7l the hand-off page survives sign-in
+print("\n§7l the return target survives the sign-in it bounces through")
+
+# A signed-out member reaching /auth/desktop is sent through login with
+# `?next=/auth/desktop`. `getSafeNextPath` refused EVERY `/auth/` target, so
+# middleware, login and callback all rewrote it to HOME_ROUTE: the member
+# landed on /desktop in the browser and the app never heard back (observed,
+# reported with a screenshot). Run the REAL function, not a grep of it — every
+# text arm in this file has been blind at least once.
+def _safe_next(cases: list[str]) -> dict[str, str] | None:
+    import tempfile
+    web = REPO / "web" / "lib"
+    with tempfile.TemporaryDirectory() as tmp:
+        (Path(tmp) / "routes.ts").write_text((web / "routes.ts").read_text())
+        src = (web / "auth" / "redirect.ts").read_text()
+        (Path(tmp) / "redirect.ts").write_text(src.replace('"@/lib/routes"', '"./routes.ts"'))
+        prog = (
+            'import {getSafeNextPath as g} from "./redirect.ts";'
+            f"const c={json.dumps(cases)};"
+            "console.log(JSON.stringify(Object.fromEntries(c.map(n=>[n,g(n)]))));"
+        )
+        try:
+            out = subprocess.run(
+                ["node", "--input-type=module", "-e", prog],
+                cwd=tmp, capture_output=True, text=True, timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if out.returncode != 0:
+            return None
+        return json.loads(out.stdout.strip().splitlines()[-1])
+
+_next = _safe_next(["/auth/desktop", "/auth/login", "/auth/callback", "/auth/desktop/x"])
+check(
+    "the guard ran (node strips the types; a crash reports nothing)",
+    _next is not None,
+    "cannot evaluate getSafeNextPath — fix the harness before trusting this section",
+)
+check(
+    "/auth/desktop survives as a next target",
+    bool(_next) and _next["/auth/desktop"] == "/auth/desktop",
+    "every desktop sign-in lands on HOME_ROUTE in the browser; the app never hears back",
+)
+check(
+    "every other /auth/ target is still refused (the exemption is exact)",
+    bool(_next) and all(_next[p] != p for p in ("/auth/login", "/auth/callback", "/auth/desktop/x")),
+    "a widened exemption re-opens the login loop the prefix guard exists to prevent",
+)
+
 # ------------------------------------- §7h a failed sign-in says why
 print("\n§7h a failed sign-in gives the member a reason")
 

@@ -114,10 +114,14 @@ The earlier design (browser starts OAuth, app finishes it via `yarnnn://auth/cal
 SUPERSEDED — four correct fixes never produced a working sign-in because it split the PKCE
 verifier across two contexts.
 
-**OPEN — one confirmation.** Every step of the chain is verified except the last: §7k
-(`refreshSession` instead of `setSession`) is built and installed but NOT yet confirmed by a
-real sign-in. If it still fails, the login page now SHOWS the reason (§7h) — that sentence is
-the diagnosis, not a starting point for instrumentation.
+**OPEN — one confirmation.** The first real sign-in after §7k (2026-09-23) landed the browser
+on `/desktop` and never handed back: our own `getSafeNextPath` refused `next=/auth/desktop`
+(every `/auth/` target). Fixed in §7l — a WEB change, so it is live once Vercel deploys; the
+installed app needs no rebuild. Still owed: one real sign-in completing in the app. If it
+fails, the login page SHOWS the reason (§7h) — that sentence is the diagnosis.
+⚠️ Watch after it works: the browser and the app now share one refresh-token lineage. If the
+app is signed out ~1h later, suspect Supabase's reuse detection revoking the family when the
+browser refreshes with the token the app already spent — unverified, a hypothesis.
 
 **Owed after that:**
 1. **Apple Developer ID** ($99/yr) — the only operator step. Until then sign → notarize →

@@ -18,10 +18,10 @@
  *
  * It also collapses two auth implementations into one. `auth-helpers` on the
  * web is now the ONLY code that talks to a provider; the shell's client only
- * ever calls `setSession`. Every auth bug has one place to live.
+ * ever calls `refreshSession`. Every auth bug has one place to live.
  *
  * WHAT CROSSES THE BOUNDARY, and why it is a refresh token rather than an
- * invented credential: `setSession({ refresh_token })` is the primitive
+ * invented credential: `refreshSession({ refresh_token })` is the primitive
  * supabase-js provides for exactly this hand-off, so nothing bespoke is minted
  * and nothing routes around the one credential path (ADR-645 D2 — no second
  * store, no mirrored token; this is the SAME member's own session moving to
