@@ -54,8 +54,16 @@ export function DeepLinkBridge() {
           router.replace('/auth/login?error=handoff&message=No+session+was+handed+over');
           return;
         }
+        // `refreshSession`, NOT `setSession`. `setSession` requires BOTH
+        // tokens — it throws `AuthSessionMissingError` on a falsy
+        // `access_token` before it ever looks at the refresh token, so passing
+        // an empty string failed with "Auth session missing!" (observed in a
+        // real hand-off). `refreshSession({ refresh_token })` takes the
+        // refresh token alone and mints a fresh session from it, which is
+        // exactly what a hand-off carries: the browser holds the live session,
+        // and the app is being given the means to establish its own.
         void createClient()
-          .auth.setSession({ access_token: '', refresh_token: refreshToken })
+          .auth.refreshSession({ refresh_token: refreshToken })
           .then(({ error }) => {
             if (error) {
               router.replace(

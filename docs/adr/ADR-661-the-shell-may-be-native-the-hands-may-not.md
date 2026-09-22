@@ -421,6 +421,26 @@ The scope is now explicit and narrow: our own hosts, the provider consent screen
 
 ---
 
+## 7k. `setSession` needs both tokens (2026-09-22)
+
+§7j's scope fix landed and the hand-off finally ran end to end: the app opened the browser, the browser signed the member in, and the deep link came back. The app then said **`handoff: Auth session missing!`**
+
+The bridge called `setSession({ access_token: '', refresh_token })`. `_setSession` opens with:
+
+```js
+if (!currentSession.access_token || !currentSession.refresh_token) {
+    throw new AuthSessionMissingError();
+}
+```
+
+— so an empty `access_token` fails the guard **before the refresh token is ever used**. The primitive for a refresh-token-only hand-off is `refreshSession({ refresh_token })`, which takes the token alone and mints a fresh session from it. That is exactly what a hand-off carries: the browser holds the live session, and the app is given the means to establish its own.
+
+⭐⭐ **The error message was the whole diagnosis.** "Auth session missing!" is `AuthSessionMissingError` by name, and one grep of the library found the guard that throws it. This was the first failure in the arc that the product reported in words a member could relay — because §7h had just fixed the notice that silently swallowed them. **The error-surfacing fix paid for itself on the next bug.**
+
+⚠️ This is also the fourth time in this arc that a library's contract differed from what I assumed while writing a plausible-looking call (`window.open` routing to the browser, `flowType` defaulting to pkce, a permission implying a scope, `setSession` accepting a partial session). The pattern is mine: **reading the function's guard clauses costs a minute and would have caught all four.**
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

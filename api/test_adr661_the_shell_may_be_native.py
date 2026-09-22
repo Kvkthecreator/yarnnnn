@@ -373,10 +373,20 @@ check(
 )
 
 bridge_src = strip_comments(read("web/components/shell/DeepLinkBridge.tsx"))
+# `refreshSession`, NOT `setSession`. setSession requires BOTH tokens and
+# throws AuthSessionMissingError on a falsy access_token BEFORE it ever looks
+# at the refresh token — a hand-off carries only a refresh token, so setSession
+# failed with "Auth session missing!" on every attempt (observed in a real
+# hand-off, reported with a screenshot).
 check(
-    "the bridge accepts a handed-over session",
-    "setSession" in bridge_src and "refresh_token" in bridge_src,
-    "the returning session would have nowhere to land",
+    "the bridge mints a session from the handed-over refresh token",
+    "refreshSession" in bridge_src and "refresh_token" in bridge_src,
+    "setSession needs both tokens; a hand-off carries only the refresh token",
+)
+check(
+    "the bridge does not call setSession with a half-session",
+    "setSession" not in bridge_src,
+    "setSession throws AuthSessionMissingError on an empty access_token",
 )
 
 # ------------------------------------- §7h a failed sign-in says why
