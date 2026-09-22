@@ -965,6 +965,19 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   //
   // Defaults to 'flow' until the vocabulary lands: the safe direction is the
   // one that shows LESS chrome, so nothing flashes in and back out.
+  /** ADR-633 D3 (2026-09-22) — the strip's own noun. Its three captions
+   *  hardcoded "slide", so an Images artboard's LAYERS rail offered "Drag to
+   *  resize the slide strip" and "Hide the slide strip" — the same §1.1
+   *  failure as the Properties invitation, in the control right beside it.
+   *  Keyed on the DECLARED objectModel, the same field the rail's own
+   *  LayerTree/PagedNavigator branch reads a few hundred lines below. */
+  const stripNoun = t(
+    app.objectModel === 'layers'
+      ? 'stripNounLayers'
+      : template === 'deck'
+        ? 'stripNounSlides'
+        : 'stripNounSections',
+  );
   const layoutMode: 'flow' | 'paged' =
     vocabulary?.layouts.find((l) => l.slug === template)?.mode ?? 'flow';
   const isPaged = layoutMode === 'paged';
@@ -3837,7 +3850,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onPointerDown={rail.startResize}
                 role="separator"
                 aria-orientation="vertical"
-                title={t('resizeStrip')}
+                title={t('resizeStrip', { noun: stripNoun })}
                 className="absolute right-0 top-0 z-10 block h-full w-1.5 translate-x-1/2 cursor-col-resize hover:bg-primary/20 active:bg-primary/30"
               />
             )}
@@ -3871,8 +3884,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               <button
                 type="button"
                 onClick={toggleNav}
-                title={navCollapsed ? t('showStrip') : t('hideStrip')}
-                aria-label={navCollapsed ? t('showStrip') : t('hideStrip')}
+                title={navCollapsed
+                  ? t('showStrip', { noun: stripNoun })
+                  : t('hideStrip', { noun: stripNoun })}
+                aria-label={navCollapsed
+                  ? t('showStrip', { noun: stripNoun })
+                  : t('hideStrip', { noun: stripNoun })}
                 className={`ml-2 inline-flex shrink-0 items-center justify-center gap-1 rounded text-[11px] transition-colors hover:bg-muted/40 ${
                   coarsePointer ? 'h-11 w-11' : 'p-1'
                 } ${navCollapsed ? 'text-muted-foreground/60' : 'text-muted-foreground'}`}
@@ -3966,6 +3983,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 onInsert={onInsertPressed}
                 compact={!fullLabels}
                 coarsePointer={coarsePointer}
+                objectModel={app.objectModel}
               />
             </div>
             {/* Zoom — a VIEW control (doesn't touch the file). */}

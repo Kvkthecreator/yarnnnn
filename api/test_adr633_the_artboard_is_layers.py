@@ -379,6 +379,76 @@ for _loc in ("en", "ko"):
     )
 
 
+# D3, the rest of the artboard's chrome. The same sweep that found the
+# invitation found two more in ONE snapshot of the Images surface, both beside
+# a rail already reading "LAYERS":
+#   - the strip's three captions hardcoded the word "slide" outright
+#   - the toolbar's Add hint re-derived the noun as `layout === 'deck' ?
+#     slide : section`, which cannot see the layers model at all
+# Fixing one noun and leaving its neighbours is how an app comes to speak two
+# vocabularies, so the whole chrome is gated together.
+_SURFACE_CODE = _strip_comments(SURFACE)
+# Anchored on the DERIVATION, not the file. `app.objectModel === 'layers'`
+# also appears at the rail's LayerTree/PagedNavigator branch, so a whole-file
+# search stays true with this derivation gutted — proven by falsifying, which
+# is the second blind arm this sweep produced from the same habit.
+_strip_derivation = re.search(
+    r"const stripNoun = t\((.*?)\);", _SURFACE_CODE, flags=re.DOTALL
+)
+check(
+    _strip_derivation is not None,
+    "D3: `stripNoun` is not derived in StudioSurface — the strip's captions "
+    "have no noun to follow the medium with",
+)
+check(
+    _strip_derivation is not None
+    and "app.objectModel === 'layers'" in _strip_derivation.group(1),
+    "D3: the strip's noun is not derived from the declared object model — its "
+    "captions name a slide on a layers rail",
+)
+for _k in ("resizeStrip", "showStrip", "hideStrip"):
+    check(
+        f"t('{_k}', {{ noun: stripNoun }})" in _SURFACE_CODE,
+        f"D3: `{_k}` is worded without the strip noun — a caption that takes "
+        f"no noun cannot follow the medium",
+    )
+_TOOLBAR = (WEB / "StudioToolbar.tsx").read_text()
+check(
+    "objectModel === 'layers'" in _TOOLBAR,
+    "D3: StudioToolbar's page noun does not consult the declared object model "
+    "— `layout === 'deck'` cannot see an artboard, so Add offers a section",
+)
+_tb_mount = re.search(
+    r"<StudioToolbar\b(.*?)/>", _SURFACE_CODE, flags=re.DOTALL
+)
+check(
+    _tb_mount is not None
+    and "objectModel={app.objectModel}" in _tb_mount.group(1),
+    "D3: the StudioToolbar mount does not pass the object model — the prop "
+    "exists and nothing feeds it",
+)
+for _loc in ("en", "ko"):
+    _cat = _json.loads((REPO / f"web/messages/{_loc}.json").read_text())
+    _su = _cat["studio"]["surface"]
+    _slide = "slide" if _loc == "en" else "\uc2ac\ub77c\uc774\ub4dc"
+    for _k in ("resizeStrip", "showStrip", "hideStrip"):
+        check(
+            "{noun}" in _su.get(_k, ""),
+            f"D3: {_loc}.json's `{_k}` takes no noun argument — it is one "
+            f"control in three media and must be worded by the medium",
+        )
+        check(
+            _slide not in _su.get(_k, ""),
+            f"D3: {_loc}.json's `{_k}` hardcodes the slide — Blogger and "
+            f"Images have none",
+        )
+    check(
+        "layer" in _cat["studio"]["toolbar"] ,
+        f"D3: {_loc}.json has no `studio.toolbar.layer` — the Add hint has no "
+        f"layers noun to resolve",
+    )
+
+
 # ── D4 — the tree's shape: two levels, z-descending ────────────────────────
 if TREE:
     check(

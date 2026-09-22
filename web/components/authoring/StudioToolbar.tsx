@@ -24,6 +24,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import type { ObjectModel } from '@/lib/apps/registry';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
 
@@ -190,6 +191,9 @@ interface StudioToolbarProps {
   /** Touch parity: 44px targets under a coarse pointer (the Apple/Google floor)
    *  while desktop keeps its density. The capability, not the width. */
   coarsePointer?: boolean;
+  /** ADR-633 D2 — what the member is composing, so the Add hint names a grain
+   *  the medium has. DECLARED; `layout`/`mode` cannot see the layers model. */
+  objectModel?: ObjectModel;
 }
 
 export function StudioToolbar({
@@ -199,6 +203,7 @@ export function StudioToolbar({
   onInsert,
   compact = false,
   coarsePointer = false,
+  objectModel,
 }: StudioToolbarProps) {
   // ADR-506 D2: the AFFIRMATIVE test (the ADR-482 D3 idiom). An unresolved mode
   // renders no page-grain chrome rather than guessing `flow` — `mode === 'paged'`
@@ -208,7 +213,17 @@ export function StudioToolbar({
   const isPaged = mode === 'paged';
   // ADR-447/453: a deck's page is a "slide"; a document/article's is a
   // "section" — the operator word follows the layout.
-  const pageNoun = layout === 'deck' ? t('slide') : t('section');
+  //
+  // ADR-633 D3 (2026-09-22): `layout === 'deck'` cannot see the LAYERS model,
+  // so an Images artboard's Add hint read "Add — a section, component, …" with
+  // a LAYERS rail beside it. The declared model answers first; the layout
+  // ternary is left intact beneath it for the two models it does cover.
+  const pageNoun =
+    objectModel === 'layers'
+      ? t('layer')
+      : layout === 'deck'
+        ? t('slide')
+        : t('section');
   const rootRef = useRef<HTMLDivElement>(null);
   // The trigger cluster (buttons + their panels) — the click-away boundary.
   // Deliberately NOT rootRef, which spans the row's full flex-1 width.

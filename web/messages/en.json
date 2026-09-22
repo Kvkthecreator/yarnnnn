@@ -2129,7 +2129,8 @@
       "slide": "slide",
       "section": "section",
       "addPagedHint": "Add — a {noun}, component, text, media, or data — into the selected spot or this {noun}",
-      "addFlowHint": "Add — a component, text, media, or data — after the selection, or at the end"
+      "addFlowHint": "Add — a component, text, media, or data — after the selection, or at the end",
+      "layer": "layer"
     },
     "learnFrom": {
       "title": "Learn from",
@@ -2440,9 +2441,9 @@
       "insertUnavailable": "Insert is unavailable — the block list could not be loaded. Reload to retry.",
       "spotNotAddressable": "That spot could not be addressed yet. Reload and try again.",
       "layerFallback": "Layer",
-      "resizeStrip": "Drag to resize the slide strip",
-      "showStrip": "Show the slide strip",
-      "hideStrip": "Hide the slide strip",
+      "resizeStrip": "Drag to resize the {noun} strip",
+      "showStrip": "Show the {noun} strip",
+      "hideStrip": "Hide the {noun} strip",
       "backToApp": "Back to {app}",
       "clickToRename": "{path} — click to rename",
       "zoomOut": "Zoom out",
@@ -2503,7 +2504,10 @@
       "loading": "Loading…",
       "noStylesheets": "No stylesheets found.",
       "theme": "Theme",
-      "themeReadOnly": "Read-only — the theme lives in its files. Change a value through the chat or a re-import; inline editing lands here."
+      "themeReadOnly": "Read-only — the theme lives in its files. Change a value through the chat or a re-import; inline editing lands here.",
+      "stripNounSlides": "slide",
+      "stripNounSections": "section",
+      "stripNounLayers": "layer"
     }
   },
   "text": {

@@ -2129,7 +2129,8 @@
       "slide": "슬라이드",
       "section": "섹션",
       "addPagedHint": "추가 — {noun}, 컴포넌트, 텍스트, 미디어, 데이터를 선택한 자리나 이 {noun}에 넣어요",
-      "addFlowHint": "추가 — 컴포넌트, 텍스트, 미디어, 데이터를 선택한 곳 뒤나 맨 끝에 넣어요"
+      "addFlowHint": "추가 — 컴포넌트, 텍스트, 미디어, 데이터를 선택한 곳 뒤나 맨 끝에 넣어요",
+      "layer": "레이어"
     },
     "learnFrom": {
       "title": "파일에서 배우기",
@@ -2440,9 +2441,9 @@
       "insertUnavailable": "블록 목록을 불러오지 못해서 넣을 수 없어요. 새로 고친 뒤 다시 시도해 주세요.",
       "spotNotAddressable": "아직 그 자리를 찾지 못했어요. 새로 고친 뒤 다시 시도해 주세요.",
       "layerFallback": "레이어",
-      "resizeStrip": "끌어서 슬라이드 목록 너비를 조절해요",
-      "showStrip": "슬라이드 목록 보기",
-      "hideStrip": "슬라이드 목록 숨기기",
+      "resizeStrip": "드래그해서 {noun} 목록 너비를 조절해요",
+      "showStrip": "{noun} 목록을 보여요",
+      "hideStrip": "{noun} 목록을 숨겨요",
       "backToApp": "{app}(으)로 돌아가기",
       "clickToRename": "{path} — 눌러서 이름을 바꿔요",
       "zoomOut": "축소",
@@ -2503,7 +2504,10 @@
       "loading": "불러오는 중…",
       "noStylesheets": "스타일시트를 찾지 못했어요.",
       "theme": "테마",
-      "themeReadOnly": "읽기 전용이에요 — 테마는 파일 안에 있어요. 값은 채팅이나 다시 가져오기로 바꿀 수 있고, 여기서 직접 고치는 기능은 나중에 들어와요."
+      "themeReadOnly": "읽기 전용이에요 — 테마는 파일 안에 있어요. 값은 채팅이나 다시 가져오기로 바꿀 수 있고, 여기서 직접 고치는 기능은 나중에 들어와요.",
+      "stripNounSlides": "슬라이드",
+      "stripNounSections": "섹션",
+      "stripNounLayers": "레이어"
     }
   },
   "text": {
