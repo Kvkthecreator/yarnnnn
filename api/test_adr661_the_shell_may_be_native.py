@@ -299,6 +299,43 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         "a web-only route lost its .web suffix and would enter the shell build",
     )
 
+# --------------------------------- §7i the browser completes the sign-in
+print("\n§7i the browser signs in, the app receives a session")
+
+# The conventional native-app shape (Notion, Slack, Claude): the app never
+# talks to a provider. It opens the WEBSITE, which signs the member in with the
+# ordinary web flow and hands the session back over the custom scheme. The PKCE
+# verifier therefore never crosses a process boundary — the failure that
+# defeated the previous design three times.
+handoff = REPO / "web" / "app" / "auth" / "desktop" / "page.web.tsx"
+check(
+    "the web has a desktop hand-off page",
+    handoff.exists(),
+    "the shell would have to authenticate itself again",
+)
+
+# It must be WEB-ONLY: a hand-off page inside the shell would be the app
+# talking to a provider, which is the design this replaces.
+check(
+    "the hand-off page is web-only",
+    handoff.exists() and not (REPO / "web" / "app" / "auth" / "desktop" / "page.tsx").exists(),
+    "the shell must not ship the page that signs a member in",
+)
+
+form_src = strip_comments(read("web/components/auth/AuthForm.tsx"))
+check(
+    "the shell's sign-in opens the website, not a provider",
+    "isNativeShell" in form_src and "/auth/desktop" in form_src,
+    "the app would run its own OAuth flow again",
+)
+
+bridge_src = strip_comments(read("web/components/shell/DeepLinkBridge.tsx"))
+check(
+    "the bridge accepts a handed-over session",
+    "setSession" in bridge_src and "refresh_token" in bridge_src,
+    "the returning session would have nowhere to land",
+)
+
 # ------------------------------------- §7h a failed sign-in says why
 print("\n§7h a failed sign-in gives the member a reason")
 
@@ -383,10 +420,15 @@ auth_form = strip_comments(read("web/components/auth/AuthForm.tsx"))
 # shell that renders Google's own consent page inside the app's webview, where
 # it recognises no passkey and offers no password field — reported from a real
 # build.
+# SUPERSEDED BY §7i, and kept as the weaker guarantee it still is: whatever
+# path the WEB build takes to a provider, the SHELL must not render a consent
+# screen inside its own window. §7i makes that structural (the shell opens the
+# website and never calls a provider), so this now asserts the shell branch
+# exists at all rather than a specific option on a call it no longer makes.
 check(
-    "the OAuth consent screen opens in the member's browser",
-    "skipBrowserRedirect" in auth_form and "openExternal" in auth_form,
-    "the provider's sign-in page would render inside the app window",
+    "the shell never renders a provider's page in its own window",
+    "isNativeShell" in auth_form and "/auth/desktop" in auth_form,
+    "the shell would run a provider flow inside the app",
 )
 
 callback = strip_comments(read("web/app/auth/callback/page.tsx"))

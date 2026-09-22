@@ -26,6 +26,8 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { onDeepLink, SHELL_SCHEME } from '@/lib/shell/deep-link';
+import { createClient } from '@/lib/supabase/client';
+import { HOME_ROUTE } from '@/lib/routes';
 
 export function DeepLinkBridge() {
   const router = useRouter();
@@ -43,10 +45,33 @@ export function DeepLinkBridge() {
       }
       if (url.protocol.replace(':', '') !== SHELL_SCHEME) return;
 
-      // `yarnnn://auth/callback?x=1#y=2` parses with host="auth" and
-      // pathname="/callback", so the in-app path is host + pathname rather
-      // than pathname alone — a custom scheme has no authority component the
-      // way https does, and reading only `pathname` would drop "auth".
+      // `yarnnn://auth/session?refresh_token=…` — the browser finished the
+      // sign-in and is handing the session over (ADR-661 §7i). This is the
+      // ONLY auth deep link: the app never talks to a provider.
+      if (url.host === 'auth' && url.pathname.replace(/\/+$/, '') === '/session') {
+        const refreshToken = url.searchParams.get('refresh_token');
+        if (!refreshToken) {
+          router.replace('/auth/login?error=handoff&message=No+session+was+handed+over');
+          return;
+        }
+        void createClient()
+          .auth.setSession({ access_token: '', refresh_token: refreshToken })
+          .then(({ error }) => {
+            if (error) {
+              router.replace(
+                `/auth/login?error=handoff&message=${encodeURIComponent(error.message)}`,
+              );
+              return;
+            }
+            router.replace(HOME_ROUTE);
+          });
+        return;
+      }
+
+      // Any other deep link is ordinary navigation. `yarnnn://x/y?a=1` parses
+      // with host="x" and pathname="/y", so the in-app path is host + pathname
+      // — a custom scheme has no authority component the way https does, and
+      // reading only `pathname` would drop the first segment.
       const path = `/${url.host}${url.pathname}`.replace(/\/+$/, '') || '/';
       router.replace(`${path}${url.search}${url.hash}`);
     }).then((fn) => {

@@ -377,6 +377,32 @@ Verified against the live service rather than assumed: `GET /auth/v1/authorize?p
 
 ---
 
+## 7i. The browser signs in; the app receives a session (2026-09-22)
+
+**D5 — the shell does not authenticate. The website does.**
+
+After three rounds of fixes to a design where the browser STARTED OAuth and the app FINISHED it, the operator asked the question that settled it: *"some apps like Notion actually send you to a web browser for the auth handling — do you think this may be better?"* Yes, and it is the conventional shape (Notion, Slack, Linear, Claude's own desktop client):
+
+| | Previous design | Now |
+|---|---|---|
+| Consent screen | system browser | system browser |
+| **OAuth completes** | **in the app**, via `yarnnn://auth/callback` | **in the browser**, on yarnnn.com |
+| PKCE verifier | written in the app, read after a browser hop | never leaves the browser |
+| App receives | a raw `?code=` to exchange | a session already established |
+| Auth implementations | two (auth-helpers + a hand-rolled client) | **one** |
+
+The flow: the shell's sign-in opens `https://www.yarnnn.com/auth/desktop`. That page signs the member in with the ordinary web flow — the same one that has always worked — and hands the session back over `yarnnn://auth/session?refresh_token=…`. `DeepLinkBridge` calls `setSession` and routes to the desktop.
+
+**Why this is not a bespoke credential.** `setSession({ refresh_token })` is the primitive supabase-js provides for exactly this hand-off, so nothing is minted and nothing routes around the one credential path. ADR-645 D2 forbids a second store and a mirrored token; this is the SAME member's own session moving to the device they are sitting at, which is what a refresh token is for.
+
+⚠️ **The token rides a URL**, and that is a real exposure bounded three ways: the scheme hands it to a LOCAL app rather than over a network, macOS routes it only to the registered bundle, and it is consumed once — Supabase rotates refresh tokens on use, so a replayed URL is already spent.
+
+**What this design also buys**, beyond escaping the bug: it is the only shape that works for a cold first launch (a stranger with no session meets a real web page, with their password manager and their existing Google session), and it survives providers tightening against native clients — Google already blocks embedded webviews and the trend is one way.
+
+⭐⭐⭐ **The lesson is about when to change architecture rather than patch.** I fixed four real bugs on the old path — hydration, the error-page root, a `window.open` no-op, the implicit flow — and every one was genuine. None produced a working sign-in, because the design put a secret in one context and required it in another. **When three consecutive correct fixes do not move the outcome, the next thing to question is the design, not the fifth symptom.** The operator asked that question twice before I acted on it.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).
