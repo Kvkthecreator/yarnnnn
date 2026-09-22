@@ -94,40 +94,42 @@ AI-shaped copy shown to humans (`b31aed3`), and the stale governance gate (`c3e6
   user exists any more** (teardown ran; 22 users live, neither present). Annotations corrected
   in `d77821e`, but **no cold instrument exists** — re-mint one before any first-run pass.
 
-## ADR-661 — the Mac shell EXISTS; steps 5–6 remain (2026-09-21)
+## ADR-661 — the Mac shell ships; sign-in awaits ONE confirmation (2026-09-22)
 
-**Steps 1–4 are SHIPPED and driven.** A `.app` was built, launched, and proven end to end
-(`GET /` 307 → `/desktop/` 200 → `/auth/login/?next=` 200, inside the native window).
-Build it: `cd src-tauri && cargo tauri build` → `yarnnn_0.1.0_aarch64.dmg` (7.8MB, verified,
-drag-to-install). Gate `test_adr661_*.py` **30/30**. ⚠️ The DMG step drives Finder through
-AppleScript and failed once then succeeded unchanged — **retry before calling it broken**.
+**Steps 1–5 are SHIPPED.** `cd src-tauri && cargo tauri build` → `yarnnn_0.1.0_aarch64.dmg`
+(~7.9MB, verified, drag-to-install). Gate `api/test_adr661_the_shell_may_be_native.py` **54/54**.
+⚠️ Rust is a build dependency for the SHELL only; the web build never needs it.
 
-⚠️ **Rust is now a build dependency** for the shell only. The web build is untouched and
-does not need it.
+**THE AUTH DESIGN CHANGED (§7i D5) — read it before touching sign-in.** The shell does NOT
+authenticate; the website does. Sign-in opens `https://www.yarnnn.com/auth/desktop` in the
+system browser, which signs the member in with the ordinary web flow and hands the session
+back over `yarnnn://auth/session?refresh_token=…`; `DeepLinkBridge` calls `refreshSession`.
+The earlier design (browser starts OAuth, app finishes it via `yarnnn://auth/callback`) is
+SUPERSEDED — four correct fixes never produced a working sign-in because it split the PKCE
+verifier across two contexts.
 
-**Steps 1–5 are SHIPPED.** The deep link closes the OAuth loop (`yarnnn://auth/callback` →
-the bridge → the real callback page, driven). `./scripts/release-shell.sh` signs, notarizes
-and staples.
+**OPEN — one confirmation.** Every step of the chain is verified except the last: §7k
+(`refreshSession` instead of `setSession`) is built and installed but NOT yet confirmed by a
+real sign-in. If it still fails, the login page now SHOWS the reason (§7h) — that sentence is
+the diagnosis, not a starting point for instrumentation.
 
-**The ONE thing only the operator can do:** enrol in the Apple Developer Program ($99/yr) and
-create a Developer ID certificate. Until then the sign → notarize → staple chain is configured
-and gate-asserted but **never executed**, and a downloaded build says *"yarnnn is damaged"* —
-which reads as malware. Four setup steps + the verification that matters (drive a QUARANTINED
-DMG on a machine that never built it) are in
-[publishing-the-mac-app.md](infrastructure/publishing-the-mac-app.md).
-
-⚠️ **Also needed before publishing**: add `yarnnn://auth/callback` to the Supabase redirect
-allowlist, or a member reaches the consent screen and lands on an error they cannot act on.
-
-**Owed:**
-1. **Auto-update** — deliberately not built; it has its own key management, and one
-   unversioned build is the smaller first step.
-2. **Step 6** — local hands (§5/§6), its own implementation ADR, four conditions, driven
-   trace. NOT before the shell is stable.
+**Owed after that:**
+1. **Apple Developer ID** ($99/yr) — the only operator step. Until then sign → notarize →
+   staple is configured and gate-asserted but NEVER EXECUTED, and a downloaded build says
+   *"yarnnn is damaged"*, which reads as malware. Four setup steps + the verification that
+   matters (drive a QUARANTINED DMG on a machine that never built it) are in
+   [publishing-the-mac-app.md](infrastructure/publishing-the-mac-app.md).
+2. **Auto-update** — deliberately not built; its own key management, and one unversioned
+   build is the smaller first step.
+3. **Step 6 — local hands** (§5/§6), its own implementation ADR, four conditions, driven trace.
 
 ⚠️ **The two-build mechanism**: `page.web.tsx` is a route on the WEB build only
-(`pageExtensions`). A new route defaults to BOTH builds — rename it `.web.tsx` if it must
-not ship in the shell. The ADR-660 gate's `read()` follows the twin automatically.
+(`pageExtensions` in `next.config.js`). A new route defaults to BOTH builds — rename it
+`.web.tsx` if it must not ship in the shell. Baselines: web **29 static / 52 dynamic**,
+shell **48/48**.
+
+⚠️ **Testing leaves ghosts** in Launch Services (every build and every mounted DMG registers
+a copy). `lsregister -kill -r` does NOT clear them; unregister by path. See the publishing doc.
 
 ## ADR-661 — the Mac shell is authorized and unbuilt (2026-09-21)
 
