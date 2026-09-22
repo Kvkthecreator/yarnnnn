@@ -18,7 +18,7 @@
  * This replaces the ~150 lines that were duplicated across the two pages.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
@@ -121,6 +121,19 @@ export function AuthForm({
     initialError ? { tone: "error", text: initialError } : null,
   );
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
+
+  // `useState(initialError)` captures the prop on the FIRST render only, and
+  // the login page reads `?error=` in an effect — so an error that arrives
+  // with the URL was computed and then silently discarded. A member bounced
+  // back from a failed callback saw a bare sign-in form with no reason, which
+  // reads as "it just didn't work" and is unreportable.
+  //
+  // Observed while diagnosing a desktop sign-in loop: the callback WAS
+  // redirecting with `?error=code_exchange&message=…` and the screen said
+  // nothing. ADR-661.
+  useEffect(() => {
+    if (initialError) setNotice({ tone: "error", text: initialError });
+  }, [initialError]);
 
   const supabase = createClient();
 

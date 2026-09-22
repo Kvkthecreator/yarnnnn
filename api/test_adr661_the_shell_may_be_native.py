@@ -299,6 +299,24 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         "a web-only route lost its .web suffix and would enter the shell build",
     )
 
+# ------------------------------------- §7h a failed sign-in says why
+print("\n§7h a failed sign-in gives the member a reason")
+
+form = strip_comments(read("web/components/auth/AuthForm.tsx"))
+
+# `useState(initialError)` captures the prop on the FIRST render only, and the
+# login page reads `?error=` in an effect — so an error arriving with the URL
+# was computed and silently discarded. A member bounced back from a failed
+# callback saw a bare form with no reason, which is unreportable.
+# Match the EFFECT that syncs it, not the mere presence of the two names —
+#  appears elsewhere in this file, so a looser check stays green
+# through exactly the deletion it exists to catch. Found by falsifying it.
+check(
+    "an error arriving after first render still reaches the notice",
+    bool(re.search(r"useEffect\(\(\)\s*=>\s*\{[^}]*initialError", form, re.S)),
+    "a late ?error= would be computed and dropped",
+)
+
 # ----------------------------------------- §7g the shell's OAuth flow is PKCE
 print("\n§7g the shell signs in the way a native app must")
 
