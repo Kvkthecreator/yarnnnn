@@ -356,6 +356,27 @@ Driven: the rebuilt export served over plain HTTP and loaded at `/` lands on `Si
 
 ---
 
+## 7g. The desktop auth architecture, checked against convention (2026-09-22)
+
+The operator's instruction after the third failed sign-in: *"reflect on how conventional SaaS like Notion or Claude would handle this architecturally… double-check our approach hasn't veered off industry best practice."* That was the right correction, and checking it found the actual bug in one step where three rounds of symptom-patching had not.
+
+**The conventional shape for a desktop app's OAuth** — what Notion, Slack, Claude and every native client do, and what RFC 8252 (*OAuth 2.0 for Native Apps*) specifies:
+
+1. the consent screen opens in the **system browser**, never an embedded webview — providers actively block embedded webviews, and passkeys/password managers do not work in one;
+2. the flow is **PKCE**, not implicit — no client secret can be kept in a distributed binary, and the verifier never leaves the device;
+3. the result returns on a **custom scheme** the OS routes to the running app;
+4. the session lives in the **client's own store**, refreshed by the client.
+
+We had 1, 3 and 4. **We did not have 2**, and that was the bug.
+
+**`supabase-js` defaults to `flowType: 'implicit'`.** The web build never hit this because `@supabase/auth-helpers-nextjs` sets `flowType: "pkce"` for you; the shell's hand-rolled `createClient` did not, and inherited the library default. Implicit returns the session in a **URL fragment** (`#access_token=…`) — and a fragment is never transmitted: not to a server, and not through a custom-scheme hand-off. The app received a callback carrying nothing and stayed signed out, which is exactly the loop the operator reported three times: *"after log in, I go back to landing… as if I'm not logged in already."*
+
+⭐⭐⭐ **The lesson is the operator's, not mine.** I fixed three real bugs on this path (§7e hydration, §7f the error-page root, the `window.open` no-op) and each was genuine — but none was the cause, because I was reading the symptom rather than checking the design against the standard. **Asking "what does the conventional architecture look like" is a debugging step, not a review step**, and it should come before the second round of instrumentation, never after the fourth.
+
+Verified against the live service rather than assumed: `GET /auth/v1/authorize?provider=google&redirect_to=yarnnn://auth/callback` returns **302** and passes the scheme straight through to Google, so the provider leg was never the problem.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

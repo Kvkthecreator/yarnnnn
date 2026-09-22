@@ -58,8 +58,27 @@ function createShellClient(): Client {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      // PKCE, explicitly — this is the whole auth architecture of a desktop
+      // app and supabase-js does NOT default to it (`flowType: 'implicit'` is
+      // the library default; the web's auth-helpers sets `pkce` for us, which
+      // is why only the shell was affected).
+      //
+      // Implicit returns the session in a URL FRAGMENT (`#access_token=…`).
+      // A fragment is never sent anywhere — not to a server, and not through
+      // a custom-scheme deep link — so the app was handed a callback carrying
+      // nothing usable and stayed signed out. That is the "sign in, land back
+      // on a logged-out page" loop.
+      //
+      // PKCE returns a `?code=` in the QUERY STRING, which survives the round
+      // trip through the browser and the `yarnnn://` hand-off, and which
+      // `app/auth/callback` exchanges for a session. It is also the
+      // conventional flow for a native app for exactly this reason (RFC 8252):
+      // no client secret, and the verifier never leaves the device.
+
+      flowType: "pkce",
       // The callback arrives on a deep link the host hands to the app, not as
-      // a browser navigation, so there is no URL for the client to inspect.
+      // a browser navigation, so the client cannot spot it in `location`.
+      // `app/auth/callback` calls `exchangeCodeForSession` explicitly instead.
       detectSessionInUrl: false,
       storageKey: "yarnnn-shell-auth",
     },

@@ -299,6 +299,25 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         "a web-only route lost its .web suffix and would enter the shell build",
     )
 
+# ----------------------------------------- §7g the shell's OAuth flow is PKCE
+print("\n§7g the shell signs in the way a native app must")
+
+client_src = strip_comments(read("web/lib/supabase/client.ts"))
+
+# supabase-js defaults to flowType: 'implicit', which returns the session in a
+# URL FRAGMENT. A fragment is never sent anywhere — not to a server, not
+# through a custom-scheme deep link — so the app got a callback carrying
+# nothing and stayed signed out. The web's auth-helpers sets pkce for us, which
+# is why only the shell was affected.
+#
+# PKCE is also the conventional flow for a native app (RFC 8252): no client
+# secret, and the verifier never leaves the device.
+check(
+    "the shell client uses the PKCE flow",
+    '"pkce"' in client_src or "'pkce'" in client_src,
+    "implicit returns the session in a fragment the deep link cannot carry",
+)
+
 # --------------------------------------- §7f the shell root is not an error
 print("\n§7f the shell root is a real page")
 
