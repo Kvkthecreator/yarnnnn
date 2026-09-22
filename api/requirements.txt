@@ -17,6 +17,7 @@ python-multipart>=0.0.9
 pypdf2>=3.0.0
 python-docx>=1.1.0
 python-pptx>=0.6.23  # ADR-395 am.1 D10 — the pptx text projection (openpyxl, below, is the xlsx half)
+olefile>=0.46  # ADR-395 am.2 D18 — the HWP 5.x text projection (pure python; hwpx needs only zipfile + lxml)
 
 # Utilities
 pydantic>=2.5.0

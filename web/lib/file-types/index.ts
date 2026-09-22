@@ -59,8 +59,16 @@ import { APP_DESCRIPTORS } from '@/lib/apps/registry';
  *   - `audio`     — <audio> player
  *   - `pdf`       — PDF viewer (exported reports)
  *   - `csv`       — tabular data preview
+ *   - `spreadsheet`    — an .xlsx workbook (ADR-395 am.2 D15)
+ *   - `wordprocessing` — a .docx document  (ADR-395 am.2 D15)
+ *   - `presentation`   — a .pptx deck      (ADR-395 am.2 D15)
  *   - `text`      — plain-text raw view (yaml, json, txt, unknown text)
  *   - `download`  — the BINARY TERMINAL: no inline view; offer the bytes
+ *
+ * The three office kinds are named after OOXML's own part names
+ * (spreadsheetml / wordprocessingml / presentationml). A kind with no
+ * registered renderer in `./apps` resolves to the download terminal, so a
+ * kind can be declared before the component that draws it exists.
  */
 export type ViewerApplication =
   | 'markdown'
@@ -70,8 +78,17 @@ export type ViewerApplication =
   | 'audio'
   | 'pdf'
   | 'csv'
+  | 'spreadsheet'
+  | 'wordprocessing'
+  | 'presentation'
   | 'text'
   | 'download';
+
+/** Every kind, for validating a SERVED value (a string off the wire). */
+const VIEW_KINDS: ReadonlySet<string> = new Set<ViewerApplication>([
+  'markdown', 'html', 'image', 'video', 'audio', 'pdf', 'csv',
+  'spreadsheet', 'wordprocessing', 'presentation', 'text', 'download',
+]);
 
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.avif', '.bmp', '.ico'] as const;
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'] as const;
@@ -79,8 +96,8 @@ const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac'] as co
 
 /** Extensions whose bytes are not text, absent a content-type that says so. */
 const BINARY_EXTENSIONS = [
-  // office + archives
-  '.xlsx', '.xls', '.pptx', '.ppt', '.docx', '.doc',
+  // office (legacy + Hancom — no inline view) + archives
+  '.xls', '.ppt', '.doc', '.hwp', '.hwpx',
   '.zip', '.gz', '.tar', '.tgz', '.7z', '.rar',
   // fonts + binaries
   '.woff', '.woff2', '.ttf', '.otf', '.eot',
@@ -107,15 +124,25 @@ function isTextualContentType(t: string): boolean {
 }
 
 /**
- * Kernel-default type → viewer association. The first matching rule wins.
+ * Type → viewer association. The first matching rule wins.
  *
- * This is the single authoritative table. A new file type gets a new rule
- * here, not a new branch inside a viewer component.
+ * ── THE SERVER HAS SPOKEN, OR THIS IS A CACHE (ADR-395 am.2 D15) ──────
+ *
+ * The format registry is the SERVER's (`api/services/file_formats.py`), and
+ * `GET /workspace/file` serves each file's kind as `view`. When the caller
+ * holds that value, it wins — pass it as `served`. The extension rules below
+ * are the fallback for a caller that has not fetched the file (a tree row, a
+ * context menu, a thumbnail), and the ADR-395 gate EXECUTES this function
+ * against every format the registry declares, so the guess made before a
+ * fetch is the answer the fetch returns. A new format is a registry row
+ * first; a rule here only keeps the pre-fetch guess in step with it.
  */
 export function resolveViewerApplication(
   path: string,
   contentType?: string,
+  served?: string | null,
 ): ViewerApplication {
+  if (served && VIEW_KINDS.has(served)) return served as ViewerApplication;
   const p = path.toLowerCase();
   const t = (contentType || '').toLowerCase();
 
@@ -127,6 +154,9 @@ export function resolveViewerApplication(
   if (endsWithAny(p, AUDIO_EXTENSIONS) || t.startsWith('audio/')) return 'audio';
   if (p.endsWith('.pdf') || t.includes('application/pdf')) return 'pdf';
   if (p.endsWith('.csv') || p.endsWith('.tsv') || t.includes('text/csv')) return 'csv';
+  if (p.endsWith('.xlsx')) return 'spreadsheet';
+  if (p.endsWith('.docx')) return 'wordprocessing';
+  if (p.endsWith('.pptx')) return 'presentation';
 
   // ── tier 3: the terminal, DERIVED from text-ness (never enumerated) ──
   //
@@ -431,21 +461,17 @@ export function isConversationalSubstrate(
   return resolveViewerApplication(path, contentType) === 'markdown';
 }
 
-/**
- * Does this viewer read the blob (`content_url`) rather than the `content`
- * text column? Mirrors the ADR-427 §8 read-side split: a binary revision's
- * text column is empty by construction.
- */
-export function viewerNeedsBlob(kind: ViewerApplication): boolean {
-  return kind === 'video' || kind === 'audio' || kind === 'pdf' || kind === 'download';
-}
+// `viewerNeedsBlob` was DELETED (ADR-395 am.2): exported, and called by
+// nothing — each renderer decides for itself through `useSignedBlobUrl`, the
+// same finding that deleted `needsBlob` from the app registry in am.1.
 
 /** Operator-readable label for a viewer (the file-metadata strip). */
 export function describeViewerApplication(
   path: string,
   contentType?: string,
+  served?: string | null,
 ): string {
-  switch (resolveViewerApplication(path, contentType)) {
+  switch (resolveViewerApplication(path, contentType, served)) {
     case 'markdown':
       return 'Markdown';
     case 'html':
@@ -460,6 +486,13 @@ export function describeViewerApplication(
       return 'PDF';
     case 'csv':
       return 'CSV';
+    // Format names, like 'PDF' and 'CSV' — identifiers, not worded copy.
+    case 'spreadsheet':
+      return 'XLSX';
+    case 'wordprocessing':
+      return 'DOCX';
+    case 'presentation':
+      return 'PPTX';
     case 'download':
       return 'Binary file';
     default:

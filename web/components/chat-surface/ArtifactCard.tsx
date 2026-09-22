@@ -265,7 +265,7 @@ export function ArtifactCard({
               {verbLabel}
             </span>
             <span className="truncate" title={relPath}>{relPath}</span>
-            {file && <span>{describeViewerApplication(file.path, file.content_type)}</span>}
+            {file && <span>{describeViewerApplication(file.path, file.content_type, file.view)}</span>}
             {attribution && <span>· {attribution}</span>}
           </div>
         </div>

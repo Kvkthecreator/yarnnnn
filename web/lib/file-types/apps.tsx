@@ -115,14 +115,25 @@ const APPS_BY_TYPE: Record<string, AppId[]> = (() => {
  * the IDENTITY case, `isIdentityPath`), not by a branch here — the tier stays a
  * table concern, never an inline `if` in a mount (ADR-436 §4).
  */
-export function resolveApps(path: string, contentType?: string): AppId[] {
-  const kind = resolveViewerApplication(path, contentType);
+export function resolveApps(
+  path: string,
+  contentType?: string,
+  /** The server's `view` for this file when the caller holds it (ADR-395 am.2 D15). */
+  served?: string | null,
+): AppId[] {
+  const kind = resolveViewerApplication(path, contentType, served);
+  // A kind no row owns yet (a declared view whose renderer has not shipped)
+  // lands on the terminal — which shows the extracted words (am.1 D12).
   return APPS_BY_TYPE[kind] ?? ['download.terminal'];
 }
 
 /** The app that renders a file (the default — first of `resolveApps`). */
-export function resolveApp(path: string, contentType?: string): AppRegistration {
-  const [id] = resolveApps(path, contentType);
+export function resolveApp(
+  path: string,
+  contentType?: string,
+  served?: string | null,
+): AppRegistration {
+  const [id] = resolveApps(path, contentType, served);
   return APPS[id] ?? APPS['download.terminal'];
 }
 

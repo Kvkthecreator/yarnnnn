@@ -456,7 +456,27 @@ export interface WorkspaceFile {
   projection_preview?: string | null;
   /** True when the projection is longer than the served preview. */
   projection_truncated?: boolean;
+  /**
+   * ADR-395 am.2 D15 — the VIEW KIND this file draws with, from the server's
+   * format registry (`api/services/file_formats.py`). Pass it to
+   * `resolveViewerApplication` / `resolveApp` as `served`; it wins over the
+   * extension fallback. A `string` off the wire, validated there against
+   * `ViewerApplication` — an unknown kind falls back rather than breaking.
+   *
+   * ⚠️ `undefined`/`null` means the registry did not declare the format (or
+   * the read predates the field): the client's extension cache answers.
+   */
+  view?: string | null;
+  /**
+   * ADR-395 am.2 D16 — the formats THIS file can be written as, per file (a
+   * `.pptx` target needs the artifact's own declared type). `[]` = none.
+   * `undefined`/`null` = unknown — offer no "save as", never guess one.
+   */
+  export_as?: ExportTarget[] | null;
 }
+
+/** A format the outbound writer produces (ADR-395 am.2 D16). */
+export type ExportTarget = 'docx' | 'pptx' | 'xlsx';
 
 /** ADR-209 Phase 4 + ADR-266 D7: minimal revision metadata surfaced in
  *  the /workspace setup-bundle and the per-card "Updated X by Y" line.

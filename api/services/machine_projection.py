@@ -49,17 +49,12 @@ _BLOCK_ELEMENTS = (
     "blockquote", "pre", "figure", "figcaption", "table", "thead", "tbody",
 )
 
-#: Registry `text`-family formats whose RAW form is binary. They get a text
-#: projection at UPLOAD time (`services.documents.extract_text`, byte-oriented);
-#: a content-column read cannot produce one, so this boundary marks them rather
-#: than emitting `%PDF-1.4 …` and calling it text (DP34).
-#: ADR-395 am.1 D10 — `xlsx`/`pptx` joined the text family, so they belong here
-#: too. Reachable today only when `content` is non-None for such a path (the
-#: `content is None` branch above catches the ordinary case and says the same
-#: thing), but a set that claims to list the binary text-family and omits two of
-#: its members is a trap for the next reader — and the set is the only record of
-#: WHICH formats must never have their raw bytes emitted as text.
-_BINARY_TEXT_FAMILY = {"pdf", "docx", "doc", "xlsx", "pptx"}
+# `_BINARY_TEXT_FAMILY` ({pdf, docx, doc, xlsx, pptx}) was DELETED by ADR-395
+# am.2 D14. It was a hand-kept copy of "text-family formats whose raw bytes are
+# not text" — and it still listed `doc` after the parser for `.doc` was found
+# never to have worked. The fact is now DERIVED from the format registry
+# (`file_formats.is_binary_text_family`: a text projection AND a byte parser),
+# so a format joining the family joins this check in the same row.
 
 _BLOCK_RX = re.compile(
     r"</?(?:" + "|".join(_BLOCK_ELEMENTS) + r")\b[^>]*>", re.IGNORECASE
@@ -212,7 +207,7 @@ def project_for_machine(
     ADR-395 derive-registry (`registry_strategy`) — never from a call-site
     suffix test, which is the defect this replaces.
     """
-    from services.primitives.extract_text_from_blob import registry_strategy
+    from services.file_formats import is_binary_text_family, registry_strategy
 
     ft = (file_type or file_type_of(path)).lower().lstrip(".")
     strategy = registry_strategy(ft)
@@ -241,13 +236,13 @@ def project_for_machine(
             note="This file has no readable content yet.",
         )
 
-    # The binary members of the text family (pdf/docx/doc) reach their text
+    # The binary members of the text family (pdf, the office family) reach their text
     # projection through `services.documents.extract_text`, which operates on
     # BYTES at upload time. THIS path receives `workspace_files.content` — already
     # text — so a binary body arriving here has no meaningful text form. Emitting
     # it would be the exact DP34 violation this module exists to close (raw
     # container handed over and assumed readable: `%PDF-1.4 …`). Mark it instead.
-    if ft in _BINARY_TEXT_FAMILY:
+    if is_binary_text_family(ft):
         return Projection(
             strategy="deferred",
             note="This file type can't be previewed yet — open it in yarnnn to view it.",

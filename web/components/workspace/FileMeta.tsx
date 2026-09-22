@@ -32,7 +32,7 @@ export function FileMeta({ file, iconSize = 'sm', trailing, className }: FileMet
       <div className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{filename}</span>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-          <span>{describeViewerApplication(file.path, file.content_type)}</span>
+          <span>{describeViewerApplication(file.path, file.content_type, file.view)}</span>
           {trailing}
         </div>
       </div>

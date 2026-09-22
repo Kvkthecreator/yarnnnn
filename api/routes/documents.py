@@ -140,21 +140,10 @@ MAX_MEDIA_SIZE = 100 * 1024 * 1024      # 100MB — movie/audio (versioned binar
                                         # global upload limit — infra config a
                                         # gate cannot see; verify in dashboard.
 
-# Extension resolution for the EXTRACTOR (which parser reads the bytes) —
-# derived-type-first, filename fallback. Not a gate.
-_MIME_EXTS = {
-    "application/pdf": "pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-    "text/plain": "txt",
-    "text/markdown": "md",
-    "text/csv": "csv",
-    "text/html": "html",
-    "application/json": "json",
-    "application/yaml": "yaml",
-    "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
-    "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
-    "audio/mpeg": "mp3", "audio/wav": "wav", "audio/mp4": "m4a", "audio/ogg": "ogg",
-}
+# `_MIME_EXTS` (MIME → extension, for a name with no extension) was DELETED by
+# ADR-395 am.2 D14 — a hand-kept inverse of the format registry that had
+# already fallen behind it (no xlsx, no pptx). `file_formats.ext_for_mime` is
+# the same lookup, read off the one table.
 
 
 def _intake_verdict(filename: str, head: bytes) -> tuple[Optional[str], Optional[str], bool]:
@@ -175,7 +164,8 @@ def _intake_verdict(filename: str, head: bytes) -> tuple[Optional[str], Optional
     ext = (filename or "").rsplit(".", 1)[-1].lower() if "." in (filename or "") else ""
     # ADR-395 am.1 D8 — the member's EXTENSION wins over the derived MIME here.
     #
-    # `_MIME_EXTS.get(mime) or ext` read the parser table first, which was safe
+    # `_MIME_EXTS.get(mime) or ext` (the parser table, since folded into the
+    # format registry — am.2 D14) read the MIME first, which was safe
     # while the allowlist admitted only formats that table knew. With the door
     # open it is not: `derive_content_type` falls back to `text/markdown` for any
     # unsignatured head that happens to be utf-8-decodable (a NUL-padded binary
@@ -183,7 +173,9 @@ def _intake_verdict(filename: str, head: bytes) -> tuple[Optional[str], Optional
     # bytes would be handed to the TEXT extractor — DP34's own diagnostic test,
     # failing. The extension is what the member and the registry both name a
     # format by; the MIME table is consulted only when there is no extension.
-    file_type = ext or _MIME_EXTS.get(mime) or "bin"
+    from services.file_formats import ext_for_mime
+
+    file_type = ext or ext_for_mime(mime) or "bin"
     return mime, file_type, is_media
 
 

@@ -67,6 +67,16 @@ class FileResponse(BaseModel):
     # (the file is its own preview).
     projection_preview: Optional[str] = None
     projection_truncated: bool = False
+    # ADR-395 am.2 D15: the VIEW KIND this file's format draws with, from the
+    # format registry (`services/file_formats.py`). The client binds kind →
+    # component; it never re-derives the kind when this is present. None means
+    # the registry does not declare the format (the client falls back to its
+    # extension cache, held in parity with the registry by the ADR-395 gate).
+    view: Optional[str] = None
+    # ADR-395 am.2 D16: the formats THIS file can be written as (`docx` ·
+    # `pptx` · `xlsx`) — per file, since a `.pptx` target needs the artifact's
+    # own declared type. [] when none; None only when the decoration failed.
+    export_as: Optional[list[str]] = None
 
 
 class FileEditRequest(BaseModel):
@@ -831,6 +841,22 @@ def _readable_fields(auth, path: str, content_type: Optional[str]) -> dict:
     }
 
 
+def _format_fields(path: str, content: Optional[str]) -> dict:
+    """The am.2 D15/D16 fields — `view` + `export_as` — from the format registry.
+
+    Same contract as `access` and `readable`: the server decides, the client
+    reads. Never raises — a failure serves None for both, which the client
+    reads as "unknown" (extension fallback for the view; no save-as offered).
+    """
+    try:
+        from services.file_formats import served_capabilities
+
+        return served_capabilities(path, content)
+    except Exception as exc:  # noqa: BLE001 — a decoration never breaks a read
+        logger.warning("[WORKSPACE_API] format decoration failed for %s: %s", path, exc)
+        return {"view": None, "export_as": None}
+
+
 def _access_or_none(auth, path: str) -> Optional[dict]:
     """The viewer's decision for one path, or None if it could not be taken.
 
@@ -1265,6 +1291,7 @@ async def get_workspace_file(
             head_version_id=row.get("head_version_id"),
             access=_access_or_none(auth, row["path"]),
             **_readable_fields(auth, row["path"], row.get("content_type")),
+            **_format_fields(row["path"], row.get("content")),
         )
 
     except HTTPException:

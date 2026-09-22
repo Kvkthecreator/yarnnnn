@@ -37,12 +37,12 @@ export function ArtifactThumb({
   className,
 }: {
   /** The loaded file; undefined/null renders the placeholder frame. */
-  file?: Pick<WorkspaceFile, 'path' | 'content' | 'content_type' | 'content_url'> | null;
+  file?: Pick<WorkspaceFile, 'path' | 'content' | 'content_type' | 'content_url' | 'view'> | null;
   className?: string;
 }) {
   if (!file) return <Placeholder className={className} />;
 
-  const kind = resolveViewerApplication(file.path, file.content_type);
+  const kind = resolveViewerApplication(file.path, file.content_type, file.view);
 
   // html — scale a real render down (the ADR-447 navigator technique).
   if (kind === 'html') {

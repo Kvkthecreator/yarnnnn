@@ -6,6 +6,12 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## HWP / HWPX extraction not yet driven on a Hancom-authored file (2026-09-23)
+
+ADR-395 am.2 D18 reads both in-process, but the gate's fixtures are BUILT (an OWPML zip, a hand-written
+OLE file) — Hancom Office was not available. Upload one real `.hwp` and one real `.hwpx` through Files and
+check the "what it says" preview carries the body and table text with no control-code junk. Delete once seen.
+
 ## Vercel skip rule not yet observed skipping (2026-09-23)
 
 `web/vercel.json` (`037f838`) skips builds unless `web/` or `content/` changed. Unverified on Vercel:

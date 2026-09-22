@@ -616,7 +616,7 @@ function FileView({
                     agent-authored). Who-authored lives in "Last edited by" +
                     the Properties Contributors row; content-edit-through-chat is
                     the universal rule, not a per-file badge. */}
-                <span>{describeViewerApplication(file.path, file.content_type)}</span>
+                <span>{describeViewerApplication(file.path, file.content_type, file.view)}</span>
                 {file.updated_at && <span>{formatTimestamp(file.updated_at, true)}</span>}
                 {file.content_type && <span>{file.content_type}</span>}
                 {/* ADR-236 Cluster B: surface head-revision authorship.

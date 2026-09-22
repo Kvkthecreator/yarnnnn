@@ -44,7 +44,8 @@ def main() -> int:
         extract_text_from_html,
         project_for_machine,
     )
-    from services.primitives.extract_text_from_blob import registry_strategy
+    # ADR-395 am.2 D14: the derive-registry is a column of the format registry.
+    from services.file_formats import registry_strategy
 
     shares_src = Path(__file__).parent.joinpath("routes/shares.py").read_text(encoding="utf-8")
     proj_src = Path(__file__).parent.joinpath("services/machine_projection.py").read_text(
@@ -58,7 +59,10 @@ def main() -> int:
     results.append(_check(
         "D1b images pass through; unknown formats defer",
         registry_strategy("png") == "passthrough"
-        and registry_strategy("xlsx") == "deferred"
+        # Was `xlsx` — stale since ADR-395 am.1 D10 made xlsx readable, and the
+        # arm stayed RED against a correct product. The claim is "an unknown
+        # format defers", so it now names formats nobody reads.
+        and registry_strategy("sketch") == "deferred"
         and registry_strategy("wat") == "deferred"))
 
     # The exact defect: a call-site suffix test deciding a KIND. The boundary
@@ -109,7 +113,9 @@ def main() -> int:
 
     # The sandbox is NOT loosened. This is the check that stops a future session
     # reading "we extract text now" as "we may inline HTML".
-    page = _strip_comments((WEB / "app/s/[token]/page.tsx").read_text(encoding="utf-8"))
+    # ADR-661 (d8b1542) renamed the share page to `page.web.tsx` (the web build
+    # target); the arm crashed on the old name and reported nothing.
+    page = _strip_comments((WEB / "app/s/[token]/page.web.tsx").read_text(encoding="utf-8"))
     results.append(_check(
         "D2d the locked sandbox survives and nothing is inlined",
         'sandbox=""' in page
@@ -176,7 +182,8 @@ def main() -> int:
     results.append(_check(
         "D4c it carries the capability headers on every exit",
         "_CAPABILITY_HEADERS" in alias_fn))
-    alias = (WEB / "app/s/[token]/txt/route.ts").read_text(encoding="utf-8")
+    # renamed to route.web.ts by ADR-661 (d8b1542); the arm crashed on the old name.
+    alias = (WEB / "app/s/[token]/txt/route.web.ts").read_text(encoding="utf-8")
     results.append(_check(
         "D4d the app-domain alias is a pure transport hop (no second projection)",
         "project" not in _strip_comments(alias).lower()

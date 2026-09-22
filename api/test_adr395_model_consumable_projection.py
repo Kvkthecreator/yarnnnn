@@ -272,11 +272,15 @@ def test_second_upload_same_name_does_not_clobber():
     ("xlsx", "text"), ("pptx", "text"),
     ("png", "passthrough"), ("jpg", "passthrough"),
     ("zip", "deferred"), ("mp3", "deferred"),
+    # ADR-395 am.2 D17 — `doc` LEAVES the text family: python-docx cannot open
+    # an OLE `.doc`, so it only ever reached the marker while the registry
+    # claimed it readable. D18 — the Hancom pair joins.
+    ("doc", "deferred"), ("hwp", "text"), ("hwpx", "text"),
     ("wat-is-this", "deferred"),  # unknown = retained-not-consumable, never a break
     (None, "deferred"),
 ])
 def test_registry_strategy_verdicts(ft, expected):
-    from services.primitives.extract_text_from_blob import registry_strategy
+    from services.file_formats import registry_strategy
     assert registry_strategy(ft) == expected
 
 
@@ -800,3 +804,465 @@ def test_am1_d13_needsblob_is_gone_and_stays_gone():
     code = re.sub(r"//.*$", "", src, flags=re.MULTILINE)
     code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
     assert "needsBlob" not in code, "the dead registry field is back"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ADR-395 Amendment 2 (2026-09-23) — the format harness
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _code(path: Path) -> str:
+    """Python source with `#` comments stripped — so an arm cannot match the
+    comment that explains a deletion (the ADR-588 lesson)."""
+    import re
+    return "\n".join(re.sub(r"#.*$", "", line) for line in path.read_text(encoding="utf-8").splitlines())
+
+
+def test_am2_d14_the_superseded_format_tables_are_gone():
+    """D14 — ONE table. The five hand-kept copies are DELETED, not aliased.
+
+    Asserted on the live modules (an attribute that exists is a second home,
+    however it was spelled), not on source text: a rename that EXTENDS a name
+    satisfies a substring check.
+    """
+    import importlib
+
+    gone = {
+        "services.primitives.extract_text_from_blob": (
+            "_TEXT_FORMATS", "_PASSTHROUGH_FORMATS", "_DEFERRED_FORMATS"),
+        "services.content_types": ("_ZIP_EXT_MIMES",),
+        "services.machine_projection": ("_BINARY_TEXT_FAMILY",),
+        "services.documents": ("IMAGE_TYPES", "upload_mime"),
+        "routes.documents": ("_MIME_EXTS",),
+    }
+    for module, names in gone.items():
+        mod = importlib.import_module(module)
+        for name in names:
+            assert not hasattr(mod, name), f"{module}.{name} is back — a second format table"
+    # The primitive READS the registry; it does not export a copy of it.
+    from services.primitives import extract_text_from_blob as prim
+    assert "registry_strategy" not in prim.__all__
+
+
+def test_am2_d14_no_office_extension_literal_outside_the_registry():
+    """D14 — a format name in a string literal anywhere else is a second table.
+
+    Scans every service and route for a quoted office/Hancom extension in CODE
+    (comments stripped). The registry is the one place a format is named.
+    """
+    import re
+    # Bare "doc" is omitted: it is an ordinary word elsewhere (a design-system
+    # file class), and D17 is asserted on the registry itself below.
+    pat = re.compile(r"""['"]\.?(docx|xlsx|pptx|hwpx|hwp)['"]""")
+    registry = ROOT / "services" / "file_formats.py"
+    hits = []
+    for top in (ROOT / "services", ROOT / "routes"):
+        for path in top.rglob("*.py"):
+            if path == registry:
+                continue
+            for n, line in enumerate(_code(path).splitlines(), 1):
+                if pat.search(line):
+                    hits.append(f"{path.relative_to(ROOT)}:{n}: {line.strip()[:90]}")
+    assert not hits, "format names outside the registry:\n" + "\n".join(hits)
+
+
+def test_am2_d14_every_row_is_one_mime_one_base_one_home():
+    """D14 driven — the MIME and conformance tables are DERIVED from the rows.
+
+    For every declared extension: the path derives to the row's MIME, a zip
+    container with the PK signature derives to its own MIME (not application/
+    zip), and the MIME conforms to the row's base.
+    """
+    from services.content_types import conforms_to, derive_content_type
+    from services.file_formats import FORMATS, format_for
+
+    seen = set()
+    for fmt in FORMATS:
+        for ext in fmt.exts:
+            assert ext not in seen, f".{ext} is declared twice"
+            seen.add(ext)
+            assert format_for(ext) is fmt and format_for(f".{ext.upper()}") is fmt
+            assert derive_content_type(f"/w/a.{ext}") == fmt.mime, ext
+            assert conforms_to(fmt.mime, fmt.base), (ext, fmt.mime, fmt.base)
+            assert fmt.projection in ("text", "passthrough", "deferred"), ext
+            if fmt.extractor is not None:
+                assert fmt.projection == "text", f".{ext} has a parser but is not read"
+    # Zip containers are named HERE, independently of the rows' own flag: an
+    # arm conditioned on `fmt.zip_container` stays green when the flag is lost
+    # (found by falsifying it). With the PK signature in hand, each must still
+    # derive to its own MIME rather than application/zip.
+    head = b"PK\x03\x04" + b"\x00" * 20
+    for ext in ("docx", "xlsx", "pptx", "hwpx"):
+        assert derive_content_type(f"/w/a.{ext}", head) == format_for(ext).mime, \
+            f".{ext} with a zip signature derived to a generic archive"
+
+
+def test_am2_d14_extract_text_dispatches_through_the_row():
+    """D14 — the parser table IS the registry: `extract_text` names no format.
+
+    An if-chain over extensions was the second copy that let `doc` reach
+    python-docx (which cannot open it). Checked on the function's AST, so a
+    comment or docstring cannot satisfy or break it.
+    """
+    import ast
+    from services.file_formats import FORMATS
+
+    tree = ast.parse((ROOT / "services" / "documents.py").read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.AsyncFunctionDef) and n.name == "extract_text")
+    names = {ext for f in FORMATS for ext in f.exts} | {"doc"}
+    literals = {
+        n.value for n in ast.walk(fn)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value in names
+    }
+    assert not literals, f"extract_text re-derives formats: {sorted(literals)}"
+    assert any(isinstance(n, ast.Attribute) and n.attr == "extractor" for n in ast.walk(fn)), \
+        "extract_text does not read the row's extractor"
+
+
+def test_am2_d17_doc_is_not_claimed_readable():
+    """D17 — the one-line truth fix. `.doc` is an OLE file python-docx cannot
+    open: listing it as `text` sent every `.doc` to a parser that always failed
+    and then to the marker, while the registry said it was readable."""
+    from services.file_formats import format_for, is_binary_text_family, registry_strategy
+
+    assert format_for("doc") is None
+    assert registry_strategy("doc") == "deferred"
+    assert not is_binary_text_family("doc")
+    for ft in ("pdf", "docx", "xlsx", "pptx", "hwp", "hwpx"):
+        assert is_binary_text_family(ft), f"{ft} left the binary text family"
+    for ft in ("md", "txt", "csv", "html", "png", "zip"):
+        assert not is_binary_text_family(ft), ft
+
+
+# ── D15 — the view kind is served; the client's guess is held in parity ─────
+
+
+def test_am2_d15_office_formats_declare_their_view_kinds():
+    from services.file_formats import served_capabilities
+
+    assert served_capabilities("/w/q3.xlsx")["view"] == "spreadsheet"
+    assert served_capabilities("/w/brief.docx")["view"] == "wordprocessing"
+    assert served_capabilities("/w/deck.pptx")["view"] == "presentation"
+    # Undeclared → None: the server has no opinion, and says so.
+    assert served_capabilities("/w/model.sketch") == {"view": None, "export_as": []}
+
+
+def test_am2_d15_d16_the_file_read_serves_the_format_fields():
+    """D15/D16 — wired into THE file read, and degrading to None, never a 500.
+
+    Anchored on the FileResponse construction inside `get_file`, not on the
+    whole file — the same helper name could appear at another mount.
+    """
+    src = _code(ROOT / "routes" / "workspace.py")
+    ctor = src.split("return FileResponse(", 1)[1].split("\n        )", 1)[0]
+    assert '_format_fields(row["path"], row.get("content"))' in ctor, \
+        "the file read does not carry view/export_as"
+    helper = src.split("def _format_fields(", 1)[1].split("\ndef ", 1)[0]
+    assert "served_capabilities(" in helper, "the route re-derives instead of reading the registry"
+    assert "except Exception" in helper and '"view": None' in helper, \
+        "the format decoration can break a read"
+    from routes.workspace import FileResponse
+    assert {"view", "export_as"} <= set(FileResponse.model_fields)
+
+
+_PARITY_PROBE = r"""
+// `node -e`: argv[1] is the first argument after the script.
+const { transform } = require(process.argv[1]);
+const fs = require('fs'); const path = require('path');
+const load = (file, req) => {
+  const m = { exports: {} };
+  new Function('module', 'exports', 'require',
+    transform(fs.readFileSync(file, 'utf8'), { transforms: ['typescript', 'imports'] }).code
+  )(m, m.exports, req);
+  return m.exports;
+};
+const web = process.argv[2];
+const _load = (spec) => {
+  if (!spec.startsWith('@/')) return {};
+  const base = path.join(web, spec.slice(2));
+  const file = ['.ts', '.tsx', '/index.ts'].map((e) => base + e).find((f) => fs.existsSync(f));
+  return file ? load(file, _load) : {};
+};
+const mod = load(path.join(web, 'lib/file-types/index.ts'), _load);
+const rows = JSON.parse(process.argv[3]);
+const out = { mismatches: [], served_wins: [], unknown_served_falls_back: null };
+for (const [ext, view] of rows) {
+  const guess = mod.resolveViewerApplication(`/w/a.${ext}`);
+  if (guess !== view) out.mismatches.push([ext, view, guess]);
+  // The served value beats a contradicting content type.
+  const won = mod.resolveViewerApplication(`/w/a.${ext}`, 'application/octet-stream', view);
+  if (won !== view) out.served_wins.push([ext, view, won]);
+}
+out.unknown_served_falls_back =
+  mod.resolveViewerApplication('/w/a.pdf', undefined, 'no-such-kind') === 'pdf';
+out.served_overrides_extension =
+  mod.resolveViewerApplication('/w/a.bin', undefined, 'spreadsheet') === 'spreadsheet';
+console.log(JSON.stringify(out));
+"""
+
+
+def _sucrase() -> str:
+    web = ROOT.parent / "web"
+    direct = web / "node_modules" / "sucrase"
+    if direct.exists():
+        return str(direct)
+    store = sorted((web / "node_modules" / ".pnpm").glob("sucrase@*/node_modules/sucrase"))
+    return str(store[-1]) if store else str(direct)
+
+
+def test_am2_d15_the_client_guess_matches_the_server_for_every_declared_format():
+    """D15 — EXECUTED parity: the client's pre-fetch extension cache must give
+    the answer the fetch returns, for every extension the registry declares.
+
+    A mirrored table drifts (the ADR-658 am.5 lesson), and the symptom here
+    would be a file that draws one way in a tree row and another once opened.
+    The TS is transpiled and CALLED — never grepped.
+    """
+    import json
+    import shutil
+    import subprocess
+    from services.file_formats import FORMATS
+
+    if not shutil.which("node"):
+        pytest.fail("node is not installed — the parity arm cannot run (a gate that cannot run reports nothing)")
+    rows = [[ext, f.view] for f in FORMATS for ext in f.exts]
+    proc = subprocess.run(
+        ["node", "-e", _PARITY_PROBE, _sucrase(), str(ROOT.parent / "web"), json.dumps(rows)],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr[-800:]
+    out = json.loads(proc.stdout)
+    assert not out["mismatches"], f"client fallback disagrees with the registry: {out['mismatches']}"
+    assert not out["served_wins"], f"a served view lost to the content type: {out['served_wins']}"
+    assert out["unknown_served_falls_back"], "an unknown served kind was trusted"
+    assert out["served_overrides_extension"], "the served view does not win"
+
+
+def test_am2_d15_the_renderer_mount_passes_the_served_view():
+    """D15 — FileBody is THE dispatcher (ADR-436); it must hand over `file.view`."""
+    import re
+    web = ROOT.parent / "web"
+    src = (web / "components" / "workspace" / "FileBody.tsx").read_text(encoding="utf-8")
+    code = re.sub(r"//.*$", "", src, flags=re.MULTILINE)
+    assert "resolveApp(file.path, file.content_type, file.view)" in code, \
+        "FileBody ignores the server's view kind"
+    types = (web / "types" / "index.ts").read_text(encoding="utf-8")
+    body = types.split("export interface WorkspaceFile {", 1)[1].split("\n}", 1)[0]
+    assert "view?: string | null;" in body and "export_as?: ExportTarget[] | null;" in body
+
+
+# ── D16 — export targets, per file ──────────────────────────────────────────
+
+
+def test_am2_d16_export_targets_are_per_file():
+    from services.file_formats import export_targets
+
+    assert export_targets("/w/notes.md") == ["docx"]
+    assert export_targets("/w/data.csv") == ["xlsx"]
+    deck = '<html data-template="deck"><body></body></html>'
+    post = '<html data-template="post"><body></body></html>'
+    assert export_targets("/w/deck.html", deck) == ["docx", "pptx"]
+    assert export_targets("/w/post.html", post) == ["docx"], "a blog post was offered as a deck"
+    assert export_targets("/w/bare.html", "<p>no type</p>") == ["docx"]
+    assert export_targets("/w/q3.xlsx") == [] and export_targets("/w/x.sketch") == []
+
+
+def test_am2_d16_every_target_lands_readable():
+    """D16 — what the writer produces must be a format yarnnn reads back.
+
+    A target the registry cannot extract would mint a file that immediately
+    takes the "cannot read" marker: an export that leaves the agent blind.
+    """
+    from services.file_formats import FORMATS, format_for
+
+    for fmt in FORMATS:
+        for target in fmt.export_as:
+            row = format_for(target.to)
+            assert row is not None and row.projection == "text" and row.extractor, \
+                f".{fmt.exts[0]} → .{target.to}, which yarnnn cannot read back"
+
+
+# ── D18 — the Hancom pair, driven over files built here ─────────────────────
+
+
+_HWPX_SECTION = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hs:sec [<!ENTITY leak SYSTEM "file:///etc/hosts">]>
+<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section"
+        xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+  <hp:p><hp:run><hp:t>{title}</hp:t></hp:run></hp:p>
+  <hp:p>
+    <hp:run><hp:t>본문 첫 줄<hp:tab/>이어서</hp:t></hp:run>
+    <hp:run><hp:tbl><hp:tr>
+      <hp:tc><hp:subList><hp:p><hp:run><hp:t>항목</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+      <hp:tc><hp:subList><hp:p><hp:run><hp:t>금액</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+    </hp:tr><hp:tr>
+      <hp:tc><hp:subList><hp:p><hp:run><hp:t>인건비</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+      <hp:tc><hp:subList><hp:p><hp:run><hp:t>1,200</hp:t></hp:run></hp:p></hp:subList></hp:tc>
+    </hp:tr></hp:tbl></hp:run>
+  </hp:p>
+  <hp:p><hp:run><hp:t>&leak;</hp:t></hp:run></hp:p>
+</hs:sec>"""
+
+
+def _hwpx(sections: dict) -> bytes:
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("mimetype", "application/hwp+zip")
+        zf.writestr("Contents/header.xml", "<hh:head xmlns:hh='x'><hh:t>NOT BODY</hh:t></hh:head>")
+        for name, title in sections.items():
+            zf.writestr(f"Contents/{name}.xml", _HWPX_SECTION.format(title=title))
+    return buf.getvalue()
+
+
+def test_am2_d18_hwpx_reads_paragraphs_tables_and_section_order():
+    from services.documents import extract_text
+
+    text, sections = asyncio.run(extract_text(
+        _hwpx({"section10": "열번째 구역", "section2": "두번째 구역"}), "hwpx"))
+    assert sections == 2
+    assert text.index("두번째 구역") < text.index("열번째 구역"), \
+        "sections read in string order (section10 before section2)"
+    assert "본문 첫 줄" in text and "이어서" in text
+    assert "항목\t금액" in text and "인건비\t1,200" in text, "the table was not read as rows"
+    assert text.count("인건비") == 2, "a table cell was printed twice (once per section is right)"
+    assert "NOT BODY" not in text, "a non-body part was read as content"
+    assert "localhost" not in text, "an external entity was resolved — XXE"
+
+
+def _cfb(streams: dict) -> bytes:
+    """A minimal OLE compound file (v3, 512-byte sectors) — enough for olefile.
+
+    Every stream is padded to >= 4096 bytes so it lives in the regular FAT
+    (the mini-stream is not needed for a fixture). `streams` maps a path
+    tuple → bytes; one storage level is supported, which is what HWP uses.
+    """
+    import struct
+    SECT, END, FREE, FATSECT, NOSTREAM = 512, 0xFFFFFFFE, 0xFFFFFFFF, 0xFFFFFFFD, 0xFFFFFFFF
+    datas, entries = [], []  # entries: (name, type, child, left, right, start, size)
+    entries.append(["Root Entry", 5, NOSTREAM, NOSTREAM, NOSTREAM, END, 0])
+    storages = {}
+    next_sector = 2
+    for path, data in streams.items():
+        if len(path) == 2 and path[0] not in storages:
+            storages[path[0]] = len(entries)
+            entries.append([path[0], 1, NOSTREAM, NOSTREAM, NOSTREAM, 0, 0])
+        padded = data + b"\x00" * (max(4096, -(-len(data) // SECT) * SECT) - len(data))
+        idx = len(entries)
+        entries.append([path[-1], 2, NOSTREAM, NOSTREAM, NOSTREAM, next_sector, len(padded)])
+        datas.append((next_sector, padded))
+        next_sector += len(padded) // SECT
+        parent = entries[storages[path[0]]] if len(path) == 2 else entries[0]
+        if parent[2] == NOSTREAM:
+            parent[2] = idx
+        else:  # chain as right siblings of the parent's first child
+            sib = parent[2]
+            while entries[sib][4] != NOSTREAM:
+                sib = entries[sib][4]
+            entries[sib][4] = idx
+    # storages hang off the root, as right siblings too
+    for sidx in storages.values():
+        root = entries[0]
+        if root[2] == NOSTREAM:
+            root[2] = sidx
+        else:
+            sib = root[2]
+            while entries[sib][4] != NOSTREAM:
+                sib = entries[sib][4]
+            entries[sib][4] = sidx
+    fat = [FREE] * 128
+    fat[0], fat[1] = FATSECT, END
+    for start, padded in datas:
+        n = len(padded) // SECT
+        for k in range(n):
+            fat[start + k] = start + k + 1 if k < n - 1 else END
+    header = bytearray(512)
+    header[0:8] = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+    struct.pack_into("<HHHHH", header, 24, 0x3E, 3, 0xFFFE, 9, 6)
+    struct.pack_into("<IIIIIIII", header, 44, 1, 1, 0, 0x1000, END, 0, END, 0)
+    struct.pack_into("<I", header, 76, 0)
+    for i in range(1, 109):
+        struct.pack_into("<I", header, 76 + 4 * i, FREE)
+    dirs = bytearray()
+    for name, typ, child, left, right, start, size in entries:
+        e = bytearray(128)
+        raw = name.encode("utf-16-le")
+        e[0:len(raw)] = raw
+        struct.pack_into("<HBB", e, 64, len(raw) + 2, typ, 1)
+        struct.pack_into("<III", e, 68, left, right, child)
+        struct.pack_into("<II", e, 116, start, size)
+        dirs += e
+    dirs += b"\x00" * (SECT - len(dirs) % SECT if len(dirs) % SECT else 0)
+    assert len(dirs) == SECT, "fixture supports one directory sector"
+    body = bytearray(struct.pack("<128I", *fat)) + dirs
+    for _, padded in datas:
+        body += padded
+    return bytes(header) + bytes(body)
+
+
+def _hwp_record(tag: int, payload: bytes) -> bytes:
+    import struct
+    if len(payload) >= 0xFFF:
+        return struct.pack("<II", tag | (0xFFF << 20), len(payload)) + payload
+    return struct.pack("<I", tag | (len(payload) << 20)) + payload
+
+
+def _hwp_units(*parts) -> bytes:
+    """UTF-16LE text, with ints as raw control units."""
+    out = bytearray()
+    for p in parts:
+        out += p.encode("utf-16-le") if isinstance(p, str) else p.to_bytes(2, "little")
+    return bytes(out)
+
+
+def _hwp(*, compressed: bool, password: bool = False) -> bytes:
+    import zlib
+    table_ctrl = [11, *[ord(c) for c in " lbt"], 0x4141, 0x4242, 11]  # 8 units, junk payload ≥ 32
+    tab_ctrl = [9, 0x5858, 0x5959, 0x5A5A, 0x5A5A, 0x5A5A, 0x5A5A, 9]
+    long_para = "가" * 2100  # > 4095 bytes → the extended-size record header
+    section = b"".join([
+        _hwp_record(66, b"\x00" * 22),                               # PARA_HEADER (ignored)
+        _hwp_record(67, _hwp_units("사업계획서 ", *tab_ctrl, "요약", *table_ctrl, 13)),
+        _hwp_record(67, _hwp_units("셀 내용", 13)),                   # a table cell's paragraph
+        _hwp_record(68, b"\x01\x02\x03\x04"),                        # PARA_CHAR_SHAPE (ignored)
+        _hwp_record(67, _hwp_units(long_para, 13)),
+    ])
+    if compressed:
+        c = zlib.compressobj(9, zlib.DEFLATED, -15)
+        section = c.compress(section) + c.flush()
+    flags = (1 if compressed else 0) | (2 if password else 0)
+    file_header = b"HWP Document File".ljust(32, b"\x00") + bytes([0, 3, 0, 5]) + flags.to_bytes(4, "little")
+    return _cfb({("FileHeader",): file_header.ljust(256, b"\x00"),
+                 ("BodyText", "Section0"): section})
+
+
+@pytest.mark.parametrize("compressed", [True, False])
+def test_am2_d18_hwp5_reads_paragraph_text_and_skips_controls(compressed):
+    pytest.importorskip("olefile")
+    from services.documents import extract_text
+
+    text, sections = asyncio.run(extract_text(_hwp(compressed=compressed), "hwp"))
+    assert sections == 1
+    assert "사업계획서" in text and "요약" in text and "셀 내용" in text
+    assert "\t" in text, "the tab control was not kept as a tab"
+    for junk in ("XX", "YY", "AA", "BB", "lbt"):
+        assert junk not in text, f"a control's payload leaked into the text ({junk})"
+    assert "가" * 2100 in text, "the extended-size record header was misread"
+
+
+def test_am2_d18_a_locked_hwp_reads_empty_and_takes_the_marker():
+    """D18 — a password-protected HWP has no readable body. Empty, not garbage:
+    the upload then takes the am.1 D9 marker instead of a projection of noise."""
+    pytest.importorskip("olefile")
+    from services.documents import extract_text
+
+    assert asyncio.run(extract_text(_hwp(compressed=True, password=True), "hwp")) == ("", 0)
+    assert asyncio.run(extract_text(b"not an ole file", "hwp")) == ("", 0)
+
+
+def test_am2_d18_olefile_reaches_both_services():
+    """D18 — both Render services install from api/requirements.txt."""
+    import re
+    reqs = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+    assert re.search(r"^olefile\b", reqs, re.MULTILINE), "olefile is not a declared dependency"

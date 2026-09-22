@@ -20,10 +20,13 @@ from __future__ import annotations
 
 from typing import Optional
 
+from services.file_formats import FORMATS as _FORMATS
+from services.file_formats import ext_of as _ext
+
 # ---------------------------------------------------------------------------
 # Magic-byte signatures (checked against the blob's leading bytes; first match
 # wins, ordered specific-before-general). The path extension is the tiebreaker
-# for container formats (zip → docx/xlsx/pptx) and the fallback when no bytes
+# for container formats (zip → docx/xlsx/pptx/hwpx) and the fallback when no bytes
 # are available.
 # ---------------------------------------------------------------------------
 
@@ -44,34 +47,20 @@ _MAGIC: list[tuple[bytes, int, str]] = [
 # RIFF containers share a 4-byte prefix; the format tag is at offset 8.
 _RIFF_FORMATS = {b"WEBP": "image/webp", b"WAVE": "audio/wav", b"AVI ": "video/x-msvideo"}
 
-# Zip-based container formats disambiguated by extension.
-_ZIP_EXT_MIMES = {
-    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+# ADR-395 am.2 D14 — the extension tables are DERIVED from the format registry
+# (`services/file_formats.py`), never restated here. `_ZIP_EXT_MIMES` and a
+# hand-kept `_EXT_MIMES` literal were deleted: they were the MIME column of a
+# table that four other modules also kept a column of.
+# Zip-based container formats disambiguated by extension (docx/xlsx/pptx/hwpx).
+_ZIP_CONTAINER_MIMES = {
+    ext: f.mime for f in _FORMATS if f.zip_container for ext in f.exts
 }
 
 # Extension fallback (no bytes available, or bytes were inconclusive).
-_EXT_MIMES = {
-    "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
-    "gif": "image/gif", "webp": "image/webp", "svg": "image/svg+xml",
-    "pdf": "application/pdf",
-    "mp4": "video/mp4", "mov": "video/quicktime", "webm": "video/webm",
-    "mp3": "audio/mpeg", "wav": "audio/wav", "m4a": "audio/mp4", "ogg": "audio/ogg",
-    "md": "text/markdown", "txt": "text/plain", "csv": "text/csv",
-    "html": "text/html", "json": "application/json",
-    "yaml": "application/yaml", "yml": "application/yaml",
-    "zip": "application/zip",
-    **_ZIP_EXT_MIMES,
-}
+_EXT_MIMES = {ext: f.mime for f in _FORMATS for ext in f.exts}
 
 _DEFAULT_TEXT = "text/markdown"       # the substrate's historic text default
 _DEFAULT_BINARY = "application/octet-stream"
-
-
-def _ext(path: Optional[str]) -> str:
-    name = (path or "").rsplit("/", 1)[-1]
-    return name.rsplit(".", 1)[-1].lower() if "." in name else ""
 
 
 def derive_content_type(path: Optional[str], head: Optional[bytes] = None) -> str:
@@ -93,7 +82,7 @@ def derive_content_type(path: Optional[str], head: Optional[bytes] = None) -> st
             if riff:
                 return riff
         if head[:4] == b"PK\x03\x04":
-            return _ZIP_EXT_MIMES.get(_ext(path), "application/zip")
+            return _ZIP_CONTAINER_MIMES.get(_ext(path), "application/zip")
     ext = _ext(path)
     if ext in _EXT_MIMES:
         return _EXT_MIMES[ext]
@@ -118,22 +107,12 @@ _BASES = {
 }
 
 _CONFORMS: dict[str, str] = {
-    # concrete MIME → immediate base
-    "image/png": "public.image", "image/jpeg": "public.image",
-    "image/gif": "public.image", "image/webp": "public.image",
-    "image/svg+xml": "public.image",
-    "video/mp4": "public.movie", "video/quicktime": "public.movie",
-    "video/webm": "public.movie", "video/x-msvideo": "public.movie",
-    "audio/mpeg": "public.audio", "audio/wav": "public.audio",
-    "audio/mp4": "public.audio", "audio/ogg": "public.audio",
-    "application/pdf": "public.data",
-    "application/zip": "public.data",
-    "application/json": "public.text",
-    "application/yaml": "public.text",
+    # concrete MIME → immediate base, one row per declared format (am.2 D14).
+    # `video/x-msvideo` arrives by RIFF sniff; `.avi` declares it too.
+    **{f.mime: f.base for f in _FORMATS},
     # every base conforms to public.data (the root)
     "public.image": "public.data", "public.movie": "public.data",
     "public.audio": "public.data", "public.text": "public.data",
-    **{m: "public.data" for m in _ZIP_EXT_MIMES.values()},
 }
 
 

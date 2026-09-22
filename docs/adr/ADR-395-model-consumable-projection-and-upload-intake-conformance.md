@@ -1,6 +1,6 @@
 # ADR-395 — The Model-Consumable Projection: upload intake conformance (retain raw · derive projection · host-gated raw reference)
 
-> **Status**: **Accepted** (canon ratified 2026-07-01 — **Phase 0 done**: FOUNDATIONS Derived Principle 34 landed at v9.14 + the DP32 cross-reference sentence. **Phase 1 (A+B) shipped to main 2026-07-01** [commit `542740e`/merge `d45d0b0`]: raw blob lands at `inbound/uploads/{principal}/{slug}.{ext}` via `content_url` [stable `/api/documents/blob` redirect]; `ExtractTextFromBlob` primitive derives the co-located `.extracted.md` text projection citing the raw via `derived_from`, invoked INLINE [refined from "capture-lane hook" — an upload is one-shot, zero-LLM in-request]. **Phase-1 completeness closeout (2026-07-02)**: an audit found two shipped defects the initial land missed — (i) the projection landed at `inbound/uploads/*.extracted.md`, a lane that was NOT embed-eligible (roots were `operation/`+`uploads/` only) AND outside `QueryKnowledge`'s hard `/workspace/operation/` search prefix, so the projection was never embedded and was unreachable by `recall` — the §4-Piece-B "closes the searchability gap" claim was aspirational, not real. Fixed: `inbound/uploads/` added to `_EMBED_ELIGIBLE_ROOTS` + a shared `is_searchable_root` predicate, and `handle_query_knowledge`'s default (no-domain) sweep now spans the searchable surface (unscoped RPC + post-filter to searchable roots) rather than locking to `operation/`. (ii) `GET /documents/{path}/download` read `storage_path` only from frontmatter, which the new raw rows don't carry (storage is in `content_url`), so Download 404'd for every new upload — fixed to resolve `storage_path` from `content_url` first, legacy-frontmatter fallback retained. A dedicated `test_adr395_model_consumable_projection.py` gate now drives the real `process_document`+`ExtractTextFromBlob` path and asserts the projection is embed-eligible+recall-reachable — the regression guard the ADR-331 gate (which mocks `process_document`) could not provide. **Embedding-over-reach correction (2026-07-02)**: an OpenAI-quota outage (surfaced by live E2E validation) exposed that the intake path had drifted toward embedding-first coupling, against ADR-325's ratified discipline (*embedding is enrichment; the mechanical floor is load-bearing*). Two corrections, per the operator's re-derivation: (i) **recall is now mechanical-first** — `handle_query_knowledge` runs the free BM25 full-text path first and escalates to the paid semantic embed ONLY when BM25 comes up empty (confines the un-metered embedding COGS — the pricing carve's B′ line — to genuinely-fuzzy queries, and keeps the recall hot path off the external rate-limited API); (ii) **the upload embed is now DEFERRED** — `ExtractTextFromBlob` gains an `embed` flag (default true); `process_document` passes `embed=False` + reports `embed_pending`, and the upload route schedules the embed via FastAPI `BackgroundTasks` AFTER the response, so a rate-limited/slow OpenAI call never blocks or breaks the upload (the projection is BM25-searchable the instant the response returns; the embedding enrichment catches up). ADR-325's upload auto-embed exception (D6, operator-initiated, not Reviewer-gated) is PRESERVED — only its *timing* moves from synchronous to deferred. Gate 21/21 (adds deferred-embed + mechanical-first assertions). **Phase 2 [C] is CLOSED by ADR-621** (§4/§7 — the medium reason does not expire). **Phase 3 SHIPPED 2026-09-21 as Amendment 1 (§8)**: the intake door drops its format allowlist entirely (D8 — acceptance is conformance to `public.data`), a file with no projection is RETAINED and carries a legible marker instead of failing the upload (D9), and `xlsx`/`pptx` join the text family while the `docx` extractor is REPAIRED of silent table/header loss (D10). §8.7 scopes the sandbox horizon without adopting it. Gate 42/42, falsified six ways.). Ratifies **FOUNDATIONS Derived Principle 34** (the model-consumable projection — the consumption member of the perception cycle) and conforms the **human-upload** transport to it — the last context-in transport DP32 named but the code never fixed. **Substrate + Channel dimensions** (Axiom 1 — how an uploaded file is retained + derived; Axiom 6 — how a substrate object egresses to a model). Adds **one new primitive** (`ExtractTextFromBlob`), **one new capability flag** on the host profile, and **populates an existing-but-unused column** (`workspace_files.content_url`). Changes **no** existing write gate and **no** attribution taxonomy.
+> **Status**: **Accepted** (canon ratified 2026-07-01 — **Phase 0 done**: FOUNDATIONS Derived Principle 34 landed at v9.14 + the DP32 cross-reference sentence. **Phase 1 (A+B) shipped to main 2026-07-01** [commit `542740e`/merge `d45d0b0`]: raw blob lands at `inbound/uploads/{principal}/{slug}.{ext}` via `content_url` [stable `/api/documents/blob` redirect]; `ExtractTextFromBlob` primitive derives the co-located `.extracted.md` text projection citing the raw via `derived_from`, invoked INLINE [refined from "capture-lane hook" — an upload is one-shot, zero-LLM in-request]. **Phase-1 completeness closeout (2026-07-02)**: an audit found two shipped defects the initial land missed — (i) the projection landed at `inbound/uploads/*.extracted.md`, a lane that was NOT embed-eligible (roots were `operation/`+`uploads/` only) AND outside `QueryKnowledge`'s hard `/workspace/operation/` search prefix, so the projection was never embedded and was unreachable by `recall` — the §4-Piece-B "closes the searchability gap" claim was aspirational, not real. Fixed: `inbound/uploads/` added to `_EMBED_ELIGIBLE_ROOTS` + a shared `is_searchable_root` predicate, and `handle_query_knowledge`'s default (no-domain) sweep now spans the searchable surface (unscoped RPC + post-filter to searchable roots) rather than locking to `operation/`. (ii) `GET /documents/{path}/download` read `storage_path` only from frontmatter, which the new raw rows don't carry (storage is in `content_url`), so Download 404'd for every new upload — fixed to resolve `storage_path` from `content_url` first, legacy-frontmatter fallback retained. A dedicated `test_adr395_model_consumable_projection.py` gate now drives the real `process_document`+`ExtractTextFromBlob` path and asserts the projection is embed-eligible+recall-reachable — the regression guard the ADR-331 gate (which mocks `process_document`) could not provide. **Embedding-over-reach correction (2026-07-02)**: an OpenAI-quota outage (surfaced by live E2E validation) exposed that the intake path had drifted toward embedding-first coupling, against ADR-325's ratified discipline (*embedding is enrichment; the mechanical floor is load-bearing*). Two corrections, per the operator's re-derivation: (i) **recall is now mechanical-first** — `handle_query_knowledge` runs the free BM25 full-text path first and escalates to the paid semantic embed ONLY when BM25 comes up empty (confines the un-metered embedding COGS — the pricing carve's B′ line — to genuinely-fuzzy queries, and keeps the recall hot path off the external rate-limited API); (ii) **the upload embed is now DEFERRED** — `ExtractTextFromBlob` gains an `embed` flag (default true); `process_document` passes `embed=False` + reports `embed_pending`, and the upload route schedules the embed via FastAPI `BackgroundTasks` AFTER the response, so a rate-limited/slow OpenAI call never blocks or breaks the upload (the projection is BM25-searchable the instant the response returns; the embedding enrichment catches up). ADR-325's upload auto-embed exception (D6, operator-initiated, not Reviewer-gated) is PRESERVED — only its *timing* moves from synchronous to deferred. Gate 21/21 (adds deferred-embed + mechanical-first assertions). **Phase 2 [C] is CLOSED by ADR-621** (§4/§7 — the medium reason does not expire). **Phase 3 SHIPPED 2026-09-21 as Amendment 1 (§8)**: the intake door drops its format allowlist entirely (D8 — acceptance is conformance to `public.data`), a file with no projection is RETAINED and carries a legible marker instead of failing the upload (D9), and `xlsx`/`pptx` join the text family while the `docx` extractor is REPAIRED of silent table/header loss (D10). §8.7 scopes the sandbox horizon without adopting it. Gate 42/42, falsified six ways. **Amendment 2 (2026-09-23, §11) — the format harness**: office files first-class on demand from beta members. Phase 1 SHIPPED: ONE server format registry (`api/services/file_formats.py`, D14) replacing five hand-kept extension tables; view kinds + per-file export targets served on `GET /workspace/file` (D15/D16); `.doc` stops claiming readability (D17); HWP/HWPX read in-process (D18). Phase 2 (client viewers) and phase 3 (the outbound writer, then its skill) build against it.). Ratifies **FOUNDATIONS Derived Principle 34** (the model-consumable projection — the consumption member of the perception cycle) and conforms the **human-upload** transport to it — the last context-in transport DP32 named but the code never fixed. **Substrate + Channel dimensions** (Axiom 1 — how an uploaded file is retained + derived; Axiom 6 — how a substrate object egresses to a model). Adds **one new primitive** (`ExtractTextFromBlob`), **one new capability flag** on the host profile, and **populates an existing-but-unused column** (`workspace_files.content_url`). Changes **no** existing write gate and **no** attribution taxonomy.
 > **Date**: 2026-07-01
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Discourse base**: the operator's escalation of the upload-`.md`-not-`.pdf` observation to first principles — *"start outside YARNNN, the overall LLM handling: can LLMs via MCP receive URL links, read them, other formats — such that a pure reference-our-URL MCP tool works? If not, is text derivation necessary + does file-variety (pptx/xlsx/images/zips) need deeper consideration?"* Verified against the **MCP spec 2025-06-18** + **Anthropic Files/PDF platform docs (2026-07)**. Two analysis docs: [the-model-consumable-projection-axiom](../analysis/the-model-consumable-projection-axiom-2026-07-01.md) (the axiom) + [dumb-intake-and-the-referenceable-raw-lane](../analysis/dumb-intake-and-the-referenceable-raw-lane-2026-07-01.md) (the intake gap it grew from).
@@ -276,6 +276,9 @@ agent to execute Python it cannot execute, and a skill's failure is silent.
 - **No outbound `.docx`/`.pptx` writer.** ADR-417 §2b's ruling stands — if
   downloadable export returns it is an in-API library call, demand-gated, and
   nobody has asked.
+  **→ Amended by §11 (am.2, 2026-09-23): the demand gate FIRED** — beta members
+  asked. The writer is built as the in-API library call this bullet named; see
+  D16.
 - **No Google Drive.** A Google Doc has no bytes to upload; that is a connector
   question under ADR-657's two lanes, and ADR-131 sunset the Google tools for
   reasons that need re-reading before anyone proposes them again.
@@ -531,6 +534,14 @@ heavy client-side parser or an image-conversion service — the latter being the
 sandbox §8.7 just scoped and declined. And it buys a picture of content we
 **already extracted the text of**.
 
+> **Amended by §11.2 (am.2, 2026-09-23).** This paragraph put two different
+> things in one sentence. An image-conversion service IS the §8.7 sandbox and
+> stays declined. A client-side parser is not: it runs deterministic code the
+> member's own browser already trusts, over bytes the member already holds, and
+> crosses no execution boundary. "Premature" was a demand judgment, and the
+> demand arrived. D15 builds the viewers; the projection preview (D12) stays as
+> the honest fallback wherever a renderer cannot draw a file.
+
 ⭐ **The third answer: we cannot DRAW your deck, so we show what it SAYS.** The
 projection is already sitting beside the raw. Serving it is the honest preview —
 no parser, no conversion service, no sandbox.
@@ -602,3 +613,265 @@ tell readable from not (D11), sees the words (D12) and can save the file (D13).
 editing · no outbound `.docx`/`.pptx` writer (ADR-417 §2b) · no Google Drive
 (a connector question; ADR-131 sunset the Google tools — read why first) · no
 visual/thumbnail preview and no sandbox (§8.7, with a named trigger).
+
+> **Amended by §11 (am.2, 2026-09-23)** — the topic re-opened on demand. Visual
+> preview (D15) and the outbound writer (D16) are now BUILT; round-trip editing,
+> Google Drive and the sandbox remain not built, with their reasons unchanged
+> (§11.6).
+
+---
+
+## 11. Amendment 2 (2026-09-23) — the format harness: office files, first-class
+
+> Operator-ratified from beta-member feedback: *office files (docx/pptx/xlsx)
+> must be handled first-class.* This is a **demand gate firing**, not a
+> reversal — every item below was named in §8.5/§10.5 as "not built, until
+> asked", and it was asked.
+
+### 11.1 What am.1 built, and what it deferred
+
+Am.1 shipped INBOUND only: the door takes every file (D8), nothing is dropped
+(D9), xlsx/pptx/docx are read (D10), a member can tell readable from not
+(D11), sees the extracted words (D12) and can save the file (D13). It declined
+four things: (a) visual viewers (§10.1), (b) an outbound writer (ADR-417 §2b),
+(c) round-trip editing, (d) a sandbox (§8.7). Am.2 builds (a) and (b) and keeps
+(c) and (d) declined.
+
+It is delivered in three phases, and this amendment is the contract all three
+build against:
+
+| Phase | Builds | Reads from this amendment |
+|---|---|---|
+| 1 (this commit) | the format registry, the served fields, HWP/HWPX, the `.doc` fix | — |
+| 2 | client renderers for `spreadsheet` / `wordprocessing` / `presentation` | D15's kind names |
+| 3 | the outbound writer (a new attributed revision), then its skill | D16's `export_as` |
+
+### 11.2 The distinction §10.1 missed — rendering is not the sandbox
+
+§10.1 declined in-browser rendering by pairing it with the image-conversion
+service in one sentence, and then declined both for the sandbox's reasons.
+They are different acts:
+
+| | Client-side parser (am.2 builds) | Conversion service / sandbox (still declined) |
+|---|---|---|
+| Where it runs | the member's browser | a server yarnnn would operate or rent |
+| What it executes | deterministic library code shipped in the bundle | arbitrary conversion, or arbitrary code |
+| Execution boundary | none new — the same trust as every other component | a new one (§8.7's first cost) |
+| Render parity | unchanged | a fourth execution home (§8.7) |
+| Data leaves Supabase | no — bytes already in the member's hands | yes |
+
+None of §8.7's five costs attach to the left column. What §10.1 correctly
+observed — that a picture of a deck buys less than its words — still holds as a
+FALLBACK, and D12's projection preview stays exactly where it is for any file a
+renderer cannot draw. The Render API stays `runtime: python` native; no Docker,
+no LibreOffice (out of scope, and it would BE the conversion service).
+
+### 11.3 D14 — ONE format registry, kernel-owned
+
+**The defect.** Format knowledge lived in five hand-kept copies that had each
+drifted:
+
+| Deleted | Where | What it was |
+|---|---|---|
+| `_TEXT_FORMATS` · `_PASSTHROUGH_FORMATS` · `_DEFERRED_FORMATS` | `primitives/extract_text_from_blob.py` | the derive-registry verdicts |
+| `_ZIP_EXT_MIMES` + the `_EXT_MIMES` literal + concrete `_CONFORMS` rows | `content_types.py` | MIME + conformance |
+| the `extract_text` if-chain | `documents.py` | the parser table |
+| `IMAGE_TYPES` + `upload_mime` | `documents.py` | **dead** — no caller remained |
+| `_MIME_EXTS` | `routes/documents.py` | MIME → ext, already missing xlsx/pptx |
+| `_BINARY_TEXT_FAMILY` | `machine_projection.py` | "text family, binary bytes" — still listing `doc` |
+
+⭐ **The drift was already live**: `_TEXT_FORMATS` listed `doc` while the
+parser behind it (python-docx) cannot open an OLE `.doc` at all — one table's
+row claiming what another table's parser could not do. That is §8.1's split
+(the door and the registry disagreeing) at a smaller scale.
+
+**The decision.** `api/services/file_formats.py` holds `FORMATS`: one frozen
+`FileFormat` row per format —
+
+```python
+FileFormat(exts, mime, base, projection, view,
+           extractor=None, zip_container=False, export_as=())
+```
+
+— and every reader derives from it: `content_types` builds its extension,
+zip-container and conformance tables from the rows; `registry_strategy` reads
+`projection`; `extract_text` calls the row's `extractor` (no row, or no
+extractor, is utf-8 text); `machine_projection` asks `is_binary_text_family`
+(a text projection AND a byte parser — derived, so it cannot omit a member);
+the upload route asks `ext_for_mime`. `registry_strategy` MOVED here from the
+primitive, and its four importers were updated — no alias left behind.
+
+**Why its own module and not `content_types.py`.** A row carries its extractor,
+a callable in `documents.py`; the byte-sniffing module must stay a pure
+function with no service dependency. The import runs one way: content_types →
+file_formats → documents, whose module scope imports nothing from `services`.
+
+**What stays client-side, deliberately.** The React component that draws a
+view kind (ADR-436's `APPS` table): the server names the KIND, never the
+component. And `FileIcon` / `NodeDetailsPanel`'s "Kind" labels: presentation
+for tree rows that are never fetched, covering formats the registry does not
+declare (`.xls`, `.ppt`, `.doc`), with no capability riding on them.
+
+**Behaviour preserved, with three deliberate exceptions**: `.doc` (D17), the
+Hancom pair (D18), and `.markdown` (now an alias of `md`, so it is read rather
+than marked — it was simply never listed). Newly declared MIMEs (`tsv`, `avif`,
+`bmp`, `ico`, `m4v`, `mkv`, `avi`, `flac`, `aac`) derive to their real types
+where they previously fell back to `text/markdown` or `octet-stream`; each was
+already drawn by the client under the same kind.
+
+### 11.4 D15 — the view kind is SERVED; the client's guess is held to it
+
+`GET /workspace/file` serves `view` beside `readable` — the same contract as
+`access` (ADR-643 D3) and `readable` (D11): the server decides, the client
+reads, `None` means the registry does not declare the format.
+
+**View kinds declared now** (phase 2 builds the renderers):
+
+| Format | `view` | Named after |
+|---|---|---|
+| `.xlsx` | `spreadsheet` | OOXML `spreadsheetml` |
+| `.docx` | `wordprocessing` | OOXML `wordprocessingml` |
+| `.pptx` | `presentation` | OOXML `presentationml` |
+| `.hwp` · `.hwpx` · `.zip` | `download` | the terminal (projection preview shows) |
+
+Every other declared format serves the kind the client already used
+(`markdown`, `html`, `image`, `video`, `audio`, `pdf`, `csv`, `text`).
+
+**The client.** `resolveViewerApplication(path, contentType, served?)` in
+`web/lib/file-types/index.ts` returns the served kind when it is a known
+`ViewerApplication`, and otherwise falls back to its extension rules.
+`resolveApp` / `resolveApps` (`apps.tsx`) and `describeViewerApplication`
+take the same third argument; `FileBody`, `FileMeta`, `ContentViewer`,
+`ArtifactCard` and `ArtifactThumb` pass `file.view`. A kind with no registered
+renderer resolves to `download.terminal` — so declaring the office kinds before
+phase 2 changes nothing a member sees today: those files still reach the
+terminal and its extracted-words preview.
+
+**Why the client keeps an extension fallback at all.** Tree rows, the context
+menu's Open With and thumbnails resolve a kind WITHOUT fetching the file. The
+fallback is therefore a cache of the registry, and a cache drifts (ADR-658
+am.5: a mirrored constant needs a gate arm that reads the ORIGINAL). The gate
+**executes** the TS function (sucrase-transpiled, as ADR-571's probe does) for
+every extension the registry declares and asserts the pre-fetch guess equals
+the served kind — a file cannot draw one way in a tree row and another once
+opened. Building it found one: `.hwp`/`.hwpx` resolved to `text` before a
+fetch; both joined the client's binary terminal list.
+
+**Also deleted: `viewerNeedsBlob`** — exported, called by nothing; the am.1
+`needsBlob` finding, one file over.
+
+### 11.5 D16 — the outbound writer's contract: `export_as`, per file
+
+`GET /workspace/file` serves `export_as: ExportTarget[]` — the formats THIS
+file can be written as. Per FILE, not per format: a Slides deck and a blog post
+are both `.html`, and only the deck can become a `.pptx`, which the file's own
+declared type (`data-template`, ADR-459) decides.
+
+A row declares `export_as=(ExportTarget(to, when_app=None), …)`; `when_app`
+narrows a target to an artifact whose type is owned by that app (ADR-473
+`kinds_for_app`). Declared today:
+
+| Source | Targets |
+|---|---|
+| `.md` / `.markdown` | `docx` |
+| `.html` / `.htm` | `docx`; `pptx` when the artifact's type is owned by `slides` |
+| `.csv` | `xlsx` |
+
+`[]` = none; `null` only when the decoration failed (the client offers no
+"save as", and never guesses one). **Every target must be a format yarnnn
+reads back** — the gate asserts it — so an export never mints a file that
+immediately takes the "cannot read" marker.
+
+**What phase 3 builds against this**: an in-API library (python-docx /
+python-pptx / openpyxl, already dependencies — ADR-417 §2c's "a library, not a
+service") that writes the target as a NEW attributed revision through
+`write_revision`, `derived_from` the source (DP32 — the export cites what it
+was made from, and ADR-554's derivation edge follows it). Member-facing
+"save/download as", reading `file.export_as`; and agent-reachable. **Skills
+come after tools**: a skill for the writer lands only once an agent actually
+holds the capability — an imported skill instructing an act the agent cannot
+perform fails silently (am.1 §8.4's `xlsx` skill lesson).
+
+**ADR-417 §2b's demand gate is recorded as fired** (a note there points here):
+its own ruling was *"if downloadable export returns, it returns as an in-API
+library call, never as a standing deployed service"* — which is exactly D16.
+
+### 11.6 D17 — `.doc` stops claiming readability
+
+`doc` leaves the text family. python-docx cannot open the OLE `.doc` format, so
+every `.doc` went to a parser that always failed and then to the D9 marker,
+while the registry said it was readable. It is now an undeclared format:
+deferred, marked, downloadable — the registry no longer overstates. Legacy
+`.xls`/`.ppt` were never declared and are unchanged. (The operator ruled `.doc`
+reading itself not worth building; this is the truth fix only.)
+
+### 11.7 D18 — HWP and HWPX, in-process
+
+Beta members include Korean teams, for whom Hancom's word processor is the
+default document format. Both variants were cheap enough to build in-process,
+so both are in:
+
+- **HWPX** (`extract_text_from_hwpx`) — a zip of OWPML XML. Walks
+  `Contents/section{N}.xml` in NUMERIC section order (`section10` after
+  `section2` — string order is wrong, and the gate proves it), a paragraph's own
+  `t` runs as one block, a table as TSV rows. A table sits INSIDE a run of its
+  anchoring paragraph, so collecting every `t` under a `p` would print each
+  cell twice; the walker treats nested content as its own blocks. Parsed by
+  lxml with entity resolution and network access OFF — the gate feeds it an
+  external-entity declaration and asserts nothing was fetched.
+- **HWP 5.x** (`extract_text_from_hwp`) — an OLE compound file, read with
+  `olefile` (pure Python, one new dependency in `api/requirements.txt`, which
+  both the API and the scheduler install from). `FileHeader` bit 0 =
+  compressed (raw deflate), bit 1 = password. Section streams are a flat run of
+  tagged records; `HWPTAG_PARA_TEXT` (67) payloads are UTF-16LE with control
+  codes: codes 1–9, 11–12, 14–23 occupy EIGHT units and are skipped (a tab, 9,
+  is kept as `\t`), the rest one unit. Table cells are paragraphs too, so they
+  read in document order. A password-protected or distribution-locked file has
+  no readable body and returns EMPTY — the upload then takes the D9 marker,
+  never a projection of noise.
+- Both inflate under a 64 MB ceiling (`_MAX_INFLATED_BYTES`) — past it, a
+  25 MB upload is a decompression bomb, not a document, and reads as empty.
+
+Both declare `view: download`: no client renderer is planned, and the
+projection preview (D12) shows the words.
+
+⚠️ **Owed**: both fixtures are BUILT in the gate (an OWPML zip; a real OLE
+compound file written byte-for-byte), because Hancom Office is not available to
+this session. A click-pass with a Hancom-authored `.hwp` and `.hwpx` is owed
+before this is called verified on real files.
+
+### 11.8 What stays deferred, and why
+
+- **Round-trip in-place editing** — an edit lands in the projection; the
+  `.docx` is never rewritten. D16 writes a NEW revision from a SOURCE the
+  member authored (md/html/csv); it does not rewrite an uploaded office file.
+- **The sandbox** — declined, trigger unchanged (§8.7: a member asking twice for
+  something that needs execution).
+- **A conversion service / LibreOffice** — it would be the sandbox under another
+  name (§11.2).
+- **Legacy `.doc` / `.xls` / `.ppt` reading** — operator-ruled not worth it.
+- **Finding, not fixed here**: `json`/`yaml`/`tsv` read `deferred` — a JSON upload
+  takes a "cannot read" marker although its bytes are text. Pre-existing and
+  unchanged by am.2 (the table preserved every verdict it did not rule on);
+  now a one-token change in one row when someone rules on it.
+
+### 11.9 Gate
+
+`api/test_adr395_model_consumable_projection.py` **79/79** (60 → 79: 19 new
+arms, plus the verdict matrix extended with `doc`/`hwp`/`hwpx`). Each new arm
+was **proven RED by breaking the product in place**, twelve ways: `doc` back in
+the docx row · the client's xlsx guess drifts · the served view loses to the
+content type · the route drops the format fields · the HWPX walker prints
+nested cells into the paragraph · HWP wide controls read as one unit ·
+`_BINARY_TEXT_FAMILY` returns · `extract_text` re-grows an if-chain · HWPX
+loses its zip-container flag · `pptx` offered for every `.html` · an export
+target yarnnn cannot read back · an office extension literal outside the
+registry. ⭐**The zip-container arm stayed GREEN on its first falsification**:
+it was conditioned on the row's own `zip_container` flag, so deleting the flag
+also deleted the assertion. Re-cut to name the zip formats independently.
+
+Also re-cut, not routed around: `test_adr530_machine_projection.py` was RED
+against a correct product twice over — D1b still asserted
+`registry_strategy("xlsx") == "deferred"` (stale since am.1 D10), and three
+arms read `page.tsx` / `route.ts`, renamed to `*.web.tsx` / `*.web.ts` by
+ADR-661 (`d8b1542`), so the gate CRASHED and reported nothing. Now 26/26.

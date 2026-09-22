@@ -179,6 +179,193 @@ async def extract_text_from_pptx(file_content: bytes) -> tuple[str, int]:
         return "", 0
 
 
+#: Ceiling on the bytes an archive-shaped format may inflate to while we read it
+#: (hwpx members, hwp section streams). A 25MB upload that expands past this is
+#: a decompression bomb, not a document; it reads as empty and takes the marker.
+_MAX_INFLATED_BYTES = 64 * 1024 * 1024
+
+
+def _local(tag) -> str:
+    """An XML tag's local name — OWPML ships under more than one namespace URI."""
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _hwpx_t_text(t) -> str:
+    """One OWPML `t` run's text — inline `tab`/`lineBreak` elements kept."""
+    parts = [t.text or ""]
+    for child in t:
+        tag = _local(child.tag)
+        parts.append("\t" if tag == "tab" else "\n" if tag == "lineBreak" else "")
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
+def _hwpx_element(el, out: list[str]) -> None:
+    """One OWPML element in document order: a `p` is a paragraph, a `tbl` is
+    TSV rows, anything else is walked for the paragraphs it holds.
+
+    A table sits INSIDE a run of its anchoring paragraph, and its cells hold
+    paragraphs of their own — so a paragraph's text is only its own `t`
+    elements, and anything nested (tables, text boxes) is walked as its own
+    blocks after it. Collecting every `t` under a `p` would print each cell
+    twice.
+    """
+    tag = _local(el.tag)
+    if tag == "p":
+        own: list[str] = []
+        nested: list = []
+        for run in el:
+            if _local(run.tag) != "run":
+                continue
+            for part in run:
+                if _local(part.tag) == "t":
+                    own.append(_hwpx_t_text(part))
+                else:
+                    nested.append(part)
+        text = "".join(own).strip()
+        if text:
+            out.append(text)
+        for part in nested:
+            _hwpx_element(part, out)
+    elif tag == "tbl":
+        rows: list[str] = []
+        for tr in (c for c in el if _local(c.tag) == "tr"):
+            cells = []
+            for tc in (c for c in tr if _local(c.tag) == "tc"):
+                inner: list[str] = []
+                for child in tc:
+                    _hwpx_element(child, inner)
+                cells.append(" ".join(inner).replace("\t", " ").strip())
+            if any(cells):
+                rows.append("\t".join(cells))
+        if rows:
+            out.append("\n".join(rows))
+    else:
+        for child in el:
+            _hwpx_element(child, out)
+
+
+async def extract_text_from_hwpx(file_content: bytes) -> tuple[str, int]:
+    """Extract text from HWPX (Hancom Office's OWPML) — ADR-395 am.2 D18.
+
+    An HWPX is a zip of XML; the body is `Contents/section{N}.xml`, in section
+    order. Parsed with entity resolution and network access OFF — this is a
+    member's upload, and XML is a format that can ask to fetch things.
+    Returns (text, section_count).
+    """
+    try:
+        import re as _re
+        import zipfile
+        from lxml import etree
+
+        parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
+        blocks: list[str] = []
+        with zipfile.ZipFile(io.BytesIO(file_content)) as zf:
+            sections = sorted(
+                (i for i in zf.infolist()
+                 if _re.fullmatch(r"Contents/section\d+\.xml", i.filename)),
+                key=lambda i: int(_re.search(r"\d+", i.filename.rsplit("/", 1)[-1]).group()),
+            )
+            if sum(i.file_size for i in sections) > _MAX_INFLATED_BYTES:
+                return "", 0
+            for info in sections:
+                _hwpx_element(etree.fromstring(zf.read(info), parser), blocks)
+        return "\n\n".join(blocks), len(sections)
+    except Exception as e:
+        logger.error(f"HWPX extraction failed: {e}")
+        return "", 0
+
+
+#: HWP 5.x paragraph text record (HWPTAG_BEGIN 0x10 + 51).
+_HWPTAG_PARA_TEXT = 67
+#: Control characters that occupy EIGHT UTF-16 units in a PARA_TEXT record
+#: (inline + extended controls: code, a 4-unit payload, the code again).
+#: Every other code below 32 is one unit wide.
+_HWP_WIDE_CONTROLS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23})
+
+
+def _hwp_para_text(payload: bytes) -> str:
+    """One PARA_TEXT record → its visible text, controls skipped (tab kept)."""
+    units = [int.from_bytes(payload[i:i + 2], "little") for i in range(0, len(payload) - 1, 2)]
+    out: list[str] = []
+    i = 0
+    while i < len(units):
+        u = units[i]
+        if u >= 32:
+            out.append(chr(u))
+            i += 1
+        elif u in _HWP_WIDE_CONTROLS:
+            if u == 9:
+                out.append("\t")
+            i += 8
+        else:
+            if u in (10, 13):
+                out.append("\n")
+            i += 1
+    return "".join(out)
+
+
+async def extract_text_from_hwp(file_content: bytes) -> tuple[str, int]:
+    """Extract text from HWP 5.x (the binary Hancom format) — ADR-395 am.2 D18.
+
+    An OLE compound file. `FileHeader` says whether the body is compressed
+    (bit 0) or password-protected (bit 1); `BodyText/Section{N}` streams are raw
+    deflate when compressed, and hold a flat run of tagged records whose
+    PARA_TEXT payloads are UTF-16LE. Table cells are paragraphs too, so they
+    read in document order as their own lines. A password-protected or
+    distribution-locked file has no readable body and returns empty — the
+    upload then takes the am.1 D9 marker rather than failing.
+    Returns (text, section_count).
+    """
+    try:
+        import re as _re
+        import zlib
+        import olefile
+
+        ole = olefile.OleFileIO(io.BytesIO(file_content))
+        try:
+            header = ole.openstream("FileHeader").read()
+            if not header.startswith(b"HWP Document File"):
+                return "", 0
+            flags = int.from_bytes(header[36:40], "little")
+            if flags & 0b10:  # password-protected: the body is encrypted
+                return "", 0
+            compressed = bool(flags & 0b1)
+            sections = sorted(
+                (e for e in ole.listdir()
+                 if len(e) == 2 and e[0] == "BodyText" and _re.fullmatch(r"Section\d+", e[1])),
+                key=lambda e: int(e[1][len("Section"):]),
+            )
+            paragraphs: list[str] = []
+            budget = _MAX_INFLATED_BYTES
+            for entry in sections:
+                raw = ole.openstream(entry).read()
+                if compressed:
+                    raw = zlib.decompressobj(-15).decompress(raw, budget)
+                budget -= len(raw)
+                if budget <= 0:
+                    return "", 0
+                pos = 0
+                while pos + 4 <= len(raw):
+                    head = int.from_bytes(raw[pos:pos + 4], "little")
+                    tag, size = head & 0x3FF, (head >> 20) & 0xFFF
+                    pos += 4
+                    if size == 0xFFF:
+                        size = int.from_bytes(raw[pos:pos + 4], "little")
+                        pos += 4
+                    if tag == _HWPTAG_PARA_TEXT:
+                        text = _hwp_para_text(raw[pos:pos + size]).strip()
+                        if text:
+                            paragraphs.append(text)
+                    pos += size
+            return "\n\n".join(paragraphs), len(sections)
+        finally:
+            ole.close()
+    except Exception as e:
+        logger.error(f"HWP extraction failed: {e}")
+        return "", 0
+
+
 async def extract_text_from_txt(file_content: bytes) -> tuple[str, int]:
     """Extract text from plain text or markdown. Returns (text, line_count)."""
     try:
@@ -193,36 +380,24 @@ async def extract_text(file_content: bytes, file_type: str) -> tuple[str, int]:
     """Dispatch text extraction by file type. Returns (text, unit_count).
 
     Reached only for a format the derive-registry calls `text`
-    (`registry_strategy`, ADR-395 D2) — the registry is the gate, this is the
-    parser table behind it. An empty return is a legible outcome, not a
-    failure: ADR-395 am.1 D9 lands the raw and marks the projection.
+    (`registry_strategy`, ADR-395 D2) — the registry is the gate, and since
+    ADR-395 am.2 D14 it is also the parser table: each format's row in
+    `services/file_formats.py` names its extractor. A row with no extractor is
+    utf-8 text. An empty return is a legible outcome, not a failure: ADR-395
+    am.1 D9 lands the raw and marks the projection.
     """
-    file_type = file_type.lower().strip(".")
-    if file_type == "pdf":
-        return await extract_text_from_pdf(file_content)
-    elif file_type in ("docx", "doc"):
-        return await extract_text_from_docx(file_content)
-    elif file_type == "xlsx":
-        return await extract_text_from_xlsx(file_content)
-    elif file_type == "pptx":
-        return await extract_text_from_pptx(file_content)
-    else:
-        return await extract_text_from_txt(file_content)
+    from services.file_formats import format_for
+
+    fmt = format_for(file_type)
+    if fmt is not None and fmt.extractor is not None:
+        return await fmt.extractor(file_content)
+    return await extract_text_from_txt(file_content)
 
 
-# Phase-A chassis (ADR-457 D6 as amended): image uploads ride the SAME raw
-# lane (private bucket + content_url reference) with no text projection — a
-# vision model reads the bytes via a signed URL at turn time. NOT gated on
-# ADR-427 (the utf-8 wall is the CAS ledger path; raw uploads never touch it).
-IMAGE_TYPES = {"png", "jpg", "jpeg", "webp", "gif"}
-
-
-def upload_mime(file_type: str) -> str:
-    """The real MIME for a raw upload's revision row."""
-    ft = file_type.lower().strip(".")
-    if ft in IMAGE_TYPES:
-        return f"image/{'jpeg' if ft in ('jpg', 'jpeg') else ft}"
-    return f"application/{ft}"
+# `IMAGE_TYPES` + `upload_mime` were DELETED by ADR-395 am.2 D14: no caller
+# remained, and they were a sixth hand-kept copy of the image extension list.
+# A raw upload's MIME is `content_types.derive_content_type`, read off the
+# format registry.
 
 
 # =============================================================================
@@ -360,7 +535,7 @@ async def process_document(
     # reachable path on this door. A scanned PDF, a chart-only deck and a
     # formula-only sheet are all real files a member can see, open, download and
     # share — they are simply not yet readable by a model, and they say so.
-    from services.primitives.extract_text_from_blob import registry_strategy
+    from services.file_formats import registry_strategy
 
     strategy = registry_strategy(file_type)
     if is_media or strategy == "passthrough":
@@ -643,7 +818,7 @@ def readable_state(
     hand. Saying "your agent can read this" when it cannot is the failure that
     matters; the reverse is merely modest.
     """
-    from services.primitives.extract_text_from_blob import registry_strategy
+    from services.file_formats import registry_strategy
     from services.content_types import conforms_to
 
     mime = content_type or ""

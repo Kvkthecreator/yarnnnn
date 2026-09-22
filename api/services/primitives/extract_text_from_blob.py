@@ -8,9 +8,10 @@ primitive is that derive step: read the blob, extract text, write a searchable
 projection that CITES the raw via `derived_from` (DP32), and embed it.
 
 Zero LLM, deterministic. The FIRST entry of the derive-registry (ADR-395 D2):
-MIME→strategy is `{pdf,docx,xlsx,pptx,txt,md,csv,html}→text`; image/* is already
-model-consumable (pass-through, no projection needed); `{zip,audio}` and any
-unrecognised format are named-deferred (retained-but-not-yet-consumable).
+the strategy per format is a column of the format registry
+(`services/file_formats.py`, ADR-395 am.2 D14): text formats get a projection,
+vision images pass through, and everything else — including any format the
+registry has never heard of — is named-deferred (retained-but-not-yet-consumable).
 
 Trigger-agnostic (ADR-395 refined): the upload path invokes it INLINE on
 arrival (a one-shot); a future cadenced caller could invoke it from the capture
@@ -43,40 +44,13 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-# The derive-registry (ADR-395 D2), entry 1. MIME/extension → strategy. Only
-# `text` is implemented in Phase 1; `passthrough` needs no projection; `deferred`
-# means retained-but-not-yet-consumable (DP34 — a known gap, never a drop).
-#
-# ADR-530 D1: `html`/`htm` join the text family. A yarnnn artifact is very often
-# HTML (the Studio authoring apps emit it), and its markup is NOT what a model
-# reads — DP34. The extraction lives in `html_text.py`; see ADR-530 D2 for why
-# extraction is not sanitization and never licenses inlining.
-#
-# ADR-395 am.1 D10: `xlsx`/`pptx` LEAVE the deferred set and join the text
-# family — deterministic, in-process, no sandbox (openpyxl / python-pptx, the
-# ADR-417 §2c "a library, not a service" shape). Their extractors live beside
-# the pdf/docx ones in `services/documents.py`.
-_TEXT_FORMATS = {"pdf", "docx", "doc", "txt", "md", "csv", "html", "htm", "xlsx", "pptx"}
-_PASSTHROUGH_FORMATS = {"png", "jpg", "jpeg", "gif", "webp"}  # already model-consumable
-#: Named-deferred: retained, legibly marked, never silently dropped (D3/am.1 D9).
-#: NOT the gate — `registry_strategy` defers anything it does not recognise, so
-#: this set is documentation of the formats we have MET and not yet read.
-_DEFERRED_FORMATS = {"zip", "mp3", "wav", "m4a"}
-
-
-def registry_strategy(file_type: Optional[str]) -> str:
-    """The derive-registry verdict for a format (ADR-395 D2 / DP34).
-
-    Returns 'text' | 'passthrough' | 'deferred'. A format we've never heard of
-    is 'deferred' too (retained-but-not-yet-consumable — legibly a known gap,
-    never silently dropped or fabricated).
-    """
-    ft = (file_type or "").lower().lstrip(".")
-    if ft in _TEXT_FORMATS:
-        return "text"
-    if ft in _PASSTHROUGH_FORMATS:
-        return "passthrough"
-    return "deferred"
+# The derive-registry (ADR-395 D2) is a COLUMN of the format registry
+# (`services/file_formats.py`, ADR-395 am.2 D14): each format's row declares its
+# projection strategy and its extractor. `_TEXT_FORMATS` / `_PASSTHROUGH_FORMATS`
+# / `_DEFERRED_FORMATS` lived here and were DELETED by am.2 — they were one of
+# five hand-kept copies of the extension list, and `_TEXT_FORMATS` claimed `doc`
+# was readable while no parser in the system could open an OLE `.doc`.
+from services.file_formats import registry_strategy
 
 
 def _deferred_note(file_type: Optional[str], *, had_strategy: bool) -> str:
@@ -112,9 +86,10 @@ the text projection: extract text from the blob and write a searchable
 derivation that carries `derived_from: <raw_path>` (DP32) and is embedded for
 recall. Zero LLM, deterministic.
 
-The derive-registry: {pdf,docx,xlsx,pptx,txt,md,csv,html}→text; images are
-already model-consumable (pass-through); {zip,audio} and anything unrecognised
-are deferred (retained-but-not-yet-consumable — marked, never a silent drop).
+The derive-registry: pdf, docx, xlsx, pptx, hwp, hwpx, txt, md, csv and html
+are read as text; images are already model-consumable (pass-through); archives,
+audio, video and anything unrecognised are deferred (retained-but-not-yet-
+consumable — marked, never a silent drop).
 
 Typical usage — invoked INLINE by the upload path on arrival (a one-shot),
 passing the already-extracted text so the blob is not re-parsed:
@@ -322,5 +297,4 @@ async def handle_extract_text_from_blob(auth: Any, input: dict) -> dict:
 __all__ = [
     "EXTRACT_TEXT_FROM_BLOB_TOOL",
     "handle_extract_text_from_blob",
-    "registry_strategy",
 ]

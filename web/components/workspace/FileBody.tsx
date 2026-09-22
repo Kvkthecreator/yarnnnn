@@ -48,7 +48,8 @@ interface FileBodyProps {
 }
 
 export function FileBody({ file, compact = false, className }: FileBodyProps) {
-  const { renderer: Renderer } = resolveApp(file.path, file.content_type);
+  // ADR-395 am.2 D15 — the server's view kind wins when the read carried one.
+  const { renderer: Renderer } = resolveApp(file.path, file.content_type, file.view);
   return (
     <div className={cn('space-y-4', className)}>
       <Renderer file={file} compact={compact} />
