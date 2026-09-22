@@ -4463,6 +4463,31 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 laneId={boundLane.id}
                 laneName={boundLane.name}
                 modelLabel={modelLabel}
+                // WHO IS READING (2026-09-22). Omitted, `viewerId` defaults to
+                // null, so `isOwn` (LanePanel:1298) was FALSE for the member's
+                // own turns in Slides and Blogger — three visible consequences,
+                // none of them cosmetic-only: their message was labelled
+                // "A member" as if a stranger sent it, it rendered
+                // left-aligned in the muted "someone else" bubble instead of
+                // right-aligned in the primary one, and edit-and-resend
+                // (gated on `isOwn` at :1508) never appeared. ChatSurface has
+                // always passed this from the same hook; this mount simply
+                // never did. Driven in Slides: a Compose turn showed the
+                // member their own words under someone else's name.
+                viewerId={userId}
+                // The agent's NAME on its own turns (2026-09-22). Also omitted,
+                // so `agentFace` (LanePanel:1302) was undefined and the row
+                // fell back to the raw slug — a reply rendered as lowercase
+                // "editor" while the composer beside it said "Message Editor…"
+                // and the new-chat picker said "Editor". One agent, three
+                // spellings, in one viewport. Built from the same served
+                // roster `laneLabel` already reads, so the name on the turn and
+                // the name in the placeholder cannot disagree. `avatarUrl` is
+                // optional and this roster does not carry one, so the row keeps
+                // its lettermark.
+                agentFaces={Object.fromEntries(
+                  agents.map((a) => [a.slug, { name: a.name }]),
+                )}
                 // ADR-562 D5 — the member reads WHO ("Designer"), not the
                 // engine. This surface created a lane pinning a resident and
                 // then rendered `modelLabel`, so the pin was invisible.
