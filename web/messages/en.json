@@ -2396,7 +2396,8 @@
       "positionedHint": "Positioned on this slide — it no longer follows the layout. Click to return it.",
       "sectionAlign": "Align",
       "multiObjectNote": "Align and distribute apply to everything selected. Identity, position, layout and style apply to one object at a time.",
-      "sectionPosition": "Position"
+      "sectionPosition": "Position",
+      "documentInviteLayers": "{layout} — select a layer on the canvas to shape it here."
     },
     "surface": {
       "taglineSlides": "Name a deck, then say what you want in plain words. It takes shape slide by slide, using your files, images, and data.",

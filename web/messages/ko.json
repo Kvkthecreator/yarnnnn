@@ -2396,7 +2396,8 @@
       "positionedHint": "이 슬라이드에 직접 배치돼 있어서 레이아웃을 따르지 않아요. 눌러서 되돌릴 수 있어요.",
       "sectionAlign": "정렬",
       "multiObjectNote": "정렬과 배치는 선택한 전체에 적용돼요. 이름, 위치, 레이아웃, 스타일은 한 번에 객체 하나에만 적용돼요.",
-      "sectionPosition": "위치"
+      "sectionPosition": "위치",
+      "documentInviteLayers": "{layout} — 캔버스에서 레이어를 선택하면 여기에서 다듬을 수 있어요."
     },
     "surface": {
       "taglineSlides": "덱 이름을 정하고, 원하는 것을 평범한 말로 이야기해 주세요. 내 파일, 이미지, 데이터를 써서 슬라이드 하나씩 모양을 갖춰 가요.",

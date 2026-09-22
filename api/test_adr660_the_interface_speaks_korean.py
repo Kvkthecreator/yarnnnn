@@ -464,7 +464,7 @@ print("D4 — coverage")
 # So the honest reading is: coverage is DONE, and this ceiling now guards
 # against NEW literal copy rather than measuring remaining work. A future pass
 # that adds a surface should still see it fall.
-LITERAL_COPY_CEILING = 253  # 2026-09-22 — ratcheted when StudioShareExport's export note was hoisted out of its JSX ternary (ADR-633 D3)
+LITERAL_COPY_CEILING = 248  # 2026-09-22 — ratcheted again when StudioDesignTab's document invitation was hoisted for its layers arm (ADR-633 D3)
 COPY_PROP = re.compile(r"\b(placeholder|title|aria-label|label|alt|subtitle|description)=\"[^\"]*[A-Za-z]{2,}[^\"]*\"")
 INLINE_TEXT = re.compile(r">([^<>{}]*[A-Za-z]{2,}[^<>{}]*)</")
 METERED = [WEB / "app" / "(authenticated)", WEB / "app" / "auth", WEB / "app" / "mcp", WEB / "components"]

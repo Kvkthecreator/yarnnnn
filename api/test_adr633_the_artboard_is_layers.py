@@ -344,6 +344,41 @@ for _loc in ("en", "ko"):
     )
 
 
+# D3, the PROPERTIES pane's invitation. ADR-526 already ruled that this
+# sentence must name a grain the medium HAS — it was a binary on `mode`, and
+# `mode` is only 'flow' | 'paged', so Images fell to the paged arm and read
+# "Image — select a section or a block" with "Artboard 1" and LAYERS in the
+# rail beside it. The stage registers `mode: "paged"` on purpose (shared
+# skeleton/posture machinery), so `mode` cannot answer "which noun" and the
+# invitation must read the DECLARED model. Driven in Images, 2026-09-22.
+_TAB_EARLY = (WEB / "StudioDesignTab.tsx").read_text()
+check(
+    "documentInviteLayers" in _TAB_EARLY
+    and "objectModel === 'layers'" in _TAB_EARLY,
+    "D3: the document invitation has no layers arm keyed on the declared "
+    "object model — an artboard is invited to select a section",
+)
+for _loc in ("en", "ko"):
+    _cat = _json.loads((REPO / f"web/messages/{_loc}.json").read_text())
+    _dt = _cat["studio"]["designTab"]
+    check(
+        "documentInviteLayers" in _dt,
+        f"D3: {_loc}.json has no `documentInviteLayers` — the layers invite "
+        f"has no words",
+    )
+    _layer = "layer" if _loc == "en" else "\ub808\uc774\uc5b4"
+    check(
+        _layer in _dt.get("documentInviteLayers", ""),
+        f"D3: {_loc}.json's layers invite does not name the layer it invites",
+    )
+    _section = "section" if _loc == "en" else "\uc139\uc158"
+    check(
+        _section not in _dt.get("documentInviteLayers", ""),
+        f"D3: {_loc}.json's layers invite names a section — the grain the "
+        f"layers medium does not have",
+    )
+
+
 # ── D4 — the tree's shape: two levels, z-descending ────────────────────────
 if TREE:
     check(

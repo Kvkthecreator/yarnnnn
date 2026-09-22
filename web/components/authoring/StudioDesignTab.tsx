@@ -1627,6 +1627,29 @@ export function StudioDesignTab({
    *  surface's own `layoutMode` (show the flowing, less-chrome reading first). */
   const pageNoun = mode === 'paged' && layout === 'deck' ? t('slide') : t('section');
 
+  /** ADR-526's rule, extended to the third model (2026-09-22): the invitation
+   *  must name a grain the medium ACTUALLY HAS.
+   *
+   *  It was a binary `mode === 'flow' ? … : …`, and `mode` is only
+   *  'flow' | 'paged' — so Images fell to the PAGED arm, and `pageNoun`
+   *  (which needs `layout === 'deck'`) fell to "section". An artboard's pane
+   *  read "Image — select a section or a block" while the rail beside it said
+   *  "Artboard 1" and "LAYERS": one object, two vocabularies, one viewport —
+   *  the ADR-633 §1.1 failure this pane is supposed to be past.
+   *
+   *  Reads the DECLARED `objectModel`, never `mode` and never the slug. The
+   *  stage registers `mode: "paged"` deliberately (shared skeleton/posture
+   *  machinery — services/apps/images/stage.py), so `mode` cannot answer
+   *  "which noun", and asking it is what produced this. */
+  const layoutLabel =
+    vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout;
+  const documentInvite =
+    objectModel === 'layers'
+      ? t('documentInviteLayers', { layout: layoutLabel })
+      : mode === 'flow'
+        ? t('documentInviteFlow', { layout: layoutLabel })
+        : t('documentInvitePaged', { layout: layoutLabel, noun: pageNoun });
+
   /** ADR-528 — a MULTI-BLOCK range is live.
    *
    *  The defect this closes: `selection` is written by a CLICK and nothing
@@ -2495,14 +2518,7 @@ export function StudioDesignTab({
             <p className="text-xs text-muted-foreground">
               {/* ADR-660 — one sentence per medium, the served layout label as
                   its argument; the em-dash join was an English word order. */}
-              {mode === 'flow'
-                ? t('documentInviteFlow', {
-                    layout: vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout,
-                  })
-                : t('documentInvitePaged', {
-                    layout: vocabulary?.layouts.find((l) => l.slug === layout)?.label ?? layout,
-                    noun: pageNoun,
-                  })}
+              {documentInvite}
             </p>
           </div>
           {/* ADR-526 D2 — the OUTLINE. The document's headings, read back in
