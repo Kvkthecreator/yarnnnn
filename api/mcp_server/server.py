@@ -606,6 +606,36 @@ mcp = HostGatedFastMCP(
 
 
 # =============================================================================
+# OpenAI Apps domain verification (2026-09-22) — the challenge well-known
+# =============================================================================
+# The ChatGPT app submission's MCP step requires proving control of the MCP
+# hostname: it derives
+# `https://mcp.yarnnn.com/.well-known/openai-apps-challenge` from the server
+# URL and fetches a token from it. The token is issued by the submission form,
+# per app, and is not a secret — but it is not ours to hard-code either, so it
+# arrives as config and the route is a pure echo.
+#
+# Unset is the honest default: an unconfigured deployment answers 404 rather
+# than an empty 200, so a verification attempt fails loudly at the right place
+# instead of looking served-but-wrong.
+#
+# Registered here, beside the FastMCP instance, so it lands in the SAME
+# explicit-Route pass as the OAuth well-knowns and wins its path over the
+# root-mounted protocol endpoint (see the streamable_http_path note above).
+@mcp.custom_route("/.well-known/openai-apps-challenge", methods=["GET"])
+async def openai_apps_challenge(_request):
+    from starlette.responses import PlainTextResponse, Response
+
+    token = (os.environ.get("OPENAI_APPS_CHALLENGE_TOKEN") or "").strip()
+    if not token:
+        return Response(status_code=404)
+    return PlainTextResponse(
+        token,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+# =============================================================================
 # ADR-533 §13 — declare the tool list VOLATILE (`capabilities.tools.listChanged`)
 # =============================================================================
 # THE DEFECT THIS FIXES: we were telling every host our tool surface never
