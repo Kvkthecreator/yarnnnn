@@ -211,20 +211,56 @@ in: a locale pass and a core pass find different defect classes.
    `untitled.md` while the member's name sits in the 개요 field two lines below. The title
    should prefer the document's own name over its path stem.
 
-**Open — pre-existing RED gates on Slides, measured at HEAD before this pass touched
-anything.** `test_adr440_studio.py` is 44/44; these are not:
-- `test_adr544_containment_law.py` — 3 failures (D7 legacy `data-slot` rungs in
-  `labelForElement`/`labelForJS`; ADR-541 D4 withdrawal-notice scope)
-- `test_adr620_compose_at_slide_grain.py` — 2 failures. **One is "the pane offers Compose at
-  page scope", which may be a real regression against ADR-620's whole thesis rather than a
-  stale gate — look at this one first.**
-- `test_adr443_studio_model.py` — 1 failure (the 'New ‹slide|section›' gallery door)
-
 ⚠️ **Two non-findings, recorded so nobody re-finds them.** A Slides "clipped canvas" was a
 narrow-window artifact (stage 0.71 at 1158px, 1.36 at 1600px; the slide honours its baked
 992×558 and the stage is width-driven by design) — **measure a layout at two viewport widths
 before calling it a bug**. And a "canvas ignores slide selection" was a transient
 mid-recompose state; re-testing tracked correctly both times.
+
+## App click-passes: Blogger · Images · Files — what stays OPEN (2026-09-22)
+
+Driven on production **in ENGLISH, set deliberately** (Settings → Language before anything
+else; the rig account does carry `locale='ko'` and comes up Korean otherwise). Fixes are in
+`8e35f85`, `c5bdae2`, `8e2c3d3`, `083f7b4`, `1f918e6`, `990f08f`, `b65dde4`.
+
+**Open — a product question this pass could not answer:**
+
+1. **The SYNC lane path drops a multi-round preamble.** `c5bdae2` fixed the STREAMED path,
+   which is the one members use — a round boundary no longer welds the plan to the report.
+   `run_lane_turn` (the non-streaming sibling) keeps only the LAST round's text, so it discards
+   the preamble instead of welding it. Wrong in the opposite direction and not member-visible
+   today, so it was left rather than fixed blind. Decide whether the sync path should
+   accumulate with the same separator, or whether dropping is correct for its callers.
+
+**Open — not release-blocking, bounded:**
+
+2. **The Files list crushes NAME to ~16px at 900px viewport.** Found while measuring the AUTHOR
+   clip (`b65dde4`) and PRE-DATES it: at 900px the four-column template leaves Name almost
+   nothing, because the `md:` breakpoint that drops the Where column fires well below the width
+   at which four columns stop fitting. The fix is probably to drop Where at `lg:` rather than
+   `md:`, but that is a Finder-parity judgment, not a measurement. Unclipped and correct from
+   1280px up.
+
+3. `test_adr587_handle_grammar_parity.py` — **7 pre-existing failures**, an ADR-587 D5
+   path-naming arc (Properties/share-sheet/tile/row do not render the path through the shared
+   CopyField; the verb-roster arm names three verbs not on the roster). Identical before and
+   after `990f08f`, which added 2 green arms beside them (39 → 41 checks).
+
+4. `test_files_selection_model.py` — 2 pre-existing failures (`5. double-click opens via the
+   funnel`, `11d. Download is in the shared menu`). Identical before and after `b65dde4`.
+
+5. `test_adr412_chat_surface.py` **crashes on collection** — it reads
+   `web/components/shell/chrome/ChatDrawer.tsx`, deleted at some point. A gate that crashes
+   reports nothing; it needs re-pointing or retiring.
+
+6. `test_adr657_two_lanes.py` — 2 failures from a missing local `mcp` module (env gap, not
+   product). Identical before and after this pass.
+
+⚠️ **One non-finding, recorded so nobody re-finds it.** Navigating `/blogger` → `/images`
+client-side rendered Blogger's landing under the `/images` URL on the FIRST load and Images
+correctly on the second — a transient registry re-resolve, not a routing defect. **Re-test any
+"it showed the wrong thing" before filing it**; this is the second pass in a row where that
+rule prevented a false finding.
 
 ## The upload door is open — two owed follow-ups (ADR-395 am.1, 2026-09-21)
 
