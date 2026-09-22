@@ -156,6 +156,13 @@ const nextConfig = {
   // `eval` emits no separate maps but INLINES them into the JS, so it is
   // bigger overall. `hidden-nosources` keeps the mappings and drops the source
   // text, which is both the smallest and the one that stays symbolicatable.
+  //
+  // The other factor is deployment COUNT (2026-09-23): the cap was hit again
+  // at ~0.7-1 GB per deployment because every push to main deployed, and
+  // 329 of the prior 30 days' 555 commits touched neither `web/` nor the
+  // `content/` the blog reads (`lib/blog.ts`). `vercel.json`'s ignoreCommand
+  // skips those builds; a git error (previous SHA outside the shallow clone)
+  // exits 128, which builds, so the rule fails toward deploying.
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.devtool = 'hidden-nosources-source-map';
