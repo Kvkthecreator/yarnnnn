@@ -340,6 +340,22 @@ Confirmed by isolating the halves — the same static export served over plain H
 
 ---
 
+## 7f. The root exported as an error page (2026-09-22)
+
+After a successful Google sign-in the member landed on something that looked like a logged-out start — *"redirected to the landing page, confusing, as if I'm not logged in already."*
+
+**The shell's `/` was exporting as an ERROR PAGE.** `redirect()` from `next/navigation` is a SERVER call; a static export has no server, so Next emitted the route with `id="__next_error__"` instead. Visible in one line of the built HTML and in nothing else — every build was green, 48/48 pages generated, and the route "existed".
+
+The fix is a client redirect, and **that is not a violation of ADR-308 — it is the only thing that works here.** ADR-308 requires a stub to be pure server transport because a `'use client'` redirect paints one orphaned frame inside the OS shell. That ruling is about the build that HAS a server. In the shell the orphaned-frame cost does not apply the same way: this route is reached only at cold boot, before any Desktop exists to be orphaned, and `replace` keeps it out of history. `page.web.tsx` is untouched and still the marketing landing page.
+
+Driven: the rebuilt export served over plain HTTP and loaded at `/` lands on `Sign In | yarnnn`, proving the chain `/` → `/desktop` → `AuthGate` runs. With a session it goes straight through.
+
+⭐⭐ **Three bugs in this arc shared one shape: a server-ism that a static export silently converts into something inert.** `cookies()` made 41 routes un-exportable (§7a), `redirect()` became an error page (§7f), and Tauri's CSP nonce killed hydration (§7e). None failed a build. The shell's rule: **anything that needs a request is either moved to the client or excluded from the shell build** — and the way to find the next one is to read the exported HTML, not the build log.
+
+⚠️ The gate arm for this was WRONG on its first cut: it asserted `page.web.tsx` keeps a server `redirect()`, but the web's `/` is the marketing landing page, not a stub. The two roots are different pages, which is the whole reason the shell needs its own.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

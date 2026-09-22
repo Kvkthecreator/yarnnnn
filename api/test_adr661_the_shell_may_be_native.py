@@ -299,6 +299,30 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         "a web-only route lost its .web suffix and would enter the shell build",
     )
 
+# --------------------------------------- §7f the shell root is not an error
+print("\n§7f the shell root is a real page")
+
+# `redirect()` from next/navigation is a SERVER call. In a static export Next
+# emits the route as an ERROR page (id="__next_error__") instead — which is
+# what a member saw after signing in: a page that looks like a logged-out
+# start, on an app that had just authenticated them.
+#
+# The check is on the SOURCE, because the export is a build artifact that may
+# not exist when the gate runs.
+shell_root = strip_comments(read("web/app/page.tsx"))
+check(
+    "the shell root redirects client-side, not with server redirect()",
+    "use client" in read("web/app/page.tsx") and "router.replace" in shell_root,
+    "a server redirect() exports as an error page in a static build",
+)
+# The web's `/` is the marketing LANDING PAGE, not a stub — the two roots are
+# different pages, which is the whole reason the shell needs its own.
+check(
+    "the web root is still the marketing landing page",
+    "LandingPageBody" in strip_comments(read("web/app/page.web.tsx")),
+    "the web build lost its landing page to the shell's redirect",
+)
+
 # ------------------------------------------------- §7e the app must hydrate
 print("\n§7e the shell ships a LIVE app, not dead HTML")
 
