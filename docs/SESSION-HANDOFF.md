@@ -480,19 +480,12 @@ Row deleted after the pass.
   member-facing `why_line`, or rewrite this one in VOICE-AND-TONE register. No gate covers it —
   `test_adr657_two_lanes.py` §2e asserts the rationale is PRESENT, never that it is legible.
 
-## ADR-656 — the Supervisor app (Phases 1–2 SHIPPED 2026-09-18; memory + routing next)
-- **Scope**: one app, one agent. KERNEL app (code); a member authors no app. ADR-653's
-  member-authored layer is DELETED (its §13 has the census); `APP-BUILDER-UX.md` is UNSCOPED.
-- **DONE**: the `supervisor` AGENTS row · `services/apps/supervisor.py` · a kernel surface row with
-  **`register: "composition"`** (the FIRST tenant) · **the surface** — three declared sections
-  (`needs-you` · `threads` · `note`) dispatched by kind with the honest amber miss · the app
-  UNVEILED (`primary`, pinned, `/supervisor`). Click-passed: all three bands render, 19 threads with
-  app·agent derived, three reading "not filed yet", and a click opens `/chat?chat.lane={id}`.
-- ⭐**The sections were RE-DERIVED, not inherited.** ADR-653's `files` and `recent` are deliberately
-  NOT carried — the supervisor owns no folder, and "what moved" is the timeline's job (duplicating
-  it is the "glorified redirect" ADR-435 killed the last composition for). `threads` is the one new
-  kind and the reason this app is not a redirect.
-- **NEXT, in order**:
+## The Supervisor — OPEN items (ADR-656 → superseded by ADR-658/659/660; see the ledger)
+- ⚠️ The DONE/vocabulary narrative that stood here is stale and was deleted: `threads` no longer
+  exists (ADR-658 §2 deleted the kind, `THREAD_CAP` and `_threads`), the sections are
+  `work` · `needs-you` · `note`, and sources are a LIST (am.5). The shipped history lives in the
+  ADR-LEDGER and in ADR-658's amendments 1–5; only the unbuilt items below are open.
+- **OPEN, in order**:
   1. **Memory's writer and reader** — `agents/supervisor/memory/` still has ZERO of each. RULED: it
      holds **private judgment only** (corrections, preferences, patterns), never context — the
      workspace IS the shared memory (ADR-411), so there is no store to build. Small by construction;
