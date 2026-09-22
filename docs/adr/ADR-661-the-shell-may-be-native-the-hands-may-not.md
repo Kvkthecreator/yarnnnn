@@ -377,6 +377,20 @@ Verified against the live service rather than assumed: `GET /auth/v1/authorize?p
 
 ---
 
+## 7h. A failed sign-in says why (2026-09-22)
+
+`useState(initialError)` captures the prop on the FIRST render only, and the login page reads `?error=` in an effect — so an error arriving with the URL was computed and then **silently discarded**. A member bounced back from a failed callback saw a bare sign-in form with no reason at all, which reads as "it just didn't work" and is unreportable.
+
+Found while diagnosing the desktop sign-in loop: the callback WAS redirecting with `?error=code_exchange&message=…` and the screen said nothing. The error-surfacing code had existed all along and never rendered.
+
+**This is a WEB defect, not a shell one** — the same silent drop happens on yarnnn.com whenever an OAuth callback fails.
+
+⭐⭐ **It paid for itself on the next bug.** §7k's failure (`Auth session missing!`) was the first in this arc the product reported in words the operator could relay, and that one sentence was the whole diagnosis. **A product that cannot say why it failed makes every subsequent bug cost a debugging round.**
+
+⚠️ The gate arm was BLIND on its first cut: it checked for `useEffect` and `initialError` as separate names, and `useEffect` appears elsewhere in the file, so it stayed green through exactly the deletion it exists to catch.
+
+---
+
 ## 7i. The browser signs in; the app receives a session (2026-09-22)
 
 **D5 — the shell does not authenticate. The website does.**
