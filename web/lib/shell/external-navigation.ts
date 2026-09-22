@@ -61,10 +61,28 @@ export function openExternal(url: string): boolean {
   if (!url) return false;
 
   if (isNativeShell()) {
-    // `window.open` with `_blank` is routed to the system browser by the
-    // shell's own handler; the Tauri opener plugin is wired there, not here,
-    // so this module stays importable from the web bundle.
-    window.open(url, "_blank", "noopener,noreferrer");
+    // `openUrl` from the opener plugin — the conventional Tauri API for
+    // handing a URL to the OS.
+    //
+    // ⚠️ NOT `window.open`. An earlier cut of this used it, with a comment
+    // claiming the shell "routes _blank to the system browser". It does not:
+    // in a Tauri webview `window.open` silently does nothing, so the Google
+    // button looked dead. A comment asserting a behaviour nobody implemented
+    // is worse than no comment — it reads as a design and hides a gap.
+    //
+    // Imported DYNAMICALLY so the plugin never enters the web bundle's
+    // dependency graph, and awaited only for its rejection: the caller wants
+    // a synchronous answer about whether the member is leaving, and in the
+    // shell they never are.
+    void import("@tauri-apps/plugin-opener")
+      .then(({ openUrl }) => openUrl(url))
+      .catch(() => {
+        // The plugin missing is a packaging bug, not a runtime condition. The
+        // member sees a button that did nothing, which is the symptom that
+        // gets reported — so fall back to the browser-shaped behaviour rather
+        // than leaving them with no path at all.
+        window.location.href = url;
+      });
     return false;
   }
 
