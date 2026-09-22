@@ -284,6 +284,66 @@ check(
     f"the label ladder's CODE — one source for the noun, never an alias table",
 )
 
+# D3, the same rule one rung out: the CHROME's nouns obey the object model
+# too, not only the label ladder. `StudioShareExport` mounts in all three apps
+# and its print note was the bare constant "A deck prints one slide per page",
+# so a Blogger post and an Images artboard were each told about decks — the
+# very §1.1 failure (one object wearing another model's noun), in the export
+# popover instead of the crumb. Driven in Blogger, 2026-09-22.
+_SHARE = (WEB / "StudioShareExport.tsx").read_text()
+check(
+    "objectModel" in _SHARE,
+    "D3: StudioShareExport does not read the app's object model — its print "
+    "note is a constant, so Blogger and Images are told about decks",
+)
+check(
+    "printNotePages" in _SHARE and "objectModel === 'pages'" in _SHARE,
+    "D3: the paged print note is not gated on the PAGES model — the deck "
+    "sentence must be reachable only from the model that has pages",
+)
+# Anchored on THIS mount, not the file. `objectModel={app.objectModel}` is
+# passed at four mounts in StudioSurface, three of which predate this fix — so
+# a bare substring search stays true with the ShareExport mount stripped, which
+# is exactly what it did when first written and falsified. An arm needs a world
+# in which it can fail.
+_share_mount = re.search(
+    r"<StudioShareExport\b(.*?)/>", _strip_comments(SURFACE), flags=re.DOTALL
+)
+check(
+    _share_mount is not None,
+    "D3: the StudioShareExport mount is unreadable to the gate — the element "
+    "moved or changed shape",
+)
+check(
+    _share_mount is not None
+    and "objectModel={app.objectModel}" in _share_mount.group(1),
+    "D3: the StudioShareExport mount does not pass the object model — the "
+    "prop exists and nothing feeds it, so every app falls to the default",
+)
+# The catalog half: a caption fix that leaves the deck sentence in the GENERAL
+# key changes nothing at runtime. ADR-660 moved these words out of the .tsx, so
+# the assertion has to read the catalog the way the runtime does — and BOTH
+# catalogs, or Korean keeps the defect English just lost.
+import json as _json
+for _loc in ("en", "ko"):
+    _cat = _json.loads((REPO / f"web/messages/{_loc}.json").read_text())
+    _se = _cat["studio"]["shareExport"]
+    _deck = "deck" if _loc == "en" else "\ub371"
+    check(
+        "printNotePages" in _se,
+        f"D3: {_loc}.json has no `printNotePages` — the paged note has no words",
+    )
+    check(
+        _deck not in _se.get("printNote", ""),
+        f"D3: {_loc}.json's general `printNote` still names a deck — it is "
+        f"shown in Blogger and Images, which have none",
+    )
+    check(
+        _deck in _se.get("printNotePages", ""),
+        f"D3: {_loc}.json's `printNotePages` does not name the deck it is for",
+    )
+
+
 # ── D4 — the tree's shape: two levels, z-descending ────────────────────────
 if TREE:
     check(

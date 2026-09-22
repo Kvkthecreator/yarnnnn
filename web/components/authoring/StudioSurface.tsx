@@ -4029,6 +4029,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               savePng={app.slug === 'images' ? savePng : undefined}
               compact={!fullLabels}
               coarsePointer={coarsePointer}
+              objectModel={app.objectModel}
             />
             {/* The side pane's DOOR — at EVERY rung that has a side pane, not
                 only where it is an overlay. Gating this on `sideIsOverlay` was

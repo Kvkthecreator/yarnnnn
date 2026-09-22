@@ -2169,7 +2169,8 @@
       "aiRefCopied": "Reference copied ✓",
       "savedAt": "Saved to {path} — refer to it from a document as ![alt]({path}).",
       "pngNote": "The PNG is a flat projection — the composition stays the source (trace walks its layers). Save lands it beside the artboard so a document can refer to it.",
-      "printNote": "A deck prints one slide per page. Markdown export is not offered yet."
+      "printNote": "Markdown export is not offered yet.",
+      "printNotePages": "A deck prints one slide per page. Markdown export is not offered yet."
     },
     "newDesignSystem": {
       "title": "New design system",

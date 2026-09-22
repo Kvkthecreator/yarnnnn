@@ -61,6 +61,12 @@ interface StudioShareExportProps {
   compact?: boolean;
   /** Touch parity — 44px targets under a coarse pointer. */
   coarsePointer?: boolean;
+  /** ADR-633 D2 — what the member is composing, so the print note says it.
+   *  The note was a bare constant reading "A deck prints one slide per page"
+   *  and this component mounts in Blogger and Images too, so a post and an
+   *  artboard were both told about decks. DECLARED, never derived from the
+   *  slug — see the field's own ruling in StudioSurface. */
+  objectModel?: 'flow' | 'pages' | 'layers';
 }
 
 export function StudioShareExport({
@@ -71,6 +77,7 @@ export function StudioShareExport({
   savePng,
   compact = false,
   coarsePointer = false,
+  objectModel,
 }: StudioShareExportProps) {
   const t = useTranslations('studio.shareExport');
   // Only Export has a panel now — Share is a dialog trigger (ADR-529 D1).
@@ -135,6 +142,16 @@ export function StudioShareExport({
 
   const [saveState, setSaveState] = useState<'idle' | 'working' | 'saved' | 'error'>('idle');
   const [savedPath, setSavedPath] = useState<string | null>(null);
+  /** The one note under the export row. Hoisted out of the JSX because the
+   *  ADR-660 meter reads a multi-line ternary as literal copy even when every
+   *  branch is a `t()` call — the fix for that is always the hoist. */
+  const exportNote = exportPng
+    ? saveState === 'saved' && savedPath
+      ? t('savedAt', { path: savedPath })
+      : t('pngNote')
+    : objectModel === 'pages'
+      ? t('printNotePages')
+      : t('printNote');
   const runSavePng = useCallback(async () => {
     if (!savePng) return;
     setSaveState('working');
@@ -249,11 +266,7 @@ export function StudioShareExport({
               </button>
             </div>
             <p className="text-[10px] leading-snug text-muted-foreground">
-              {exportPng
-                ? saveState === 'saved' && savedPath
-                  ? t('savedAt', { path: savedPath })
-                  : t('pngNote')
-                : t('printNote')}
+              {exportNote}
             </p>
           </div>
         </div>
