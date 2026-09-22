@@ -303,6 +303,22 @@ yarnnn://auth/callback?next=%2Ffiles     → host received it
 
 ---
 
+## 7d. Step 5a — the sign-in round trip, found by a member (2026-09-22)
+
+§7c proved the deep link carries a URL back. It did not prove a member can sign in, and they could not. Three bugs on one path, reported from a real build with a screenshot of **Google's consent screen rendering inside the app's own window**, recognising no passkey and offering no password field.
+
+**1. `signInWithOAuth` navigates the window itself.** §4.3's `openExternal` was never on this path — the Supabase call redirects internally, so the consent page loaded in the webview. A provider's sign-in page assumes a browser: it reaches for platform credentials, WebAuthn and the member's existing Google session, none of which a bare webview has. Fixed with `skipBrowserRedirect: true` and handing the returned URL to `openExternal`. ⭐ **A helper only covers the calls that go through it** — the audit found `window.location.href` sites and stopped there, and a library doing its own navigation is invisible to that search.
+
+**2. The PKCE code was never exchanged.** The shell's client sets `detectSessionInUrl: false` — correct, because its callback arrives as a deep link the host hands over, not a navigation the client can inspect — but `app/auth/callback` relied on exactly that auto-detection. The member would return with a valid `?code=` and no session. Now exchanged explicitly, which serves both builds: `exchangeCodeForSession` is idempotent, so the web path is unchanged in behaviour and no longer depends on a side effect.
+
+**3. A hard navigation reboots a static export.** `window.location.href = next` is deliberate on the web — it makes the next request pass through `middleware.ts`, which re-reads the fresh cookie. In the shell it is a full load of `index.html`: the app restarts, the just-established session is not yet consulted, and the member lands back on sign-in. The operator's words: *"sign in, redirects to the landing page, click sign in again, it goes through auth although it recognises I was already logged in."* Both sites (`callback`, `login`) now use `router.replace` in the shell.
+
+⭐⭐⭐ **Three bugs, one path, none reachable by reading.** Each was in a different layer — a library's internal behaviour, a client option's second-order effect, and a navigation idiom that is correct on one build and wrong on the other. §7c's trace was green while all three were live, because it drove the *transport* and never the *act*. **A round trip is only verified by a member completing it.**
+
+⚠️ The falsification of these arms was itself wrong first: replacing the FIRST occurrence of `exchangeCodeForSession` hit the comment, not the call, and the arm stayed green. The gate was sound; the probe was not. Re-run against the call site, all three go red.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

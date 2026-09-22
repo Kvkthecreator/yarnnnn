@@ -9,6 +9,8 @@ import { HOME_ROUTE } from "@/lib/routes";
 import { Wordmark } from "@/components/shared/Wordmark";
 import { Working } from '@/components/shared/Working';
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { isNativeShell } from "@/lib/shell/external-navigation";
+
 
 function CallbackHandler() {
   const router = useRouter();
@@ -90,6 +92,32 @@ function CallbackHandler() {
         }
       }
 
+      // PKCE BRANCH — explicit, because the shell's client cannot auto-detect
+      // (ADR-661 §8 step 5).
+      //
+      // On the web, `createClientComponentClient` exchanges a `?code=` for a
+      // session by itself when the page loads. The shell's client sets
+      // `detectSessionInUrl: false` — correct, because its callback arrives as
+      // a `yarnnn://` deep link the host hands over, not as a browser
+      // navigation the client can inspect. That leaves the code UNEXCHANGED:
+      // the member finishes signing in, the app navigates here, and nothing
+      // happens.
+      //
+      // Exchanging it here serves both builds. `exchangeCodeForSession` is
+      // idempotent against an already-established session, so the web path is
+      // unchanged in behaviour; it just no longer depends on a side effect.
+      const oauthCode = searchParams.get("code");
+      if (oauthCode) {
+        const { error: exchangeError } =
+          await supabase.auth.exchangeCodeForSession(oauthCode);
+        if (exchangeError) {
+          router.replace(
+            `/auth/login?error=code_exchange&message=${encodeURIComponent(exchangeError.message)}${nextParam}`
+          );
+          return;
+        }
+      }
+
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
@@ -116,7 +144,23 @@ function CallbackHandler() {
         // that did not exist, and every cold sign-up from 2026-07-11 landed
         // workspace-less. Do not re-point genesis at a route: a door on a route
         // is only as live as that route's caller.
-        window.location.href = next;
+        // ADR-661 §8 step 5 — a HARD navigation on the web, a SOFT one in
+        // the shell.
+        //
+        // On the web `window.location.href` is deliberate: it makes the next
+        // request pass through `middleware.ts`, which re-reads the cookie the
+        // exchange just wrote. Without a full load the member can arrive with
+        // the server still holding the old session.
+        //
+        // In the shell there is no middleware and no server. The same line is
+        // a full page load of a STATIC EXPORT: it reboots the app from
+        // index.html, which lands on the shell root and shows sign-in again
+        // even though the session is now valid. Reported from a real build —
+        // "sign in, land on the landing page, sign in again, and it knows I
+        // was already logged in". `router.replace` keeps the running app and
+        // the session it just established.
+        if (isNativeShell()) router.replace(next);
+        else window.location.href = next;
       };
 
       if (session) {
@@ -160,8 +204,12 @@ function CallbackHandler() {
       setSavingPassword(false);
       return;
     }
-    // Signed in already, and now with the password they just chose.
-    window.location.href = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
+    // Signed in already, and now with the password they just chose. Same
+    // split as `finalize` above — a full load re-enters the middleware on the
+    // web and reboots the app in the shell.
+    const target = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
+    if (isNativeShell()) router.replace(target);
+    else window.location.href = target;
   };
 
   if (recovery) {

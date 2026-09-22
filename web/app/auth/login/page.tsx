@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getSafeNextPath } from "@/lib/auth/redirect";
@@ -13,9 +13,11 @@ import { Wordmark } from "@/components/shared/Wordmark";
 import { Working } from '@/components/shared/Working';
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { useTranslations } from "next-intl";
+import { isNativeShell } from "@/lib/shell/external-navigation";
 
 function LoginForm() {
   const t = useTranslations("auth");
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [initialError, setInitialError] = useState<string | null>(null);
   const nextPath = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
@@ -51,7 +53,12 @@ function LoginForm() {
 
         <AuthForm
           onPasswordSuccess={() => {
-            window.location.href = nextPath;
+            // ADR-661 §8 step 5 — the same split as the OAuth callback. A
+            // full load re-enters `middleware.ts` on the web (which must see
+            // the new cookie), and REBOOTS the static export in the shell,
+            // landing the member back on sign-in with a valid session.
+            if (isNativeShell()) router.replace(nextPath);
+            else window.location.href = nextPath;
           }}
           callbackRedirect={callbackRedirect}
           // `?mode=signup` opens in sign-up (2026-09-16). Every conversion CTA

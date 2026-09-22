@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useTranslations } from "next-intl";
 import { STAGE_NOTICE } from "@/lib/metadata";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { openExternal } from '@/lib/shell/external-navigation';
 
 /**
  * Is this address one the mail provider can actually deliver to?
@@ -231,14 +232,35 @@ export function AuthForm({
     setLoading(true);
     setNotice(null);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      // ADR-661 §4.3 — in the shell this consent screen MUST open in the
+      // member's own browser, and `signInWithOAuth` navigates the current
+      // window itself. So ask it for the URL instead of letting it redirect
+      // (`skipBrowserRedirect`), then hand the URL to the one door.
+      //
+      // Reported from a real shell build: Google's own page rendered INSIDE
+      // the app window, where it recognised no passkey and offered no way to
+      // type a password. A provider's sign-in page assumes a browser — it
+      // reaches for platform credentials, WebAuthn and the member's existing
+      // Google session, none of which a bare webview has.
+      //
+      // On the web `openExternal` is `window.location.href`, so this is the
+      // same navigation that shipped before — just routed through the helper
+      // that knows which build it is in.
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: callbackRedirect,
           queryParams: { access_type: "offline", prompt: "consent" },
+          skipBrowserRedirect: true,
+          
         },
       });
       if (error) throw error;
+      if (!data?.url) throw new Error("No authorization URL returned");
+      // `false` means the member stayed (the shell opened their browser), so
+      // the button must stop spinning — otherwise it spins behind a window
+      // they may simply close.
+      if (!openExternal(data.url)) setLoading(false);
     } catch (err) {
       setNotice({
         tone: "error",

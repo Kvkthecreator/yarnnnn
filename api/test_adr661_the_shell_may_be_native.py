@@ -299,6 +299,45 @@ for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
         "a web-only route lost its .web suffix and would enter the shell build",
     )
 
+# --------------------------------------- §8 step 5a the sign-in round trip
+print("\n§8 step 5a sign-in leaves, comes back, and stays")
+
+auth_form = strip_comments(read("web/components/auth/AuthForm.tsx"))
+
+# `signInWithOAuth` navigates the CURRENT window unless told not to. In the
+# shell that renders Google's own consent page inside the app's webview, where
+# it recognises no passkey and offers no password field — reported from a real
+# build.
+check(
+    "the OAuth consent screen opens in the member's browser",
+    "skipBrowserRedirect" in auth_form and "openExternal" in auth_form,
+    "the provider's sign-in page would render inside the app window",
+)
+
+callback = strip_comments(read("web/app/auth/callback/page.tsx"))
+
+# The shell's client sets detectSessionInUrl: false (its callback is a deep
+# link, not a navigation it can inspect), so the PKCE code must be exchanged
+# explicitly or the member returns signed-in-but-not.
+check(
+    "the PKCE code is exchanged explicitly",
+    "exchangeCodeForSession" in callback,
+    "a returning member's code would never be redeemed",
+)
+
+# A full page load in a STATIC EXPORT reboots the app from index.html, losing
+# the session that was just established — the "sign in, land on the landing
+# page, sign in again" loop.
+for rel, src in (
+    ("web/app/auth/callback/page.tsx", callback),
+    ("web/app/auth/login/page.tsx", strip_comments(read("web/app/auth/login/page.tsx"))),
+):
+    check(
+        f"{rel.rsplit('/', 2)[-2]}: post-sign-in navigation is soft in the shell",
+        "isNativeShell" in src and "router.replace" in src,
+        "a hard navigation reboots the static export and drops the session",
+    )
+
 # ------------------------------------------------ §8 step 5 the return leg
 print("\n§8 step 5 the shell can be signed, and can be returned to")
 
