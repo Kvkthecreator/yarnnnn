@@ -56,55 +56,43 @@ surface-preferences.ts:186-196`) keys ALL persisted shell state on the pin, so a
 flip reads and writes window/dock/attention state under the wrong key. Already visible in live
 localStorage — one user carries keys under both `owner:<uid>` and `<wsid>:<uid>`.
 
-## Members roster: three owner-gated controls are shown to a member (2026-09-21)
+## OWED: prove the server refuses a member's governance verbs (2026-09-22)
 
-Driven as `testacct` on the rig: the ⋯ menu on the member's OWN row offers 접근 범위 좁히기
-(narrow) · 지출 한도 설정 (spend cap) · 회수 (revoke) — all three `_require_owner_workspace`-
-gated — directly beneath the sentence "사람 초대나 접근 권한 변경은 소유자만 할 수 있어요"
-("only the owner can invite people or change access"). The UI contradicts itself in one
-viewport. Cause: `WorkspaceMembersCard.tsx:546` `const governable = !readOnly && m.role !==
-'owner'` is computed from the **target's** role; `viewerRole` (the signed-in principal's own
-role, derived at :502) is used ONLY for header copy at :756-770 and never consulted.
+The UI half is fixed (`b31aed3` — `governable` now reads the VIEWER's role, so a member no
+longer sees narrow / spend-cap / revoke on any row). **The server half is unproven.**
 
-⚠️ NOT yet proven whether the server refuses. The operator packet's rule is "hidden is not
-refused" — the direct-fetch probe was blocked by the sandbox (reading the Supabase auth
-cookie). **Before the next release, run the packet's §4 console probe** as the member against
-`/narrow` (widening own `write_scopes` to include `governance/`), `/cap` and
-`/workspace/invites`. A 200 on the first is the 2026-07-31 escalation reopened. The gate
-`test_governance_verbs_are_owner_gated.py` asserts the helper is CALLED (8/8 green, and its
-new ADR-537 arm was proven RED), but a gate reads source, not the live server.
+Driven as `testacct` on the rig, the ⋯ menu had offered all three verbs on the member's own
+row, directly beneath the card's own sentence saying only the owner can change access. The
+operator packet's rule is **"hidden is not refused"** — and the direct-fetch probe was blocked
+by the sandbox (it required reading the Supabase auth cookie), so whether the live server
+refuses was never established.
 
-## The free-tier seat cap is enforced at one of the two membership doors (2026-09-21)
+**Before the next release, run the packet's §4 console probe** (`docs/evaluations/
+OPERATOR-PACKET-settings-click-pass.md`) from a logged-in MEMBER's devtools console against:
+`POST /workspace/members/{self}/narrow` widening own `write_scopes` to include `governance/`;
+`POST /workspace/members/{self}/cap`; `GET /workspace/invites`. **A 200 on the first is the
+2026-07-31 escalation reopened** (a member widened their own grant; receipted in
+`docs/evaluations/findings/2026-07-31-member-can-widen-own-grant.md`).
 
-`create_invite` (`services/workspace_invites.py:107-132`) raises `upgrade_required` at the
-cap. `accept_share` (`services/workspace_shares.py:266-345`) mints the SAME billed grant
-(`role="member"`, and `HUMAN_SEAT_ROLES = ("owner","member")`) with **no tier read, no
-headcount, and the link is re-redeemable by design**. `sync_seat_quantity` is called at only
-two sites — invite-accept and member-revoke — and NOT on share-accept, so a share join is
-invisible to billing twice. Verified by grep: no billing symbol appears anywhere on the share
-path. ADR-537's own comparison table asserts the open join link `| Bills | yes |`; it does
-not. Both doors sit in ONE dialog, the second described as usable "more than once".
-The fix belongs in `ensure_principal_grant`, the one function both doors call.
+`test_governance_verbs_are_owner_gated.py` is 8/8 with its new ADR-537 arm proven RED — but a
+gate reads SOURCE, not the live server, which is exactly the gap this probe closes.
 
-## Smaller, all driven (2026-09-21)
+## Membership pass leftovers — what stays OPEN (2026-09-22)
 
-- The free-tier "Upgrade to the paid plan to invite your team." is a bare `<span>` with **no
-  clickable ancestor** (confirmed via `closest('a,button,[role=button],[onclick]')` → NONE).
-  `routes/workspace.py:2763-2766` says the 402 exists so the FE "branches cleanly to an
-  upgrade CTA"; nothing reads `e.status === 402`. The promised branch was never built.
-- `SeatPanel.tsx:64` destructures only `{ members }` from `useWorkspaceMembers()`, discarding
-  the `loaded`/`forbidden` flags it returns → `humans.length === 0` conflates loading, 403 and
-  empty, so a failed roster read shows "Loading the roster…" forever with no timeout.
-- A revoked invite page still reads "You've been invited as a member" above "This invite is
+Closed and deleted from here: the seat cap at one of two doors (`3c24354`), the un-clickable
+upgrade prompt and `SeatPanel`'s never-ending spinner (`b31aed3`), the revoke dialog's
+AI-shaped copy shown to humans (`b31aed3`), and the stale governance gate (`c3e626d`).
+
+- A revoked invite page still reads "You've been invited as a member" ABOVE "This invite is
   revoked." Two true lines that contradict each other.
-- The invite landing is **English while the inviter's shell is Korean** — it sits outside the
-  shell and resolves the locale per-account, so the joiner sees a different language from the
-  person who invited them.
+- The invite landing is English while the inviter's shell may be Korean — it sits outside the
+  shell and resolves the locale per-account, so the joiner can see a different language from
+  the person who invited them. (Correct per ADR-660 D2; the question is whether an invite
+  should carry the INVITER's locale as a hint.)
 - ⚠️ `browser_login_link.py`'s roster is STALE: `beta-cold-01@yarnnn.com` and
-  `beta-cold-02@yarnnn.com` are annotated "COLD — unused as of 2026-09-15" but **neither
-  auth user exists any more** (the 2026-09-15 teardown ran; 22 users live, neither present).
-  The file's own comment warns that a roster cannot promise coldness — it happened anyway.
-  Re-mint a cold instrument before any first-run pass, and correct these two lines.
+  `beta-cold-02@yarnnn.com` were annotated "COLD — unused as of 2026-09-15" but **neither auth
+  user exists any more** (teardown ran; 22 users live, neither present). Annotations corrected
+  in `d77821e`, but **no cold instrument exists** — re-mint one before any first-run pass.
 
 ## ADR-661 — the Mac shell EXISTS; steps 5–6 remain (2026-09-21)
 
@@ -186,123 +174,57 @@ platform-divergent APIs there are, so that ADR scopes ONE platform at a time.
 ⚠️ `docs/analysis/src_claudeCC/` is a vendored copy of Claude Code's own source (untracked,
 gitignored). **22 of 28 "computer use" matches under `docs/` are that tree, not canon.**
 
-## Slides: driven in ENGLISH — the deck path is sound (2026-09-22)
+## App click-passes: Text · Chat · Slides — what stays OPEN (2026-09-22)
 
-Deliberately driven with the account locale set to **English** (via the in-product
-Settings → Language pane, which persists to `user_metadata.locale` — verified), because the
-earlier Text/Chat passes ran in Korean by accident and that skewed their findings toward
-locale defects. This pass is core-feature only.
+Three apps driven on production as a real member. Everything fixed is in the commits
+(`ca4169a`, `532a3fb`, `8785490`) and the detail lives there; only the OPEN items are below.
 
-**What works, driven end to end**: New deck → named "Seed round narrative" → created at
-`operation/seed-round-narrative/deck.html` with two starter slides; slide selection drives a
-slide-scoped Properties pane (block tree, reorder/duplicate, a "CHANGE THIS SLIDE TO"
-arrangement gallery); Compose scoped to slide 2 with explicit Fill-in / Replace semantics;
-the turn rewrote the slide, **left the numbers as placeholders rather than inventing figures
-for an investor deck**, said so, and reported its steps. Export offers Print/PDF + Copy AI
-reference and names its own limit ("Markdown export is not offered yet"). Console clean.
+⚠️ **Text and Chat were driven in KOREAN by accident** — the rig accounts carry
+`user_metadata.locale='ko'` and the account step outranks cookie/Accept-Language, so the whole
+product came up Korean unannounced. Slides was then driven deliberately in English. Set the
+locale on purpose (Settings → Language, persists to the account) and say which mode a pass was
+in: a locale pass and a core pass find different defect classes.
 
-**THE RECEIPT THAT MATTERS**: the Compose revision is attributed
-`member:500f3ae7… **via** anthropic/claude-sonnet-5`, parent-pointered to v1. The member is
-the principal, the model is the tool they held — the attribution model the canon promises,
-holding on the AI-authoring path.
+**Open — needs a RULING, not a patch:**
 
-**Fixed** (`8785490`): `StudioSurface` mounted `LanePanel` without `viewerId` or `agentFaces`,
-two props that surface has always accepted. `viewerId` null → `isOwn` false for the member's
-OWN turns → their message labelled "A member" as if a stranger sent it, rendered left-aligned
-in the muted bubble, and **edit-and-resend never appeared** (it is gated on `isOwn`). Missing
-`agentFaces` → the reply row fell back to the raw slug, so one agent read as lowercase
-"editor" on its turn, "Editor" in the picker and "Message Editor…" in the composer — three
-spellings in one viewport. Both also applied to Blogger, which mounts the same surface.
+1. **Text's two doors disagree about non-Latin paths.** Create ASCII-folds a typed name
+   through `naming.py::path_slug` (`투자자 미팅 노트` → `operation/untitled.md`, canon, made
+   safe by `disambiguate`). Rename on the same file accepts `operation/투자자 미팅 노트.md`
+   with no folding, stored correctly NFC (migration 259 verified live on a fresh path). The
+   substrate handles Hangul fine. So either `path_slug` at creation is a constraint the product
+   outgrew, or rename is the door that should fold. **Do not fix one door before deciding.**
+2. **A single-agent lane is titled by its ENGINE, not its agent** — picking Editor produced a
+   lane called "Claude Sonnet 5"; a two-agent lane correctly reads "Editor, Supervisor".
+   ADR-558 makes the engine the member's pick and ADR-614 leads the door with colleagues, so
+   titling with the engine reads as the older model.
 
-⚠️ **Two things I nearly reported and did NOT — both were measurement errors, recorded so the
-next session does not re-find them:**
-- "The canvas clips the slide." At 1158px the stage iframe measured 0.71 (portrait) and the
-  slide filled only the top strip. At 1600px it is 1.36 and renders correctly. The stage is
-  width-driven by design (`StudioCanvas`: "scale the stage down so it fits the actual column
-  width… it SCALES, never RESIZES"), the slide honours its baked `--stage-w/--stage-h`
-  (992×558, present in the file — checked), and the leftover iframe height (~162px) is the
-  scroll gutter. **Measure at two viewport widths before calling a layout bug.**
-- "The canvas does not follow slide selection." Re-tested by clicking slide 1 then 2: the
-  badge tracked correctly both times. The first observation was a transient mid-recompose
-  state.
+**Open — copy, cheap:**
 
-**Pre-existing red gates at HEAD, NOT caused by this pass** (measured before touching
-anything): `test_adr544_containment_law.py` 3 failures (D7 legacy `data-slot` rungs in
-`labelForElement`/`labelForJS`; ADR-541 D4 withdrawal notice scope),
-`test_adr620_compose_at_slide_grain.py` 2 failures (the pane offers Compose at page scope;
-`seedTargetNoun` unreadable by the gate), `test_adr443_studio_model.py` 1 failure (the
-'New ‹slide|section›' gallery door). `test_adr440_studio.py` is 44/44. These want their own
-session — three of them are gates asserting shapes the product may have moved past, which is
-the stale-gate class, and one (Compose at page scope) may be a real regression against
-ADR-620's whole thesis.
+3. Agent DESCRIPTIONS and "last used" in the new-chat picker are English inside a Korean UI
+   (the agent NAMES are identifiers and correctly literal). Same class as the add-file menu
+   already recorded under ADR-395 am.1, and as `/settings` → Notifications, whose category
+   names and descriptions are also English there.
+4. Editor's description truncates in the picker ("Writes with you — decks and docu…") — it is
+   the only one long enough to clip.
+5. "New chat" stays English in the lane header until renamed.
+6. With a folded path, Text's window title and Properties header read "Untitled" /
+   `untitled.md` while the member's name sits in the 개요 field two lines below. The title
+   should prefer the document's own name over its path stem.
 
-## Chat: the lane works end to end — four copy gaps (2026-09-21)
+**Open — pre-existing RED gates on Slides, measured at HEAD before this pass touched
+anything.** `test_adr440_studio.py` is 44/44; these are not:
+- `test_adr544_containment_law.py` — 3 failures (D7 legacy `data-slot` rungs in
+  `labelForElement`/`labelForJS`; ADR-541 D4 withdrawal-notice scope)
+- `test_adr620_compose_at_slide_grain.py` — 2 failures. **One is "the pane offers Compose at
+  page scope", which may be a real regression against ADR-620's whole thesis rather than a
+  stale gate — look at this one first.**
+- `test_adr443_studio_model.py` — 1 failure (the 'New ‹slide|section›' gallery door)
 
-Driven in Korean on production as a real member, with a real turn against a real file.
-**The lane is sound and the receipts are real.** Picked Editor → sent a Korean message asking
-for a summary of the file created minutes earlier → the agent found it, read it, and answered
-**in Korean** (unprompted), with an honest caveat that the note was too short to summarize.
-Tool steps were reported in the member's language ("파일을 살펴봤어요 · 워크스페이스를 검색했어요
-· 파일을 읽었어요"). The reply is attributed to **Editor**, not to the engine.
-`execution_events` carries three rounds for that one message on `claude-sonnet-5`, ~$0.085
-total — the cost ledger that backs the billing model is live and correct.
-
-**Multi-party (ADR-626) works**: the add panel went 2명 → 3명 (나 + Editor + Supervisor), each
-participant's read-scope is stated ("대화 전체를 읽어요"), removal is offered
-("Editor 내보내기"), there is a read-prior-context checkbox, and when no other human exists it
-says so and offers a real `<a>` to the members pane — the membership thread closing its own
-loop. Console clean throughout.
-
-Copy gaps, all in the new-chat picker and the lane header, none blocking:
-
-1. **Agent DESCRIPTIONS are English inside a Korean interface** — "Makes images.", "Writes with
-   you — decks and documents.", "Writes posts for readers outside the workspace.", "Keeps track
-   of what is underway.", plus the "last used" marker. The agent NAMES are identifiers and are
-   correctly left literal; the sentences around them are copy and belong in the catalogs.
-   Same class as the add-file menu already recorded under ADR-395 am.1.
-2. **Editor's description truncates** in the picker — "Writes with you — decks and docu…". It is
-   the only one long enough to clip, so the row needs either a shorter string or two lines.
-3. **"New chat" is English** in the lane header and sidebar until the lane is renamed.
-4. **A single-agent lane is titled by its ENGINE, not its agent** — picking Editor produced a
-   lane called "Claude Sonnet 5". Add a second agent and the title correctly becomes
-   "Editor, Supervisor". ADR-558 makes the engine the member's pick and ADR-614 leads the door
-   with colleagues, so leading the TITLE with the engine reads as the older model; worth a
-   ruling rather than a silent change.
-
-## Text: create ASCII-folds a Korean name, rename does not (2026-09-21)
-
-Driven in Korean on production, Text app, as a real member. **The substrate itself is fine** —
-this is a door inconsistency, not a storage limit.
-
-- **Create** (`NameDocumentModal`) runs the typed name through `slugify` →
-  `services/naming.py::path_slug`, which ASCII-folds by design: `투자자 미팅 노트` →
-  `operation/untitled.md`, titled "Untitled". The canon documents this deliberately
-  (`한글 문서` → `untitled`, made safe by `disambiguate`'s `untitled-2`, `untitled-3`, …), and
-  the typed name is carried verbatim into the H1 — which it is.
-- **Rename**, on the very same file, accepts a Hangul path with no folding at all:
-  `operation/투자자 미팅 노트.md`, and the stored path is correctly **NFC** (migration 259's
-  guarantee verified live on a freshly-minted path). Rename never calls `path_slug`.
-
-So a member can HAVE a Korean filename; they just cannot create one directly. Two doors to a
-path, two different rules — the same shape as the seat-cap finding one level down. **Not fixed
-here**: which rule is right is a ruling, not a bug fix. If Hangul paths are acceptable (rename
-proves the substrate, Postgres and the export path all handle them), `path_slug` at creation is
-a constraint the product no longer needs and ADR-469 should be revisited. If the ASCII key is
-load-bearing for something not yet named (git export filenames? a connector?), then RENAME is
-the door that is wrong and should fold too. Do not "fix" one door before that is decided.
-
-**Fixed in passing** (`ca4169a` + follow-up): the create dialog's lede promised "the file takes
-a matching name", which was simply false for any non-Latin name — reworded in en/ko to say the
-name is what you see and the path below is its ASCII key (the path preview was honest all
-along). A THIRD hand-rolled slugifier in `NameDocumentModal` (no NFKD fold, so `Café notes` →
-`caf-notes` — the defect ADR-469 already fixed elsewhere) was collapsed into the shared
-`slugify`, now in `artifactNaming.ts`. And the first revision's change note was the literal
-`create .md` for a Korean name (the old local slug returned ""), so the timeline named no file
-at all; it now reads `Created {the name the member typed}`.
-
-⚠️ **Still open, cosmetic but visible**: with a folded path the window title and the Properties
-header both read "Untitled" / `untitled.md` while the member's name sits in the 개요 field two
-lines below. The title should prefer the document's own name over its path stem.
+⚠️ **Two non-findings, recorded so nobody re-finds them.** A Slides "clipped canvas" was a
+narrow-window artifact (stage 0.71 at 1158px, 1.36 at 1600px; the slide honours its baked
+992×558 and the stage is width-driven by design) — **measure a layout at two viewport widths
+before calling it a bug**. And a "canvas ignores slide selection" was a transient
+mid-recompose state; re-testing tracked correctly both times.
 
 ## The upload door is open — two owed follow-ups (ADR-395 am.1, 2026-09-21)
 
@@ -371,7 +293,7 @@ LIVE database; it SKIPS loudly without a DB URL rather than passing over nothing
 ⚠️ **Only `SUPABASE_DB_URL` (superuser) is configured locally** — `_RO` and `_MIGRATE` from
 ACCESS.md were never created. Any "read-only" probe in this repo is actually running as superuser.
 
-## Korean marketing:## Korean marketing: phase 1 COMPLETE (2026-09-21)
+## Korean marketing: phase 1 COMPLETE (2026-09-21)
 
 ADR-660 §14. **Seven** page pairs ship Korean: `/`, `/pricing`, `/how-it-works`, `/faq`, `/about`,
 `/developers`, `/support`, each with a `/ko/...` twin. The toggle swaps IN PLACE both directions — a
