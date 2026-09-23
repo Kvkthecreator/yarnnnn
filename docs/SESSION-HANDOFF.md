@@ -155,7 +155,17 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    Windows app refuses in words); (c) ratify ADR-662 (retires ADR-661's tripwire, which now watches only
    the extension's listing), then publish the extension (Chrome Web Store account + review) and set
    `CHROME_EXTENSION.storeUrl`.
-7. ⚠️ Watch: the browser and the app share one refresh-token lineage. If the app is signed out ~1h
+7. ⚠️ **A long-running desktop app keeps the website it loaded** (found 2026-09-23, receipt: Render
+   `[LANE] client=desktop/0.4.0 executor=None requested=None` at 07:23Z). The app opened at 06:08Z; the
+   relay's web code deployed at 06:12:44Z; the page never reloaded, kept the pre-relay `hands.ts` (which
+   read the deleted pane's `browser` field) and never asked for the tools. ADR-663 D1's "a web deploy
+   updates every desktop app" holds only on reload. Owed: the page notices a new deploy (build-id poll)
+   and reloads at a safe moment — and a host change that alters a command's answer must be read by BOTH
+   the old and new page shapes until every page has reloaded.
+8. ⚠️ **The app takes focus on launch even when launched in the background** (`open -g`): `main.rs`
+   calls `win.set_focus()` after build. Right for a member double-clicking the app; wrong for a relaunch
+   while they type elsewhere (ADR-662 D1's own rule). Owed: focus only on a user-initiated launch.
+9. ⚠️ Watch: the browser and the app share one refresh-token lineage. If the app is signed out ~1h
    after signing in, suspect Supabase's reuse detection — a hypothesis, unverified.
 
 ⚠️ **Testing leaves ghosts** in Launch Services; unregister by path (the publishing doc).
