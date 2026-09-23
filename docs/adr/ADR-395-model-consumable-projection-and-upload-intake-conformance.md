@@ -1158,6 +1158,14 @@ exactly "Save as .docx".
   missed every in-app ReadFile; the told-name resolved only at the MCP and web
   doors. Fixed as ADR-588 am.1 (resolved in `execute_primitive`, before the gate).
 
+- **A turn that ran out of steps showed "[no reply]".** The lane composes a
+  sentence for exactly that case ("I ran out of steps … your document is
+  unchanged") but it rode only on `done.text`, which the streaming route in
+  `routes/lanes.py` never read — so it reached neither the bubble nor the
+  transcript. The `done` branch now emits it as a delta and keeps it for the
+  persisted row, only when nothing streamed. Gate: `test_adr411_lanes.py`
+  +1 arm (the real lane stream + the route branch), proven RED two ways.
+
 **Not a product defect**: the first `.hwpx` upload failed at the edge because
 the fixture was the gate's XXE probe (`<!ENTITY leak SYSTEM "file:///etc/hosts">`)
 stored uncompressed — the WAF in front of the API blocked the request, CORS-less.

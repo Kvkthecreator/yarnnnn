@@ -2335,6 +2335,16 @@ def _turn_stream_response(
                         "message": payload.get("message"),
                     }})
                 elif kind == "done":
+                    # The lane's terminal sentence when NOTHING streamed — the
+                    # round cap's "I ran out of steps … your document is
+                    # unchanged". It lives only in `done.text`, which this loop
+                    # never read: the member saw "[no reply]" and the transcript
+                    # kept nothing (click-pass, 2026-09-23). Only when no text
+                    # streamed — otherwise `text` IS the streamed reply.
+                    final = payload.get("text") or ""
+                    if final.strip() and not "".join(accumulated).strip():
+                        accumulated.append(final)
+                        yield sse({"text_delta": final})
                     rounds = payload.get("rounds") or 0
                     # the terminal result is authoritative for both ledgers
                     tools_called = payload.get("tools_called") or tools_called

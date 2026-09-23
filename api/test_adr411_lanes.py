@@ -439,3 +439,26 @@ if __name__ == "__main__":
                 fails += 1
     print(f"\n{'='*60}\n{'PASS' if not fails else 'FAIL'}")
     sys.exit(1 if fails else 0)
+
+
+def test_a_turn_that_streamed_nothing_still_says_why():
+    """Click-pass 2026-09-23: an agent spent every round on tools and the member
+    saw "[no reply]". The lane DID compose a sentence for that case (the round
+    cap's "I ran out of steps … your document is unchanged"), but it lived only
+    in `done.text`, which the streaming route never read — so it reached neither
+    the bubble nor the transcript. Behavioural half: the lane produces it.
+    Route half: the `done` branch — anchored on that branch, not the file —
+    emits it as a delta AND keeps it for the persisted row, only when nothing
+    streamed."""
+    tc = {"id": "call-1", "name": "ReadFile", "arguments": {"path": "a.md"}}
+    _reply, events = _run_stream([("", [tc])])  # every round a tool round
+    done = [p for k, p in events if k == "done"][-1]
+    assert "ran out of steps" in (done.get("text") or ""), done
+
+    src = (Path(__file__).parent / "routes" / "lanes.py").read_text()
+    start = src.index('elif kind == "done":')
+    branch = src[start:src.index("except (asyncio.CancelledError", start)]
+    assert 'payload.get("text")' in branch, "the done branch ignores the lane's sentence"
+    assert "accumulated.append(final)" in branch, "shown but never persisted"
+    assert 'sse({"text_delta": final})' in branch, "persisted but never shown"
+    assert 'not "".join(accumulated).strip()' in branch, "would duplicate a streamed reply"
