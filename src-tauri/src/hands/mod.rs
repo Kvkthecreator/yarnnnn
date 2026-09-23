@@ -36,7 +36,7 @@ use tokio::sync::{oneshot, Mutex};
 /// The native-messaging host name the extension connects to.
 pub const HOST_NAME: &str = "com.yarnnn.desktop";
 /// The only extension allowed to connect (its id is fixed by its manifest key).
-pub const EXTENSION_ORIGIN: &str = "chrome-extension://flkcmnbfjjkglgaakihlcdfocecfaccb/";
+pub const EXTENSION_ORIGIN: &str = "chrome-extension://apafdkhjahbjdmlfmpdgmjfbanmchoae/";
 /// One act's bound — the extension's consent question (up to 120 s) plus a
 /// page load. The server fails the act closed at the same bound.
 const ACT_TIMEOUT: Duration = Duration::from_secs(150);

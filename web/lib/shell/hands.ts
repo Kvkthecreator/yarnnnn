@@ -36,7 +36,7 @@ import { isNativeShell } from "./external-navigation";
  *  it. `storeUrl` stays null until a published listing exists — and ADR-661's
  *  tripwire keeps it null until ADR-662 is Accepted. */
 export const CHROME_EXTENSION = {
-  id: "flkcmnbfjjkglgaakihlcdfocecfaccb",
+  id: "apafdkhjahbjdmlfmpdgmjfbanmchoae",
   storeUrl: null as string | null,
 };
 

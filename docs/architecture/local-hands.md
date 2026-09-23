@@ -71,9 +71,10 @@ words. The model never writes script: an act is `page.js` plus one call with JSO
   hello carries the switch, and re-sends it when the toolbar changes it, so the row tells the truth.
 - **Permissions.** `tabs`, `tabGroups`, `scripting`, `storage`, `nativeMessaging` (the desktop app), and host
   access to web pages — nothing for cookies, the clipboard, history, the network or the debugger.
-- **Identity.** The manifest's public `key` fixes the id (`flkcmnbfjjkglgaakihlcdfocecfaccb`), so an unpacked
-  build and a published one are the same extension to the website (`CHROME_EXTENSION.id`). No private key is
-  kept; the Chrome Web Store signs what it publishes.
+- **Identity.** The manifest's public `key` fixes the id (`apafdkhjahbjdmlfmpdgmjfbanmchoae`), so an unpacked
+  build and the published one are the same extension to the website (`CHROME_EXTENSION.id`). The key is the
+  Chrome Web Store's (item `apafdkhjahbjdmlfmpdgmjfbanmchoae`); no private key is held here — the store signs
+  what it publishes, and `scripts/package-extension.sh` strips `key` from the upload.
 - **Languages.** English and Korean (`_locales/`), following Chrome's language.
 
 ## 4a. The desktop app's relay (native messaging)

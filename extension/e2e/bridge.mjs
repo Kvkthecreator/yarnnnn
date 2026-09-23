@@ -34,7 +34,7 @@ const udd = fs.mkdtempSync(path.join(os.tmpdir(), "yu-"));
 fs.mkdirSync(path.join(udd, "NativeMessagingHosts"));
 fs.writeFileSync(path.join(udd, "NativeMessagingHosts/com.yarnnn.desktop.json"), JSON.stringify({
   name: "com.yarnnn.desktop", description: "test", path: BIN, type: "stdio",
-  allowed_origins: ["chrome-extension://flkcmnbfjjkglgaakihlcdfocecfaccb/"] }));
+  allowed_origins: ["chrome-extension://apafdkhjahbjdmlfmpdgmjfbanmchoae/"] }));
 const fx = http.createServer((q, r) => { r.writeHead(200, { "content-type": "text/html" });
   r.end('<!doctype html><title>Fixture form</title><label for=e>Email</label><input id=e><button onclick="document.title=\'Pressed\'">Go</button>'); }).listen(8765, "127.0.0.1");
 // the stand-in app

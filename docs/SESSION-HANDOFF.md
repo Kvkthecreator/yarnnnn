@@ -137,12 +137,12 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    downloaded DMG on a Mac that never built it and correct `/download`'s steps if it differs. Apple
    Developer ID (operator) still owed for a build that opens with no prompt, and for ADR-662.
 3b. **Chrome Web Store: extension SUBMITTED 2026-09-23 (publisher kvk@yarnnn.com, item id `apafdkhjahbjdmlfmpdgmjfbanmchoae`), Pending review.** Uploaded from a store build
-   (`key` and `localhost` stripped; the store assigns its OWN id). Owed: (a) DONE — /privacy §6 covers it (`d5763f5`). (b) Swap
-   the dev id `flkcmnbf…` for the store's in `web/lib/shell/hands.ts`, `EXTENSION_ORIGIN` in
-   `src-tauri/src/hands/mod.rs` (a host change, so cut 0.4.1 and publish it) and `extension/e2e/`, and
-   put the store's public key into `extension/manifest.json`'s `key` (operator brings the id and key
-   back from the dashboard). (c) Only then `storeUrl`, which ADR-661's tripwire holds until ADR-662
-   is Accepted.
+   (`key` and `localhost` stripped; the store assigns its OWN id). Owed: (a) DONE — /privacy §6 covers it (`d5763f5`). (b) DONE — the
+   store's public key is `extension/manifest.json`'s `key` (it derives `apafdk…`, checked); the id is
+   swapped in `hands.ts`, `EXTENSION_ORIGIN` and `extension/e2e/`. Rides **host 0.4.2** (with the Pacifico
+   bootstrap and the Settings switch) — cut and publish it; members reload the unpacked extension. The
+   store's copy under review is 0.1.0; upload **0.1.1** (the switch) when the review clears. (c) Only then
+   `storeUrl`, which ADR-661's tripwire holds until ADR-662 is Accepted.
 4. **Windows signing** — SmartScreen warns; Azure Trusted Signing eligibility for a Korean entity
    unchecked. Installer: `shell-windows.yml`, manual dispatch.
 5. **Auto-update** — deferred by ADR-663 D6 (its own keypair + a hosted manifest); D3's 426 is the lever.

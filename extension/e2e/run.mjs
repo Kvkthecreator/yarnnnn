@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EXT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const EXT_ID = "flkcmnbfjjkglgaakihlcdfocecfaccb";
+const EXT_ID = "apafdkhjahbjdmlfmpdgmjfbanmchoae";
 
 function chromeForTesting() {
   if (process.env.CHROME_FOR_TESTING) return process.env.CHROME_FOR_TESTING;
