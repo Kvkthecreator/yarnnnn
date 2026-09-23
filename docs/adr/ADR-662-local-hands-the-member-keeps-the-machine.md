@@ -112,8 +112,8 @@ itself is never captured.
 
 **Allowed apps, asked once per app.** The first time a job needs an app, the member is asked; the answer is
 remembered on that machine until revoked. This is the industry shape — Cowork asks *"before accessing each
-application"* — and it replaces the first draft's one-app-per-job, adopted to match the reference and the operator's lean
-toward autonomy (**operator to confirm**): a job routinely crosses apps (a link in Mail opens Chrome). An app nobody allowed stays unreachable,
+application"* — and it replaces the first draft's one-app-per-job (operator, 2026-09-23: *"yes widen allowed apps (no need
+one app per job)"*): a job routinely crosses apps (a link in Mail opens Chrome). An app nobody allowed stays unreachable,
 which is what keeps the scope real.
 
 **Denied apps.** A member-kept list whose requests are refused automatically, plus categories denied by
@@ -350,5 +350,10 @@ Still open:
    record), a small always-on-top host panel with Stop (the member is looking at another app), and a global stop
    shortcut; macOS shows its own screen-recording indicator.
 2. **The deployed LiteLLM version** (D7) — read it from the API's build log before choosing the adapter path.
-3. **Workspace policy.** Cowork's computer use is Pro/Max only, not Team or Enterprise. In a multi-member
-   workspace, should an owner be able to turn local hands off for members? Not needed for the first member.
+
+**Ruled (operator, 2026-09-23): no tier limits, and first-class.** *"we should first surface the desktop features
+as first class, no need to limit per tiers."* Unlike Cowork (Pro/Max only), local hands and the desktop shell
+are available on every plan, and they are a surfaced product capability, not a hidden beta. What "surfaced"
+builds — the shell's settings section, an entry from the web product, a download page — is its own step, and a
+public download waits on the Developer ID (D10). A workspace-owner switch for members is not built; revisit if
+an owner asks.
