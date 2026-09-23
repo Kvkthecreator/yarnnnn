@@ -270,10 +270,13 @@ conf_path = TAURI / "tauri.conf.json"
 conf = json.loads(conf_path.read_text(encoding="utf-8")) if conf_path.exists() else {}
 
 # D4: ONE codebase. The host must build the web tree, never carry its own copy.
+# §7o: through the one launcher, which sets the env on every OS.
 before = (conf.get("build") or {}).get("beforeBuildCommand", "")
+launcher = read("web/scripts/shell-next.mjs")
 check(
     "the shell builds from web/, never its own tree",
-    "cd web" in before and "YARNNN_SHELL=1" in before,
+    before == "node web/scripts/shell-next.mjs build"
+    and re.search(r'YARNNN_SHELL:\s*"1"', launcher) is not None,
     f"beforeBuildCommand does not build the shared tree: {before!r}",
 )
 
@@ -461,7 +464,9 @@ print("\n§7m the shell build cannot freeze a developer's origin into the app")
 # then every API call went to the member's own machine — "Couldn't load your
 # workspaces", an empty desktop (observed, screenshot). Load the REAL config
 # with a scrubbed env, the way `next build` does.
-def _load_next_config(api_url: str, node_env: str = "production") -> str | None:
+def _load_next_config(
+    api_url: str, node_env: str = "production", anon_key: str = "anon",
+) -> str | None:
     env = {
         "PATH": os.environ.get("PATH", ""),
         "HOME": os.environ.get("HOME", ""),
@@ -470,6 +475,8 @@ def _load_next_config(api_url: str, node_env: str = "production") -> str | None:
         "NEXT_PUBLIC_API_URL": api_url,
         "NEXT_PUBLIC_SUPABASE_URL": "https://example.supabase.co",
     }
+    if anon_key:
+        env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] = anon_key
     prog = 'try{require("./next.config.js");console.log("LOADED")}catch(e){console.log("REFUSED")}'
     try:
         out = subprocess.run(
@@ -503,12 +510,22 @@ check(
     "the guard must not break `cargo tauri dev` against a local API",
 )
 
-_before = json.loads(read("src-tauri/tauri.conf.json"))["build"]["beforeBuildCommand"]
-_pinned = re.search(r"\bNEXT_PUBLIC_API_URL=(\S+)", _before)
+# §7o: a CI runner has no .env.local, so a missing anon key would freeze an
+# app that boots and fails every Supabase call.
+check(
+    "a shell production build refuses a missing anon key",
+    _load_next_config("https://yarnnn-api.onrender.com", anon_key="") == "REFUSED",
+    "a build machine with no .env.local ships an app that cannot reach Supabase",
+)
+
+# The pin lives in the launcher (§7o), applied on the BUILD branch only.
+_launch = strip_comments(read("web/scripts/shell-next.mjs"))
+_origin = re.search(r'\bSHELL_API_ORIGIN\s*=\s*"([^"]+)"', _launch)
 check(
     "the release build pins the API origin, not the developer's env",
-    bool(_pinned) and _pinned.group(1).startswith("https://")
-    and "localhost" not in _pinned.group(1) and "next build" in _before,
+    bool(_origin) and _origin.group(1).startswith("https://")
+    and "localhost" not in _origin.group(1)
+    and re.search(r'mode\s*===\s*"build"\)\s*env\.NEXT_PUBLIC_API_URL\s*=\s*SHELL_API_ORIGIN\b', _launch) is not None,
     "the build falls back to .env.local — the guard will refuse it, but the release cannot be cut",
 )
 
@@ -566,6 +583,60 @@ check(
     "the window may be dragged (the drag region needs the permission)",
     "core:window:allow-start-dragging" in perms,
     "data-tauri-drag-region is inert without it: core:default does not grant dragging",
+)
+
+# ------------------------------------- §7o the host builds for Windows too
+print("\n§7o one host, macOS and Windows")
+
+# Tauri runs before*Command through `cmd` on Windows, which reads a leading
+# `NAME=value` as a program name: the Windows build could not start.
+_cmds = [(conf.get("build") or {}).get(k, "") for k in ("beforeBuildCommand", "beforeDevCommand")]
+check(
+    "the build commands carry no POSIX-only syntax",
+    all(c and not re.search(r"(^|\s|&&)\s*[A-Z_][A-Z0-9_]*=", c) and "&&" not in c for c in _cmds),
+    f"cmd.exe cannot run {_cmds!r}",
+)
+
+# The overlay title-bar methods do not EXIST on Windows — outside the macOS
+# block the host fails to compile there (E0599, observed by cross-checking).
+_code = re.sub(r"//[^\n]*", "", main_rs)
+_mac_code = re.sub(r"//[^\n]*", "", _mac_src)
+for method in ("title_bar_style", "hidden_title", "traffic_light_position"):
+    check(
+        f"`.{method}(` is called only inside the macOS block",
+        _code.count(f".{method}(") == 1 and f".{method}(" in _mac_code,
+        "a macOS-only builder method outside #[cfg(target_os = \"macos\")] breaks the Windows build",
+    )
+
+# Windows hands a deep link to a SECOND copy of the app; without this the copy
+# that opened the browser never hears the sign-in hand-off.
+cargo = read("src-tauri/Cargo.toml")
+check(
+    "single-instance is a dependency with its deep-link feature",
+    re.search(r'^tauri-plugin-single-instance\s*=\s*\{[^}]*features\s*=\s*\[[^\]]*"deep-link"', cargo, re.M) is not None,
+    "a Windows sign-in hand-off launches a second app instead of reaching the first",
+)
+_plugins = re.findall(r"\.plugin\(\s*(tauri_plugin_\w+)::init", _code)
+check(
+    "single-instance is the FIRST plugin registered",
+    bool(_plugins) and _plugins[0] == "tauri_plugin_single_instance",
+    f"plugin order {_plugins} — a later registration lets the duplicate launch act first",
+)
+
+bundle = conf.get("bundle") or {}
+check(
+    "the bundle declares the Windows installer and its icon",
+    "nsis" in (bundle.get("targets") or []) and "icons/icon.ico" in (bundle.get("icon") or []),
+    "the Windows build has no installer, or an installer with Tauri's default icon",
+)
+
+wf = read(".github/workflows/shell-windows.yml")
+check(
+    "the Windows build runs on a Windows runner and supplies the anon key",
+    "runs-on: windows-" in wf and "--bundles nsis" in wf
+    and "secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY" in wf
+    and "secrets.NEXT_PUBLIC_SUPABASE_URL" in wf,
+    "no reproducible way to cut the Windows installer",
 )
 
 # ------------------------------------- §7h a failed sign-in says why

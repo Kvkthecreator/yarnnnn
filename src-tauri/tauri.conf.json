@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.yarnnn.desktop",
   "build": {
-    "beforeDevCommand": "cd web && YARNNN_SHELL=1 npx next dev -p 3000",
+    "beforeDevCommand": "node web/scripts/shell-next.mjs dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "cd web && YARNNN_SHELL=1 NEXT_PUBLIC_API_URL=https://yarnnn-api.onrender.com npx next build",
+    "beforeBuildCommand": "node web/scripts/shell-next.mjs build",
     "frontendDist": "../web/.next-shell"
   },
   "app": {
@@ -20,10 +20,12 @@
     "active": true,
     "targets": [
       "app",
-      "dmg"
+      "dmg",
+      "nsis"
     ],
     "icon": [
-      "icons/icon.icns"
+      "icons/icon.icns",
+      "icons/icon.ico"
     ],
     "category": "Productivity",
     "shortDescription": "Shared memory for AI + human work",

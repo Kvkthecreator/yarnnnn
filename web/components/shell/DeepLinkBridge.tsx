@@ -5,19 +5,15 @@
  * (ADR-661 §8 step 4).
  *
  * The host registers `yarnnn://` and forwards an incoming URL as a `deep-link`
- * event (`src-tauri/src/main.rs`). This component turns that event into
- * ordinary in-app navigation.
+ * event (`src-tauri/src/main.rs` — delivered natively on macOS, and on Windows
+ * via the single-instance plugin, ADR-661 §7o). This component handles two
+ * shapes and nothing else:
  *
- * WHAT IT DELIBERATELY DOES NOT DO: parse a token, call `verifyOtp`, or touch
- * the Supabase client. `app/auth/callback` already handles every shape the
- * provider sends — PKCE `?code=`, a `token_hash` OTP in the query OR the hash
- * fragment, the recovery branch that stops to collect a new password, the
- * error branch, and the retry when a session is slow to materialise. That
- * logic was earned against production and must have exactly one home.
- *
- * So this bridge does the one thing the callback page cannot do for itself:
- * it converts `yarnnn://auth/callback?…` into `/auth/callback?…` and routes
- * there. Everything after that is the flow the web build already runs.
+ *   - `yarnnn://auth/session?refresh_token=…` — the website finished signing
+ *     the member in and hands the session over (§7i D5: the shell does not
+ *     authenticate; the website does). The app never talks to a provider, so
+ *     this is the ONLY auth deep link.
+ *   - any other `yarnnn://x/y?…` — ordinary in-app navigation to `/x/y?…`.
  *
  * Mounted unconditionally; `onDeepLink` is a no-op off the shell, so both
  * builds keep one code path (the same discipline as `AuthGate`).

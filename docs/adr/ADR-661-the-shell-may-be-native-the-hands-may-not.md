@@ -180,6 +180,8 @@ This is the condition that distinguishes what we would build from what a lab shi
 
 The one exception was **copy**, and it was a live web defect rather than a desktop one: three strings hardcoded `⌘` in both catalogs, so a Windows member on yarnnn.com read a key their keyboard does not have. Fixed in `26a7360` — `lib/shell/modifier-key.ts` is the ONE place the product decides which glyph to print, passed to the catalogs as the `mod` ICU argument so word order stays theirs (ADR-660). ⭐ **The separator belongs to the key name, not the catalog**: Apple prints `⌘Z` closed up, Windows prints `Ctrl+Z`, so a bare `Ctrl` against `"{mod}Z"` renders `CtrlZ`. That was the first cut, and **tsc was clean across it** — it was caught by rendering all twelve arms through the real ICU formatter.
 
+> **Superseded in part by §7o (2026-09-23):** the operator asked, so Windows is now a build target — and cross-compiling the host found that one Mac-only assumption HAD accumulated, which this audit (reading `web/`) could not see: it was in `src-tauri/`.
+
 **Windows is therefore a build-target question, not an architecture question**, and it stays out of scope until there is a member asking. Both Tauri and Electron cross-compile; the port is days *provided no Mac-only assumption accumulates*, which §9's arm now enforces. ⚠️ **The exception is local hands (§5).** Screen capture and synthetic input are the most platform-divergent APIs in the OS — ScreenCaptureKit and its permission model have no Windows equivalent. That implementation ADR scopes **one platform at a time** and says which; it does not get to assume the second is free.
 
 ---
@@ -301,7 +303,7 @@ yarnnn://auth/callback?next=%2Ffiles     → host received it
 
 **The entitlements are load-bearing.** Notarization requires the hardened runtime, which denies the webview's JIT by default: a notarized build without `com.apple.security.cs.allow-jit` launches to a blank window. The roster is two entries and is an audit surface, like the Tauri capability file.
 
-**Owed, and named**: this machine has no Developer ID, so the sign → notarize → staple chain is **configured and gate-asserted but never executed**. Everything else in step 5 is driven. The operator's four setup steps and the verification that matters — driving a quarantined DMG on a machine that never built it — are in [publishing-the-mac-app.md](../infrastructure/publishing-the-mac-app.md). Auto-update is deliberately not built: it has its own key management, and one unversioned build is the smaller first step.
+**Owed, and named**: this machine has no Developer ID, so the sign → notarize → staple chain is **configured and gate-asserted but never executed**. Everything else in step 5 is driven. The operator's four setup steps and the verification that matters — driving a quarantined DMG on a machine that never built it — are in [publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md). Auto-update is deliberately not built: it has its own key management, and one unversioned build is the smaller first step.
 
 ---
 
@@ -506,6 +508,27 @@ Two findings from the first working session, reported with a screenshot: the ava
 **Measured, not assumed.** The first position, `(18, 22)`, centred the lights at ~20pt on a 56px bar — Tauri's `y` does not land where the number suggests, so it was read off a window capture (`screencapture -l <id>`, window id from `CGWindowListCopyWindowInfo`) rather than trusted. `(18, 30)` centres them at ~27.5pt, level with the dock icons; the inset went 60 → 68px for a ~16pt gap to the wordmark. The avatar reads the member's initials.
 
 Six arms, each proven RED in place: the provider fallback dropped, the drag region off the header, the inset off the header, the overlay inset zeroed, the host never marking the page, the drag permission removed.
+
+---
+
+## 7o. Windows is a build target (2026-09-23)
+
+The operator asked, after the Mac shell worked end to end: *"how difficult is it to create the windows version of the desktop app?"* — then, aligned on the plan, *"I want a program file I can share to my Windows computer and a friend tester."* That is §7.6's trigger, so Windows moves from *not designed against* to **built**. Nothing in `web/` changed shape; the host and its build did.
+
+**Two Mac-only assumptions had accumulated, and §7.6's audit could not see either** — it read `web/`, and both were in the host or its build command:
+
+1. **The host did not compile for Windows.** `title_bar_style`, `hidden_title` and `traffic_light_position` are `#[cfg(target_os = "macos")]` in Tauri itself, and only the last sat inside our macOS block. `cargo check --target x86_64-pc-windows-msvc` on the unmodified host: `error[E0599]: no method named 'title_bar_style'`. All three now live in the one macOS block, beside the §7n script that belongs with them. The file's own header had said the `windows_subsystem` line was *"the one line that would otherwise assume"* macOS — it was not.
+2. **The build command could not start on Windows.** `YARNNN_SHELL=1 NEXT_PUBLIC_API_URL=… npx next build` is POSIX shell syntax, and Tauri runs `beforeBuildCommand` through `cmd`, which reads the prefix as a program name. The env now lives in **one launcher**, `web/scripts/shell-next.mjs` (`build` | `dev`), run by Node, which parses the same on every OS. §7m's pin moved with it, unchanged in meaning; the Mac export through the launcher generates the same 48/48 pages, with the production API frozen in and zero `localhost:8000`.
+
+**The deep link needs one more piece on Windows.** macOS delivers `yarnnn://…` to the running app. Windows **launches a second copy** with the URL as its argument, so the copy that opened the browser for sign-in would wait forever while a new window appeared — §7i's hand-off, broken in a new way. `tauri-plugin-single-instance` with its `deep-link` feature forwards the second launch to the first and exits it, and the URL arrives as the same `on_open_url` event macOS delivers, so `DeepLinkBridge` has one handler still. Registered **first**, as the plugin requires. It adds no capability-roster entry: it exposes nothing to the page. The NSIS installer registers the scheme per user (Tauri's bundler writes `deep-link.desktop.schemes` into the installer).
+
+**The title bar: Windows keeps its native frame.** The overlay is a macOS affordance; on Windows the host does not mark the page, so `--titlebar-inset` stays `0` and the native title bar sits above the app's top bar. A custom frame (drawn min/max/close, snap layouts) is a later refinement through the same seam — the host declares, the page reserves — and is not needed for a first build.
+
+**Where it is built.** A Windows installer needs Windows (the resource compiler, NSIS), so it is cut by `.github/workflows/shell-windows.yml` on a `windows-latest` runner, manual-dispatch only — a release is an act, not a side effect of a push. Same host, same tree, same launcher, same pinned CLI version as the Mac. A runner has no `.env.local`, so the Supabase pair comes from repo secrets, and `next.config.js` now also **refuses a shell build with no anon key** — without one the app boots and fails every Supabase call, the §7m class again.
+
+**Owed, and named**: the installer is **unsigned**, so SmartScreen warns on first run (*"Windows protected your PC"*). That is acceptable for a known tester and not for a public link — the signing options are in [publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md). And the Windows build has not yet been **driven by a member** on a real PC: sign-in round trip, the deep link reaching the running app, WebView2 layout (scrollbars take width on Windows; Hangul falls back to Malgun Gothic). §7d's rule stands — *a round trip is only verified by a member completing it.*
+
+Gate arms, each proven RED in place: the build commands carry no POSIX-only syntax · each macOS-only builder method is called only inside the macOS block · single-instance is a dependency with `deep-link` and the first plugin registered · the bundle declares `nsis` and the `.ico` · the workflow runs on Windows and supplies both Supabase values · a missing anon key is refused · the launcher pins the API origin on `build` only and sets `YARNNN_SHELL`.
 
 ---
 

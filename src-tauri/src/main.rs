@@ -1,6 +1,6 @@
 // Prevents a console window from opening alongside the app on Windows release
-// builds. ADR-661 §7.6: the shell ships macOS first but is not written against
-// one platform, and this is the one line that would otherwise assume it.
+// builds. ADR-661 §7o: one host, built for macOS and Windows; a platform
+// difference lives behind a `cfg` here, never as a branch in the web layer.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 //! yarnnn desktop host — ADR-661 §8 step 4.
@@ -29,12 +29,27 @@ use tauri_plugin_deep_link::DeepLinkExt;
 
 fn main() {
     tauri::Builder::default()
+        // ADR-661 §7o — ONE running app. On Windows a `yarnnn://` link does
+        // not reach the running app: the OS starts a SECOND copy with the URL
+        // as its argument, and the copy that opened the browser waits for a
+        // hand-off that went elsewhere. This plugin forwards the second
+        // launch's arguments to the first and exits it; its `deep-link`
+        // feature turns them into the same `on_open_url` event macOS delivers
+        // natively. It must be registered FIRST, before any plugin that could
+        // act on the duplicate launch.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.unminimize();
+                let _ = win.set_focus();
+            }
+        }))
         // `openExternal` in the web bundle calls window.open(url, '_blank').
         // This plugin is what turns that into the member's own browser rather
         // than a second app window — the whole point of §4.3.
         .plugin(tauri_plugin_opener::init())
-        // The return leg of §4.3's handoff. macOS delivers a `yarnnn://` URL
-        // to the running app; we forward it to the web layer as an event
+        // The return leg of §4.3's handoff. The OS delivers a `yarnnn://` URL
+        // to the running app (macOS natively, Windows via the single-instance
+        // plugin above); we forward it to the web layer as an event
         // rather than navigating the window, because the session it carries
         // has to be handed to the Supabase client, not to the router.
         .plugin(tauri_plugin_deep_link::init())
@@ -44,23 +59,27 @@ fn main() {
                 // Roomy enough for the compositor's windows (the product is a
                 // desktop metaphor — ADR-297 D17), small enough for a laptop.
                 .inner_size(1280.0, 860.0)
-                .min_inner_size(900.0, 600.0)
-                // macOS: the traffic lights sit over the app's own chrome
-                // rather than a second title bar above it. The shell already
-                // draws its own top bar.
-                .title_bar_style(tauri::TitleBarStyle::Overlay)
-                .hidden_title(true);
+                .min_inner_size(900.0, 600.0);
 
-            // ADR-661 §7n — the overlaid title bar puts the traffic lights
-            // INSIDE the app's 56px top bar, so the host does two things only
-            // it can: centre the lights on that bar, and tell the page they are
-            // there. The page never detects a platform (§7.6); it reserves
+            // ADR-661 §7n — macOS: the traffic lights sit over the app's own
+            // chrome rather than in a second title bar above it, so the host
+            // does what only it can: overlay the title bar, centre the lights
+            // on the app's 56px top bar, and tell the page they are there. The
+            // page never detects a platform (§7.6); it reserves
             // `--titlebar-inset` when the host says the title bar is overlaid.
             // The attribute is set before any page script runs, so the first
             // paint is already inset. Without this the lights sat on the
             // wordmark's corner.
+            //
+            // All of it is macOS-only, and so is Tauri's API for it — these
+            // builder methods do not EXIST on Windows, so outside this block
+            // the host fails to compile there (§7o). Windows keeps its native
+            // frame: the title bar sits above the app's top bar, and the page
+            // is never marked, so the inset stays 0.
             #[cfg(target_os = "macos")]
             let builder = builder
+                .title_bar_style(tauri::TitleBarStyle::Overlay)
+                .hidden_title(true)
                 .traffic_light_position(tauri::LogicalPosition::new(18.0, 30.0))
                 .initialization_script(
                     r#"(function () {

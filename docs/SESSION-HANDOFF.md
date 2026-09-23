@@ -131,12 +131,25 @@ window drags by its top bar (a capture cannot show it).
 app is signed out ~1h later, suspect Supabase's reuse detection revoking the family when the
 browser refreshes with the token the app already spent — unverified, a hypothesis.
 
+**Windows (§7o, 2026-09-23) — BUILT, not yet driven by a member.** The installer is cut by
+`.github/workflows/shell-windows.yml` (manual dispatch) → `yarnnn_<ver>_x64-setup.exe`, UNSIGNED
+(SmartScreen → More info → Run anyway). OPEN: (a) a real Windows sign-in round trip — the check that
+matters is that the hand-off reaches the RUNNING app (single-instance) and no second window opens;
+(b) WebView2 layout at 1280 and 1920 (scrollbars take width; Hangul → Malgun Gothic);
+(c) a signing route before any public link — Azure Trusted Signing eligibility for a Korean entity is
+unchecked. Steps in [publishing-the-desktop-app.md](infrastructure/publishing-the-desktop-app.md).
+
+⚠️ **The shell's email sign-up + password reset still ride the SUPERSEDED `yarnnn://auth/callback`
+path** (`authCallbackUrl` → `AuthForm`'s `emailRedirectTo`/`redirectTo`); only Google moved to
+§7i's `/auth/desktop` hand-off. Unverified on either platform. Either drive it or route both through
+the website like Google, and delete `authCallbackUrl`'s shell branch in the same commit.
+
 **Owed after that:**
 1. **Apple Developer ID** ($99/yr) — the only operator step. Until then sign → notarize →
    staple is configured and gate-asserted but NEVER EXECUTED, and a downloaded build says
    *"yarnnn is damaged"*, which reads as malware. Four setup steps + the verification that
    matters (drive a QUARANTINED DMG on a machine that never built it) are in
-   [publishing-the-mac-app.md](infrastructure/publishing-the-mac-app.md).
+   [publishing-the-desktop-app.md](infrastructure/publishing-the-desktop-app.md).
 2. **Auto-update** — deliberately not built; its own key management, and one unversioned
    build is the smaller first step.
 3. **Step 6 — local hands**: [ADR-662](adr/ADR-662-local-hands-the-member-keeps-the-machine.md) is

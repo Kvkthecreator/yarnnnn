@@ -22,6 +22,10 @@ tauri-plugin-deep-link = "2"
 # The system-browser handoff (ADR-661 §4.3). `openExternal` in the web bundle
 # calls window.open(_blank); this plugin is what makes that leave the app.
 tauri-plugin-opener = "2"
+# ADR-661 §7o — Windows delivers a deep link by launching a second copy of the
+# app; this forwards it to the running one. `deep-link` makes the forwarded
+# URL arrive as the same `on_open_url` event macOS delivers natively.
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
 [features]
 # Tauri's own; kept as generated.

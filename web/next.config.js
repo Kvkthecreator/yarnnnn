@@ -38,7 +38,16 @@ const SHELL = process.env.YARNNN_SHELL === "1";
 // origin; this refuses the build if anything still resolves to a loopback or
 // plain-http origin, so the mistake cannot reach a DMG. `next dev` is exempt —
 // pointing a dev shell at a local API is the point of dev.
+//
+// §7o — the anon key is frozen the same way, and a build machine with no
+// `.env.local` (the Windows CI runner) has none unless it is supplied. Missing,
+// the app boots and every Supabase call fails: refuse it here instead.
 if (SHELL && process.env.NODE_ENV === "production") {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    throw new Error(
+      "ADR-661 §7o: the shell build has no NEXT_PUBLIC_SUPABASE_ANON_KEY — the app would boot and fail every Supabase call.",
+    );
+  }
   const frozen = ["NEXT_PUBLIC_API_URL", "NEXT_PUBLIC_SUPABASE_URL"];
   for (const name of frozen) {
     const value = process.env[name] || "";
