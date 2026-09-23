@@ -50,6 +50,40 @@ export function useSignedBlobUrl(
   return state;
 }
 
+/**
+ * The file's BYTES, for a renderer that parses rather than points an element at
+ * a URL (the office viewers, ADR-395 am.2 D15). Built on `useSignedBlobUrl`, so
+ * this module stays the one `content_url` consumer: the signed URL is resolved
+ * there, and fetched here.
+ */
+export function useBlobBytes(
+  contentUrl: string | null | undefined,
+): { bytes: ArrayBuffer | null; loading: boolean; error: boolean } {
+  const signed = useSignedBlobUrl(contentUrl);
+  const [state, setState] = useState<{ bytes: ArrayBuffer | null; loading: boolean; error: boolean }>(
+    { bytes: null, loading: !!contentUrl, error: false }
+  );
+  useEffect(() => {
+    if (!signed.url) {
+      // Until the signed URL resolves (or fails) a file with a content_url is
+      // still LOADING — never a momentary "failed" that flashes the fallback.
+      setState({ bytes: null, loading: !signed.error && !!contentUrl, error: signed.error });
+      return;
+    }
+    let cancelled = false;
+    setState({ bytes: null, loading: true, error: false });
+    fetch(signed.url)
+      .then((r) => {
+        if (!r.ok) throw new Error(`blob ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then((b) => { if (!cancelled) setState({ bytes: b, loading: false, error: false }); })
+      .catch(() => { if (!cancelled) setState({ bytes: null, loading: false, error: true }); });
+    return () => { cancelled = true; };
+  }, [signed.url, signed.loading, signed.error, contentUrl]);
+  return state;
+}
+
 export function BlobLoading({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center rounded-lg border border-border bg-muted/10 py-16 text-sm">

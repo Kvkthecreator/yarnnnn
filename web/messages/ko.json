@@ -1372,7 +1372,17 @@
       "download": "내려받기",
       "downloading": "내려받는 중…",
       "extractedTextTitle": "이 파일의 내용",
-      "extractedTextTruncated": "앞부분만 보여드려요 — 에이전트는 전체를 읽어요."
+      "extractedTextTruncated": "앞부분만 보여드려요 — 에이전트는 전체를 읽어요.",
+      "loadingWorkbook": "통합 문서를 불러오는 중…",
+      "loadingDocument": "문서를 불러오는 중…",
+      "sheetsLabel": "시트",
+      "sheetEmpty": "이 시트는 비어 있어요.",
+      "workbookBounded": "전체 {totalRows}행 중 {rows}행, {totalCols}열 중 {cols}열을 보여드려요.",
+      "workbookCachedValues": "마지막으로 저장된 값이에요 — 여기서는 수식을 다시 계산하지 않아요.",
+      "slidesTextOnly": "에이전트가 읽는 그대로의 슬라이드별 텍스트예요 — 레이아웃은 그리지 않아요.",
+      "slideLabel": "슬라이드 {n}",
+      "speakerNotes": "발표자 노트:",
+      "slidesTruncated": "앞쪽 슬라이드만 보여드려요 — 전체 덱은 파일을 내려받아 확인하세요."
     },
     "revisions": {
       "title": "버전 기록",

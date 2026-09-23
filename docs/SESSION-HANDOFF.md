@@ -12,6 +12,13 @@ ADR-395 am.2 D18 reads both in-process, but the gate's fixtures are BUILT (an OW
 OLE file) — Hancom Office was not available. Upload one real `.hwp` and one real `.hwpx` through Files and
 check the "what it says" preview carries the body and table text with no control-code junk. Delete once seen.
 
+## Office viewers not yet driven on the real Files surface (2026-09-23)
+
+ADR-395 am.2 phase 2 (§11.10) was rendered through `FileBody` in a local harness against GENERATED
+fixtures; the local API would not boot. Open one real Excel-authored `.xlsx` (multi-sheet, formulas),
+one Word-authored `.docx` (images, header) and one PowerPoint `.pptx` from Files on production, in light
+and dark, and check each draws (or falls back to the terminal) with Download working. Delete once seen.
+
 ## Vercel skip rule not yet observed skipping (2026-09-23)
 
 `web/vercel.json` (`037f838`) skips builds unless `web/` or `content/` changed. Unverified on Vercel:

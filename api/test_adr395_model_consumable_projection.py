@@ -786,14 +786,19 @@ def test_am1_d13_the_terminal_offers_the_download_it_names():
     code = re.sub(r"//.*$", "", src, flags=re.MULTILINE)
     code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
 
+    # am.2 phase 2 re-cut: the button moved into `DownloadButton`, shared by
+    # the terminal and every office viewer. The arm now pins BOTH halves — the
+    # terminal mounts the button, and the button is the one-resolver door.
     terminal = code.split("export const DownloadTerminal", 1)[1]
-    assert "resolveDownload(" in terminal, "the terminal offers no download"
+    assert "<DownloadButton path={file.path}" in terminal, "the terminal offers no download"
+    button = code.split("function DownloadButton(", 1)[1].split("\nexport const ", 1)[0]
+    assert "resolveDownload(" in button, "the download button does not use the one resolver"
     # ONE resolver: rebuilding the href here is the exact defect
     # `lib/workspace/download.ts` exists to fix (it silently returned null for
     # all 39 live binaries).
-    assert "blobUrl(" not in terminal, \
-        "the terminal rebuilds the download instead of using the one resolver"
-    assert "revokeObjectURL" in terminal, "minted object URLs are never revoked"
+    assert "blobUrl(" not in button, \
+        "the download button rebuilds the download instead of using the one resolver"
+    assert "revokeObjectURL" in button, "minted object URLs are never revoked"
 
 
 def test_am1_d13_needsblob_is_gone_and_stays_gone():
@@ -1266,3 +1271,196 @@ def test_am2_d18_olefile_reaches_both_services():
     import re
     reqs = (ROOT / "requirements.txt").read_text(encoding="utf-8")
     assert re.search(r"^olefile\b", reqs, re.MULTILINE), "olefile is not a declared dependency"
+
+
+# ── D15 phase 2 — the office viewers ────────────────────────────────────────
+
+
+def _tsx_code(rel: str) -> str:
+    """TS/TSX source with // and /* */ comments stripped."""
+    import re
+    src = (ROOT.parent / "web" / rel).read_text(encoding="utf-8")
+    code = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
+    return re.sub(r"(?<![:'\"])//.*$", "", code, flags=re.MULTILINE)
+
+
+def _apps_rows() -> dict:
+    """kind → (app id, renderer), read from each `APPS` ROW EXPRESSION.
+
+    Anchored on the row literal (`'id': { id: …, ownsTypes: […], renderer: X }`)
+    so the arm answers WHICH row owns a kind — a whole-file substring check
+    cannot say which caller (the kind names also appear in comments and in
+    `resolveApps`)."""
+    import re
+    code = _tsx_code("lib/file-types/apps.tsx")
+    table = code.split("export const APPS", 1)[1].split("\n};", 1)[0]
+    row = re.compile(
+        r"'([\w.]+)':\s*\{\s*id:\s*'([\w.]+)',\s*label:\s*'[^']*',\s*"
+        r"ownsTypes:\s*\[([^\]]*)\],\s*renderer:\s*(\w+)\s*\}"
+    )
+    owners: dict = {}
+    for key, app_id, types, renderer in row.findall(table):
+        assert key == app_id, f"row key {key} != id {app_id}"
+        for kind in re.findall(r"'(\w+)'", types):
+            owners.setdefault(kind, []).append((app_id, renderer))
+    return owners
+
+
+def _component(code: str, name: str) -> str:
+    """One component's body: from its declaration to the next top-level one."""
+    import re
+    m = re.search(rf"^(?:export )?(?:async )?(?:const {name}\b|function {name}\b)", code, re.MULTILINE)
+    assert m, f"{name} is not defined"
+    rest = code[m.end():]
+    nxt = re.search(r"^(?:export )?(?:async )?(?:const|function) \w", rest, re.MULTILINE)
+    return rest[: nxt.start()] if nxt else rest
+
+
+def test_am2_d15_phase2_each_office_kind_opens_in_its_app():
+    """Phase 2 — the three kinds D15 declared now have a row that DRAWS them.
+
+    Before phase 2 no row owned them and `resolveApps` fell to the terminal.
+    ONE table app owns both tabular kinds (csv + spreadsheet): a second table
+    renderer is exactly the split §11.3 deleted on the server."""
+    owners = _apps_rows()
+    assert owners.get("spreadsheet") == [("table.viewer", "TableViewer")], owners.get("spreadsheet")
+    assert owners.get("csv") == [("table.viewer", "TableViewer")], "csv left the one table app"
+    assert owners.get("wordprocessing") == [("document.viewer", "DocumentViewer")], owners.get("wordprocessing")
+    assert owners.get("presentation") == [("slides.viewer", "SlidesViewer")], owners.get("presentation")
+    assert owners.get("download") == [("download.terminal", "DownloadTerminal")]
+
+    viewers = _tsx_code("components/workspace/viewers/index.tsx")
+    table = _component(viewers, "TableViewer")
+    assert "=== 'spreadsheet'" in table and "<WorkbookView file={file}" in table, \
+        "the table app does not route a workbook to its workbook view"
+
+
+def test_am2_d15_phase2_every_office_viewer_falls_back_to_the_terminal():
+    """Phase 2 — a file a renderer cannot draw lands on the terminal (its
+    extracted words + its download, am.1 D12/D13), never on an error box or a
+    blank frame. The fallback REUSES the terminal; it is not a second copy."""
+    import re
+    viewers = _tsx_code("components/workspace/viewers/index.tsx")
+    for name, guard in (
+        ("WorkbookView", r"if \(failed[^)]*\)\) return <DownloadTerminal file=\{file\}"),
+        ("DocumentViewer", r"if \(failed\) return <DownloadTerminal file=\{file\}"),
+        ("SlidesViewer", r"if \(slides\.length === 0\) return <DownloadTerminal file=\{file\}"),
+    ):
+        body = _component(viewers, name)
+        assert re.search(guard, body), f"{name} has no terminal fallback"
+        assert "<BlobError" not in body, f"{name} dead-ends on an error box instead of the terminal"
+    # Every way a draw can fail — no bytes, a fetch error, a parser that throws.
+    hook = _component(viewers, "useParsedBlob")
+    assert ".catch(" in hook and "failed: true" in hook, "a parser throw is not caught into the fallback"
+    assert "error || !contentUrl" in hook, "a fetch failure / missing bytes never reaches the fallback"
+
+
+def test_am2_d15_phase2_download_stays_reachable_from_every_viewer():
+    """am.1 D13 carried forward — a drawn file is still a file the member may
+    want back. Each office viewer mounts the bar; the bar mounts the button."""
+    viewers = _tsx_code("components/workspace/viewers/index.tsx")
+    assert "<DownloadButton path={file.path}" in _component(viewers, "OfficeBar")
+    for name in ("WorkbookView", "DocumentViewer", "SlidesViewer"):
+        assert "<OfficeBar file={file}" in _component(viewers, name), f"{name} drops the download"
+
+
+def test_am2_d15_phase2_docx_markup_never_runs_in_the_app():
+    """The .docx renderer's output is untrusted markup. It is serialised into a
+    sandboxed iframe (as WebViewer isolates html), carries a CSP that forbids
+    every fetch (a linked image would tell a third party the file was opened),
+    and never renders embedded foreign HTML (altChunks)."""
+    viewers = _tsx_code("components/workspace/viewers/index.tsx")
+    doc = _component(viewers, "DocumentViewer")
+    assert 'srcDoc={html}' in doc and 'sandbox=""' in doc, "docx markup is not isolated"
+    assert "dangerouslySetInnerHTML" not in doc
+    office = _tsx_code("components/workspace/viewers/office.ts")
+    render = _component(office, "renderDocx")
+    assert "default-src 'none'" in render, "the docx frame may fetch"
+    assert "renderAltChunks: false" in render and "useBase64URL: true" in render
+
+
+def test_am2_d15_phase2_parsers_load_lazily():
+    """No parser rides in the shell bundle: each is reached by a dynamic
+    `import()` inside the function that needs it, in one module."""
+    import re
+    web = ROOT.parent / "web"
+    static = re.compile(r"""^\s*import\s[^;]*from\s+['"](xlsx|docx-preview)['"]""", re.MULTILINE)
+    hits = []
+    for top in ("app", "components", "lib"):
+        for p in (web / top).rglob("*.ts*"):
+            if static.search(p.read_text(encoding="utf-8", errors="ignore")):
+                hits.append(str(p.relative_to(web)))
+    assert not hits, f"a parser is imported statically: {hits}"
+    office = _tsx_code("components/workspace/viewers/office.ts")
+    assert "await import('xlsx')" in _component(office, "readWorkbook")
+    assert "await import('docx-preview')" in _component(office, "renderDocx")
+    # Cached values, never formulas; the parse itself is bounded.
+    wb = _component(office, "readWorkbook")
+    assert "cellFormula: false" in wb and "sheetRows: maxRows" in wb
+
+
+def test_am2_d15_phase2_sheetjs_comes_from_the_maintained_line():
+    """The npm-registry `xlsx` is frozen at 0.18.5 with published advisories;
+    the maintained line ships only from the maintainers' CDN."""
+    import json
+    web = ROOT.parent / "web"
+    pkg = json.loads((web / "package.json").read_text(encoding="utf-8"))
+    spec = pkg["dependencies"].get("xlsx", "")
+    assert spec.startswith("https://cdn.sheetjs.com/"), f"xlsx resolves from {spec!r}"
+    lock = json.loads((web / "package-lock.json").read_text(encoding="utf-8"))
+    assert lock["packages"]["node_modules/xlsx"]["resolved"].startswith("https://cdn.sheetjs.com/"), \
+        "the deploy lock does not pin the CDN tarball"
+
+
+_SLIDES_PROBE = r"""
+const { transform } = require(process.argv[1]);
+const fs = require('fs');
+const m = { exports: {} };
+new Function('module', 'exports', 'require',
+  transform(fs.readFileSync(process.argv[2], 'utf8'), { transforms: ['typescript', 'imports'] }).code
+)(m, m.exports, () => ({}));
+console.log(JSON.stringify(m.exports.slidesFromProjection(fs.readFileSync(0, 'utf8'))));
+"""
+
+
+def test_am2_d15_phase2_the_slide_view_reads_the_servers_own_spelling():
+    """EXECUTED across the language boundary: the server's pptx extractor
+    writes a real deck's projection, and the client's slide parser reads it
+    back into the same slides, blocks and notes. The two spellings
+    (`## Slide {n}`, `Speaker notes:`) are a contract; a mirrored contract
+    drifts, so the arm runs both halves rather than reading either."""
+    import json
+    import shutil
+    import subprocess
+    pptx = pytest.importorskip("pptx")
+    from pptx.util import Inches
+    from services.documents import extract_text
+
+    prs = pptx.Presentation()
+    s1 = prs.slides.add_slide(prs.slide_layouts[1])
+    s1.shapes.title.text = "Q3 Plan"
+    s1.placeholders[1].text = "Grow revenue"
+    s1.notes_slide.notes_text_frame.text = "Emphasize hiring"
+    s2 = prs.slides.add_slide(prs.slide_layouts[5])
+    s2.shapes.title.text = "Numbers"
+    tbl = s2.shapes.add_table(2, 2, Inches(1), Inches(2), Inches(4), Inches(1)).table
+    for (r, c), v in {(0, 0): "Metric", (0, 1): "Value", (1, 0): "ARR", (1, 1): "$2.1M"}.items():
+        tbl.cell(r, c).text = v
+    buf = io.BytesIO()
+    prs.save(buf)
+    text, _ = asyncio.run(extract_text(buf.getvalue(), "pptx"))
+
+    if not shutil.which("node"):
+        pytest.fail("node is not installed — the probe cannot run (a gate that cannot run reports nothing)")
+    proc = subprocess.run(
+        ["node", "-e", _SLIDES_PROBE, _sucrase(),
+         str(ROOT.parent / "web" / "components" / "workspace" / "viewers" / "office.ts")],
+        input=text, capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr[-800:]
+    slides = json.loads(proc.stdout)
+    assert [s["n"] for s in slides] == [1, 2]
+    assert slides[0]["blocks"][0] == "Q3 Plan" and "Grow revenue" in slides[0]["blocks"]
+    assert slides[0]["notes"] == "Emphasize hiring", "speaker notes were not split out"
+    assert "Metric\tValue\nARR\t$2.1M" in slides[1]["blocks"], "the table block lost its TSV shape"
+    assert slides[1]["notes"] is None

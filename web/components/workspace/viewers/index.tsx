@@ -21,7 +21,7 @@
  * branch inside a mount.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Download, FileText } from 'lucide-react';
 import { resolveDownload } from '@/lib/workspace/download';
@@ -31,8 +31,10 @@ import { InferenceContentView } from '@/components/context/InferenceContentView'
 import { parseUploadFrontmatter, uploadSourceCaption } from '@/lib/workspace/upload-frontmatter';
 import { TILE_PREVIEW_GROUND } from '@/components/workspace/FileTile';
 import { cn } from '@/lib/utils';
-import { useSignedBlobUrl, BlobLoading, BlobError, BlobMissing } from './blob';
+import { resolveViewerApplication } from '@/lib/file-types';
+import { useSignedBlobUrl, useBlobBytes, BlobLoading, BlobError, BlobMissing } from './blob';
 import { useArtifactProjection } from './projection';
+import { readWorkbook, renderDocx, slidesFromProjection, type SheetGrid } from './office';
 
 /** The frame-agnostic viewer-app contract (ADR-436 §2). */
 export interface ViewerAppProps {
@@ -213,10 +215,67 @@ function PdfBlob({ contentUrl, title, compact }: { contentUrl: string; title: st
 }
 
 // ---------------------------------------------------------------------------
-// 7. Table Viewer — CSV preview
+// 7. Table Viewer — CSV and .xlsx workbooks (ADR-395 am.2 D15)
 // ---------------------------------------------------------------------------
+//
+// ONE table renderer for both tabular kinds: a CSV's text and a workbook's
+// cached cell values both arrive as rows of strings and draw through
+// `DataTable`. What differs is only where the rows come from.
+
+/** Rows drawn per sheet — the parse itself is bounded to this (`sheetRows`). */
+const SHEET_ROWS = { full: 500, compact: 6 } as const;
+const SHEET_COLS = { full: 52, compact: 8 } as const;
+
+function DataTable({
+  head,
+  body,
+  firstRow,
+}: {
+  head: string[];
+  body: string[][];
+  /** Draw a row-number gutter starting here (a workbook); omit for a CSV. */
+  firstRow?: number;
+}) {
+  const gutter = firstRow !== undefined;
+  return (
+    <table className="w-full text-sm">
+      <thead className="bg-muted/30">
+        <tr>
+          {gutter && <th className="w-10 border-b border-r border-border px-2 py-2" />}
+          {head.map((cell, idx) => (
+            <th key={idx} className="px-3 py-2 text-left font-medium border-b border-border">
+              {cell}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {body.map((row, rowIdx) => (
+          <tr key={rowIdx} className="border-b border-border/50 last:border-b-0">
+            {firstRow !== undefined && (
+              <td className="border-r border-border bg-muted/20 px-2 py-2 text-right text-xs tabular-nums text-muted-foreground/70">
+                {firstRow + rowIdx}
+              </td>
+            )}
+            {row.map((cell, cellIdx) => (
+              <td key={cellIdx} className="px-3 py-2 text-muted-foreground whitespace-pre-wrap">
+                {cell}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export const TableViewer: ViewerApp = ({ file, compact }) => {
   const t = useTranslations('files.viewers');
+  // The app owns two kinds; which one THIS file is comes from the same
+  // resolver that routed it here (served view first, ADR-395 am.2 D15).
+  if (resolveViewerApplication(file.path, file.content_type, file.view) === 'spreadsheet') {
+    return <WorkbookView file={file} compact={compact} />;
+  }
   if (!file.content) return null;
   const limit = compact ? 6 : 21;
   const lines = file.content.trim().split('\n');
@@ -226,28 +285,7 @@ export const TableViewer: ViewerApp = ({ file, compact }) => {
 
   return (
     <div className="overflow-auto rounded-lg border border-border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/30">
-          <tr>
-            {header.map((cell, idx) => (
-              <th key={idx} className="px-3 py-2 text-left font-medium border-b border-border">
-                {cell}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {body.map((row, rowIdx) => (
-            <tr key={rowIdx} className="border-b border-border/50 last:border-b-0">
-              {row.map((cell, cellIdx) => (
-                <td key={cellIdx} className="px-3 py-2 text-muted-foreground">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable head={header} body={body} />
       {lines.length > limit && (
         <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
           {t('previewTruncated', { count: limit - 1 })}
@@ -257,10 +295,246 @@ export const TableViewer: ViewerApp = ({ file, compact }) => {
   );
 };
 
+/**
+ * Parse a blob-backed file once its bytes arrive. `failed` covers every way a
+ * draw can fail — no bytes, a fetch error, a parser that throws — because the
+ * answer to all of them is the same: fall back to the terminal (am.2 D15).
+ */
+function useParsedBlob<T>(
+  contentUrl: string | null | undefined,
+  parse: (bytes: ArrayBuffer) => Promise<T>,
+): { value: T | null; failed: boolean } {
+  const { bytes, loading, error } = useBlobBytes(contentUrl);
+  const parseRef = useRef(parse);
+  parseRef.current = parse;
+  const [out, setOut] = useState<{ value: T | null; failed: boolean }>({ value: null, failed: false });
+  useEffect(() => {
+    if (!bytes) {
+      setOut({ value: null, failed: !loading && (error || !contentUrl) });
+      return;
+    }
+    let cancelled = false;
+    setOut({ value: null, failed: false });
+    parseRef
+      .current(bytes)
+      .then((value) => { if (!cancelled) setOut({ value, failed: false }); })
+      .catch(() => { if (!cancelled) setOut({ value: null, failed: true }); });
+    return () => { cancelled = true; };
+  }, [bytes, loading, error, contentUrl]);
+  return out;
+}
+
+function WorkbookView({ file, compact }: ViewerAppProps) {
+  const t = useTranslations('files.viewers');
+  const size = compact ? 'compact' : 'full';
+  const parse = useCallback(
+    (bytes: ArrayBuffer) => readWorkbook(bytes, SHEET_ROWS[size], SHEET_COLS[size]),
+    [size],
+  );
+  const { value: sheets, failed } = useParsedBlob<SheetGrid[]>(file.content_url, parse);
+  const [active, setActive] = useState(0);
+
+  if (failed || (sheets && sheets.length === 0)) return <DownloadTerminal file={file} compact={compact} />;
+  if (!sheets) return <BlobLoading label={t('loadingWorkbook')} />;
+
+  const sheet = sheets[Math.min(active, sheets.length - 1)];
+  const bounded = sheet.totalRows > sheet.rows.length || sheet.totalCols > sheet.columns.length;
+  const boundedNote = t('workbookBounded', {
+    rows: sheet.rows.length,
+    totalRows: sheet.totalRows,
+    cols: sheet.columns.length,
+    totalCols: sheet.totalCols,
+  });
+  return (
+    <div className="rounded-lg border border-border">
+      <OfficeBar file={file} compact={compact}>
+        {sheets.length > 1 && (
+          <div role="tablist" aria-label={t('sheetsLabel')} className="flex min-w-0 gap-1 overflow-x-auto">
+            {sheets.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                role="tab"
+                aria-selected={s === sheet}
+                onClick={() => setActive(i)}
+                className={cn(
+                  'shrink-0 rounded-md px-2.5 py-1 text-xs',
+                  s === sheet ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:bg-muted/50',
+                )}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </OfficeBar>
+      {sheet.rows.length === 0 ? (
+        <p className="p-6 text-center text-xs text-muted-foreground">{t('sheetEmpty')}</p>
+      ) : (
+        <div className={cn('overflow-auto', compact ? 'max-h-[280px]' : 'max-h-[720px]')}>
+          <DataTable head={sheet.columns} body={sheet.rows} firstRow={sheet.firstRow} />
+        </div>
+      )}
+      <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        {bounded ? `${boundedNote} ` : ''}
+        {t('workbookCachedValues')}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The office viewers' strip: what the viewer needs to say on the left, and the
+ * Download it must always keep reachable on the right — a drawn file is still
+ * a file the member may want back (am.1 D13).
+ */
+function OfficeBar({ file, compact, children }: ViewerAppProps & { children?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/20 px-2 py-1.5">
+      <div className="min-w-0 flex-1">{children}</div>
+      {!compact && <DownloadButton path={file.path} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 8. Document Viewer — .docx, drawn page-faithfully in a sandboxed frame
+// ---------------------------------------------------------------------------
+export const DocumentViewer: ViewerApp = ({ file, compact }) => {
+  const t = useTranslations('files.viewers');
+  const filename = file.path.split('/').pop() || file.path;
+  const { value: html, failed } = useParsedBlob<string>(file.content_url, renderDocx);
+  if (failed) return <DownloadTerminal file={file} compact={compact} />;
+  if (html === null) return <BlobLoading label={t('loadingDocument')} />;
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <OfficeBar file={file} compact={compact} />
+      {/* Untrusted markup, isolated exactly as WebViewer isolates html:
+          sandbox="" = no script, opaque origin; the document's own CSP
+          forbids every fetch (see `renderDocx`). */}
+      <iframe
+        title={filename}
+        srcDoc={html}
+        sandbox=""
+        className={cn('block w-full bg-white', compact ? 'h-[280px]' : 'h-[800px]')}
+      />
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// 9. Slides Viewer — .pptx, the deck's own words laid out slide by slide
+// ---------------------------------------------------------------------------
+// No pptx parser: the reasons are on `slidesFromProjection` and ADR-395 §11.10.
+// This view needs no bytes at all — the projection rode the file read (D12).
+export const SlidesViewer: ViewerApp = ({ file, compact }) => {
+  const t = useTranslations('files.viewers');
+  const slides = file.readable === 'read' ? slidesFromProjection(file.projection_preview) : [];
+  if (slides.length === 0) return <DownloadTerminal file={file} compact={compact} />;
+  const shown = compact ? slides.slice(0, 2) : slides;
+  return (
+    <div className="rounded-lg border border-border">
+      <OfficeBar file={file} compact={compact}>
+        <p className="truncate px-1 text-xs text-muted-foreground">{t('slidesTextOnly')}</p>
+      </OfficeBar>
+      <ol className="space-y-3 p-3">
+        {shown.map((slide) => (
+          <li key={slide.n} className="rounded-md border border-border bg-background p-4">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+              {t('slideLabel', { n: slide.n })}
+            </p>
+            {slide.blocks.map((block, i) => (
+              <SlideBlock key={i} block={block} lead={i === 0} />
+            ))}
+            {slide.notes && (
+              <div className="mt-3 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+                <span className="font-medium">{t('speakerNotes')}</span> {slide.notes}
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+      {file.projection_truncated && !compact && (
+        <p className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          {t('slidesTruncated')}
+        </p>
+      )}
+    </div>
+  );
+};
+
+/** A slide's text block — a TSV block (a table shape) draws as a table. */
+function SlideBlock({ block, lead }: { block: string; lead: boolean }) {
+  const lines = block.split('\n');
+  if (lines.length > 1 && lines.every((l) => l.includes('\t'))) {
+    const [head, ...body] = lines.map((l) => l.split('\t'));
+    return (
+      <div className="my-2 overflow-auto rounded border border-border">
+        <DataTable head={head} body={body} />
+      </div>
+    );
+  }
+  return (
+    <p className={cn('whitespace-pre-wrap', lead ? 'mb-2 text-base font-semibold' : 'mb-2 text-sm text-muted-foreground')}>
+      {block}
+    </p>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Download Terminal — not an app; the resolver's binary terminal (ADR-436 §1).
-// Where a future Open-With / redirect-launch (App(principal)) will surface.
+// Also every office viewer's FALLBACK (am.2 D15): a file a renderer cannot
+// draw lands here, on its extracted words and its download.
 // ---------------------------------------------------------------------------
+
+/**
+ * ADR-395 am.1 D13 — the one Download button, shared by the terminal and every
+ * office viewer. ONE resolver, shared with the menu and Properties (ADR-427/
+ * 510): it spans the text and CAS lanes and carries the substrate's own
+ * filename. Rebuilding the href here is the exact bug that module exists to fix.
+ */
+function DownloadButton({ path }: { path: string }) {
+  const t = useTranslations('files.viewers');
+  const [saving, setSaving] = useState(false);
+  const objectUrls = useRef<string[]>([]);
+  useEffect(
+    () => () => {
+      objectUrls.current.forEach((u) => URL.revokeObjectURL(u));
+      objectUrls.current = [];
+    },
+    [],
+  );
+  const onDownload = useCallback(async () => {
+    setSaving(true);
+    try {
+      const resolved = await resolveDownload(
+        { path, name: path.split('/').pop() || 'file', isFile: true },
+        (href) => objectUrls.current.push(href),
+      );
+      if (!resolved) return;
+      const a = document.createElement('a');
+      a.href = resolved.href;
+      a.download = resolved.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      setSaving(false);
+    }
+  }, [path]);
+  return (
+    <button
+      type="button"
+      onClick={onDownload}
+      disabled={saving}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-60"
+    >
+      <Download className="h-3.5 w-3.5" />
+      {saving ? t('downloading') : t('download')}
+    </button>
+  );
+}
+
 export const DownloadTerminal: ViewerApp = ({ file, compact }) => {
   const t = useTranslations('files.viewers');
   // ADR-395 am.1 D11 — two files land here for OPPOSITE reasons, and before
@@ -278,37 +552,6 @@ export const DownloadTerminal: ViewerApp = ({ file, compact }) => {
   // before this, offered no way to do either: Download lived only in the Files
   // right-click menu and Properties, neither of them reachable from the panel
   // giving the instruction. Advice without a door.
-  const [saving, setSaving] = useState(false);
-  const objectUrls = useRef<string[]>([]);
-  useEffect(
-    () => () => {
-      objectUrls.current.forEach((u) => URL.revokeObjectURL(u));
-      objectUrls.current = [];
-    },
-    [],
-  );
-  const onDownload = useCallback(async () => {
-    setSaving(true);
-    try {
-      // ONE resolver, shared with the menu and Properties (ADR-427/510): it
-      // spans the text and CAS lanes and carries the substrate's own filename.
-      // Rebuilding the href here is the exact bug that module exists to fix.
-      const resolved = await resolveDownload(
-        { path: file.path, name: file.path.split('/').pop() || 'file', isFile: true },
-        (href) => objectUrls.current.push(href),
-      );
-      if (!resolved) return;
-      const a = document.createElement('a');
-      a.href = resolved.href;
-      a.download = resolved.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } finally {
-      setSaving(false);
-    }
-  }, [file.path]);
-
   return (
     <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center">
       <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
@@ -323,15 +566,9 @@ export const DownloadTerminal: ViewerApp = ({ file, compact }) => {
         <p className="mt-3 text-xs text-muted-foreground">{t('agentCannotRead')}</p>
       )}
 
-      <button
-        type="button"
-        onClick={onDownload}
-        disabled={saving}
-        className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-60"
-      >
-        <Download className="h-3.5 w-3.5" />
-        {saving ? t('downloading') : t('download')}
-      </button>
+      <div className="mt-4">
+        <DownloadButton path={file.path} />
+      </div>
 
       {/* D12 — the words we already extracted. This is the honest preview of a
           format we cannot draw: no parser, no conversion service, no sandbox.

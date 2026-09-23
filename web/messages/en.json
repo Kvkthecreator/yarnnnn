@@ -1372,7 +1372,17 @@
       "download": "Download",
       "downloading": "Downloading…",
       "extractedTextTitle": "What's in this file",
-      "extractedTextTruncated": "Showing the beginning — your agents read all of it."
+      "extractedTextTruncated": "Showing the beginning — your agents read all of it.",
+      "loadingWorkbook": "Loading workbook…",
+      "loadingDocument": "Loading document…",
+      "sheetsLabel": "Sheets",
+      "sheetEmpty": "This sheet is empty.",
+      "workbookBounded": "Showing {rows} of {totalRows} rows and {cols} of {totalCols} columns.",
+      "workbookCachedValues": "Values as last saved — formulas aren't recalculated here.",
+      "slidesTextOnly": "The words on each slide, as your agents read them — layout isn't drawn.",
+      "slideLabel": "Slide {n}",
+      "speakerNotes": "Speaker notes:",
+      "slidesTruncated": "Showing the first slides — download the file for the whole deck."
     },
     "revisions": {
       "title": "Revision history",

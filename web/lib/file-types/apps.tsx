@@ -9,7 +9,7 @@
  *
  * ── CODE-SEEDED, SHAPE-OPEN ───────────────────────────────────────────────
  *
- * The registry is a code-seeded table: the 7 kernel apps are rows, the row
+ * The registry is a code-seeded table: the 9 kernel apps are rows, the row
  * SHAPE admits a third party's app, but only yarnnn adds rows (a stranger can't
  * write our code). "Open" here = the shape is ready; adding rows stays
  * demand-gated (the App(principal) ADR, deferred — app-seam §8 / ADR-380 §5).
@@ -43,6 +43,8 @@ import {
   MediaPlayer,
   PdfViewer,
   TableViewer,
+  DocumentViewer,
+  SlidesViewer,
   DownloadTerminal,
   isIdentityPath,
 } from '@/components/workspace/viewers';
@@ -51,7 +53,7 @@ import { resolveViewerApplication, type ViewerApplication } from './index';
 /**
  * An opaque app id. Deliberately a plain string, NOT a re-narrowed union: the
  * registry's shape must admit a third party's id without a kernel type edit
- * (the one-file ratchet — see header). Today only the 7 kernel ids exist.
+ * (the one-file ratchet — see header). Today only the 9 kernel ids (+ the terminal) exist.
  */
 export type AppId = string;
 
@@ -70,7 +72,7 @@ interface AppRegistration {
 }
 
 /**
- * The seeded kernel apps. Seven renderers + the download terminal. A third
+ * The seeded kernel apps. Nine renderers + the download terminal. A third
  * party's app would be an additional row of the exact same shape.
  */
 export const APPS: Record<AppId, AppRegistration> = {
@@ -84,7 +86,12 @@ export const APPS: Record<AppId, AppRegistration> = {
   'image.viewer': { id: 'image.viewer', label: 'Preview', ownsTypes: ['image'], renderer: ImageViewer },
   'media.player': { id: 'media.player', label: 'Preview', ownsTypes: ['video', 'audio'], renderer: MediaPlayer },
   'pdf.viewer': { id: 'pdf.viewer', label: 'Preview', ownsTypes: ['pdf'], renderer: PdfViewer },
-  'table.viewer': { id: 'table.viewer', label: 'Preview', ownsTypes: ['csv'], renderer: TableViewer },
+  // ADR-395 am.2 D15 (phase 2): ONE table app for both tabular kinds — a
+  // CSV's text and a workbook's cached cell values draw through one table.
+  'table.viewer': { id: 'table.viewer', label: 'Preview', ownsTypes: ['csv', 'spreadsheet'], renderer: TableViewer },
+  'document.viewer': { id: 'document.viewer', label: 'Preview', ownsTypes: ['wordprocessing'], renderer: DocumentViewer },
+  // No pptx parser: the deck's extracted words, laid out per slide (§11.10).
+  'slides.viewer': { id: 'slides.viewer', label: 'Preview', ownsTypes: ['presentation'], renderer: SlidesViewer },
   // The download terminal (not a viewer app — the resolver's binary terminal).
   'download.terminal': { id: 'download.terminal', label: 'Download', ownsTypes: ['download'], renderer: DownloadTerminal },
 };

@@ -60,6 +60,9 @@ EXPECTED_APP_IDS = [
     "media.player",
     "pdf.viewer",
     "table.viewer",
+    # ADR-395 am.2 D15 phase 2 — the office viewers (xlsx rides table.viewer).
+    "document.viewer",
+    "slides.viewer",
     "download.terminal",
 ]
 
@@ -71,6 +74,8 @@ EXPECTED_RENDERERS = [
     "MediaPlayer",
     "PdfViewer",
     "TableViewer",
+    "DocumentViewer",
+    "SlidesViewer",
     "DownloadTerminal",
 ]
 
@@ -105,13 +110,13 @@ def run() -> None:
 
     # 2. The APPS table is code-seeded with all 8 rows.
     missing_ids = [aid for aid in EXPECTED_APP_IDS if f"'{aid}'" not in apps]
-    record("2. APPS table seeds the 7 apps + terminal", not missing_ids,
-           "all 8 rows present" if not missing_ids else f"missing ids: {missing_ids}")
+    record("2. APPS table seeds the kernel apps + terminal", not missing_ids,
+           f"all {len(EXPECTED_APP_IDS)} rows present" if not missing_ids else f"missing ids: {missing_ids}")
 
     # 3. Each renderer component is defined in viewers/index.tsx.
     missing_renderers = [r for r in EXPECTED_RENDERERS if f"const {r}" not in viewers
                          and f"function {r}" not in viewers]
-    record("3. All 8 renderer apps defined in viewers", not missing_renderers,
+    record("3. All renderer apps defined in viewers", not missing_renderers,
            "all present" if not missing_renderers else f"missing: {missing_renderers}")
 
     # 4. resolveApps returns an ordered list; resolveApp is the singleton.
