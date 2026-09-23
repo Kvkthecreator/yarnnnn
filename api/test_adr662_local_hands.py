@@ -119,9 +119,9 @@ check(
 _manifest = re.findall(r'"(\w+)"', (re.search(r"commands\(&\[(.*?)\]\)", read("src-tauri/build.rs"), re.S) or [None, ""])[1])
 check(
     "the app's commands are declared, and the roster names exactly them",
-    sorted(_manifest) == ["browser_act", "hands_status"]
+    sorted(_manifest) == ["browser_act", "hands_set_enabled", "hands_status"]
     and {f"allow-{c.replace('_', '-')}" for c in _manifest} <= _perms
-    and not any(p.startswith("allow-hands-") and p not in ("allow-hands-status",) for p in _perms),
+    and not any(p.startswith("allow-hands-") and p not in ("allow-hands-status", "allow-hands-set-enabled") for p in _perms),
     f"manifest {_manifest}",
 )
 
@@ -447,6 +447,14 @@ check(
     bool(_open) and _open.group(1).lstrip().startswith("const refused = await gate(url);")
     and bool(_with) and "const refused = await gate(tab.url);" in _with.group(1)
     and _with.group(1).index("gate(tab.url)") < _with.group(1).index("return fn(tab)"),
+)
+_set = re.search(r"async function setEnabled\(enabled\) \{(.*?)\n\}", BG, re.S)
+check(
+    "a page can switch it OFF, and asks for ON — the member answers in the extension's own window",
+    bool(_set) and 'const yes = await askConsent("", "enable");' in _set.group(1)
+    and "if (yes) await chrome.storage.local.set({ enabled: true });" in _set.group(1)
+    and BG.count("chrome.storage.local.set({ enabled: true })") == 1,
+    "a page could switch the browser on by itself (ADR-663 D4)",
 )
 check(
     "consent is drawn by the extension, and no answer is a no",

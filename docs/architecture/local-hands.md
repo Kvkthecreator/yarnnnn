@@ -65,6 +65,10 @@ words. The model never writes script: an act is `page.js` plus one call with JSO
   to a new site asks again.
 - **The member's controls.** The toolbar button (`popup.html`): on/off, the allowed and refused lists, the
   categories that are never allowed. All of it in `chrome.storage.local` — this machine, never the workspace.
+  yarnnn's Settings → Desktop app is a second on/off switch (`setBrowserHands`, from Chrome directly or through
+  the desktop app's `hands_set_enabled`): OFF applies at once; ON makes the extension ask in its own window
+  (`consent.html?mode=enable`) — a yarnnn page can never switch it on by itself (ADR-663 D4). The extension's
+  hello carries the switch, and re-sends it when the toolbar changes it, so the row tells the truth.
 - **Permissions.** `tabs`, `tabGroups`, `scripting`, `storage`, `nativeMessaging` (the desktop app), and host
   access to web pages — nothing for cookies, the clipboard, history, the network or the debugger.
 - **Identity.** The manifest's public `key` fixes the id (`flkcmnbfjjkglgaakihlcdfocecfaccb`), so an unpacked

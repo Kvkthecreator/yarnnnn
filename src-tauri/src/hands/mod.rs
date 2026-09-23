@@ -67,6 +67,8 @@ struct Link<W> {
     id: u64,
     writer: Option<W>,
     version: Option<String>,
+    /// The extension's own switch, as its latest hello said.
+    enabled: Option<bool>,
 }
 
 pub struct Relay {
@@ -78,7 +80,7 @@ pub struct Relay {
 impl Default for Relay {
     fn default() -> Self {
         Relay {
-            link: Mutex::new(Link { id: 0, writer: None, version: None }),
+            link: Mutex::new(Link { id: 0, writer: None, version: None, enabled: None }),
             pending: Mutex::new(HashMap::new()),
             next: AtomicU64::new(0),
         }
@@ -92,6 +94,7 @@ impl<W> Link<W> {
         self.id += 1;
         self.writer = Some(writer);
         self.version = None;
+        self.enabled = None;
         self.id
     }
 
@@ -100,12 +103,14 @@ impl<W> Link<W> {
         if self.id == id {
             self.writer = None;
             self.version = None;
+            self.enabled = None;
         }
     }
 
-    fn hello(&mut self, id: u64, version: Option<String>) {
+    fn hello(&mut self, id: u64, version: Option<String>, enabled: Option<bool>) {
         if self.id == id {
             self.version = version;
+            self.enabled = enabled;
         }
     }
 }
@@ -184,7 +189,8 @@ pub fn listen<R: Runtime>(app: &AppHandle<R>) {
                     match msg.get("type").and_then(Value::as_str) {
                         Some("hello") => {
                             let version = msg.get("version").and_then(Value::as_str).map(str::to_string);
-                            relay.link.lock().await.hello(id, version);
+                            let enabled = msg.get("enabled").and_then(Value::as_bool);
+                            relay.link.lock().await.hello(id, version, enabled);
                         }
                         Some("result") => {
                             let id = msg.get("id").and_then(Value::as_u64).unwrap_or(0);
@@ -215,22 +221,37 @@ fn refusal(receipt: &str) -> Value {
     })
 }
 
-/// Whether the yarnnn extension in Chrome is connected to this app. Reads only.
+/// Whether the yarnnn extension in Chrome is connected to this app, and
+/// whether its switch is on. Reads only.
 #[tauri::command]
 pub async fn hands_status<R: Runtime>(app: AppHandle<R>) -> Value {
     let relay = app.state::<Relay>();
     let link = relay.link.lock().await;
-    json!({ "extension": link.writer.is_some(), "version": link.version })
+    json!({ "extension": link.writer.is_some(), "version": link.version, "enabled": link.enabled })
 }
 
 /// Hand one act to the yarnnn extension and return what it answered.
 #[tauri::command]
 pub async fn browser_act<R: Runtime>(app: AppHandle<R>, tool: String, args: Value) -> Value {
+    request(&app, json!({ "type": "act", "tool": tool, "args": args })).await
+}
+
+/// Ask the extension to switch itself off or on. Off applies at once; ON is
+/// answered by the member in a window the EXTENSION draws (ADR-663 D4) — this
+/// command only asks, like every page request.
+#[tauri::command]
+pub async fn hands_set_enabled<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Value {
+    request(&app, json!({ "type": "set", "enabled": enabled })).await
+}
+
+/// One request to the extension, answered by id (acts and the switch alike).
+async fn request<R: Runtime>(app: &AppHandle<R>, mut msg: Value) -> Value {
     let relay = app.state::<Relay>();
     let id = relay.next.fetch_add(1, Ordering::Relaxed) + 1;
+    msg["id"] = json!(id);
     let (tx, rx) = oneshot::channel();
     relay.pending.lock().await.insert(id, tx);
-    let line = json!({ "type": "act", "id": id, "tool": tool, "args": args }).to_string() + "\n";
+    let line = msg.to_string() + "\n";
     if let Err(why) = send(&relay, &line).await {
         relay.pending.lock().await.remove(&id);
         return refusal(why);
@@ -270,7 +291,7 @@ mod tests {
     use super::Link;
 
     fn link() -> Link<&'static str> {
-        Link { id: 0, writer: None, version: None }
+        Link { id: 0, writer: None, version: None, enabled: None }
     }
 
     #[test]
@@ -289,9 +310,11 @@ mod tests {
         let mut l = link();
         let old = l.attach("old");
         let new = l.attach("new");
-        l.hello(old, Some("stale".into()));
+        l.hello(old, Some("stale".into()), Some(false));
         assert_eq!(l.version, None);
-        l.hello(new, Some("0.1.0".into()));
+        assert_eq!(l.enabled, None);
+        l.hello(new, Some("0.1.0".into()), Some(true));
         assert_eq!(l.version.as_deref(), Some("0.1.0"));
+        assert_eq!(l.enabled, Some(true));
     }
 }

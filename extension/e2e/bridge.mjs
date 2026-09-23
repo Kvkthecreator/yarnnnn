@@ -49,7 +49,8 @@ ctx.on("page", async (p) => { if (p.url().includes("consent.html")) { await p.wa
 let pass = 0, fail = 0; const expect = (n, c, g) => { if (c) { pass++; console.log("  ✓ " + n); } else { fail++; console.log("  ✗ " + n + " — " + JSON.stringify(g).slice(0, 300)); } };
 try {
   const hello = await next((m) => m.type === "hello");
-  expect("the extension reaches the app through the bridge and says hello", hello.version === "0.1.0", hello);
+  expect("the extension reaches the app through the bridge and says hello, with its switch",
+    typeof hello.version === "string" && hello.enabled === true, hello);
   const send = (m) => client.write(JSON.stringify(m) + "\n");
   send({ type: "act", id: 1, tool: "BrowserOpen", args: { url: "http://127.0.0.1:8765/" } });
   const r1 = await next((m) => m.type === "result" && m.id === 1);
@@ -60,6 +61,16 @@ try {
   send({ type: "act", id: 3, tool: "BrowserOpen", args: { url: "https://www.paypal.com/" } });
   const r3 = await next((m) => m.type === "result" && m.id === 3);
   expect("the app's acts pass the same gate", r3.result?.record?.act === "refused", r3);
+  // The switch, asked from the app: off at once, and the app hears it.
+  got.length = 0;
+  send({ type: "set", id: 9, enabled: false });
+  const r9 = await next((m) => m.type === "result" && m.id === 9);
+  expect("the app can switch it off, and is answered by id", r9.result?.enabled === false, r9);
+  const reHello = await next((m) => m.type === "hello" && m.enabled === false);
+  expect("a change of the switch reaches the app as a new hello", !!reHello, reHello);
+  send({ type: "set", id: 10, enabled: true });
+  const r10 = await next((m) => m.type === "result" && m.id === 10);
+  expect("switching it on from the app goes through the extension's own question", r10.result?.enabled === true, r10);
   // the app restarts: the bridge must find it again and the extension say hello again
   client.destroy(); got.length = 0;
   const again = await next((m) => m.type === "hello", 15000);

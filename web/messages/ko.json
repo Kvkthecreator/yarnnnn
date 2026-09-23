@@ -85,10 +85,12 @@
       "browser": {
         "title": "에이전트가 내 브라우저를 쓰게 하기",
         "update": "에이전트가 내 브라우저를 쓰게 하려면 데스크톱 앱을 업데이트하세요.",
-        "extensionConnected": "Chrome의 yarnnn 확장 프로그램 {version}에 연결됐어요. 에이전트는 로그인된 상태 그대로 자기 탭에서 일하고, 사이트마다 한 번씩 물어봐요. 켜고 끄기와 사이트 관리는 Chrome 도구 모음의 yarnnn 버튼에서 해요.",
+        "extensionConnected": "켜짐 — Chrome의 yarnnn 확장 프로그램 {version}. 에이전트는 로그인된 상태 그대로 자기 탭에서 일하고, 사이트마다 한 번씩 물어봐요. 사이트 관리는 Chrome 도구 모음의 yarnnn 버튼에서 해요.",
         "extensionMissing": "Chrome에 yarnnn 확장 프로그램을 추가하면 에이전트가 내 Chrome에서 일할 수 있어요 — 로그인된 상태 그대로, 자기 탭에서, 사이트마다 한 번씩 물어보면서요. 데스크톱 앱에서는 Chrome을 열어 두세요.",
         "addToChrome": "Chrome에 추가",
-        "notYet": "아직 공개되지 않았어요"
+        "notYet": "아직 공개되지 않았어요",
+        "extensionOff": "꺼짐 — yarnnn 확장 프로그램 {version}은 연결돼 있지만, 켜기 전에는 에이전트가 Chrome을 쓰지 않아요. 켜면 Chrome에서 확인을 물어봐요.",
+        "declined": "아직 꺼져 있어요 — 언제든 여기서 켤 수 있고, Chrome에서 확인을 물어봐요."
       },
       "beta": "데스크톱 앱은 베타 기간이라 아직 서명되지 않아서, 처음 열 때 컴퓨터가 한 번 확인을 요청해요.",
       "howToOpen": "여는 방법 보기"

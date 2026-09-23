@@ -291,6 +291,7 @@ ALLOWED = {
     # RED, in api/test_adr662_local_hands.py.
     "allow-hands-status",
     "allow-browser-act",
+    "allow-hands-set-enabled",
 }
 check(
     "the roster names exactly what the interface needs",

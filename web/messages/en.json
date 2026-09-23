@@ -85,10 +85,12 @@
       "browser": {
         "title": "Let your agent use your browser",
         "update": "Update the desktop app to let your agent use your browser.",
-        "extensionConnected": "Connected to the yarnnn extension {version} in Chrome: your agent works in its own tabs there, with your sign-ins, and asks once per site. Switch it and manage sites from the yarnnn button in Chrome's toolbar.",
+        "extensionConnected": "On — the yarnnn extension {version} in Chrome. Your agent works in its own tabs there, with your sign-ins, and asks once per site. Sites are managed from the yarnnn button in Chrome's toolbar.",
         "extensionMissing": "Add the yarnnn extension to Chrome and your agent can work in your own Chrome — with your sign-ins, in its own tabs, asking once per site. In the desktop app, keep Chrome open.",
         "addToChrome": "Add to Chrome",
-        "notYet": "Not published yet"
+        "notYet": "Not published yet",
+        "extensionOff": "Off — the yarnnn extension {version} is connected, and your agent won't use Chrome until you turn it on. Turning it on asks you in Chrome.",
+        "declined": "Still off — you can turn it on here any time; Chrome asks you to confirm."
       },
       "beta": "The desktop app is in beta and not yet signed, so your computer asks you to confirm the first time.",
       "howToOpen": "How to open it"

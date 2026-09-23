@@ -123,9 +123,24 @@ try {
   const sw = ctx.serviceWorkers()[0] || (await ctx.waitForEvent("serviceworker"));
   const groups = await sw.evaluate(async () => (await chrome.tabGroups.query({})).map((g) => g.title));
   expect("the agent works in a tab group named yarnnn", groups.includes("yarnnn"), groups);
-  await sw.evaluate(() => chrome.storage.local.set({ enabled: false }));
+
+  // The Settings switch, asked from a yarnnn page.
+  const setEnabled = (enabled) => h.evaluate((e) => send({ type: "setEnabled", enabled: e }), enabled);
+  const asked = consents.length;
+  const offReply = await setEnabled(false);
+  expect("a yarnnn page can switch it OFF at once, without a question", offReply?.enabled === false && consents.length === asked, offReply);
   const off = await act("BrowserRead");
   expect("switched off, it does nothing", !off.success && /switched yarnnn off/.test(off.receipt), off);
+  consentAnswer = false;
+  const refused = await setEnabled(true);
+  expect("a page asking to switch it ON gets the extension's own question — and a no stays off",
+    refused?.enabled === false && consents.length === asked + 1 && /use Chrome/.test(consents[asked]), { refused, consents });
+  consentAnswer = true;
+  const onReply = await setEnabled(true);
+  expect("…and a yes switches it on", onReply?.enabled === true && consents.length === asked + 2, onReply);
+  const hello2 = await h.evaluate(() => send({ type: "hello" }));
+  expect("hello reports the switch", hello2?.enabled === true, hello2);
+  await sw.evaluate(() => chrome.storage.local.set({ enabled: false }));
 
   const stranger = await ctx.newPage();
   await stranger.goto("http://127.0.0.1:8765/form.html");

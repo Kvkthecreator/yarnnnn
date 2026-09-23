@@ -78,7 +78,11 @@ fn main() {
         // rather than navigating the window, because the session it carries
         // has to be handed to the Supabase client, not to the router.
         .plugin(tauri_plugin_deep_link::init())
-        .invoke_handler(tauri::generate_handler![hands::hands_status, hands::browser_act])
+        .invoke_handler(tauri::generate_handler![
+            hands::hands_status,
+            hands::browser_act,
+            hands::hands_set_enabled,
+        ])
         .manage(hands::Relay::default())
         .setup(|app| {
             // ADR-662 D15 — let Chrome find this app, and listen for the bridge.

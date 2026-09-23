@@ -10,6 +10,7 @@ fn main() {
                 // ADR-662 D15 — local hands: the relay to the yarnnn extension.
                 "hands_status",
                 "browser_act",
+                "hands_set_enabled",
             ]),
         ),
     )

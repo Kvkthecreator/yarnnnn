@@ -1,19 +1,64 @@
 {
-  "extName": { "message": "yarnnn" },
-  "extDescription": { "message": "Lets your yarnnn agent work in Chrome for you — in its own tabs, with your sign-ins, one site at a time." },
-  "consentTitle": { "message": "Let your yarnnn agent use $HOST$?", "placeholders": { "host": { "content": "$1" } } },
-  "consentBody": { "message": "It will work in its own tab, in a group called yarnnn, which you can watch. It uses the sign-ins you already have on this site, and it can read the page, fill in fields and press buttons — including sending and posting when you ask it to." },
-  "consentLater": { "message": "You can take this back any time from the yarnnn button in Chrome's toolbar." },
-  "allow": { "message": "Allow" },
-  "deny": { "message": "Don't allow" },
-  "popupOn": { "message": "Your agent can use Chrome" },
-  "popupOff": { "message": "Your agent can't use Chrome" },
-  "turnOn": { "message": "Turn on" },
-  "turnOff": { "message": "Turn off" },
-  "allowedSites": { "message": "Sites you allowed" },
-  "deniedSites": { "message": "Sites you said no to" },
-  "none": { "message": "None yet — you'll be asked the first time." },
-  "remove": { "message": "Remove" },
-  "neverTitle": { "message": "Never allowed" },
-  "neverBody": { "message": "Banking and payments, trading and crypto, password managers, and account security pages — whatever you allow." }
+  "extName": {
+    "message": "yarnnn"
+  },
+  "extDescription": {
+    "message": "Lets your yarnnn agent work in Chrome for you — in its own tabs, with your sign-ins, one site at a time."
+  },
+  "consentTitle": {
+    "message": "Let your yarnnn agent use $HOST$?",
+    "placeholders": {
+      "host": {
+        "content": "$1"
+      }
+    }
+  },
+  "consentBody": {
+    "message": "It will work in its own tab, in a group called yarnnn, which you can watch. It uses the sign-ins you already have on this site, and it can read the page, fill in fields and press buttons — including sending and posting when you ask it to."
+  },
+  "consentLater": {
+    "message": "You can take this back any time from the yarnnn button in Chrome's toolbar."
+  },
+  "allow": {
+    "message": "Allow"
+  },
+  "deny": {
+    "message": "Don't allow"
+  },
+  "popupOn": {
+    "message": "Your agent can use Chrome"
+  },
+  "popupOff": {
+    "message": "Your agent can't use Chrome"
+  },
+  "turnOn": {
+    "message": "Turn on"
+  },
+  "turnOff": {
+    "message": "Turn off"
+  },
+  "allowedSites": {
+    "message": "Sites you allowed"
+  },
+  "deniedSites": {
+    "message": "Sites you said no to"
+  },
+  "none": {
+    "message": "None yet — you'll be asked the first time."
+  },
+  "remove": {
+    "message": "Remove"
+  },
+  "neverTitle": {
+    "message": "Never allowed"
+  },
+  "neverBody": {
+    "message": "Banking and payments, trading and crypto, password managers, and account security pages — whatever you allow."
+  },
+  "enableTitle": {
+    "message": "Let your yarnnn agent use Chrome?"
+  },
+  "enableBody": {
+    "message": "yarnnn asked to switch this on. Your agent will work in its own tabs, in a group called yarnnn, with the sign-ins you already have — and still asks before each new site."
+  }
 }

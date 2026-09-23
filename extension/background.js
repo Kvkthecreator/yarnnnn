@@ -46,7 +46,7 @@ const pendingConsent = new Map();
 
 /** Ask the member, in a window this extension draws, whether the agent may
  *  use `host`. Resolves true/false; no answer in time is a no. */
-async function askConsent(host) {
+async function askConsent(host, mode = "site") {
   const id = crypto.randomUUID();
   const answer = new Promise((resolve) => {
     pendingConsent.set(id, resolve);
@@ -55,15 +55,33 @@ async function askConsent(host) {
     }, CONSENT_TIMEOUT_MS);
   });
   await chrome.windows.create({
-    url: chrome.runtime.getURL(`consent.html?id=${id}&host=${encodeURIComponent(host)}`),
+    url: chrome.runtime.getURL(`consent.html?id=${id}&mode=${mode}&host=${encodeURIComponent(host)}`),
     type: "popup",
     width: 440,
     height: 300,
     focused: true,
   });
   const allowed = await answer;
-  await remember(allowed ? "allowed" : "denied", host);
+  if (mode === "site") await remember(allowed ? "allowed" : "denied", host);
   return allowed;
+}
+
+/**
+ * The on/off switch, asked from a yarnnn page (Settings) or the desktop app.
+ * Off applies at once — stopping is always safe. ON is the member's to say,
+ * in a window THIS extension draws (ADR-663 D4): a page asking to switch the
+ * browser on can never switch it on by itself.
+ */
+async function setEnabled(enabled) {
+  if (enabled === false) {
+    await chrome.storage.local.set({ enabled: false });
+    return { ok: true, enabled: false };
+  }
+  const s = await settings();
+  if (s.enabled) return { ok: true, enabled: true };
+  const yes = await askConsent("", "enable");
+  if (yes) await chrome.storage.local.set({ enabled: true });
+  return { ok: true, enabled: yes };
 }
 
 /** Null when the agent may act on `url`; otherwise the refusal to return. */
@@ -314,6 +332,10 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     perform(msg.tool, msg.args).then(sendResponse);
     return true;
   }
+  if (msg?.type === "setEnabled") {
+    setEnabled(msg.enabled === true).then(sendResponse);
+    return true;
+  }
   return false;
 });
 
@@ -333,11 +355,23 @@ function connectDesktop() {
   } catch {
     return;
   }
-  const hello = () => port.postMessage({ type: "hello", version: VERSION });
+  const hello = async () => {
+    const s = await settings();
+    port.postMessage({ type: "hello", version: VERSION, enabled: s.enabled });
+  };
+  // The switch can change from the toolbar too: tell the app, so its
+  // Settings row says the truth.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && "enabled" in changes) hello();
+  });
   port.onMessage.addListener(async (msg) => {
     if (msg?.type === "app") return hello();
     if (msg?.type === "act") {
       const result = await perform(msg.tool, msg.args);
+      port.postMessage({ type: "result", id: msg.id, result });
+    }
+    if (msg?.type === "set") {
+      const result = await setEnabled(msg.enabled === true);
       port.postMessage({ type: "result", id: msg.id, result });
     }
   });

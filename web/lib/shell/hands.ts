@@ -23,7 +23,10 @@
  *    the executor performs it, and the result is posted back to the waiting
  *    turn with the turn's nonce.
  *
- * The switch and the site lists are the extension's own toolbar button.
+ *  - `setBrowserHands()` — the Settings switch. OFF applies at once; ON is the
+ *    member's to say in a window the EXTENSION draws (ADR-663 D4) — the page
+ *    can ask, never switch it on by itself. The site lists stay in the
+ *    extension's toolbar button.
  */
 
 import { isNativeShell } from "./external-navigation";
@@ -48,9 +51,11 @@ export type ClientToolFrame = {
  *  it beside the model's sentence). */
 export type ActRecord = { act: string; subject: string; changed: boolean };
 
+/** `connected`: the extension answers this page (directly, or through the
+ *  desktop app). `on`: connected AND its switch is on. */
 export type BrowserHands =
-  | { executor: "host"; on: boolean; version?: string }
-  | { executor: "extension"; on: boolean; version: string }
+  | { executor: "host"; connected: boolean; on: boolean; version?: string }
+  | { executor: "extension"; connected: true; on: boolean; version: string }
   | { executor: null; on: false; hostTooOld?: boolean };
 
 type ChromeRuntime = {
@@ -98,10 +103,19 @@ const ACT_TIMEOUT_MS = 180_000;
 export async function browserHands(): Promise<BrowserHands> {
   if (isNativeShell()) {
     try {
-      const status = await invoke<{ extension?: boolean; version?: string | null }>("hands_status");
+      const status = await invoke<{ extension?: boolean; version?: string | null; enabled?: boolean | null }>(
+        "hands_status",
+      );
       // A host before the relay (0.3.x, the retired pane) answers another shape.
       if (typeof status?.extension !== "boolean") return { executor: null, on: false, hostTooOld: true };
-      return { executor: "host", on: status.extension, version: status.version ?? undefined };
+      return {
+        executor: "host",
+        connected: status.extension,
+        // A host before 0.4.2 does not report the switch: count it on, and
+        // the extension still refuses an act while it is off.
+        on: status.extension && status.enabled !== false,
+        version: status.version ?? undefined,
+      };
     } catch {
       return { executor: null, on: false, hostTooOld: true };
     }
@@ -111,7 +125,7 @@ export async function browserHands(): Promise<BrowserHands> {
     1_500,
   );
   if (hello?.ok && typeof hello.version === "string") {
-    return { executor: "extension", on: hello.enabled === true, version: hello.version };
+    return { executor: "extension", connected: true, on: hello.enabled === true, version: hello.version };
   }
   return { executor: null, on: false };
 }
@@ -123,6 +137,19 @@ export async function clientToolsRequest(): Promise<Record<string, unknown>> {
   return hands.executor === "extension"
     ? { client_tools: ["browser"], executor: `extension/${hands.version}` }
     : { client_tools: ["browser"] };
+}
+
+/** The Settings switch — see the file header. Resolves to the switch's state
+ *  after the ask (still off when the member declined in the extension). */
+export async function setBrowserHands(enabled: boolean): Promise<boolean> {
+  try {
+    const reply = isNativeShell()
+      ? await invoke<{ enabled?: boolean }>("hands_set_enabled", { enabled })
+      : await toExtension<{ enabled?: boolean }>({ type: "setEnabled", enabled }, ACT_TIMEOUT_MS);
+    return reply?.enabled === true;
+  } catch {
+    return false;
+  }
 }
 
 async function act(frame: ClientToolFrame): Promise<Record<string, unknown>> {
