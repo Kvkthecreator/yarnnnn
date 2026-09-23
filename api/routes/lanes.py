@@ -2082,6 +2082,12 @@ def _turn_stream_response(
         meta: dict = {"author_principal_id": auth.user_id}
         if attachments_meta:
             meta["attachments"] = attachments_meta
+        if client_tools:
+            # ADR-662 D6 — the hands this turn HELD, as a receipt: which client
+            # tools the server offered. Absent = none. Without it "did the
+            # agent have the browser?" was unanswerable after the fact (the
+            # first in-app test, 2026-09-23).
+            meta["client_tools"] = [t["name"] for t in client_tools]
         if seed is not None:
             # ADR-579 D7 — the gesture STAMP (the ADR-605 shape): derived
             # structure stored with the content it belongs to, re-read by the
@@ -2439,7 +2445,11 @@ def _client_tools_for(header: Optional[str], requested: Optional[list[str]]) -> 
     narrowed to what its host's version performs. Empty for any browser."""
     from services.client_tools import offered
 
-    return offered(header, requested)
+    tools = offered(header, requested)
+    if header or requested:
+        # One line per desktop turn: what the client said and what it got.
+        logger.info("[LANE] client=%s requested=%s offered=%d", header, requested, len(tools))
+    return tools
 
 
 @router.post("/lanes/{lane_id}/messages")

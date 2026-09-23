@@ -186,6 +186,11 @@ check(
 )
 lanes_src = read("api/routes/lanes.py")
 check(
+    "the member's row records which client tools the turn held",
+    'meta["client_tools"] = [t["name"] for t in client_tools]' in lanes_src,
+    "whether a turn had the browser would be unanswerable afterwards",
+)
+check(
     "receipts ride the turn's one assistant row",
     'extra["receipts"] = receipts' in lanes_src and "receipts.append(payload)" in lanes_src,
     "the record of what happened in the member's browser would be lost on reload",
