@@ -61,7 +61,7 @@ fn main() {
             // wordmark's corner.
             #[cfg(target_os = "macos")]
             let builder = builder
-                .traffic_light_position(tauri::LogicalPosition::new(18.0, 22.0))
+                .traffic_light_position(tauri::LogicalPosition::new(18.0, 30.0))
                 .initialization_script(
                     r#"(function () {
   var mark = function () {

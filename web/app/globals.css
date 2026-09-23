@@ -102,7 +102,7 @@ body {
   --titlebar-inset: 0px;
 }
 :root[data-titlebar="overlay"] {
-  --titlebar-inset: 60px;
+  --titlebar-inset: 68px;
 }
 
 /* Make brand font robust (outside @layer for higher specificity) */

@@ -501,6 +501,8 @@ Two findings from the first working session, reported with a screenshot: the ava
 
 ⚠️ A gate arm was blind on its first cut in the §7j way: it sliced the macOS block up to the first `;` + newline, which falls inside the injected script, and went RED on a correct file. It now slices to `builder.build()`.
 
+**Measured, not assumed.** The first position, `(18, 22)`, centred the lights at ~20pt on a 56px bar — Tauri's `y` does not land where the number suggests, so it was read off a window capture (`screencapture -l <id>`, window id from `CGWindowListCopyWindowInfo`) rather than trusted. `(18, 30)` centres them at ~27.5pt, level with the dock icons; the inset went 60 → 68px for a ~16pt gap to the wordmark. The avatar reads the member's initials.
+
 Six arms, each proven RED in place: the provider fallback dropped, the drag region off the header, the inset off the header, the overlay inset zeroed, the host never marking the page, the drag permission removed.
 
 ---

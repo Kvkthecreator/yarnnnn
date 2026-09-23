@@ -137,8 +137,8 @@ verifier across two contexts.
 
 **Sign-in and the Desktop CONFIRMED by a real member (2026-09-23)** — §7l (our own
 `getSafeNextPath` refused `next=/auth/desktop`) and §7m (the binary shipped `.env.local`'s
-`localhost:8000`). **OPEN — confirm §7n by looking**: avatar shows initials, the wordmark
-clears the traffic lights, the window drags by its top bar. Built and gate-green, not yet seen.
+`localhost:8000`). §7n (avatar, traffic-light inset) SEEN in a window capture. **OPEN — one check by hand**: the
+window drags by its top bar (a capture cannot show it).
 ⚠️ Watch after it works: the browser and the app now share one refresh-token lineage. If the
 app is signed out ~1h later, suspect Supabase's reuse detection revoking the family when the
 browser refreshes with the token the app already spent — unverified, a hypothesis.
