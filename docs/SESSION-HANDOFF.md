@@ -6,26 +6,14 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
-## HWP / HWPX extraction not yet driven on a Hancom-authored file (2026-09-23)
+## Office formats not yet driven with APPLICATION-authored files (2026-09-23)
 
-ADR-395 am.2 D18 reads both in-process, but the gate's fixtures are BUILT (an OWPML zip, a hand-written
-OLE file) — Hancom Office was not available. Upload one real `.hwp` and one real `.hwpx` through Files and
-check the "what it says" preview carries the body and table text with no control-code junk. Delete once seen.
-
-## Office viewers not yet driven on the real Files surface (2026-09-23)
-
-ADR-395 am.2 phase 2 (§11.10) was rendered through `FileBody` in a local harness against GENERATED
-fixtures; the local API would not boot. Open one real Excel-authored `.xlsx` (multi-sheet, formulas),
-one Word-authored `.docx` (images, header) and one PowerPoint `.pptx` from Files on production, in light
-and dark, and check each draws (or falls back to the terminal) with Download working. Delete once seen.
-
-## "Save as .docx/.pptx/.xlsx" not yet clicked on production (2026-09-23)
-
-ADR-395 am.2 phase 3 (§11.11): the writer and WriteFile path were driven in-process and the gate reads
-every output back; the Files menu + Properties entries were not clicked against the production API (the
-local API does not boot). Right-click a `.md`, a Slides deck and a `.csv` in Files → Save as → check the
-new file lands beside it, opens in Word / PowerPoint / Excel, and its Properties show `derived_from`.
-Delete once seen.
+The production click-pass (ADR-395 am.2 §11.12) drove every format, Save-as, agent read/edit and binary
+revert on GENERATED fixtures. Still owed, on production: upload one real Excel `.xlsx` (formulas, merged
+cells), Word `.docx` (images, header) and PowerPoint `.pptx`, plus one real Hancom `.hwp` and `.hwpx` —
+check each draws (light + dark) and its "what it says" text has no control-code junk; and open one
+Save-as output in real Word / PowerPoint / Excel. Known cosmetic: a deck's metric block exports as
+"42%label▲ 8%" (inline runs joined without spaces). Delete once seen.
 
 ## Vercel skip rule not yet observed skipping (2026-09-23)
 
