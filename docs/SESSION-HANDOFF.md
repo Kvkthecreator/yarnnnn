@@ -140,8 +140,8 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    unchecked. Installer: `shell-windows.yml`, manual dispatch.
 5. **Auto-update** — deferred by ADR-663 D6 (its own keypair + a hosted manifest); D3's 426 is the lever.
 6. **ADR-662's browser pane is BUILT, not yet driven** (amendment 1, D14; host **0.3.0**, not cut).
-   Owed, in order: (a) **cut 0.3.0** for the Mac (`scripts/release-shell.sh`) and run `shell-windows.yml`
-   — the Windows target was NOT compiled (a Mac stops in `tauri-winres`); (b) **the driven trace**: in
+   The Windows installer BUILDS at `3e537cf` (run `35819727324`). The API route is live (401 unauthed).
+   Owed, in order: (a) **cut 0.3.0** for the Mac (`scripts/release-shell.sh`), tag `desktop-v0.3.0`; (b) **the driven trace**: in
    the 0.3.0 app, Settings → Desktop app → *Let your agent use a browser* (the HOST's dialog must
    appear), then ask a real browser job in chat; read the reply row's `metadata.receipts` back from
    `session_messages`, and watch the pane; (c) then ratify ADR-662 (Status → Accepted retires ADR-661's
