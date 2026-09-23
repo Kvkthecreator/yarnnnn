@@ -132,16 +132,10 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    hand-off lands in the WEBSITE's cookie session now — `refreshSession` through auth-helpers); the
    window drags by its top bar; Settings → Desktop app shows the version; offline launch shows the
    bootstrap's message. Windows: the hand-off reaches the RUNNING app (single-instance).
-3. **Publishing is wired, not yet switched on** (ADR-661 §7q — unsigned builds publish during the beta).
-   `/download` + `/ko/download` are live and say "Coming soon"; `DESKTOP_DOWNLOADS` is `null` because
-   the 0.3.0 host still carries the unratified browser pane (ADR-661's tripwire). **Owed, once host
-   0.4.0 (pane deleted) is on main**: `./scripts/release-shell.sh --unsigned` →
-   `scripts/publish-desktop-release.sh mac …`; `gh workflow run shell-windows.yml` → `gh run download` →
-   `scripts/publish-desktop-release.sh windows …`; then set both `DESKTOP_DOWNLOADS` entries to their
-   `releases/latest/download/<name>` URLs and `curl -I` each `/download/{platform}` on production.
-   ⚠️The Mac "cannot verify → Open Anyway" wording is inferred from the sealed signature, not yet seen
-   on a second Mac — open the published DMG on one and correct `/download`'s steps if it differs.
-   Apple Developer ID (operator) still owed for a build that opens with no prompt, and for ADR-662.
+3. **Mac first-open wording unobserved** (ADR-661 §7q). The DMG is ad-hoc SEALED (verifies), so macOS
+   should say it cannot verify the developer and offer Open Anyway — inferred, not seen. Open the
+   downloaded DMG on a Mac that never built it and correct `/download`'s steps if it differs. Apple
+   Developer ID (operator) still owed for a build that opens with no prompt, and for ADR-662.
 4. **Windows signing** — SmartScreen warns; Azure Trusted Signing eligibility for a Korean entity
    unchecked. Installer: `shell-windows.yml`, manual dispatch.
 5. **Auto-update** — deferred by ADR-663 D6 (its own keypair + a hosted manifest); D3's 426 is the lever.

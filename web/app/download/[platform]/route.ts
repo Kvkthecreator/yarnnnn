@@ -3,7 +3,7 @@ import { DESKTOP_DOWNLOADS, isDesktopPlatform } from "@/lib/shell/desktop-app";
 
 /**
  * /download/{mac|windows} — our own address for a desktop build, redirecting
- * to wherever the file lives now (a GitHub Release asset today;
+ * to wherever the file lives now (our `desktop-releases` storage bucket;
  * lib/shell/desktop-app.ts says why every link goes through here).
  *
  * 302, not 308: the target is expected to move — to a signed build's store,

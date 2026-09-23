@@ -21,8 +21,8 @@ app. A new installer is needed only when the HOST changes.
   `api/services/desktop_client.py` **after** the new build is published: an
   older app then shows *"This version of the yarnnn app is out of date"* with a
   link to Settings → Desktop app.
-- Downloads are GitHub Release assets under STABLE names, served through our
-  own `www.yarnnn.com/download/{mac,windows}` — see *Publishing a release*
+- Downloads are objects in our public `desktop-releases` storage bucket under
+  STABLE names, served through our own `www.yarnnn.com/download/{mac,windows}` — see *Publishing a release*
   below. The opener scope already allows `www.yarnnn.com`, so no host change
   is needed for the in-app Download link to open.
 
@@ -252,34 +252,34 @@ behind `www.yarnnn.com/download` (`/ko/download`), which says they are unsigned
 and gives each platform its one step to open. Signing, when it lands, removes
 those steps from the page and changes nothing else.
 
-**Where the files live.** A GitHub Release of this repo per host version, tag
-`desktop-vX.Y.Z`, with each installer under a STABLE name — the roster in
+**Where the files live.** Our own public Supabase Storage bucket,
+`desktop-releases` (`supabase/migrations/261`). Each installer is uploaded
+twice: under its STABLE name, which every release overwrites and every link
+reads, and under `X.Y.Z/`, which is kept (the history; roll back by
+re-publishing an old version's file). The names are the roster in
 `scripts/publish-desktop-release.sh`, mirrored by `DESKTOP_ASSET_NAMES` in
-`web/lib/shell/desktop-app.ts` (the ADR-661 gate holds the two equal). GitHub's
-`releases/latest/download/<name>` always serves the newest release.
+`web/lib/shell/desktop-app.ts` (the ADR-661 gate holds the two equal). The
+bucket has no write policy, so only the service key can publish; reads need no
+token.
 
 **The address people get is ours.** Every link points at
 `/download/{platform}` (`web/app/download/[platform]/route.ts`), a 302 to the
-asset. The host can move later without breaking a shared link.
-
-**A release becomes `latest` only when it carries every platform.** The
-publish script creates it as not-latest and promotes it once both files are on
-it, so a Mac-only release never 404s the Windows link.
+bucket object. The file can move later without breaking a shared link.
 
 The steps, for version X.Y.Z (bumped in `src-tauri/Cargo.toml`, pushed):
 
 ```bash
-./scripts/release-shell.sh --unsigned                   # Mac, ad-hoc sealed
+./scripts/release-shell.sh --unsigned                  # Mac, ad-hoc sealed
 scripts/publish-desktop-release.sh mac src-tauri/target/release/bundle/dmg/yarnnn_X.Y.Z_aarch64.dmg
 
-gh workflow run shell-windows.yml && gh run watch       # Windows, on a runner
-gh run download --name yarnnn-windows
-scripts/publish-desktop-release.sh windows yarnnn_X.Y.Z_x64-setup.exe
+gh workflow run shell-windows.yml && gh run watch      # Windows, on a runner
+scripts/publish-desktop-release.sh windows             # takes that run's build of HEAD
 ```
 
-The first time only: set both entries of `DESKTOP_DOWNLOADS` in
-`desktop-app.ts` to their `releases/latest/download/<name>` URLs, once the
-release exists. After that a release needs no web change at all.
+The script refuses a commit not on `origin/main`, checks the public URL serves
+the uploaded byte count, and tags the commit `desktop-vX.Y.Z`. The stable name
+is cached for five minutes, so a new release reaches every link within that.
+No web change is needed per release.
 
 ⚠️ **"Unsigned" must still be SEALED on the Mac.** `tauri.conf.json` carries
 `signingIdentity: "-"`, so the bundle is ad-hoc signed and `codesign --verify`

@@ -9,9 +9,12 @@ name: shell-windows
 # a Windows runner rather than a developer's Mac.
 #
 # Manual on purpose: an installer is a release act, not a side effect of a
-# push. Run it from the Actions tab (or `gh workflow run shell-windows.yml`),
-# download the `yarnnn-windows` artifact, and tag the commit
-# `desktop-vX.Y.Z` (the version is src-tauri/Cargo.toml's — ADR-663 D2).
+# push. Run it from the Actions tab (or `gh workflow run shell-windows.yml`).
+# To try it, download the `yarnnn-windows` artifact. To publish it,
+# `scripts/publish-desktop-release.sh windows` takes this run's build of HEAD,
+# uploads it to our `desktop-releases` bucket and tags the commit
+# `desktop-vX.Y.Z` (the version is src-tauri/Cargo.toml's — ADR-663 D2). The
+# job stays read-only: it builds, and the operator's machine publishes.
 #
 # ⚠️ UNSIGNED. Windows SmartScreen warns on first run ("Windows protected your
 # PC" → More info → Run anyway) until a code-signing certificate is added —

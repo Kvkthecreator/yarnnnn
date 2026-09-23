@@ -4,20 +4,20 @@
  *
  * ## Where the file lives, and the address a person is given
  *
- * Each build is an asset on a GitHub Release of this repo, cut and uploaded by
- * `scripts/publish-desktop-release.sh` under a STABLE asset name. GitHub's
- * `releases/latest/download/<name>` then always serves the newest build, so the
- * URLs below never change between releases.
+ * Each build is an object in our own public Supabase Storage bucket,
+ * `desktop-releases` (supabase/migrations/261), uploaded by
+ * `scripts/publish-desktop-release.sh` under a STABLE name that every release
+ * overwrites. The URLs below therefore never change between releases.
  *
  * Nobody is handed those URLs. Every link — the /download page, Settings →
- * Desktop app, the in-app update notice — points at `downloadPath(platform)`,
- * our own `/download/{platform}`, which redirects here
+ * Desktop app — points at `downloadPath(platform)`, our own
+ * `/download/{platform}`, which redirects here
  * (`app/download/[platform]/route.ts`). Two reasons:
- *   · The host can move (a CDN, a signed-build store) without breaking a link
+ *   · The file can move (a CDN, a signed-build store) without breaking a link
  *     anyone has shared or bookmarked.
  *   · The installed app's opener scope already allows `www.yarnnn.com`, so the
- *     in-app Download works on every host ever shipped. A github.com link
- *     would open nothing until a new host widened its scope.
+ *     in-app Download works on every host ever shipped. A storage URL would
+ *     open nothing until a new host widened its scope.
  *
  * ## Unsigned, during the beta (operator ruling, 2026-09-23)
  *
@@ -51,10 +51,9 @@ export const DESKTOP_ASSET_NAMES: Record<DesktopPlatform, string> = {
   windows: "yarnnn-windows-x64-setup.exe",
 };
 
-/** The asset each platform's `/download/{platform}` redirects to; `null` = not
- *  published. To publish, write the literal
- *  `https://github.com/Kvkthecreator/yarnnnn/releases/latest/download/<name>`
- *  — only once that release exists, or the link is a 404. */
+/** The file each platform's `/download/{platform}` redirects to; `null` = not
+ *  published. The bucket's public path plus the platform's asset name; set it
+ *  only once the file has been published, or the link is a 404. */
 export const DESKTOP_DOWNLOADS: Record<DesktopPlatform, string | null> = {
   mac: null,
   windows: null,

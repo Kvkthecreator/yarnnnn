@@ -634,11 +634,13 @@ check(
     f"a download link outside lib/shell/desktop-app.ts: {_second[:3]}",
 )
 
-# The links say `releases/latest/download/<name>`; the publish script uploads
-# under <name>. A name changed on one side only is a 404 on every download
-# link, and nothing else would notice until a visitor did.
+# The links name the bucket object `<name>`; the publish script uploads under
+# <name>. A name changed on one side only is a 404 on every download link, and
+# nothing else would notice until a visitor did. Anchored on the script's
+# `asset_name` function: its MIME table has the same `mac)` / `windows)` shape.
 _pub = read("scripts/publish-desktop-release.sh")
-_script_names = dict(re.findall(r'^\s*(mac|windows)\)\s*echo\s+"([^"]+)"', _pub, re.M))
+_names_fn = re.search(r"asset_name\(\)\s*\{(.*?)\n\}", _pub, re.S)
+_script_names = dict(re.findall(r'^\s*(mac|windows)\)\s*echo\s+"([^"]+)"', _names_fn.group(1), re.M)) if _names_fn else {}
 _names_block = re.search(r"DESKTOP_ASSET_NAMES[^=]*=\s*\{(.*?)\}", _desk, re.S)
 _client_names = dict(re.findall(r'(\w+)\s*:\s*"([^"]+)"', _names_block.group(1))) if _names_block else {}
 check(
@@ -648,9 +650,26 @@ check(
 )
 _urls = dict(re.findall(r'(\w+)\s*:\s*"(https://[^"]+)"', _block.group(1))) if _block else {}
 check(
-    "a published download ends in its platform's asset name",
-    all(u.endswith("/" + _client_names.get(p, "\0")) for p, u in _urls.items()),
-    f"a download URL names a file the publish script never uploads: {_urls}",
+    "a published download is its asset in the public desktop-releases bucket",
+    all(re.fullmatch(r"https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/desktop-releases/"
+                     + re.escape(_client_names.get(p, "\0")), u) for p, u in _urls.items()),
+    f"a download URL is not the bucket object the publish script writes: {_urls}",
+)
+
+# The bucket: public (a stranger's link carries no token), and writable by the
+# service key alone — a member-writable public bucket would host executables on
+# our storage for anyone.
+_mig = re.sub(r"--.*$", "", read("supabase/migrations/261_desktop_releases_bucket.sql"), flags=re.M)
+check(
+    "the desktop-releases bucket is public and has no write policy",
+    re.search(r"'desktop-releases',\s*'desktop-releases',\s*true", _mig) is not None
+    and "POLICY" not in _mig.upper(),
+    "the bucket is missing, private, or grants writes by policy",
+)
+check(
+    "the publish script writes to that bucket",
+    re.search(r'^BUCKET="desktop-releases"$', _pub, re.M) is not None,
+    "the script uploads somewhere the download links do not read",
 )
 
 # Every link goes through our address: the pane renders `downloadPath`, the

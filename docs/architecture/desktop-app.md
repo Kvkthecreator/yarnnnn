@@ -120,7 +120,7 @@ A failure comes back to `/auth/login?error=…&message=…` and is shown in word
 | You change `src-tauri/` | Bump `version` in `Cargo.toml`, cut both installers, tag the commit `desktop-vX.Y.Z`. |
 | The website starts depending on a host change | Publish the new host first, **then** raise `DESKTOP_MIN_VERSION` in `api/services/desktop_client.py`. |
 | One feature needs a newer host | Give that feature its own minimum beside the global one — `BROWSER_MIN_VERSION` (0.3.0) is the first, in `api/services/desktop_client.py`. Below it the feature is simply not offered; the host is never refused for it. Do not raise the global minimum for one feature. |
-| A new version is published | `scripts/publish-desktop-release.sh` uploads each installer to the `desktop-vX.Y.Z` GitHub Release under its stable name; the links never change ([publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md)). |
+| A new version is published | `scripts/publish-desktop-release.sh` uploads each installer to the public `desktop-releases` storage bucket under its stable name (and a kept `X.Y.Z/` copy); the links never change ([publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md)). |
 
 **How refusal works.** The API answers a request whose `X-Yarnnn-Client` is below the minimum with **426** and
 `error.code = "desktop_update_required"`. `request()` in `web/lib/api/client.ts` turns that into an event;
