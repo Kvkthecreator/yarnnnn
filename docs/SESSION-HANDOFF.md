@@ -159,8 +159,9 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    (pending acts live in memory; the 13af65c deploy cut the first run) and persists nothing of the partial
    reply — true of every streamed turn. **Host 0.4.1** fixes a race found on the operator's Mac: a closing
    bridge connection cleared the link even when a newer one had attached, so the app said "not connected"
-   with the bridge attached (reproduced with a transient socket client; Rust test proven RED). Owed, in order: (a) one browser job sent from the desktop app's chat
-   — read `metadata.receipts` back; (b) Windows native messaging (a registry key + a named pipe; today the
+   with the bridge attached (reproduced with a transient socket client; Rust test proven RED). **DESKTOP TRACE (2026-09-23 10:54Z,
+   host 0.4.1)**: from the operator's own app chat, "access x twitter and post" → `client_tools` offered (5)
+   → relay → bridge → extension → posted as @yarnnn___; 7 receipts on the reply. Owed, in order: (b) Windows native messaging (a registry key + a named pipe; today the
    Windows app refuses in words); (c) ratify ADR-662 (retires ADR-661's tripwire, which now watches only
    the extension's listing), then publish the extension (Chrome Web Store account + review) and set
    `CHROME_EXTENSION.storeUrl`; (d) **ADR-665 (browser workflows) awaits the operator's ruling** — its

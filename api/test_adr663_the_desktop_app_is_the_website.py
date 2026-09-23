@@ -104,6 +104,12 @@ check(
     sorted(p.name for p in (TAURI / "bootstrap").iterdir()) == ["index.html"],
     "a second bundled page is a second interface to version",
 )
+check(
+    "the bootstrap wears the brand's wordmark, embedded so it draws offline",
+    re.search(r'@font-face\s*\{[^}]*font-family:\s*"Pacifico";[^}]*src:\s*url\("data:font/woff;base64,', boot) is not None
+    and re.search(r'h1\s*\{[^}]*"Pacifico"', boot) is not None,
+    "the opening screen's wordmark fell back to a system font — or fetches one it cannot reach offline",
+)
 
 nc = strip_comments(read("web/next.config.js"))
 check(

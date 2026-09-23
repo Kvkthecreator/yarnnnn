@@ -11,7 +11,7 @@
 # (api/services/desktop_client.py) is compared against it.
 [package]
 name = "yarnnn"
-version = "0.4.1"
+version = "0.4.2"
 description = "yarnnn — shared memory for AI + human work"
 authors = ["yarnnn"]
 edition = "2021"
