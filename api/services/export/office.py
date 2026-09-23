@@ -17,8 +17,9 @@ Four deterministic writers, each `(source_text, title) -> bytes`:
                      `<section class="slide">` (the deck model: `authoring.py`'s
                      `deck` layout — the first heading block is the slide title,
                      everything else is its body).
-  csv_to_xlsx /      A table → one sheet.
-  tsv_to_xlsx
+  csv_to_xlsx /      A table → a workbook: one sheet, or one per `## name`
+  tsv_to_xlsx        section (the xlsx extractor's own layout, so a read
+                     workbook writes back whole).
 
 WHICH writer serves WHICH source is not decided here. Each writer is bound to
 its source format in the format registry (`services/file_formats.py`,
@@ -565,38 +566,82 @@ def _cell_value(raw: str):
     return raw
 
 
+_SHEET_HEADING = re.compile(r"^## (.+?)\s*$")
+
+
+def _sheet_title(name: str, fallback: str = "Sheet1") -> str:
+    return (re.sub(r"[\\/*?:\[\]]", " ", name).strip() or fallback)[:31]
+
+
+def _split_sheets(source: str, title: str) -> list[tuple[str, str]]:
+    """`(sheet name, body)` pairs. A `## name` line opens a sheet — the layout
+    the xlsx EXTRACTOR writes (`documents.extract_text_from_xlsx`), so a
+    workbook an agent read can be written back whole. No heading → one sheet."""
+    sheets: list[tuple[str, list[str]]] = []
+    for line in source.splitlines():
+        m = _SHEET_HEADING.match(line)
+        if m:
+            sheets.append((m.group(1), []))
+        elif sheets:
+            sheets[-1][1].append(line)
+        elif line.strip():
+            sheets.append((title, [line]))
+    return [(name, "\n".join(body).strip("\n")) for name, body in sheets] or [(title, "")]
+
+
+def _sheet_rows(body: str, delimiter: str) -> list[list[str]]:
+    """Rows of one sheet. A real tab anywhere makes it TSV (the extractor's
+    rows, whose cells never hold a tab). ⚠️ A body with NO real tab but a
+    literal `\\t` is TSV too: an agent re-emitting the rows it read escaped
+    the tabs, and reading that as one CSV column flattened a workbook into
+    `Line item\\tQ1\\tQ2` strings (click-pass, 2026-09-23)."""
+    if "\t" in body:
+        delimiter = "\t"
+    elif "\\t" in body:
+        body, delimiter = body.replace("\\t", "\t"), "\t"
+    return list(csv.reader(io.StringIO(body), delimiter=delimiter))
+
+
 def _table_to_xlsx(source: str, title: str, delimiter: str) -> bytes:
     import openpyxl
 
-    rows = list(csv.reader(io.StringIO(_bounded(source)), delimiter=delimiter))
-    if len(rows) > MAX_ROWS:
-        raise ExportRefused(f"The table has {len(rows):,} rows — past the {MAX_ROWS:,}-row limit.")
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = (re.sub(r"[\\/*?:\[\]]", " ", title).strip() or "Sheet1")[:31]
-    for r, row in enumerate(rows, start=1):
-        if len(row) > MAX_COLS:
-            raise ExportRefused(f"Row {r} has {len(row):,} columns — past the {MAX_COLS:,}-column limit.")
-        for c, raw in enumerate(row, start=1):
-            if raw == "":
-                continue
-            cell = ws.cell(row=r, column=c, value=_cell_value(raw))
-            # NEVER a formula. openpyxl reads a leading `=` as one; a member's
-            # data saying `=HYPERLINK(...)` must stay what it says.
-            if isinstance(cell.value, str) and cell.value.startswith("="):
-                cell.data_type = "s"
+    wb.remove(wb.active)
+    used: set[str] = set()
+    for name, body in _split_sheets(_bounded(source), title):
+        rows = _sheet_rows(body, delimiter)
+        if len(rows) > MAX_ROWS:
+            raise ExportRefused(f"The table has {len(rows):,} rows — past the {MAX_ROWS:,}-row limit.")
+        sheet = _sheet_title(name)
+        n = 2
+        while sheet.lower() in used:  # openpyxl refuses a duplicate title
+            sheet = _sheet_title(f"{name} ({n})")
+            n += 1
+        used.add(sheet.lower())
+        ws = wb.create_sheet(sheet)
+        for r, row in enumerate(rows, start=1):
+            if len(row) > MAX_COLS:
+                raise ExportRefused(f"Row {r} has {len(row):,} columns — past the {MAX_COLS:,}-column limit.")
+            for c, raw in enumerate(row, start=1):
+                if raw == "":
+                    continue
+                cell = ws.cell(row=r, column=c, value=_cell_value(raw))
+                # NEVER a formula. openpyxl reads a leading `=` as one; a member's
+                # data saying `=HYPERLINK(...)` must stay what it says.
+                if isinstance(cell.value, str) and cell.value.startswith("="):
+                    cell.data_type = "s"
     buf = io.BytesIO()
     wb.save(buf)
     return _out(buf)
 
 
 def csv_to_xlsx(source: str, title: str = "") -> bytes:
-    """CSV → .xlsx, one sheet."""
+    """CSV → .xlsx; `## name` sections become sheets (see `_split_sheets`)."""
     return _table_to_xlsx(source, title, ",")
 
 
 def tsv_to_xlsx(source: str, title: str = "") -> bytes:
-    """TSV → .xlsx, one sheet."""
+    """TSV → .xlsx; `## name` sections become sheets (see `_split_sheets`)."""
     return _table_to_xlsx(source, title, "\t")
 
 

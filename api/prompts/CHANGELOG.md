@@ -15,6 +15,19 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.23.3] - A workbook read is a workbook written: ReadFile tells the agent the round trip
+
+### Changed
+- services/primitives/workspace.py (`_readable_binary_answer`): for a `.xlsx`, the revise line no longer says "written as ONE sheet — write a new file"; it says to WriteFile the WHOLE workbook back in the layout the agent just read (`## name` per sheet, tab-separated rows), that a sheet left out is dropped, and that formulas are written as values. Corrects `[2026.09.23.2]`'s xlsx line.
+- (Code, not prompt) services/export/office.py: the sheet writer reads that layout — `## name` sections become sheets, a tab makes a row TSV, and literal `\t` with no real tab is read as TSV.
+- Expected behavior: asked to change a number in a multi-sheet workbook, an agent writes back every sheet and the file keeps them.
+
+### Why
+Production click-pass, 2026-09-23 (ADR-395 am.2 §11.12): asked to change Marketing Q3 in a 3-sheet `q3-budget.xlsx`, Claude Sonnet 5 wrote the text it had read back to the same path; the CSV writer made one sheet of one column (`Line item\tQ1\tQ2…` strings, the tabs escaped). `[2026.09.23.2]`'s warning was in the tool result and was not followed — the fix is to make the natural read → edit → write loop correct, not to warn against it.
+
+### Gate
+`test_adr395_model_consumable_projection.py` 114/114 (+3 arms: the 3-sheet round trip keeps names and numbers, escaped tabs are columns, a plain CSV is still one sheet — proven RED by disabling the sheet split and the escaped-tab rescue) · size ratchets below.
+
 ## [2026.09.23.2] - ReadFile on an office file returns its words, and how to revise them
 
 ### Changed

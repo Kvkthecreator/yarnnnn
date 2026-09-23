@@ -664,12 +664,19 @@ def _readable_binary_answer(
         # only a Slides deck — so an uploaded deck has no text to rewrite it from.
         revise = (f" A .{ext} is written only from a Slides deck, so this file cannot be "
                   "rewritten in place — author the change as a deck or a document.")
+    elif src == "csv":
+        # The sheet writer reads the extractor's own layout back (`## name`
+        # per sheet, tab-separated rows), so what was read can be written whole.
+        revise = (
+            f" To revise it, WriteFile the WHOLE workbook back to this same path in "
+            "the layout above — a `## name` line per sheet, tab-separated rows. "
+            "Every sheet you include is kept; one you leave out is dropped. Values "
+            "only: formulas are written as their values."
+        )
     elif src:
         revise = (
             f" To revise it, WriteFile the whole new text as {src.upper()} to this same "
             f"path: a new revision of the .{ext} is written (styling best-effort)."
-            + (f" A .{ext} is written as ONE sheet — for a multi-sheet workbook, write "
-               "a new file instead of replacing this one." if src == "csv" else "")
         )
     else:
         revise = " yarnnn does not write this format; put changes in a new file."

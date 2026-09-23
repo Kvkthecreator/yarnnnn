@@ -1166,6 +1166,16 @@ exactly "Save as .docx".
   persisted row, only when nothing streamed. Gate: `test_adr411_lanes.py`
   +1 arm (the real lane stream + the route branch), proven RED two ways.
 
+- ⭐⭐⭐**An agent's edit flattened a 3-sheet workbook.** Asked to change one
+  figure in `q3-budget.xlsx`, the agent wrote back the text it had read — `##`
+  sheet headings, tab rows, the tabs escaped as literal `\t` — and the CSV
+  writer made ONE sheet of ONE column. The warning in the ReadFile message was
+  not followed; ⭐the fix is to make the natural loop correct, not to warn
+  against it. The sheet writer now reads the extractor's own layout (`## name`
+  → a sheet, a tab → TSV, a literal `\t` with no real tab → TSV), and the
+  message says to write the whole workbook back in the layout just read. The
+  original stayed recoverable as r1 throughout.
+
 **Not a product defect**: the first `.hwpx` upload failed at the edge because
 the fixture was the gate's XXE probe (`<!ENTITY leak SYSTEM "file:///etc/hosts">`)
 stored uncompressed — the WAF in front of the API blocked the request, CORS-less.

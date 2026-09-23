@@ -1567,7 +1567,7 @@ _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 
 @pytest.mark.parametrize("ext, mime, says", [
     ("docx", _DOCX_MIME, "as MD to this same path"),
-    ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ONE sheet"),
+    ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "a `## name` line per sheet"),
     ("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
      "cannot be rewritten in place"),
 ])
@@ -1591,6 +1591,56 @@ def test_am2_click_pass_a_binary_without_words_keeps_the_notice():
     assert out["content"] is None and "NOT an empty file" in out["message"]
     out = _read_binary("/workspace/inbound/uploads/brief.docx", _DOCX_MIME, None)
     assert out["content"] is None
+
+
+def _workbook_text() -> tuple[bytes, str]:
+    import openpyxl
+    from services.documents import extract_text
+    wb = openpyxl.Workbook()
+    ws = wb.active; ws.title = "Q3 Budget"
+    for row in (("Line item", "Q1", "Q3"), ("Marketing", 3000, 4200), ("Total", 15840, 18320)):
+        ws.append(row)
+    wb.create_sheet("Headcount").append(("Engineering", 6))
+    wb.create_sheet("예산 요약").append(("인건비", 13100))
+    buf = io.BytesIO(); wb.save(buf)
+    text, _ = asyncio.run(extract_text(buf.getvalue(), "xlsx"))
+    return buf.getvalue(), text
+
+
+def _sheets_of(data: bytes) -> dict:
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(data))
+    return {ws.title: [[c for c in r] for r in ws.iter_rows(values_only=True)] for ws in wb.worksheets}
+
+
+def test_am2_click_pass_a_workbook_read_is_a_workbook_written():
+    """Click-pass 2026-09-23: an agent read a 3-sheet workbook, changed one
+    number, wrote the text back — and the CSV writer made ONE sheet of one
+    column. The writer now reads the extractor's own layout, so the round
+    trip keeps every sheet, its name and its numbers."""
+    from services.export.office import csv_to_xlsx
+    _raw, text = _workbook_text()
+    edited = text.replace("4200", "5000").replace("18320", "19120")
+    sheets = _sheets_of(csv_to_xlsx(edited, "q3-budget"))
+    assert list(sheets) == ["Q3 Budget", "Headcount", "예산 요약"], list(sheets)
+    assert sheets["Q3 Budget"][1] == ["Marketing", 3000, 5000], sheets["Q3 Budget"]
+    assert sheets["Headcount"] == [["Engineering", 6]]
+    assert sheets["예산 요약"] == [["인건비", 13100]]
+
+
+def test_am2_click_pass_escaped_tabs_are_still_columns():
+    """The observed slip: the agent re-emitted the rows with LITERAL `\\t`.
+    Read as CSV that is one column of `Line item\\tQ1` strings."""
+    from services.export.office import csv_to_xlsx
+    _raw, text = _workbook_text()
+    sheets = _sheets_of(csv_to_xlsx(text.replace("\t", "\\t"), "q3-budget"))
+    assert sheets["Q3 Budget"][0] == ["Line item", "Q1", "Q3"], sheets["Q3 Budget"]
+
+
+def test_am2_click_pass_a_plain_csv_is_still_one_sheet():
+    from services.export.office import csv_to_xlsx
+    sheets = _sheets_of(csv_to_xlsx("Vendor,Cost\nRender,4200\n", "vendors"))
+    assert sheets == {"vendors": [["Vendor", "Cost"], ["Render", 4200]]}, sheets
 
 
 def test_am2_p3_text_under_an_office_name_is_written_not_stored():
