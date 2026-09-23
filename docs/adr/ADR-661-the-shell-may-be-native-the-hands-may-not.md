@@ -1,6 +1,6 @@
 # ADR-661 — A native shell, and the local hands it may grow
 
-> **Status**: **Accepted** (2026-09-21, operator-ratified). **Phase 0 (this document) only**; no code rides it beyond one dependency cleanup (§7). The Mac shell is **scoped and authorized in principle**. **Local attended computer use is IN SCOPE as a downstream capability** — §5 rules the distinction that makes it canon-coherent, §6 states the four conditions it must meet at birth, and §8 orders the build so the shell accommodates it rather than having to be reopened for it.
+> **Status**: **Accepted** (2026-09-21, operator-ratified) **+ Implemented — steps 1–5** (2026-09-21 → 09-23). The Mac shell ships (§7b–§7n), Windows is a build target (§7o), and the app signs in through the browser only (§7i, §7p). **Owed**: signing and notarization need the Apple Developer ID; auto-update is not built; Windows is not yet driven by a member. **Local attended computer use is IN SCOPE** (§5, §6) and has its own implementation ADR — [ADR-662](ADR-662-local-hands-the-member-keeps-the-machine.md), **Proposed**.
 > **Date**: 2026-09-21
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Channel** (Axiom 6 — the client is a form of addressed surface, and §5 adds a *local* channel that is not a boundary crossing) + **Identity** (Axiom 2 — the whole of §5 is who acts and who the far side sees). **No authority change**: the credential chokepoint, the grant model and the kernel are untouched.
@@ -532,6 +532,18 @@ Gate arms, each proven RED in place: the build commands carry no POSIX-only synt
 
 ---
 
+## 7p. The desktop app has no sign-in form (2026-09-23)
+
+§7i moved Google sign-in to the browser; email sign-up and password reset were left behind. The desktop app still rendered the website's `AuthForm`, and those two flows still passed `yarnnn://auth/callback` as their return address — a flow begun **in the app**, completed by a link the member opens from their mail. It worked only because the PKCE verifier happened to sit in the app that minted it, it required a Supabase allowlist entry the publishing doc had just been told to drop, and it was a second sign-in path living beside the first. Found while reading `deep-link.ts` for an unrelated change: `authCallbackUrl` still carried the shell branch §7i had superseded.
+
+**D6 — the app has one sign-in: the browser's.** `/auth/login` is now a pair, like the authenticated layout: `page.web.tsx` is the website's form, `page.tsx` is the desktop app's page — one button that opens `/auth/desktop`, where every method the website has works, and a line that says why a hand-off failed (§7h). The app starts no auth flow, so nothing returns to it but `yarnnn://auth/session`.
+
+**Deleted**: the `yarnnn://auth/callback` branch of `authCallbackUrl` (the web builder now lives once, in `lib/auth/redirect.ts`, shared with the MCP connect page, which had spelled it separately) · `AuthForm`'s desktop branch · the soft-navigation branches in the sign-in and callback pages · `/auth/callback` from the desktop build (`page.web.tsx`; the export drops to 47 pages). The Supabase allowlist needs nothing for the app.
+
+Gate arms, each proven RED in place: the desktop page opens the hand-off · it starts no auth flow · the website's form carries no desktop branch · the callback is web-only · nothing mints `yarnnn://auth/callback`.
+
+---
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).
@@ -562,7 +574,7 @@ Steps 1–3 are **true of the web product today** and worth doing whether or not
 
 ## 10. Consequences
 
-- **The Mac shell is authorized in principle and unbuilt.** It needs the operator to call §8, not another ADR.
+- **The desktop shell is built** (§7b–§7p): macOS driven end to end by a member; Windows a build target (§7o). Distribution waits on signing.
 - **Local attended computer use is scoped, not declined** — with the distinction from the remote sandbox recorded (§5.1) so the two are never again collapsed, and with four conditions binding at birth (§6).
 - **The remote sandbox stays declined** under ADR-395 am.1 §8.7.
 - **Steps 1–3 are live debt on the web product**, independent of packaging.

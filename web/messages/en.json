@@ -108,6 +108,13 @@
       "signIn": "Sign in & connect",
       "signUp": "Sign up & connect",
       "footer": "Connecting your assistant to your yarnnn memory. You can visit yarnnn.com anytime with the same account."
+    },
+    "desktop": {
+      "heading": "Sign in to yarnnn",
+      "lead": "You sign in in your browser, then come straight back here.",
+      "continue": "Continue in your browser",
+      "again": "Open the browser again",
+      "waiting": "Finish signing in in your browser. This window updates by itself."
     }
   },
   "surfaces": {

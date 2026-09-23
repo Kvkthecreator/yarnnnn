@@ -218,16 +218,14 @@ only one `yarnnn://` handler is registered.
 
 ## Two settings outside this repo
 
-**1. The Supabase redirect allowlist — keep `yarnnn://auth/callback`.** Google
-sign-in in the shell does not use it (ADR-661 §7i): the app opens
-`https://www.yarnnn.com/auth/desktop`, the website signs the member in through
-its existing `https://` callback, and the page hands the session to the app
-over `yarnnn://auth/session` — a browser navigation to a local scheme that
-Supabase never sees. ⚠️ But the shell's **email sign-up confirmation and
-password reset** still redirect to `yarnnn://auth/callback`
-(`authCallbackUrl` in `web/lib/shell/deep-link.ts`, passed by
-`app/auth/login/page.tsx` to `AuthForm`). Removing the allowlist entry breaks
-both in the desktop app, silently.
+**1. The Supabase redirect allowlist — nothing for the desktop app.** The app
+starts no auth flow of its own (ADR-661 §7p): its sign-in page opens
+`https://www.yarnnn.com/auth/desktop`, the website signs the member in with any
+method it has (password, Google, sign-up, a reset link) through its existing
+`https://` callback, and the page hands the session to the app over
+`yarnnn://auth/session` — a browser navigation to a local scheme that Supabase
+never sees. A `yarnnn://auth/callback` entry left from the superseded design is
+unused and can be removed.
 
 **2. The API's CORS allowlist** already carries the shell's origins
 (`tauri://localhost` on macOS, `http://tauri.localhost` on Windows — `api/main.py`). They ship with

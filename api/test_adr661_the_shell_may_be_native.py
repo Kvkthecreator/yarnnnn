@@ -383,11 +383,25 @@ check(
     "the shell must not ship the page that signs a member in",
 )
 
-form_src = strip_comments(read("web/components/auth/AuthForm.tsx"))
+# §7p — the desktop app has NO sign-in form. Its `/auth/login` is its own page
+# (`page.tsx`; the website's is `page.web.tsx`) that opens `/auth/desktop` in
+# the browser. Anchor on the page, and assert it starts no auth flow: an email
+# link or OAuth return can only complete in the context that began it.
+shell_login = strip_comments(read("web/app/auth/login/page.tsx"))
 check(
-    "the shell's sign-in opens the website, not a provider",
-    "isNativeShell" in form_src and "/auth/desktop" in form_src,
-    "the app would run its own OAuth flow again",
+    "the desktop sign-in page opens the website's hand-off",
+    re.search(r"openExternal\(\s*`\$\{webOrigin\(\)\}/auth/desktop`\s*\)", shell_login) is not None,
+    "the app would have no way to sign in",
+)
+check(
+    "the desktop sign-in page starts no auth flow of its own",
+    re.search(r"\bAuthForm\b|signInWith\w+\(|signUp\(|resetPasswordForEmail\(", shell_login) is None,
+    "a flow begun in the app cannot complete from an email link or a browser return",
+)
+check(
+    "the website's sign-in form carries no desktop branch",
+    "isNativeShell" not in strip_comments(read("web/components/auth/AuthForm.tsx")),
+    "a second sign-in path inside the shared form — the dual path §7p deleted",
 )
 
 bridge_src = strip_comments(read("web/components/shell/DeepLinkBridge.tsx"))
@@ -717,24 +731,7 @@ check(
 # --------------------------------------- §8 step 5a the sign-in round trip
 print("\n§8 step 5a sign-in leaves, comes back, and stays")
 
-auth_form = strip_comments(read("web/components/auth/AuthForm.tsx"))
-
-# `signInWithOAuth` navigates the CURRENT window unless told not to. In the
-# shell that renders Google's own consent page inside the app's webview, where
-# it recognises no passkey and offers no password field — reported from a real
-# build.
-# SUPERSEDED BY §7i, and kept as the weaker guarantee it still is: whatever
-# path the WEB build takes to a provider, the SHELL must not render a consent
-# screen inside its own window. §7i makes that structural (the shell opens the
-# website and never calls a provider), so this now asserts the shell branch
-# exists at all rather than a specific option on a call it no longer makes.
-check(
-    "the shell never renders a provider's page in its own window",
-    "isNativeShell" in auth_form and "/auth/desktop" in auth_form,
-    "the shell would run a provider flow inside the app",
-)
-
-callback = strip_comments(read("web/app/auth/callback/page.tsx"))
+callback = strip_comments(read("web/app/auth/callback/page.web.tsx"))
 
 # The shell's client sets detectSessionInUrl: false (its callback is a deep
 # link, not a navigation it can inspect), so the PKCE code must be exchanged
@@ -745,18 +742,26 @@ check(
     "a returning member's code would never be redeemed",
 )
 
-# A full page load in a STATIC EXPORT reboots the app from index.html, losing
-# the session that was just established — the "sign in, land on the landing
-# page, sign in again" loop.
-for rel, src in (
-    ("web/app/auth/callback/page.tsx", callback),
-    ("web/app/auth/login/page.tsx", strip_comments(read("web/app/auth/login/page.tsx"))),
-):
-    check(
-        f"{rel.rsplit('/', 2)[-2]}: post-sign-in navigation is soft in the shell",
-        "isNativeShell" in src and "router.replace" in src,
-        "a hard navigation reboots the static export and drops the session",
-    )
+# §7p — the callback is WEB-ONLY: the desktop app never receives one, so the
+# soft-navigation branches it (and the sign-in page) carried for the shell are
+# deleted, and nothing may mint the superseded `yarnnn://auth/callback`.
+check(
+    "the auth callback is a web-only route",
+    (REPO / "web/app/auth/callback/page.web.tsx").exists()
+    and not (REPO / "web/app/auth/callback/page.tsx").exists(),
+    "a callback in the desktop build is the superseded design's return leg",
+)
+_producers = []
+for _root in (WEB / "app", WEB / "components", WEB / "lib"):
+    for _f in _root.rglob("*.ts*"):
+        _code = strip_comments(_f.read_text(encoding="utf-8", errors="ignore"))
+        if re.search(r"auth/callback", _code) and re.search(r"SHELL_SCHEME|yarnnn://", _code):
+            _producers.append(str(_f.relative_to(REPO)))
+check(
+    "nothing mints a yarnnn://auth/callback address",
+    not _producers,
+    f"the superseded return address is back: {_producers[:3]}",
+)
 
 # ------------------------------------------------ §8 step 5 the return leg
 print("\n§8 step 5 the shell can be signed, and can be returned to")

@@ -20,6 +20,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { authCallbackUrl } from "@/lib/auth/redirect";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/shared/Wordmark";
@@ -36,10 +37,7 @@ function MCPAuthInner() {
   const resumeTarget = code
     ? `/mcp/authorize?code=${encodeURIComponent(code)}`
     : "/mcp/authorize";
-  const callbackRedirect =
-    typeof window === "undefined"
-      ? ""
-      : `${window.location.origin}/auth/callback?next=${encodeURIComponent(resumeTarget)}`;
+  const callbackRedirect = authCallbackUrl(resumeTarget);
 
   useEffect(() => {
     const errorParam = searchParams.get("error");

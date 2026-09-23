@@ -24,6 +24,18 @@ export function getSafeNextPath(next: string | null | undefined, fallback = HOME
   return next;
 }
 
+/**
+ * Where an OAuth provider or an auth email sends the member back to: this
+ * site's `/auth/callback`, carrying the resume target. The ONE builder — the
+ * sign-in page and the MCP connect page used to spell it separately. There is
+ * no desktop variant: the desktop app never receives a callback, it opens
+ * `/auth/desktop` in the browser and is handed a session (ADR-661 §7i/§7p).
+ */
+export function authCallbackUrl(nextPath: string): string {
+  if (typeof window === "undefined") return "";
+  return `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+}
+
 export function getCurrentPathWithSearch(pathname: string, search: string): string {
   return `${pathname}${search || ""}`;
 }

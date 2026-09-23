@@ -1,22 +1,21 @@
 'use client';
 
 /**
- * DeepLinkBridge — the shell's return leg from the system browser
- * (ADR-661 §8 step 4).
+ * DeepLinkBridge — the desktop app's return leg from the system browser
+ * (ADR-661 §8 step 4, §7i, §7k, §7p).
  *
  * The host registers `yarnnn://` and forwards an incoming URL as a `deep-link`
- * event (`src-tauri/src/main.rs` — delivered natively on macOS, and on Windows
- * via the single-instance plugin, ADR-661 §7o). This component handles two
- * shapes and nothing else:
+ * event (`src-tauri/src/main.rs`). Two shapes:
  *
- *   - `yarnnn://auth/session?refresh_token=…` — the website finished signing
- *     the member in and hands the session over (§7i D5: the shell does not
- *     authenticate; the website does). The app never talks to a provider, so
- *     this is the ONLY auth deep link.
- *   - any other `yarnnn://x/y?…` — ordinary in-app navigation to `/x/y?…`.
+ * - `yarnnn://auth/session?refresh_token=…` — the website finished signing the
+ *   member in and is handing the session over. Redeemed with `refreshSession`
+ *   (§7k: `setSession` needs both tokens). A failure lands on `/auth/login`
+ *   with the reason in words (§7h).
+ * - anything else — in-app navigation (`yarnnn://files?path=…` → `/files?…`).
  *
- * Mounted unconditionally; `onDeepLink` is a no-op off the shell, so both
- * builds keep one code path (the same discipline as `AuthGate`).
+ * Mounted unconditionally at the ROOT (a member finishing sign-in is on
+ * `/auth/login`, outside the authenticated group); `onDeepLink` is a no-op off
+ * the desktop app, so both builds keep one code path.
  */
 
 import { useEffect } from 'react';

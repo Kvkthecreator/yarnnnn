@@ -25,7 +25,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useTranslations } from "next-intl";
 import { STAGE_NOTICE } from "@/lib/metadata";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
-import { openExternal, isNativeShell, webOrigin } from '@/lib/shell/external-navigation';
 
 /**
  * Is this address one the mail provider can actually deliver to?
@@ -244,20 +243,6 @@ export function AuthForm({
   const handleGoogleLogin = async () => {
     setLoading(true);
     setNotice(null);
-
-    // ADR-661 §7i — in the SHELL, the browser does the whole sign-in.
-    //
-    // The app does not talk to a provider at all: it opens the website's
-    // `/auth/desktop`, which signs the member in with the ordinary web flow
-    // and hands the session back over `yarnnn://auth/session`. This is what
-    // Notion, Slack and Claude's desktop clients do, and it is why the PKCE
-    // verifier never has to cross a process boundary — the failure mode that
-    // defeated the previous design three times.
-    if (isNativeShell()) {
-      openExternal(`${webOrigin()}/auth/desktop`);
-      setLoading(false);
-      return;
-    }
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
