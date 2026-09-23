@@ -1109,3 +1109,39 @@ the move route's, not this one (the same expression lives at three doors); and
 the menu arm, which anchored on the render and the resolve but never on the
 prop that connects them. Both re-cut and re-proven.
 
+
+### 11.12 The production click-pass (2026-09-23)
+
+Driven on production, in English, on the rig workspace, with generated fixtures
+(a 3-sheet `.xlsx` with a Hangul sheet name, a `.docx` with header + table +
+Hangul, a 2-slide `.pptx` with a table and speaker notes, a compressed `.hwpx`,
+`.csv`, `.md`). **Real Office- and Hancom-authored files were NOT used**; that
+pass is still owed (SESSION-HANDOFF).
+
+**What held.** Every file uploads through the Files door. The spreadsheet draws
+with its three tabs and the "values as last saved" line; the document draws as a
+page in the `sandbox=""` frame under `default-src 'none'`; the deck reads as
+slide cards with its table and notes; the `.hwpx` shows "Your agents can read
+this file's contents" and its Korean text, table included. The `.md` menu offers
+exactly "Save as .docx".
+
+**What broke, and is fixed** (gate arms proven RED by reverting each fix):
+
+- ⭐⭐⭐**The member's Save-as 400'd** — `new row violates row-level security
+  policy`. `write_office_file` wrote the bytes on `auth.client`; the
+  `workspace-cas` bucket refuses a member JWT. Phase 3's production drive went
+  through MCP, whose client IS service-keyed — so the one receipt that existed
+  was taken from the one caller the bug could not reach. The in-app lane runs
+  on the member's client and was broken the same way. The bytes now ride the
+  service client, the house pattern `documents.upload` / `routes/images.py` /
+  `generate_image` already follow; authorization stays on the member's client.
+- **The Files menu re-read an open `.md` ~4×/s** (pre-existing since
+  `6c64c18`, widened to prose by ADR-571). A prose file has no `data-template`,
+  so the kind cache stores nothing and an in-flight-only guard re-asked on every
+  tick its own answer caused. The mark now survives the answer; only a failed
+  read clears it.
+
+**Not a product defect**: the first `.hwpx` upload failed at the edge because
+the fixture was the gate's XXE probe (`<!ENTITY leak SYSTEM "file:///etc/hosts">`)
+stored uncompressed — the WAF in front of the API blocked the request, CORS-less.
+A real Hancom file is deflated and carries no DOCTYPE.

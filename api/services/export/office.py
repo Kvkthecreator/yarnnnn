@@ -701,8 +701,18 @@ async def write_office_file(
     kwargs: dict = {}
     if expected_parent_version_id is not None:
         kwargs["expected_parent_version_id"] = expected_parent_version_id
+    # The bytes ride the SERVICE client: the `workspace-cas` bucket refuses a
+    # member JWT ("new row violates row-level security policy"), the same wall
+    # `documents.upload`, `routes/images.py` and `generate_image` already ride
+    # it for. Authorization happened above on the member's own client (the
+    # source read, the door's decider); the service client is REACH for the
+    # bucket, never attribution — that stays `authored_by` + `user_id`.
+    # Observed 2026-09-23: MCP (a service-keyed caller) passed, the member's
+    # Save-as and the in-app lane 400'd.
+    from services.supabase import get_service_client
+
     revision_id = write_revision(
-        auth.client,
+        get_service_client(),
         user_id=auth.user_id,
         path=target_path,
         content_bytes=data,

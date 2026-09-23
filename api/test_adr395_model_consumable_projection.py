@@ -1440,6 +1440,9 @@ class _SourceClient:
         return type("R", (), {"data": [row] if row else []})()
 
 
+_SERVICE_CLIENT = object()  # the service client, as a sentinel the writer must reach for
+
+
 def _drive_writefile(write_input, *, rows=None, caller="member:5fa3"):
     """The REAL handle_write_file → write_office_file → write_revision (recorded)
     → derive_upload_projection → ExtractTextFromBlob (its write recorded too)."""
@@ -1459,11 +1462,12 @@ def _drive_writefile(write_input, *, rows=None, caller="member:5fa3"):
         rid = recorder(db_client, **kw)
         store[kw["path"]].update(
             derived_from=kw.get("derived_from"), revision_kind=kw.get("revision_kind"),
-            author_identity_uuid=kw.get("author_identity_uuid"),
+            author_identity_uuid=kw.get("author_identity_uuid"), db_client=db_client,
         )
         return rid
 
     with patch("services.authored_substrate.write_revision", _record), \
+         patch("services.supabase.get_service_client", lambda: _SERVICE_CLIENT), \
          patch.object(ws, "_is_path_readable_for_principal", lambda _a, _p: True), \
          patch.object(ws, "_scope_filter", lambda _a: ("workspace_id", "ws-1")):
         result = asyncio.run(ws.handle_write_file(_Auth(), write_input))
@@ -1491,6 +1495,34 @@ def test_am2_p3_writefile_converts_an_existing_file_attributed_and_derived():
     assert projection["authored_by"] == "system:extract"
     assert "derived_from: /workspace/deals/brief.docx" in projection["content"]
     assert "Zanzibar revenue" in projection["content"], "the exported file is not readable back"
+
+
+def test_am2_p3_the_bytes_ride_the_service_client_not_the_members():
+    """The `workspace-cas` bucket refuses a member JWT. Click-pass 2026-09-23:
+    the member's Save-as 400'd "new row violates row-level security policy"
+    while the MCP drive (a service-keyed caller) passed — so the writer must
+    reach for the service client itself, as upload / images / generate_image
+    do, and never write the bytes on the caller's own client."""
+    _result, store = _drive_writefile(
+        {"path": "deals/brief.docx", "content": "", "derived_from": ["deals/brief.md"]},
+        rows={"/workspace/deals/brief.md": {"content": _MD_SOURCE, "content_type": "text/markdown"}},
+    )
+    assert store["/workspace/deals/brief.docx"]["db_client"] is _SERVICE_CLIENT, \
+        "the office bytes were written on the member's client — the bucket refuses it"
+
+
+def test_am2_p3_the_menu_asks_a_files_kind_once_per_mount():
+    """Click-pass 2026-09-23: with the menu open on a `.md`, GET /workspace/file
+    fired ~4/s. A prose file has no data-template, so the answer caches nothing,
+    and a guard cleared in `.finally` re-asked on every tick the answer caused.
+    Anchored on the `handlersFor` callback, not the whole file."""
+    src = (ROOT.parent / "web/app/(authenticated)/files/page.tsx").read_text()
+    start = src.index("const handlersFor = useCallback(")
+    block = src[start:src.index("resolveHandlers(", start)]
+    assert "kindAsked.current.add(t.path)" in block
+    assert ".finally(" not in block, "the ask-mark is cleared after every answer — the loop"
+    catch = block[block.index(".catch("):]
+    assert "kindAsked.current.delete(t.path)" in catch, "a FAILED read must be re-askable"
 
 
 def test_am2_p3_text_under_an_office_name_is_written_not_stored():

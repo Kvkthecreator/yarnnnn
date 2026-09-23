@@ -977,7 +977,14 @@ function ContextPageBody() {
   // menu with the honest set. Until it lands, the kind-less order (the
   // pre-ADR-518 behavior) shows — never a wrong route, only a stale label.
   const [kindTick, setKindTick] = useState(0);
-  const kindFetchInFlight = useRef<Set<string>>(new Set());
+  // Paths whose kind this mount has ASKED for — kept after the answer, not
+  // just while in flight. A prose file (ADR-571 widened the candidates to
+  // `.md`) has no `data-template`, so `rememberKind` stores nothing, `knownKind`
+  // stays undefined, and an in-flight-only guard re-fetched on every tick the
+  // answer itself caused: ~4 reads/s for as long as the menu stayed open
+  // (click-pass, 2026-09-23). "No kind" is an answer; a failed read is not,
+  // so only the failure clears the mark.
+  const kindAsked = useRef<Set<string>>(new Set());
   const assocEnsured = useRef(false);
   const handlersFor = useCallback(
     (t: { path: string; isFile: boolean }) => {
@@ -991,8 +998,8 @@ function ContextPageBody() {
           assocEnsured.current = true;
           void ensureKindApps().then(() => setKindTick((n) => n + 1));
         }
-        if (!kind && !kindFetchInFlight.current.has(t.path)) {
-          kindFetchInFlight.current.add(t.path);
+        if (!kind && !kindAsked.current.has(t.path)) {
+          kindAsked.current.add(t.path);
           void api.workspace
             .getFile(t.path)
             .then((f) => {
@@ -1000,9 +1007,10 @@ function ContextPageBody() {
               setKindTick((n) => n + 1);
             })
             .catch(() => {
-              /* kind stays unknown; the kind-less order stands */
-            })
-            .finally(() => kindFetchInFlight.current.delete(t.path));
+              // kind stays unknown; the kind-less order stands, and the next
+              // open may ask again
+              kindAsked.current.delete(t.path);
+            });
         }
       }
       return resolveHandlers({ paths: [t.path], isFolder: !t.isFile, kind })
