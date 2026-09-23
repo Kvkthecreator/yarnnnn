@@ -33,6 +33,7 @@ import {
   type ReactNode,
 } from 'react';
 import { MOBILE_BREAKPOINT_PX } from '@/lib/shell/surface-preferences';
+import { createClient } from '@/lib/supabase/client';
 
 // ADR-358 — the shell's spatial paradigm. CANVAS = chat-left + one
 // full-bleed surface-right (the chat-interface convention); DESKTOP = the
@@ -63,8 +64,34 @@ interface ShellChromeProviderProps {
   children: ReactNode;
 }
 
-export function ShellChromeProvider({ userEmail, children }: ShellChromeProviderProps) {
+export function ShellChromeProvider({ userEmail: serverEmail, children }: ShellChromeProviderProps) {
   const [launcherOpen, setLauncherOpen] = useState(false);
+  // WHERE THE EMAIL COMES FROM. The web layout reads it server-side and hands
+  // it in, so the avatar paints with the page. The desktop shell has no
+  // request to read (ADR-661 §7n — a `cookies()` read made every authenticated
+  // route un-exportable), so it arrives undefined and the avatar showed `?`.
+  // Then it comes from the session the client already holds: `getSession()`
+  // is local, no round-trip — the same question `AuthGate` has just asked
+  // above this provider. A prop always wins; the session is only the fallback.
+  const [sessionEmail, setSessionEmail] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (serverEmail) return;
+    const supabase = createClient();
+    let active = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (active) setSessionEmail(session?.user?.email ?? undefined);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) setSessionEmail(session?.user?.email ?? undefined);
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [serverEmail]);
+  const userEmail = serverEmail ?? sessionEmail;
   // ADR-358 — SSR renders the DEFAULT layout mode; the post-mount effect
   // applies the persisted choice. Server can't read localStorage, so
   // starting at the default avoids a hydration mismatch.

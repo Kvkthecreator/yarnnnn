@@ -90,6 +90,21 @@ body {
   color: hsl(var(--foreground));
 }
 
+/* ADR-661 §7n — room for a host's window controls inside the app's own top
+   bar. The desktop shell draws the window with an overlaid title bar, so on
+   macOS the traffic lights sit IN the top bar; the host declares that by
+   setting `data-titlebar="overlay"` on <html> before the page runs
+   (`src-tauri/src/main.rs`), and the top bar reserves this inset. The web
+   never sets the attribute, so the inset is 0 there. The web layer never
+   asks which platform it is on — the host that drew the controls says so
+   (ADR-661 §7.6). */
+:root {
+  --titlebar-inset: 0px;
+}
+:root[data-titlebar="overlay"] {
+  --titlebar-inset: 60px;
+}
+
 /* Make brand font robust (outside @layer for higher specificity) */
 .font-brand {
   font-family: "Pacifico", cursive !important;

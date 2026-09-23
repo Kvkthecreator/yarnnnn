@@ -120,11 +120,10 @@ The earlier design (browser starts OAuth, app finishes it via `yarnnn://auth/cal
 SUPERSEDED — four correct fixes never produced a working sign-in because it split the PKCE
 verifier across two contexts.
 
-**Sign-in CONFIRMED by a real member (2026-09-23)** after §7l (our own `getSafeNextPath`
-refused `next=/auth/desktop`). **OPEN — confirm the Desktop loads**: the first signed-in build
-shipped `.env.local`'s `http://localhost:8000` as its API origin (§7m) — "Couldn't load your
-workspaces". Fixed by a pin in `beforeBuildCommand` + a build-time refusal; the app must be
-REBUILT and reinstalled for it to take effect.
+**Sign-in and the Desktop CONFIRMED by a real member (2026-09-23)** — §7l (our own
+`getSafeNextPath` refused `next=/auth/desktop`) and §7m (the binary shipped `.env.local`'s
+`localhost:8000`). **OPEN — confirm §7n by looking**: avatar shows initials, the wordmark
+clears the traffic lights, the window drags by its top bar. Built and gate-green, not yet seen.
 ⚠️ Watch after it works: the browser and the app now share one refresh-token lineage. If the
 app is signed out ~1h later, suspect Supabase's reuse detection revoking the family when the
 browser refreshes with the token the app already spent — unverified, a hypothesis.

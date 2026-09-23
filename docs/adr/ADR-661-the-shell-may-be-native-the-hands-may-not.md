@@ -481,7 +481,27 @@ The first signed-in app booted to an **empty Desktop** reading *"Couldn't load y
 
 ⭐⭐ **This is §7f's class in the other direction.** §7f was a server-ism a static export silently made inert; this is a local-ism a static export silently made permanent. Both are values that are correct in one build mode and wrong in the other, and neither fails a build unless something is told to refuse it.
 
+**Confirmed**: the rebuilt app booted to the member's real workspace list, chats and billing.
+
 Gate arms load the **real** `next.config.js` with a scrubbed env, the way `next build` does: a production origin loads, loopback is refused, plain http is refused, dev may point locally, and the release command pins an https origin. Each proven RED in place — guard disabled, guard run in dev, the https check dropped, the guard refusing everything, the pin removed.
+
+---
+
+## 7n. The app's top bar is the window's title bar (2026-09-23)
+
+Two findings from the first working session, reported with a screenshot: the avatar read **`?`**, and the wordmark sat **under the traffic lights**.
+
+**The avatar.** The shell layout passes no `userEmail` — it has no request to read one from (§7b) — and its docstring said the chrome "reads it through the shell's own context rather than a prop". **No such fallback existed.** `ShellChromeProvider` now takes the prop when there is one (the web: server-read, paints with the page) and otherwise reads the session the client already holds (`getSession()`, local, the same question `AuthGate` has just asked above it), following sign-in changes. The web's behaviour is unchanged because the prop always wins.
+
+**The traffic lights.** `TitleBarStyle::Overlay` draws the window controls inside the page, over the top 28px, while the top bar is 56px — so they landed on the wordmark's corner. The conventional shape (Linear, Notion, Slack) has three parts, and the build was missing all three:
+
+1. **Inset.** The top bar reserves `--titlebar-inset`, which is `0px` everywhere unless `<html data-titlebar="overlay">`.
+2. **The host says so.** On macOS only (`#[cfg(target_os = "macos")]`), the window builder positions the lights centred on the 56px bar and injects an `initialization_script` that sets the attribute before any page script runs, so the first paint is already inset. **The web layer never detects a platform** (§7.6 holds): the host that drew the controls declares them, which is D4's "a capability seam the host fills".
+3. **A grab handle.** With an overlaid title bar the top bar is the only place to move the window from, and it was not one. `data-tauri-drag-region="deep"` on the header (buttons and links stay clickable — Tauri's handler skips clickable elements) plus `core:window:allow-start-dragging`, which `core:default` does **not** include. The capability roster grows by one entry, recorded here and in the gate.
+
+⚠️ A gate arm was blind on its first cut in the §7j way: it sliced the macOS block up to the first `;` + newline, which falls inside the injected script, and went RED on a correct file. It now slices to `builder.build()`.
+
+Six arms, each proven RED in place: the provider fallback dropped, the drag region off the header, the inset off the header, the overlay inset zeroed, the host never marking the page, the drag permission removed.
 
 ---
 

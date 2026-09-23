@@ -39,7 +39,7 @@ fn main() {
         // has to be handed to the Supabase client, not to the router.
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
-            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("yarnnn")
                 // Roomy enough for the compositor's windows (the product is a
                 // desktop metaphor — ADR-297 D17), small enough for a laptop.
@@ -49,8 +49,36 @@ fn main() {
                 // rather than a second title bar above it. The shell already
                 // draws its own top bar.
                 .title_bar_style(tauri::TitleBarStyle::Overlay)
-                .hidden_title(true)
-                .build()?;
+                .hidden_title(true);
+
+            // ADR-661 §7n — the overlaid title bar puts the traffic lights
+            // INSIDE the app's 56px top bar, so the host does two things only
+            // it can: centre the lights on that bar, and tell the page they are
+            // there. The page never detects a platform (§7.6); it reserves
+            // `--titlebar-inset` when the host says the title bar is overlaid.
+            // The attribute is set before any page script runs, so the first
+            // paint is already inset. Without this the lights sat on the
+            // wordmark's corner.
+            #[cfg(target_os = "macos")]
+            let builder = builder
+                .traffic_light_position(tauri::LogicalPosition::new(18.0, 22.0))
+                .initialization_script(
+                    r#"(function () {
+  var mark = function () {
+    var root = document.documentElement;
+    if (!root) return false;
+    root.setAttribute("data-titlebar", "overlay");
+    return true;
+  };
+  if (!mark()) {
+    new MutationObserver(function (_, obs) {
+      if (mark()) obs.disconnect();
+    }).observe(document, { childList: true });
+  }
+})();"#,
+                );
+
+            let win = builder.build()?;
 
             // A window that opens behind whatever the member was doing reads
             // as "nothing happened".

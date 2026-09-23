@@ -34,9 +34,10 @@ export const metadata: Metadata = {
  *
  * 1. **No `getRequestUser()`.** The web layout reads the user server-side to
  *    hand `userEmail` to the chrome. That is a `cookies()` read, which made
- *    all 41 authenticated routes un-exportable (measured). Here the chrome
- *    gets its email from the session the client already holds — `UserMenu`
- *    reads it through the shell's own context rather than a prop.
+ *    all 41 authenticated routes un-exportable (measured). Here no email is
+ *    passed, and `ShellChromeProvider` reads it from the session the client
+ *    already holds (§7n — until then this sentence described a fallback that
+ *    did not exist, and the avatar read `?`).
  *
  * 2. **`ShellIntlScope`, not `IntlScope`.** Same reason: `IntlScope` awaits
  *    `getLocale()`, which runs ADR-660 D2's chain through `cookies()` and

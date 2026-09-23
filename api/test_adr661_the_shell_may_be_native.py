@@ -291,9 +291,16 @@ caps = json.loads(cap_path.read_text(encoding="utf-8")) if cap_path.exists() els
 _raw_perms = caps.get("permissions") or []
 perms = {p if isinstance(p, str) else p.get("identifier") for p in _raw_perms}
 _scoped = {p.get("identifier"): p for p in _raw_perms if isinstance(p, dict)}
+# `core:window:allow-start-dragging` (§7n): the overlaid title bar makes the
+# app's top bar the window's only grab handle, and `core:default` does not
+# include dragging — without it the window cannot be moved. It moves the
+# window the member is looking at, nothing else.
 check(
     "the host grants only what the product needs today",
-    perms and perms <= {"core:default", "opener:allow-open-url", "deep-link:default"},
+    perms and perms <= {
+        "core:default", "opener:allow-open-url", "deep-link:default",
+        "core:window:allow-start-dragging",
+    },
     f"the capability roster grew without an ADR: {sorted(perms)}",
 )
 
@@ -495,6 +502,62 @@ check(
     bool(_pinned) and _pinned.group(1).startswith("https://")
     and "localhost" not in _pinned.group(1) and "next build" in _before,
     "the build falls back to .env.local — the guard will refuse it, but the release cannot be cut",
+)
+
+# ------------------------------ §7n the app's chrome is the window's chrome
+print("\n§7n the shell's top bar knows who is signed in and where the window controls are")
+
+# The shell layout passes no email (it has no request to read one from), and
+# the provider had no fallback: the avatar read `?` on every shell launch
+# (observed, screenshot). The layout's docstring claimed a fallback existed.
+provider = strip_comments(read("web/components/shell/ShellChromeContext.tsx"))
+check(
+    "the chrome provider falls back to the client session for the email",
+    re.search(r"\buserEmail\s*=\s*serverEmail\s*\?\?\s*sessionEmail\b", provider) is not None
+    and re.search(r"\.auth\s*\.getSession\(\)\s*\.then\([^)]*\)\s*=>\s*\{[^}]*setSessionEmail", provider, re.S) is not None,
+    "the shell's avatar reads `?` — no email reaches the chrome without a request",
+)
+
+# The overlaid title bar puts the traffic lights inside the top bar. Anchor on
+# the <header> ELEMENT: the drag region and the inset must be on it, not merely
+# somewhere in the file.
+topbar = strip_comments(read("web/components/shell/chrome/TopBarSurface.tsx"))
+_header = re.search(r"<header\b[^>]*>", topbar, re.S)
+_header_src = _header.group(0) if _header else ""
+check(
+    "the top bar is the window's drag region",
+    'data-tauri-drag-region="deep"' in _header_src,
+    "with an overlaid title bar the window has no grab handle and cannot be moved",
+)
+check(
+    "the top bar reserves the host's title-bar inset",
+    "var(--titlebar-inset)" in _header_src,
+    "the traffic lights sit on the wordmark",
+)
+css = read("web/app/globals.css")
+check(
+    "the inset is 0 on the web and non-zero only when the host says so",
+    re.search(r":root\s*\{\s*--titlebar-inset:\s*0(px)?\s*;", css) is not None
+    and re.search(r':root\[data-titlebar="overlay"\]\s*\{\s*--titlebar-inset:\s*[1-9]\d*px\s*;', css) is not None,
+    "the web's top bar would carry a dead gap, or the shell's none",
+)
+main_rs = read("src-tauri/src/main.rs")
+# Slice from the macOS-only rebinding to the build call. NOT to the first
+# `;` — the injected script is full of them, and a slice that stops inside it
+# never sees the lines after (found by this arm going red on a correct file).
+_mac = re.search(r'#\[cfg\(target_os\s*=\s*"macos"\)\]\s*let builder = builder(.*?)let win = builder\.build\(\)', main_rs, re.S)
+_mac_src = _mac.group(1) if _mac else ""
+check(
+    "the host (macOS only) centres the lights and tells the page",
+    ".traffic_light_position(" in _mac_src
+    and 'setAttribute("data-titlebar", "overlay")' in _mac_src
+    and ".initialization_script(" in _mac_src,
+    "the page cannot know the controls are there without detecting a platform (§7.6)",
+)
+check(
+    "the window may be dragged (the drag region needs the permission)",
+    "core:window:allow-start-dragging" in perms,
+    "data-tauri-drag-region is inert without it: core:default does not grant dragging",
 )
 
 # ------------------------------------- §7h a failed sign-in says why

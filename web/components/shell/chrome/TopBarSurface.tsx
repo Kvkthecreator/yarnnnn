@@ -367,7 +367,16 @@ export function TopBarSurface() {
           Right  : UserMenu (initials avatar dropdown).
         Mobile: Center region overflow-x scrolls when icons exceed width;
         Left + Right stay fixed-width siblings of the scrollable Center. */}
-    <header className="h-14 border-b border-border bg-background flex items-center justify-between gap-2 px-4 shrink-0">
+    {/* ADR-661 §7n — in the desktop shell the title bar is overlaid, so this
+        header IS the window's title bar: it must leave room for the traffic
+        lights (`--titlebar-inset`, 0 on the web) and it must move the window.
+        `deep` makes a press anywhere in the header drag, while buttons and
+        links stay clickable (Tauri's handler skips clickable elements). On the
+        web the attribute is inert. */}
+    <header
+      data-tauri-drag-region="deep"
+      className="h-14 border-b border-border bg-background flex items-center justify-between gap-2 px-4 pl-[calc(1rem+var(--titlebar-inset))] shrink-0"
+    >
       {/* Left region — Pacifico wordmark brand mark. macOS convention
           puts the Apple logo top-left; YARNNN puts its brand here too,
           but uses the Pacifico wordmark (same as Feed surface internal
