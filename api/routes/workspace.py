@@ -741,26 +741,6 @@ def _may_place(auth, folder: str) -> bool:
 _PROJECTION_PREVIEW_CHARS = 4000
 
 
-def _strip_projection_header(body: str) -> str:
-    """The projection's text, without the plumbing its file carries.
-
-    A projection opens with `derived_from: <raw>` + a `# <filename>` title —
-    both written for the substrate (the reference edge, ADR-448) and both noise
-    to a member who is looking at that very file. The words start after them.
-    """
-    lines = body.splitlines()
-    out: list[str] = []
-    skipping = True
-    for line in lines:
-        if skipping:
-            st = line.strip()
-            if not st or st.startswith("derived_from:") or st.startswith("# "):
-                continue
-            skipping = False
-        out.append(line)
-    return "\n".join(out).strip()
-
-
 def _readable_or_none(
     auth, path: str, content_type: Optional[str]
 ) -> tuple[Optional[str], Optional[str], bool]:
@@ -782,7 +762,7 @@ def _readable_or_none(
     Never raises: a decoration failure degrades to (None, None, False) — the
     viewer then says nothing about readability, never a 500 on a read.
     """
-    from services.documents import readable_state, upload_projection_path
+    from services.documents import readable_state, strip_projection_header, upload_projection_path
 
     try:
         # A projection describing itself is noise — the member never opens one
@@ -812,7 +792,7 @@ def _readable_or_none(
         if verdict != "read":
             return verdict, None, False
 
-        text = _strip_projection_header(body)
+        text = strip_projection_header(body)
         if not text:
             # A projection with a header and nothing under it is not readable
             # content, whatever its strategy said.

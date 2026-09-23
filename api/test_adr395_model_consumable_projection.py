@@ -722,7 +722,7 @@ def test_am1_d12_projection_header_is_stripped_from_the_preview():
     written for the reference edge (ADR-448) and both noise to a member looking
     at that very file.
     """
-    from routes.workspace import _strip_projection_header
+    from services.documents import strip_projection_header as _strip_projection_header
 
     body = (
         "derived_from: /workspace/inbound/uploads/q3.xlsx\n\n"
@@ -742,7 +742,7 @@ def test_am1_d12_a_heading_inside_the_body_survives():
     A `#` heading LOWER in a document is content. Dropping every `# ` line
     would quietly delete a deck's slide titles.
     """
-    from routes.workspace import _strip_projection_header
+    from services.documents import strip_projection_header as _strip_projection_header
 
     body = (
         "derived_from: /w/deck.pptx\n\n# deck.pptx\n\n"
@@ -754,7 +754,8 @@ def test_am1_d12_a_heading_inside_the_body_survives():
 
 def test_am1_d12_preview_is_bounded_and_says_when_it_is_cut():
     """D12 — a 200-page PDF's projection must not inflate every file read."""
-    from routes.workspace import _PROJECTION_PREVIEW_CHARS, _strip_projection_header
+    from routes.workspace import _PROJECTION_PREVIEW_CHARS
+    from services.documents import strip_projection_header as _strip_projection_header
 
     assert 500 <= _PROJECTION_PREVIEW_CHARS <= 20000, \
         f"the preview bound is not a preview: {_PROJECTION_PREVIEW_CHARS}"
@@ -774,7 +775,7 @@ def test_am1_d12_only_a_read_file_carries_a_preview():
     helper = code.split("def _readable_or_none(", 1)[1].split("\ndef ", 1)[0]
     assert 'if verdict != "read":' in helper, \
         "the preview is not gated on the `read` verdict"
-    assert "_strip_projection_header(" in helper
+    assert "= strip_projection_header(body)" in helper
 
 
 def test_am1_d13_the_terminal_offers_the_download_it_names():
@@ -1523,6 +1524,73 @@ def test_am2_p3_the_menu_asks_a_files_kind_once_per_mount():
     assert ".finally(" not in block, "the ask-mark is cleared after every answer — the loop"
     catch = block[block.index(".catch("):]
     assert "kindAsked.current.delete(t.path)" in catch, "a FAILED read must be re-askable"
+
+
+class _ReadClient:
+    """workspace_files / workspace_file_versions, answered by path."""
+
+    def __init__(self, raw: str, mime: str, projection):
+        from services.documents import upload_projection_path
+        self._rows = {raw: {"content_type": mime, "head_version_id": "v1"}}
+        if projection is not None:
+            self._rows[upload_projection_path(raw)] = {"content": projection}
+
+    def table(self, name):
+        client, eqs = self, {}
+
+        class _Q:
+            def select(self, *_a, **_k): return self
+            def limit(self, *_a): return self
+            def eq(self, col, val): eqs[col] = val; return self
+            def execute(self):
+                if name == "workspace_file_versions":
+                    data = [{"blob_sha": "s", "workspace_blobs": {"storage_key": "k", "byte_size": 4096}}]
+                else:
+                    row = client._rows.get(eqs.get("path"))
+                    data = [row] if row else []
+                return type("R", (), {"data": data})()
+        return _Q()
+
+
+def _read_binary(raw: str, mime: str, projection):
+    from services.primitives import workspace as ws
+
+    class _Auth:
+        client = _ReadClient(raw, mime, projection)
+
+    with patch.object(ws, "_scope_filter", lambda _a: ("workspace_id", "ws-1")):
+        return ws._binary_file_notice(_Auth(), raw, "workspace", raw.removeprefix("/workspace/"))
+
+
+_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+@pytest.mark.parametrize("ext, mime, says", [
+    ("docx", _DOCX_MIME, "as MD to this same path"),
+    ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ONE sheet"),
+    ("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+     "cannot be rewritten in place"),
+])
+def test_am2_click_pass_readfile_on_an_office_file_returns_its_words(ext, mime, says):
+    """Click-pass 2026-09-23: the in-app agent read four office uploads, was
+    told "text tools cannot read this format", and reached the words only by
+    listing and searching for the sibling. ReadFile on a binary the registry
+    reads now answers with the words, header stripped, and names the route to
+    revise it — which differs by target, so it is asserted per target."""
+    raw = f"/workspace/inbound/uploads/brief.{ext}"
+    out = _read_binary(raw, mime, f"derived_from: {raw}\n\n# brief.{ext}\n\nZanzibar fee\t$800")
+    assert out["binary"] is True and out["content"] == "Zanzibar fee\t$800", out
+    assert "cannot read" not in out["message"]
+    assert says in out["message"], out["message"]
+
+
+def test_am2_click_pass_a_binary_without_words_keeps_the_notice():
+    """No projection (or a format with no text strategy) keeps ADR-427 §8's
+    notice: content None, never an empty string that reads as an empty file."""
+    out = _read_binary("/workspace/inbound/uploads/design.sketch", "application/octet-stream", None)
+    assert out["content"] is None and "NOT an empty file" in out["message"]
+    out = _read_binary("/workspace/inbound/uploads/brief.docx", _DOCX_MIME, None)
+    assert out["content"] is None
 
 
 def test_am2_p3_text_under_an_office_name_is_written_not_stored():

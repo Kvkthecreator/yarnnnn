@@ -808,6 +808,28 @@ def upload_projection_path(raw_path: str) -> str:
     return f"{base}.extracted.md"
 
 
+def strip_projection_header(body: str) -> str:
+    """The projection's text, without the plumbing its file carries.
+
+    A projection opens with `derived_from: <raw>` + a `# <filename>` title —
+    both written for the substrate (the reference edge, ADR-448) and both noise
+    to a member who is looking at that very file, or an agent reading it. The
+    words start after them. One home, two readers: the file route's preview
+    (ADR-395 am.1 D12) and ReadFile on the raw (am.2 §11.12).
+    """
+    lines = body.splitlines()
+    out: list[str] = []
+    skipping = True
+    for line in lines:
+        if skipping:
+            st = line.strip()
+            if not st or st.startswith("derived_from:") or st.startswith("# "):
+                continue
+            skipping = False
+        out.append(line)
+    return "\n".join(out).strip()
+
+
 #: The marker's opening token (ADR-395 am.1 D9). A marker and a projection are
 #: both `.extracted.md` rows citing the same raw; this is what tells them apart
 #: without re-running an extractor. Kept beside the writer that emits it.

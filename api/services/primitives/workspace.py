@@ -620,7 +620,78 @@ def _VIEWABLE() -> tuple:
     return VISION_IMAGE_TYPES
 
 
-def _binary_file_notice(auth: Any, abs_path: str, scope: str, rel_path: str) -> Optional[dict]:
+def _projection_words(auth: Any, abs_path: str) -> str:
+    """The extracted text of a binary the registry reads (ADR-395 am.2 §11.12).
+
+    A `.docx`/`.xlsx`/`.pptx`/`.hwp(x)`/`.pdf` has its words in the co-located
+    `.extracted.md` sibling, whose path is a pure function of the raw's. '' when
+    the format has no text projection or none has landed."""
+    from services.documents import strip_projection_header, upload_projection_path
+    from services.file_formats import format_of_path
+
+    fmt = format_of_path(abs_path)
+    if fmt is None or fmt.projection != "text":
+        return ""
+    row = (
+        auth.client.table("workspace_files")
+        .select("content")
+        .eq(*_scope_filter(auth))
+        .eq("path", upload_projection_path(abs_path))
+        .limit(1)
+        .execute()
+    ).data or []
+    return strip_projection_header(row[0].get("content") or "") if row else ""
+
+
+def _readable_binary_answer(
+    scope: str, rel_path: str, abs_path: str, content_type: str,
+    byte_size: Any, words: str, offset: int,
+) -> dict:
+    """ReadFile on a binary yarnnn can read: its WORDS, and how to change them.
+
+    Click-pass 2026-09-23: the agent read four office uploads, was told "text
+    tools cannot read this format", and found the words only by listing and
+    searching for the sibling — an answer am.1 made false. The route to revise
+    is named from the registry (`inline_source_ext`), because it differs by
+    target: Markdown rewrites a document, CSV rewrites ONE sheet, and a deck
+    is written only from a Slides deck."""
+    from services.file_formats import inline_source_ext, is_export_target
+
+    ext = abs_path.rsplit(".", 1)[-1].lower() if "." in abs_path else ""
+    src = inline_source_ext(ext, False) if is_export_target(abs_path) else None
+    if src == "html":
+        # A presentation's only source is the HTML row, and the writer takes
+        # only a Slides deck — so an uploaded deck has no text to rewrite it from.
+        revise = (f" A .{ext} is written only from a Slides deck, so this file cannot be "
+                  "rewritten in place — author the change as a deck or a document.")
+    elif src:
+        revise = (
+            f" To revise it, WriteFile the whole new text as {src.upper()} to this same "
+            f"path: a new revision of the .{ext} is written (styling best-effort)."
+            + (f" A .{ext} is written as ONE sheet — for a multi-sheet workbook, write "
+               "a new file instead of replacing this one." if src == "csv" else "")
+        )
+    else:
+        revise = " yarnnn does not write this format; put changes in a new file."
+    return {
+        "success": True,
+        "found": True,
+        "scope": scope,
+        "path": rel_path,
+        "binary": True,
+        "content_type": content_type,
+        "byte_size": byte_size,
+        **_clip_read(words, offset=offset),
+        "message": (
+            f"Binary file ({content_type}, {byte_size or '?'} bytes). `content` is its "
+            "text as extracted — what the file says, without its layout." + revise
+        ),
+    }
+
+
+def _binary_file_notice(
+    auth: Any, abs_path: str, scope: str, rel_path: str, offset: int = 0,
+) -> Optional[dict]:
     """ADR-427 §8: the legible binary answer for a text-shaped read.
 
     A binary revision's TEXT denorm is '' by contract, so a ReadFile that
@@ -653,6 +724,11 @@ def _binary_file_notice(auth: Any, abs_path: str, scope: str, rel_path: str) -> 
             return None
         content_type = row[0].get("content_type") or "application/octet-stream"
         byte_size = meta.get("byte_size")
+        words = _projection_words(auth, abs_path)
+        if words:
+            return _readable_binary_answer(
+                scope, rel_path, abs_path, content_type, byte_size, words, offset,
+            )
         return {
             "success": True,
             "found": True,
@@ -836,7 +912,10 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
             }
         if content == "":
             # ADR-427 §8: an empty denorm may be a binary file — answer legibly.
-            notice = _binary_file_notice(auth, f"/workspace/{path}", "workspace", path)
+            notice = _binary_file_notice(
+                auth, f"/workspace/{path}", "workspace", path,
+                offset=input.get("offset") or 0,
+            )
             if notice:
                 return notice
         return {
@@ -870,7 +949,8 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
     if content == "":
         # ADR-427 §8: an empty denorm may be a binary file — answer legibly.
         notice = _binary_file_notice(
-            auth, f"/agents/{agent_slug}/{path}", "agent", path
+            auth, f"/agents/{agent_slug}/{path}", "agent", path,
+            offset=input.get("offset") or 0,
         )
         if notice:
             return notice

@@ -15,6 +15,18 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.23.2] - ReadFile on an office file returns its words, and how to revise them
+
+### Changed
+- services/primitives/workspace.py (`_binary_file_notice` → `_readable_binary_answer`): a ReadFile that lands on a binary the format registry READS (`.docx`/`.xlsx`/`.pptx`/`.pdf`/`.hwp(x)`) now returns the extracted text as `content` (header stripped, under the same `_clip_read` window as any read) instead of "text tools cannot read this format". The message names the route to revise, derived from the registry: Markdown rewrites a document, CSV rewrites ONE sheet (so a multi-sheet workbook should become a new file), a deck is written only from a Slides deck. A binary with no projection keeps the ADR-427 §8 notice unchanged.
+- Expected behavior: asked about an uploaded office file, an agent reads it in one call instead of listing and searching for the `.extracted.md` sibling; asked to change one, it rewrites a document in place, and does not flatten a multi-sheet workbook or claim it can rewrite an uploaded deck.
+
+### Why
+Production click-pass, 2026-09-23 (ADR-395 am.2 §11.12): asked four questions about four uploads, Claude Sonnet 5 called ReadFile on each, was told "text tools cannot read this format … open it in the workspace file viewer", reported the originals as "0 bytes", then recovered only by `ListFiles` + `SearchFiles` + four more reads of the siblings. The sentence had been false since ADR-395 am.1 made those formats readable.
+
+### Gate
+`test_adr395_model_consumable_projection.py` 111/111 (+4 arms: words returned per target with the right revise route, and the no-projection notice kept — proven RED by removing the words branch and by collapsing the per-target message) · `test_adr621` 19/19 · `test_adr623` 42/42 · `test_adr648` 37/37 · size ratchets below.
+
 ## [2026.09.23.1] - WriteFile writes office formats; a skill for handing work outside
 
 ### Changed

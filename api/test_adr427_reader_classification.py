@@ -55,6 +55,7 @@ CLASSIFICATION: dict[str, str] = {
     "routes/workspace.py": "binary-aware",                  # GET /file mints the serving URL for a binary head (D4)
     "routes/documents.py": "binary-aware",                  # the ADR-395 raw lane; raw rows always had '' content
     "routes/shares.py": "binary-aware",                     # project_for_machine (ADR-530 D1) decides readability; a non-text share is never emitted as text
+    "services/export/office.py": "binary-aware",            # ADR-395 am.2: a binary source ('' content) refuses legibly ("has no text to write out"), never exports an empty document
     # ⭐⭐⭐ ADR-621 — RECLASSIFIED from "safe-on-empty", which was true when
     # written and became false without anyone editing this line. The reason then
     # ("recall/compose: an empty body contributes nothing") described a file that

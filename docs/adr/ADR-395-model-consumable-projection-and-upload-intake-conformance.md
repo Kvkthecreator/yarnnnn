@@ -1141,6 +1141,18 @@ exactly "Save as .docx".
   tick its own answer caused. The mark now survives the answer; only a failed
   read clears it.
 
+- ⭐⭐**ReadFile told the agent an office file was unreadable.** Asked four
+  questions about four uploads, the in-app agent was answered "text tools cannot
+  read this format", called the originals "0 bytes", and reached the words only
+  by listing and searching for the `.extracted.md` siblings — a sentence am.1 had
+  made false. ReadFile on a binary the registry reads now returns the words
+  (header stripped, under `_clip_read`) and names the route to revise, derived
+  from the registry: Markdown rewrites a document; CSV rewrites ONE sheet, so a
+  multi-sheet workbook becomes a new file; a `.pptx` is written only from a
+  Slides deck, so an uploaded deck is not rewritten in place. The header
+  stripper moved from `routes/workspace.py` to `services/documents.py` so the
+  route preview and the primitive share one home.
+
 **Not a product defect**: the first `.hwpx` upload failed at the edge because
 the fixture was the gate's XXE probe (`<!ENTITY leak SYSTEM "file:///etc/hosts">`)
 stored uncompressed — the WAF in front of the API blocked the request, CORS-less.
