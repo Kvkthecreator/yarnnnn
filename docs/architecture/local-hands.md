@@ -82,7 +82,9 @@ words. The model never writes script: an act is `page.js` plus one call with JSO
   `hands/bridge.rs` before Tauri starts — no window, no second app. The bridge relays Chrome's length-prefixed
   stdio to JSON lines on `~/Library/Application Support/com.yarnnn.desktop/hands.sock`, retries the socket every
   two seconds while the app is away, and exits when Chrome lets go.
-- **The app.** Listens on that socket, owner-only (`0600`), one bridge at a time. `browser_act` writes
+- **The app.** Listens on that socket, owner-only (`0600`), one bridge at a time — each connection numbered,
+  and a connection that ends clears the link only if it is still its own (host 0.4.1; before it, a closing
+  connection could wipe a newer one and the app said "not connected" with the bridge attached). `browser_act` writes
   `{type: "act", id, tool, args}` and waits (150 s) for `{type: "result", id, result}`; with no bridge it
   refuses in words. `hands_status` answers `{extension, version}` from the extension's hello.
 - **The extension** treats an act from the app exactly as one from a yarnnn page — the same `perform`: the same

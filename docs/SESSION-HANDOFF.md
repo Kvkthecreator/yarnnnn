@@ -158,7 +158,9 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    (`yarnnn chrome-extension://…`), the app holds its socket connection. NOT driven: `browser_act` from the
    desktop app's own chat (needs a click in the app). ⚠️ An API redeploy kills an in-flight hands turn
    (pending acts live in memory; the 13af65c deploy cut the first run) and persists nothing of the partial
-   reply — true of every streamed turn. Owed, in order: (a) one browser job sent from the desktop app's chat
+   reply — true of every streamed turn. **Host 0.4.1** fixes a race found on the operator's Mac: a closing
+   bridge connection cleared the link even when a newer one had attached, so the app said "not connected"
+   with the bridge attached (reproduced with a transient socket client; Rust test proven RED). Owed, in order: (a) one browser job sent from the desktop app's chat
    — read `metadata.receipts` back; (b) Windows native messaging (a registry key + a named pipe; today the
    Windows app refuses in words); (c) ratify ADR-662 (retires ADR-661's tripwire, which now watches only
    the extension's listing), then publish the extension (Chrome Web Store account + review) and set

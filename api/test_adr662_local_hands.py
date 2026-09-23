@@ -139,6 +139,13 @@ check(
     and '"allowed_origins": [EXTENSION_ORIGIN]' in HOST,
 )
 check(
+    "a connection that ends clears only itself — a newer bridge survives an older one closing",
+    re.search(r"fn detach\(&mut self, id: u64\) \{\s*if self\.id == id \{", HOST) is not None
+    and "relay.link.lock().await.detach(id);" in HOST
+    and "fn a_connection_that_ends_clears_only_itself" in read("src-tauri/src/hands/mod.rs"),
+    "the 2026-09-23 race: a transient client's close wiped the live bridge and turns got no browser",
+)
+check(
     "the socket is the owner's alone",
     "from_mode(0o600)" in HOST,
 )

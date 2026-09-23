@@ -52,15 +52,62 @@ pub fn socket_path() -> PathBuf {
     base.join("hands.sock")
 }
 
-#[derive(Default)]
+#[cfg(unix)]
+type Writer = tokio::net::unix::OwnedWriteHalf;
+#[cfg(not(unix))]
+type Writer = ();
+
+/// The one bridge connection, and which one it is. Every accepted connection
+/// gets a new `id`; a connection that ends clears the link ONLY if the link is
+/// still its own. Without the id, a connection that closed after a newer one
+/// attached wiped the newer one — the app then said "not connected" with the
+/// bridge attached (reproduced 2026-09-23: a transient client came and went,
+/// and the operator's turns got no browser).
+struct Link<W> {
+    id: u64,
+    writer: Option<W>,
+    version: Option<String>,
+}
+
 pub struct Relay {
-    #[cfg(unix)]
-    writer: Mutex<Option<tokio::net::unix::OwnedWriteHalf>>,
-    #[cfg(not(unix))]
-    writer: Mutex<Option<()>>,
+    link: Mutex<Link<Writer>>,
     pending: Mutex<HashMap<u64, oneshot::Sender<Value>>>,
-    extension_version: Mutex<Option<String>>,
     next: AtomicU64,
+}
+
+impl Default for Relay {
+    fn default() -> Self {
+        Relay {
+            link: Mutex::new(Link { id: 0, writer: None, version: None }),
+            pending: Mutex::new(HashMap::new()),
+            next: AtomicU64::new(0),
+        }
+    }
+}
+
+impl<W> Link<W> {
+    /// A new connection becomes the link; the one it replaces is dropped
+    /// (its writer's shutdown tells that bridge to reconnect). Returns its id.
+    fn attach(&mut self, writer: W) -> u64 {
+        self.id += 1;
+        self.writer = Some(writer);
+        self.version = None;
+        self.id
+    }
+
+    /// A connection ended: clear the link only if it is still this one.
+    fn detach(&mut self, id: u64) {
+        if self.id == id {
+            self.writer = None;
+            self.version = None;
+        }
+    }
+
+    fn hello(&mut self, id: u64, version: Option<String>) {
+        if self.id == id {
+            self.version = version;
+        }
+    }
 }
 
 /// Where each Chromium browser looks for native-messaging hosts (macOS).
@@ -127,7 +174,7 @@ pub fn listen<R: Runtime>(app: &AppHandle<R>) {
         loop {
             let Ok((stream, _)) = listener.accept().await else { continue };
             let (read, write) = stream.into_split();
-            *handle.state::<Relay>().writer.lock().await = Some(write);
+            let id = handle.state::<Relay>().link.lock().await.attach(write);
             let handle = handle.clone();
             tauri::async_runtime::spawn(async move {
                 let relay = handle.state::<Relay>();
@@ -136,8 +183,8 @@ pub fn listen<R: Runtime>(app: &AppHandle<R>) {
                     let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
                     match msg.get("type").and_then(Value::as_str) {
                         Some("hello") => {
-                            *relay.extension_version.lock().await =
-                                msg.get("version").and_then(Value::as_str).map(str::to_string);
+                            let version = msg.get("version").and_then(Value::as_str).map(str::to_string);
+                            relay.link.lock().await.hello(id, version);
                         }
                         Some("result") => {
                             let id = msg.get("id").and_then(Value::as_u64).unwrap_or(0);
@@ -148,9 +195,10 @@ pub fn listen<R: Runtime>(app: &AppHandle<R>) {
                         _ => {}
                     }
                 }
-                // The bridge went away (Chrome closed, the extension reloaded).
-                *relay.writer.lock().await = None;
-                *relay.extension_version.lock().await = None;
+                // This connection went away (Chrome closed, the extension
+                // reloaded, or a newer connection replaced it) — clear the link
+                // only if it is still this one.
+                relay.link.lock().await.detach(id);
             });
         }
     });
@@ -171,9 +219,8 @@ fn refusal(receipt: &str) -> Value {
 #[tauri::command]
 pub async fn hands_status<R: Runtime>(app: AppHandle<R>) -> Value {
     let relay = app.state::<Relay>();
-    let connected = relay.writer.lock().await.is_some();
-    let version = relay.extension_version.lock().await.clone();
-    json!({ "extension": connected, "version": version })
+    let link = relay.link.lock().await;
+    json!({ "extension": link.writer.is_some(), "version": link.version })
 }
 
 /// Hand one act to the yarnnn extension and return what it answered.
@@ -203,10 +250,11 @@ const NOT_CONNECTED: &str = "The desktop app cannot reach Chrome: the yarnnn ext
 #[cfg(unix)]
 async fn send(relay: &Relay, line: &str) -> Result<(), &'static str> {
     use tokio::io::AsyncWriteExt;
-    let mut writer = relay.writer.lock().await;
-    let Some(w) = writer.as_mut() else { return Err(NOT_CONNECTED) };
+    let mut link = relay.link.lock().await;
+    let id = link.id;
+    let Some(w) = link.writer.as_mut() else { return Err(NOT_CONNECTED) };
     if w.write_all(line.as_bytes()).await.is_err() {
-        *writer = None;
+        link.detach(id);
         return Err("The connection to Chrome dropped before the act was sent. Nothing was done.");
     }
     Ok(())
@@ -215,4 +263,35 @@ async fn send(relay: &Relay, line: &str) -> Result<(), &'static str> {
 #[cfg(not(unix))]
 async fn send(_relay: &Relay, _line: &str) -> Result<(), &'static str> {
     Err(NOT_CONNECTED)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Link;
+
+    fn link() -> Link<&'static str> {
+        Link { id: 0, writer: None, version: None }
+    }
+
+    #[test]
+    fn a_connection_that_ends_clears_only_itself() {
+        let mut l = link();
+        let old = l.attach("old");
+        let new = l.attach("new");
+        l.detach(old); // the old one closes AFTER the new one attached
+        assert_eq!(l.writer, Some("new"), "the newer connection must survive");
+        l.detach(new);
+        assert_eq!(l.writer, None);
+    }
+
+    #[test]
+    fn a_hello_counts_only_from_the_current_connection() {
+        let mut l = link();
+        let old = l.attach("old");
+        let new = l.attach("new");
+        l.hello(old, Some("stale".into()));
+        assert_eq!(l.version, None);
+        l.hello(new, Some("0.1.0".into()));
+        assert_eq!(l.version.as_deref(), Some("0.1.0"));
+    }
 }
