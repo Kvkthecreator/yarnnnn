@@ -98,6 +98,36 @@ capture by window id works while the window is occluded.
 - Spike defect, not a finding: ⌘←, ⇧⌘↓, ⌥← were refused as "menu commands"; they are text navigation and can be
   done directly on the selection. It inflated task 3's rounds.
 
+### 3.1 Round 2 — Word and Chrome, the operator's first-priority apps (2026-09-23)
+
+The host gained text navigation, effect read-back, host-side undo, the idle-only focus borrow, and pinned
+windows; the loop gained the API's context editing. Driven on Microsoft Word and Google Chrome, Sonnet 5 and
+Opus 5. **No task completed through the screen.** What the receipts showed, and what the free probes after
+them showed:
+
+- ⭐⭐⭐ **Word's document body is not in the Accessibility tree in the background** — an empty `AXLayoutArea`,
+  no text, even after `AXEnhancedUserInterface` (refused, −25208). Every click resolved to the bare window and
+  was refused, 16 times, and the model kept retrying the same point (296k input tokens, no text written).
+- ⭐⭐⭐ **Word's scripting dictionary does the whole task in the background** — probe, no model: text
+  inserted, paragraph 1 set bold and 20 pt, paragraph 2 untouched (not bold, 12 pt), frontmost app unchanged
+  (`yarnnn → yarnnn`). The exact formatting task both engines failed in round 1, in about a second.
+- ⭐⭐⭐ **Chrome through the screen fails, Chrome through its own interfaces works.** Through the screen: the
+  address bar takes text but loses focus and never commits navigation in the background (Return posted to a
+  background process does nothing); both engines looped 25 rounds (315k / 393k input tokens). Probe, no model:
+  the scripting dictionary navigated a background window (`set URL of active tab`), and the loaded page's
+  Accessibility tree was rich — 572 links, 627 pressable elements, 2,645 text nodes, the infobox's
+  "Population" found by name.
+- ⭐⭐ **The focus borrow works as designed**: taken only when the member was idle ("brought forward for 1.0s
+  while you were idle, then returned you to Code"), refused while they typed ("last input 0.0s ago"). But the
+  model used it for ⌘Tab — a SYSTEM shortcut. → D2 denies system shortcuts.
+- ⭐⭐ **An agent with no stuck detection burns 300–400k tokens failing.** Every failed task ran all 25 rounds
+  repeating a refused act. → D8's stop-when-stuck is mandatory, not tuning.
+- Setup defects, not findings: an app launched by a script starts HIDDEN (twice — the host now unhides without
+  activating); an app's new-window id must be the on-screen, full-size one (Chrome keeps many helper and
+  off-screen windows, and pinning one made every coordinate "outside the window").
+
+**What it changes**: for the priority apps the pixel protocol is the wrong instrument. **D13.**
+
 ---
 
 ## 4. Decisions
@@ -143,7 +173,9 @@ Each act takes the first rung that can express it:
    while it works, and restores them when it stops. This is the ONE place the host may post to the global event
    tap, and only in that mode, with the member's standing choice.
 
-The member's clipboard is theirs: copy/cut/paste are never used; text is set directly.
+The member's clipboard is theirs: copy/cut/paste are never used; text is set directly. **System shortcuts are
+never borrowed** — ⌘Tab, ⌘Space, ⌘⌥Esc, ⌘Q and the like act on the machine, not the app (round 2: the model
+reached for ⌘Tab).
 
 ### D3 — Receipts state the effect, read back
 
@@ -230,7 +262,9 @@ the deployed LiteLLM before choosing between passing through it and an Anthropic
 - **Prune**: keep only the last few screenshots in context (the API's context editing).
 - **Bound**: a local-hands turn has its own round and spend bound, named and visible — `_LANE_MAX_ROUNDS = 8` is
   far too low (a job is dozens of acts) and a silent ceiling is the wrong one.
-- **Stop when stuck**: N consecutive rounds with no verified change (D3) end the turn and say so.
+- **Stop when stuck** — mandatory (§3.1: every failed task burned 300–400k tokens repeating a refused act): the
+  same refusal twice, or three rounds with no verified change (D3), ends the act with a sentence to the model,
+  and a second stall ends the turn and says so to the member.
 - **Metered**: screenshot tokens land on the one ledger with a rate row (ADR-413 D1).
 
 ### D9 — Attended only
@@ -257,6 +291,27 @@ Industry order (Cowork): *"1. Connectors… 2. Browser… 3. Screen interaction.
 - **The Office suite.** Word, Excel, PowerPoint and Outlook for Mac publish scripting dictionaries — rung 2 is
   exactly what fixes the spike's formatting failure — and expose their windows to Accessibility. Content edits
   prefer the file (path 1); the screen path is for live work: an Outlook reply, an open workbook.
+
+### D13 — Priority apps get the app's own interface; pixels are the fallback
+
+Round 2 (§3.1) settled it: for Word and Chrome the screen is the wrong instrument, and each app's own
+interfaces do the job in the background, exactly. So the host offers **semantic app tools** for the apps that
+matter, built from each app's scripting dictionary and Accessibility tree, and the generic computer toolset is
+the fallback for every other app:
+
+- **Browser (Chrome first)**: navigate a tab to a URL; read the page as text and structure; press a link or
+  button by its name; fill a field by its label; list and switch tabs. Scripting for navigation, the page's
+  Accessibility tree for reading and acting — no extension needed for phase 1 (D11's extension becomes phase 2,
+  for what the tree cannot do).
+- **Office (Word, Excel, PowerPoint, Outlook)**: insert and replace text, format a range, find and replace,
+  read a document's text; set cells; draft, fill and send a mail. Each a host-authored script template.
+- **The model never writes a script.** AppleScript can run shell commands (`do shell script`), so a
+  model-written script is arbitrary code execution. Every script is a host template with typed arguments,
+  escaped; a tool is added by adding a template, not by widening what the model may send.
+- Each tool follows D3: it reads its effect back and says what changed.
+
+This is also the industry route: Cowork orders *"connectors, browser, screen"*, and its browser is an
+integration, not pixels.
 
 ### D12 — The settings surface, on the machine
 
@@ -311,6 +366,8 @@ only for distribution.**
 ## 7. Build order
 
 1. **Developer ID** (operator) — D10's prerequisite.
+1a. **Round 3 of the spike**: the D13 tools for Chrome and Word, with stop-when-stuck, on the same tasks —
+    the measurement that decides whether D13 holds before any product code.
 2. **Host** (`src-tauri`): the D2 ladder behind Tauri commands; capability roster entries with explicit scopes
    (ADR-661 §7j: a permission is not a capability); the Accessibility, Screen Recording and Automation prompts.
 3. **Transport** (D6): the `client_tool` frame, the result route, the nonce, fail-closed.
