@@ -19,6 +19,9 @@
 > - *"the models will need to evolve even if for now they are anthropic"* — the engine roster keeps changing (D7).
 > - On outward acts and on focus-only commands: *"most autonomous approach as possible. details … i delegate to
 >   you."* — D2 and D5.
+> - The industry reference the operator pointed at (2026-09-23): Anthropic's Cowork computer use
+>   (support.claude.com article 14128542, and the Claude desktop app's Settings ▸ System ▸ Computer use), with
+>   *"Chrome browser and office suite like programs"* as the first priority — D1, D2, D11, D12.
 
 **Preserves**: ADR-661 §6 in full (the four conditions) · ADR-645 D1/D2 (a lane IS the member's hands; no
 credential moves) · ADR-615/639 (the unattended derive turn is toolless by construction) · ADR-209 D1 (one write
@@ -48,7 +51,7 @@ wrong, and the design has to carry both:
 1. **"Nothing leaves the machine it is already on" — false.** The model must SEE the app, so screenshots of the
    member's screen go to the model provider on every step, including whatever other people's words are in that
    window. What stays true: nothing goes to a sandbox vendor, and nothing lands in the commons unless the member
-   writes it there. D1's one-app scope and D3's no-retention rule exist because of this correction.
+   writes it there. D1's allowed-apps scope and D3's no-retention rule exist because of this correction.
 2. **"Sandbox output is untrusted input" does not apply — false; it applies at full strength.** An email or web
    page on screen is authored by a third party and can carry instructions aimed at the model (prompt injection).
    D5 carries the consequence.
@@ -99,13 +102,23 @@ capture by window id works while the window is occluded.
 
 ## 4. Decisions
 
-### D1 — Background, never takeover; one app per job
+### D1 — Background, never takeover; the apps the member allows
 
 The host **never posts to the global event tap, never moves the pointer, never types where the member types.**
-It acts on ONE app, chosen by the member per job, through that app's Accessibility tree, scoped to its window;
-coordinates outside the window are refused. It sees that window only (capture by window id — works occluded;
-a minimized window is refused with a sentence; a hidden app is unhidden without activating). yarnnn itself is
-never captured.
+It acts only in apps the member has **allowed**, through each app's Accessibility tree, scoped to that app's
+windows; coordinates outside them are refused. It sees those windows only (capture by window id — works
+occluded; a minimized window is refused with a sentence; a hidden app is unhidden without activating). yarnnn
+itself is never captured.
+
+**Allowed apps, asked once per app.** The first time a job needs an app, the member is asked; the answer is
+remembered on that machine until revoked. This is the industry shape — Cowork asks *"before accessing each
+application"* — and it replaces the first draft's one-app-per-job, adopted to match the reference and the operator's lean
+toward autonomy (**operator to confirm**): a job routinely crosses apps (a link in Mail opens Chrome). An app nobody allowed stays unreachable,
+which is what keeps the scope real.
+
+**Denied apps.** A member-kept list whose requests are refused automatically, plus categories denied by
+default that stay denied under D5: investment, trading and cryptocurrency apps (Cowork's default), banking,
+password managers and Keychain Access, System Settings, Terminal, and yarnnn itself.
 
 Where Accessibility is thin (custom-drawn UIs, canvases, some Electron apps) the act is **refused, never
 escalated** to cursor takeover.
@@ -119,10 +132,16 @@ Each act takes the first rung that can express it:
 2. **The app's scripting dictionary** (Apple Events) — formatting, menu-level commands, app objects (a Mail
    message, an Outlook draft, a Numbers cell). Background and exact, where the app publishes one.
 3. **A focus borrow** — for a focus-only command neither rung can express. Taken **without asking** (operator:
-   most autonomous) but **only while the member is idle** — no keyboard or mouse input for a short threshold —
-   so no keystroke of theirs can land in the target app. The host brings the app forward, performs the one
-   command, returns focus to the app the member was in, and verifies. Input arriving mid-borrow aborts it and
-   the act is retried later in the turn. The receipt says a borrow happened.
+   most autonomous) but **only while the member is idle** — no keyboard or mouse input for about 2 s, the
+   industry behaviour (*"generally waits if you're in the middle of typing"*) — so no keystroke of theirs can
+   land in the target app. The host brings the app forward, performs the one command (bounded at about 1 s),
+   returns focus to the app the member was in, and verifies. Input arriving mid-borrow aborts it and the act is
+   retried later in the turn. The receipt says a borrow happened.
+4. **Full control** — for an app that cannot be driven in the background at all. In **Background** mode (the
+   default) the host asks once per session before taking the screen, as Cowork does; in **Full control** mode
+   (a member setting, D12) it takes the screen, pointer and keyboard without asking again, hides other apps
+   while it works, and restores them when it stops. This is the ONE place the host may post to the global event
+   tap, and only in that mode, with the member's standing choice.
 
 The member's clipboard is theirs: copy/cut/paste are never used; text is set directly.
 
@@ -144,8 +163,8 @@ content, as ADR-585 D3 rules for turn reach.
 
 - **The machine**: macOS grants Accessibility, Screen Recording, and Automation per target app. The member grants
   these once; they are tied to the app's code signature (D10).
-- **The job**: the member picks the app. That choice is the scope — an allowed region, as DP36's scopes are
-  allowed paths — and it lasts one turn.
+- **The apps**: the member allows each app once (D1). The allowed set is the scope — an allowed region, as
+  DP36's scopes are allowed paths — kept on the machine, never in the commons.
 - **The disclosure**: the consent sentence names where screenshots go (*"screenshots of Outlook go to
   Anthropic"*), as ADR-585 D5 requires for any engine.
 
@@ -162,7 +181,9 @@ for local hands only — publishing through yarnnn's own outbound machinery stay
 The risk it accepts, stated plainly: a message or page on screen can instruct the model, and a steered agent
 can now send. Anthropic's own guidance recommends human confirmation before consequential acts; the operator
 chose autonomy. What bounds it:
-- one app per job (D1) — a hostile page in Chrome cannot reach Outlook;
+- only apps the member allowed (D1) — a hostile page can reach no app they did not allow, and never a
+  default-denied one (banking, trading, password managers). ⚠️ With several apps allowed, a page in Chrome CAN
+  steer an act in Outlook; the allowed-apps scope is wider than the first draft's one-app scope, and this is its cost;
 - the provider's prompt-injection classifier on screenshots stays **on**;
 - the frame rule: text inside a screenshot is content, never instruction;
 - the member sees each step live and can stop (§6.3);
@@ -217,9 +238,42 @@ the deployed LiteLLM before choosing between passing through it and an Anthropic
 Local hands exist only in a member's lane turn from the shell (ADR-615: attendance is presence). The unattended
 derive turn stays toolless by construction (ADR-661 §6.1); no standing declaration can reach this tool.
 
+### D11 — The cheapest reliable path first
+
+Industry order (Cowork): *"1. Connectors… 2. Browser… 3. Screen interaction."* yarnnn's version:
+
+1. **The kernel and the member's connectors.** A job on a document's CONTENTS is a file job — yarnnn reads and
+   writes `.docx`/`.xlsx`/`.pptx` itself (ADR-395 am.2) — and a job a connector covers runs through turn reach.
+   No screen involved.
+2. **The browser, through a browser channel.** Cowork uses *"your own Chrome browser through Claude in Chrome"*,
+   an extension — page structure, not pixels, and it works on background tabs.
+3. **The screen**, by the D2 ladder — for work that must happen live in an app.
+
+**The two first-priority targets** (operator):
+- **Chrome.** Phase 1 drives it by the D2 ladder — Chrome exposes page content to Accessibility, to be measured
+  in spike round 2. Phase 2 is a yarnnn Chrome extension paired with the shell over native messaging, the
+  industry route. To verify before relying on it: recent Chrome refuses the remote-debugging port on a person's
+  default profile, which rules out driving it that way.
+- **The Office suite.** Word, Excel, PowerPoint and Outlook for Mac publish scripting dictionaries — rung 2 is
+  exactly what fixes the spike's formatting failure — and expose their windows to Accessibility. Content edits
+  prefer the file (path 1); the screen path is for live work: an Outlook reply, an open workbook.
+
+### D12 — The settings surface, on the machine
+
+Modelled on the Claude desktop app's Settings ▸ System ▸ Computer use, in the shell's settings (device-local:
+the grants are per machine, so they are not workspace settings):
+
+- **Enable computer use** — off until the member turns it on.
+- **How the agent uses the apps you allow** — **Background** (default) or **Full control** (D2 rung 4).
+- **Restore hidden apps when it finishes** — for Full control.
+- **Allowed apps** and **Denied apps** — lists, with the default-denied categories shown (D1).
+- **Accessibility · Screen Recording · Automation** — each shown as granted or not, with the button that opens
+  the matching macOS pane.
+
 ### D10 — macOS first, and signing is a prerequisite
 
-macOS only (ADR-661 §7.6: screen capture and synthetic input are the most platform-divergent APIs there are).
+macOS only, **15 or later** — Cowork's floor for background operation (ADR-661 §7.6: screen capture and
+synthetic input are the most platform-divergent APIs there are).
 The Accessibility, Screen Recording and Automation grants attach to the **code signature**; an ad-hoc-signed
 build loses them on every rebuild. **The Apple Developer ID is therefore a prerequisite for this capability, not
 only for distribution.**
@@ -230,7 +284,7 @@ only for distribution.**
 
 | Tension (found by the sweep) | Resolution |
 |---|---|
-| ADR-628 D5 *"no publish from chat"* vs. sending from Outlook | D5 amends it for local hands, by operator ruling, with the risk named |
+| ADR-628 D5 *"no publish from chat"* vs. sending from Outlook | D5 amends it for local hands, by operator ruling, with the risk named; default-denied categories stay denied |
 | ADR-395 §8.7 cost 5 waved off by ADR-661 §5.1 | §2 correction 2; D5's bounds |
 | lane-frame §6 refuses a screenshot channel | That refusal is of yarnnn's OWN panes, where addressable ids exist; another app has no addressable alternative. Screenshots here are the environment, transient (D3), never a context channel |
 | ADR-413 D2, no stateful session through the tool loop | D6: the desktop is the environment, not an engine |
@@ -245,7 +299,7 @@ only for distribution.**
 ## 6. What this ADR does NOT do
 
 - Build anything. §7 orders it.
-- Take the member's cursor or keyboard, ever (D1).
+- Take the member's cursor or keyboard, except in Full control mode the member chose (D2 rung 4).
 - Touch the member's clipboard (D2).
 - Persist a screenshot (D3).
 - Add a grant shape, a credential, a Render service or a reach mechanism.
@@ -286,8 +340,15 @@ Planned `api/test_adr662_local_hands.py`, each arm proven RED in place:
 
 ## 9. Open questions for ratification
 
-1. **The idle threshold and borrow bound** for D2 rung 3 — measure in round 2; start at 2 s idle and 1 s borrow.
-2. **Which apps first**: Mail and Outlook (scripting-rich), a browser (Accessibility-rich, injection-heavy), or
-   the member's choice from any app.
-3. **The live step list's home**: the chat lane's tool steps, or a small always-on-top host panel with Stop.
-4. **The deployed LiteLLM version** (D7).
+Answered from the industry reference (2026-09-23): the idle threshold and borrow bound (D2: ~2 s idle, ~1 s
+borrow, measured in round 2) · which apps first (D11: Chrome and the Office suite) · the permission model
+(D1: allowed apps, asked once) · the settings surface (D12).
+
+Still open:
+
+1. **The live step list's home.** The reference is silent. Proposed: the steps in the chat lane (they are the
+   record), a small always-on-top host panel with Stop (the member is looking at another app), and a global stop
+   shortcut; macOS shows its own screen-recording indicator.
+2. **The deployed LiteLLM version** (D7) — read it from the API's build log before choosing the adapter path.
+3. **Workspace policy.** Cowork's computer use is Pro/Max only, not Team or Enterprise. In a multi-member
+   workspace, should an owner be able to turn local hands off for members? Not needed for the first member.
