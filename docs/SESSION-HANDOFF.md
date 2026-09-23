@@ -123,7 +123,12 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
 **OPEN:**
 1. **Every 0.1.x install is retired** (the Tauri origins left CORS). Reinstall 0.2.0 on the operator's
    Mac and on any Windows tester.
-2. **Drive ADR-663 on a real build** once the web deploy is live: sign in with the one button (the
+2. **0.2.0 is cut and tagged** (`desktop-v0.2.0` → `5ed64e6`): Mac DMG 4.8MB (local build), Windows
+   installer 2.4MB (run `35812342700`). DRIVEN on the Mac build against production: the window opened
+   the live website and `/auth/login` chose `DesktopSignIn` — the Tauri bridge IS present on the
+   remote page; production refuses `desktop/0.1.0` with 426 + `access-control-allow-origin`.
+   NOT driven (no Accessibility permission for synthetic clicks): the button → opener from the
+   remote origin, and the rest below. **Drive ADR-663 on a real build**: sign in with the one button (the
    hand-off lands in the WEBSITE's cookie session now — `refreshSession` through auth-helpers); the
    window drags by its top bar; Settings → Desktop app shows the version; offline launch shows the
    bootstrap's message. Windows: the hand-off reaches the RUNNING app (single-instance).
