@@ -30,7 +30,7 @@ export default function PrivacyPage() {
       <main className="max-w-3xl mx-auto px-6 py-12 prose prose-neutral dark:prose-invert">
         <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
         <p className="text-muted-foreground mb-8">
-          <strong>Effective Date: July 8, 2026</strong>
+          <strong>Effective Date: July 8, 2026 · Last updated: September 23, 2026</strong>
         </p>
 
         <p>
@@ -195,7 +195,75 @@ export default function PrivacyPage() {
           assistant&apos;s settings, which revokes its access to your workspace.
         </p>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">6. Your Rights</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">
+          6. yarnnn for Chrome (Browser Extension)
+        </h2>
+        {/* Written from the extension's code (extension/, ADR-662 D15), not
+            from a description of it: every sentence below is a property of
+            background.js, page.js or policy.js. If the extension changes what
+            it reads, sends or keeps, this section changes in the same commit.
+            The last paragraph is the Chrome Web Store's Limited Use
+            disclosure, which the listing requires. */}
+        <p>
+          The yarnnn extension for Chrome lets your yarnnn agent carry out web
+          tasks you ask for in chat, in your own Chrome, using the sign-ins you
+          already have there.
+        </p>
+        <ul className="list-disc pl-6 space-y-2">
+          <li>
+            <strong>What it can reach:</strong> only the tabs it opens itself,
+            kept in a tab group named &quot;yarnnn&quot; that you can see. It
+            does not read your other tabs, your browsing history, your
+            clipboard or your screen, and it takes no screenshots.
+          </li>
+          <li>
+            <strong>Your consent:</strong> before it acts on a site for the
+            first time, it asks you. Banking and payments, trading and crypto,
+            password managers and account security pages are never allowed. You
+            can switch it off, or remove a site you allowed, at any time from
+            its button in Chrome&apos;s toolbar.
+          </li>
+          <li>
+            <strong>What leaves your computer:</strong> when your agent reads a
+            page, the page&apos;s text and its buttons, links and fields
+            (including what the fields contain) are sent to yarnnn, and to the
+            AI provider running your chat (section 4), to carry out your
+            request. The contents of a password field never leave the page.
+            Your sign-ins are used where they are, in your Chrome. The
+            extension never reads or sends your cookies or saved passwords.
+          </li>
+          <li>
+            <strong>What we keep:</strong> a short record of each step (what was
+            done, on which site, and whether it worked) is saved with the chat.
+            Page content becomes part of your workspace only if your agent
+            saves it into a file, where you can see it and its history like any
+            other file.
+          </li>
+          <li>
+            <strong>On your computer:</strong> your on/off setting and your
+            lists of allowed and refused sites are stored in Chrome on that
+            computer only.
+          </li>
+          <li>
+            <strong>Who can talk to it:</strong> only pages on yarnnn.com and the
+            yarnnn desktop app on the same computer.
+          </li>
+        </ul>
+        <p>
+          Data the extension handles is used only to carry out what you ask. It
+          is never sold, never used for advertising, and never used to
+          determine creditworthiness or for lending. yarnnn&apos;s use of
+          information received from the extension adheres to the{" "}
+          <a
+            href="https://developer.chrome.com/docs/webstore/program-policies/policies"
+            className="underline"
+          >
+            Chrome Web Store User Data Policy
+          </a>
+          , including the Limited Use requirements.
+        </p>
+
+        <h2 className="text-xl font-semibold mt-8 mb-4">7. Your Rights</h2>
         <p>You have the right to:</p>
         <ul className="list-disc pl-6 space-y-2">
           <li>Access your personal data</li>
@@ -204,7 +272,7 @@ export default function PrivacyPage() {
           <li>Opt out of non-essential communications</li>
         </ul>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">7. Data Retention</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">8. Data Retention</h2>
         <p>
           <strong>Nothing expires on a schedule.</strong> We do not run a
           retention timer: trash holds until you empty it, and no background
@@ -226,13 +294,13 @@ export default function PrivacyPage() {
           as current work. We retain what the law requires us to retain.
         </p>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">8. Changes to This Policy</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">9. Changes to This Policy</h2>
         <p>
           We may update this policy and will notify you of material changes.
           Continued use after changes constitutes acceptance.
         </p>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">9. Contact Us</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">10. Contact Us</h2>
         <p>
           Questions about privacy? Contact us at{" "}
           <a

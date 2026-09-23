@@ -31,7 +31,7 @@ const STATIC_LAST_MODIFIED: Record<string, string> = {
   "llms.txt": "2026-09-16",
   blog: "2026-09-16",
   invest: "2026-07-30",
-  privacy: "2026-09-16",
+  privacy: "2026-09-23",
   "privacy-architecture": "2026-09-16",
   terms: "2026-09-12",
 };
