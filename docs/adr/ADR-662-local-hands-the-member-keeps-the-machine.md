@@ -313,6 +313,12 @@ the fallback for every other app:
 This is also the industry route: Cowork orders *"connectors, browser, screen"*, and its browser is an
 integration, not pixels.
 
+**Scope ruling (operator, 2026-09-23): the browser first; Office DEFERRED.** *"maybe we defer those products in
+full from this session scope, and re-focus on chrome and internet related things as first class."* Office is
+deferred, NOT blocked — its scripting path is proven (§3.1). The browser tools are plain function tools with
+typed schemas, so they work on any engine that can call tools — which is D7's engine neutrality delivered for
+the first-class target without waiting on a provider's computer-use protocol.
+
 ### D12 — The settings surface, on the machine
 
 Modelled on the Claude desktop app's Settings ▸ System ▸ Computer use, in the shell's settings (device-local:
