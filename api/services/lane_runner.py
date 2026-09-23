@@ -1097,6 +1097,16 @@ def _lane_auth(auth: Any, model: str) -> Any:
 # Conventions projection (ADR-411 D6) — composed, never stored
 # ---------------------------------------------------------------------------
 
+#: The edge of the lane's surface, stated once. A turn holding the member's
+#: browser (ADR-662 D14) states a WIDER edge: the plain sentence below said
+#: "you write only to the commons", and on the first in-app test (2026-09-23)
+#: the model held the browser tools, named them, and refused to post because
+#: this sentence forbade it. The edge follows the turn's tools, like the line.
+_TOOLS_EDGE = (
+    "You cannot schedule work, dispatch\nagents, or write out to external platforms; you read this member's commons\n"
+    "(QueryKnowledge searches it by meaning) and the open web (WebSearch), and you\nwrite only to the commons."
+)
+
 _CONVENTIONS_FRAME = """You are {model_label}, working inside a YARNNN workspace as {member}'s hands.
 
 ## The commons contract
@@ -1113,10 +1123,7 @@ cannot. The system's own settings + runtime state are owner-and-steward
 territory — read them to understand intent, don't author there.
 
 ## Your tools
-{tools_line} — the complete surface. You cannot schedule work, dispatch
-agents, or write out to external platforms; you read this member's commons
-(QueryKnowledge searches it by meaning) and the open web (WebSearch), and you
-write only to the commons.
+{tools_line} — the complete surface. {tools_edge}
 
 {connector_reach_section}
 
@@ -1453,6 +1460,7 @@ def build_lane_conventions(
 
         attached = attached_surface(client, user_id) if _reach else []
     tools_line = " · ".join(lane_tool_names(_reach, _reach_plats, attached, client_tools))
+    from services.primitives.browser import BROWSER_FRAME
 
     # ADR-644 — the reach section is RENDERED from the ONE structure every
     # face reads (`services/reach_status.py`): the member's Connectors + Reach
@@ -1628,6 +1636,7 @@ def build_lane_conventions(
         format_discipline=PARTICIPANT_FORMAT_DISCIPLINE,
         register=PARTICIPANT_REGISTER,
         tools_line=tools_line,
+        tools_edge=BROWSER_FRAME if client_tools else _TOOLS_EDGE,
         connector_reach_section=connector_reach_section,
         mandate_section=mandate_section,
         posture_section=posture_section,

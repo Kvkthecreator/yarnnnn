@@ -342,6 +342,19 @@ check(
 )
 check("no turn is left open after the loop ends", not ct._TURNS, f"{len(ct._TURNS)} open")
 
+# ---- the frame's edge follows the turn's tools (2026-09-23: the first in-app
+# test held the tools and refused to post, because the frame said it could not)
+from services.primitives.browser import BROWSER_FRAME  # noqa: E402
+
+_edge_src = re.search(r"tools_edge=(.+?),\n", read("api/services/lane_runner.py"))
+check(
+    "a hands turn's edge REPLACES the plain one, which says it cannot write out",
+    bool(_edge_src) and _edge_src.group(1).strip() == "BROWSER_FRAME if client_tools else _TOOLS_EDGE"
+    and "write out to external platforms" in lr._TOOLS_EDGE
+    and "write out to external platforms" not in BROWSER_FRAME and "post, submit" in BROWSER_FRAME,
+    "the model would read both 'you cannot write out' and 'you may post'",
+)
+
 # --------------------------------------------------------------------- D8
 print("\nD8 stop when stuck")
 

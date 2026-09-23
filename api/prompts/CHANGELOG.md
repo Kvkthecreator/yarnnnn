@@ -15,6 +15,19 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.23.5] - A turn holding the browser is told it may act on the web; the "write only to the commons" edge no longer says otherwise
+
+### Changed
+- services/lane_runner.py: the frame's "## Your tools" edge is now `{tools_edge}` — `_TOOLS_EDGE` (the unchanged sentence) on every turn, REPLACED by `primitives/browser.py::BROWSER_FRAME` on a turn holding the browser tools. Plain turns read byte-identical text.
+- services/primitives/browser.py: `BROWSER_FRAME` — the same edge without "cannot write out to external platforms", then: the browser is the member's window, the agent may fill, send, post and submit in the sessions signed in there, a sign-in page means asking the member to sign in inside that window, and it never types a password.
+- Expected behavior: asked to post or send something on a website, a turn holding the browser opens the site; at a sign-in wall it asks the member to sign in in the pane. Turns without the browser are unchanged.
+
+### Why
+First in-app test (2026-09-23, host 0.3.0): the member's row recorded all five Browser tools offered (`metadata.client_tools`), and Claude Sonnet 5 replied that its browser tool "can open pages and read/click/fill" but posting "isn't a sanctioned write path — my write access is scoped to this workspace's files", after checking connections. The frame's edge sentence said it could not write out and wrote only to the commons; ADR-662 D5 had amended that for local hands, and the frame never learned.
+
+### Gate
+`test_adr662_local_hands.py` (+1 arm: the edge follows the tools, proven RED) · `test_adr632_the_seat_retires.py` §5 (the conventions scaffold shrank) · `test_adr630_skills.py`.
+
 ## [2026.09.23.4] - The browser tools: five acts the desktop app performs, offered only to the shell that asked
 
 ### Changed
