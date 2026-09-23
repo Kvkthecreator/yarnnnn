@@ -2,6 +2,8 @@
 
 What stands between a build and a stranger downloading it and it just working.
 ADR-661 §8 steps 4–5 (macOS) and §7o (Windows); ADR-663 for what is versioned.
+How the app works is [docs/architecture/desktop-app.md](../architecture/desktop-app.md); this is the
+operator's release checklist.
 
 **The desktop app is the website in a native window** (ADR-663). The installer
 carries only the host (`src-tauri/`) and a bootstrap page; the interface loads

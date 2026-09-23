@@ -6,6 +6,7 @@
 > **Dimensional classification** (Axiom 0): **Channel** (the form of a client — where its interface comes from).
 > **No authority change**: no grant, no credential, no kernel mechanism.
 > **Gate**: `api/test_adr663_the_desktop_app_is_the_website.py`.
+> **Living reference**: [docs/architecture/desktop-app.md](../architecture/desktop-app.md) — how the desktop app works now; this ADR holds the reasoning.
 >
 > **Origin** — the operator, after the first Windows installer was cut (ADR-661 §7o): *"can we talk about
 > versioning and management of this now that we will now potentially have different app, program and platform
@@ -19,7 +20,7 @@ origin pinning), the launcher half of §7o, and the page pair of §7p. **Preserv
 served: ADR-661 D1–D4 (a native shell is a permitted client form; one codebase — now literally one build), D5
 (the shell does not authenticate; the website does), §7p D6 (the app has one sign-in: the browser's), §6 in full.
 
-**Binds**: ADR-662 (proposed) — D3 below is a condition on any local-hands implementation.
+**Binds**: ADR-662 (proposed) — D4 below is a condition on any local-hands implementation.
 
 ---
 

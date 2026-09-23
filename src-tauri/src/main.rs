@@ -3,7 +3,8 @@
 // difference lives behind a `cfg` here, never as a branch in the web layer.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! yarnnn desktop host — ADR-661 §8 step 4.
+//! yarnnn desktop host — ADR-661 §8 step 4, ADR-663.
+//! Reference: docs/architecture/desktop-app.md (how the desktop app works now).
 //!
 //! What this file owns, and deliberately nothing more:
 //!   - a window, with the size and chrome a desktop app has and a tab cannot;

@@ -28,6 +28,7 @@ at the compositor, not the kernel. Workspaces have no types.
 | Tables, columns, what was dropped | [SCHEMA-NOTES.md](docs/database/SCHEMA-NOTES.md); DDL in `supabase/migrations/`; connection in [ACCESS.md](docs/database/ACCESS.md) |
 | The substrate, bootstrap, workspace layers | [architecture/WORKSPACE.md](docs/architecture/WORKSPACE.md) + [design/WORKSPACE.md](docs/design/WORKSPACE.md) |
 | Surfaces, windows, the desktop | [compositor.md](docs/architecture/compositor.md) + `web/components/shell/SurfaceRegistry.tsx` — the roster churns; never trust a list written elsewhere |
+| The desktop app (Mac/Windows): shape, versioning, what the website may ask of it | [desktop-app.md](docs/architecture/desktop-app.md) |
 | What an agent's prompt is made of, and where prose goes | [lane-frame.md](docs/architecture/lane-frame.md) + [agent-composition.md](docs/architecture/agent-composition.md) §3.2.1 |
 | Tool primitives | [primitives-matrix.md](docs/architecture/primitives-matrix.md); code registry `api/services/primitives/registry.py` |
 | How outside content reaches the commons | [intake-pipeline.md](docs/architecture/intake-pipeline.md) · [connectors.md](docs/architecture/connectors.md) |
