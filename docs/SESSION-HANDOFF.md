@@ -142,10 +142,15 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
 6. **Local hands (ADR-662, Proposed)** — reference `docs/architecture/local-hands.md`. ONE executor: the
    **yarnnn Chrome extension** (`extension/`, D15), reached from yarnnn in Chrome directly and from the
    desktop app (host **0.4.0**) over native messaging — the pane is DELETED. Driven: `extension/e2e/run.mjs`
-   20/20 and `extension/e2e/bridge.mjs` 5/5 (the real Rust bridge, a stand-in app). NOT driven: the running
-   app's socket listener and `browser_act` from its page, and anything on the operator's own Chrome.
-   Owed, in order: (a) the operator loads the extension unpacked (`chrome://extensions` → Load unpacked →
-   `extension/`), installs host 0.4.0, and drives a real job from the desktop app AND from yarnnn in Chrome
+   20/20 and `extension/e2e/bridge.mjs` 5/5 (the real Rust bridge, a stand-in app). **LIVE TRACE (2026-09-23
+   06:16Z)**: the operator's own Chrome with the extension loaded unpacked, a real turn on the rig account
+   (lane `69a6476e`), Claude Sonnet 5 → BrowserOpen x.com → Read → Fill "Post text" → Read → Click "Post" →
+   Read, posted as @yarnnn___ with the operator's X session; `metadata.client_tools` on the member row, 6
+   receipts on the reply row. On the operator's Mac: host 0.4.0 installed, Chrome launched the bridge
+   (`yarnnn chrome-extension://…`), the app holds its socket connection. NOT driven: `browser_act` from the
+   desktop app's own chat (needs a click in the app). ⚠️ An API redeploy kills an in-flight hands turn
+   (pending acts live in memory; the 13af65c deploy cut the first run) and persists nothing of the partial
+   reply — true of every streamed turn. Owed, in order: (a) one browser job sent from the desktop app's chat
    — read `metadata.receipts` back; (b) Windows native messaging (a registry key + a named pipe; today the
    Windows app refuses in words); (c) ratify ADR-662 (retires ADR-661's tripwire, which now watches only
    the extension's listing), then publish the extension (Chrome Web Store account + review) and set

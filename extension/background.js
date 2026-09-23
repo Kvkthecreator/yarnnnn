@@ -213,11 +213,13 @@ async function read() {
   return withTab(async (tab) => {
     const page = await run(tab.id, "read");
     const n = (page.elements || []).length;
+    // An app page (x.com) often has no title while it renders: name the site.
+    const name = page.title || hostOf(page.url) || "";
     return {
       ...page,
       success: true,
-      receipt: `Read “${page.title}” — ${n} things to act on.`,
-      record: { act: "read", subject: page.title, changed: false },
+      receipt: `Read “${name}” — ${n} things to act on.`,
+      record: { act: "read", subject: name, changed: false },
     };
   });
 }
