@@ -667,6 +667,11 @@
       "title": "회원님의 AI 연결",
       "body": "외부에서 연결한 AI 어시스턴트예요. 각각 회원님 계정으로, 이 워크스페이스에서만 동작해요.",
       "manageAccess": "워크스페이스 모든 구성원의 접근 권한 관리"
+    },
+    "browser": {
+      "connected": "연결됨 — Chrome의 yarnnn 확장 프로그램 {version}",
+      "missing": "연결 안 됨 — Chrome에 yarnnn 확장 프로그램을 추가하세요",
+      "add": "Chrome에 추가"
     }
   },
   "billing": {

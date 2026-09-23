@@ -252,12 +252,57 @@ def _row_line(facts: dict, member: str, *, reach_on: bool) -> str:
     return f"{label}: " + "; ".join(parts)
 
 
+#: ADR-664 — the member's own browser is reach, stated HERE with the
+#: connections and nowhere else (ADR-644: one reach structure). A connection is
+#: a platform's API; the browser reaches any website, including those platforms'
+#: own sites. Three refusals on 2026-09-23 ("X isn't connected", twice while the
+#: turn HELD the browser tools) came from the connector-only story this section
+#: used to tell.
+def browser_sentence(member: str, *, held: bool) -> str:
+    if held:
+        return (
+            f" {member}'s browser — this turn you hold it (the Browser tools): "
+            f"a tab of your own in {member}'s Chrome, with the sign-ins they already have "
+            "there, that they can watch. It reaches ANY website: that is how you act where "
+            "there is no connection, or where a connection only reads. A task on a website "
+            "goes to the browser first — open it, read it, fill, press, send, post, submit, "
+            f"for {member}, when they ask; a connection is only a faster route to the same "
+            f"data. A site {member} has not allowed yet asks them first; a refused one stays "
+            "refused — tell them. If a page asks for a sign-in, stop and ask them to sign in "
+            "there, then continue. Never type a password yourself."
+        )
+    return (
+        f" A website with no connection is not out of reach: {member}'s own browser can "
+        "act there once they add the yarnnn extension to Chrome (Settings → Desktop app). "
+        "Asked to do something on a website, say so — not only \"connect it in Settings\"."
+    )
+
+
+def browser_does() -> dict:
+    """ADR-664 — the MEMBER face of the browser, in `describe`'s shape (reads ·
+    writes · chat · agents), for Reach. The agent face is `browser_sentence`;
+    both say the same facts from the same place. Whether THIS member's browser
+    is connected is the page's to know (the extension answers the page), so it
+    is not stated here."""
+    return {
+        "name": "Your browser",
+        "reads": "Any website you allow — in a tab of its own in your Chrome, with the sign-ins you already have.",
+        "writes": (
+            "What you ask on those sites — fill, send, post, submit — each step said in the chat. "
+            "Banking and payments, trading, password managers and account security are never allowed."
+        ),
+        "chat": "In a conversation you are in, from yarnnn in Chrome or the desktop app.",
+        "agents": "Only while you are in the conversation. Nothing uses your browser on its own schedule.",
+    }
+
+
 def frame_paragraph(
     status: list[dict],
     member: str,
     *,
     reach_on: bool,
     scoped_platforms: Optional[tuple] = None,
+    browser_held: bool = False,
 ) -> str:
     """The AGENT face — the lane frame's reach section, generated.
 
@@ -312,9 +357,15 @@ def frame_paragraph(
     lines = [_row_line(f, member, reach_on=reach_on) for f in status or []]
     rows = (" Connected now — " + "; ".join(lines) + ".") if lines else ""
     doors = any(f.get("member_doors") for f in status or [])
-    outbound = " You cannot send or publish anywhere yourself" + (
-        " — where a door is named above, it is theirs; asked to send something out, say you cannot and point them to it."
-        if doors
-        else "."
-    )
-    return inventory + edge + rows + outbound
+    if browser_held:
+        # The connections still never send; the browser does, on the website.
+        outbound = " Through a connection you cannot send or publish yourself" + (
+            " — where a door is named above, it is theirs." if doors else "."
+        )
+    else:
+        outbound = " You cannot send or publish anywhere yourself" + (
+            " — where a door is named above, it is theirs; asked to send something out, say you cannot and point them to it."
+            if doors
+            else "."
+        )
+    return inventory + edge + rows + outbound + browser_sentence(member, held=browser_held)

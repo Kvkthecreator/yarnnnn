@@ -137,6 +137,10 @@ class IntegrationResponse(BaseModel):
 class IntegrationListResponse(BaseModel):
     """List of user's integrations."""
     integrations: list[IntegrationResponse]
+    # ADR-664 — the member's browser is reach too: its member face, from the
+    # one structure (`reach_status.browser_does`). Connected or not is the
+    # page's fact (the extension answers the page, never the server).
+    browser: Optional[dict] = None
 
 
 # ExportRequest / ExportResponse DELETED 2026-08-26 with the endpoint they
@@ -158,7 +162,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
 
     try:
         # ADR-644 — the ONE enumeration reader (metadata only).
-        from services.reach_status import connection_rows, describe, reach_status
+        from services.reach_status import browser_does, connection_rows, describe, reach_status
         from services.turn_reach import is_turn_reach_enabled
 
         rows = connection_rows(auth.client, user_id)
@@ -209,7 +213,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                 does=(None if attached else describe(facts_by.get(str(platform).lower()))),
             ))
 
-        return IntegrationListResponse(integrations=integrations)
+        return IntegrationListResponse(integrations=integrations, browser=browser_does())
 
     except Exception as e:
         logger.error(f"[INTEGRATIONS] Failed to list integrations for {user_id}: {e}")

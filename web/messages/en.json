@@ -667,6 +667,11 @@
       "title": "Your AI connections",
       "body": "AI assistants you've connected from outside. Each one works under your account, in this workspace only.",
       "manageAccess": "Manage access for everyone in the workspace"
+    },
+    "browser": {
+      "connected": "Connected — the yarnnn extension {version} in Chrome",
+      "missing": "Not connected — add the yarnnn extension to Chrome",
+      "add": "Add to Chrome"
     }
   },
   "billing": {

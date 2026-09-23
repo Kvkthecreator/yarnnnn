@@ -2828,6 +2828,9 @@ export const api = {
           } | null;
           does?: { reads: string; writes: string; chat?: string; agents: string } | null;
         }>;
+        /** ADR-664 — the member's browser as reach: its member face, from the
+         *  one reach structure. Connected or not is the page's fact. */
+        browser?: { name: string; reads: string; writes: string; chat?: string; agents: string } | null;
       }>("/api/integrations"),
 
     // Get specific integration

@@ -15,6 +15,20 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.23.7] - The browser is reach, stated once; the three "you cannot" sentences stop contradicting it
+
+### Changed
+- services/reach_status.py: the reach section ends with `browser_sentence(member, held)` — HELD: the member's browser reaches any website, a website task goes to it first, a connection is only a faster route, a connection still never sends, ask for sign-in, never type a password; the old "You cannot send or publish anywhere yourself" becomes "Through a connection you cannot…". NOT HELD: the old outbound sentence stays, and the browser is named with how to get it (the yarnnn extension).
+- services/lane_runner.py: the "## Your tools" edge no longer claims reach ("cannot write out to external platforms … write only to the commons" is gone; it points to the reach section). `{tools_edge}`, `_TOOLS_EDGE` and `primitives/browser.py::BROWSER_FRAME` are DELETED — the browser's reach lives in the reach structure (ADR-644), not with the tools. Corrects `[2026.09.23.5]`'s placement.
+- services/primitives/registry.py: `list_integrations`'s description drops "Asked to send or publish somewhere, you cannot"; the result gains `websites`.
+- Expected behavior: asked to do something on a website, a turn holding the browser opens it instead of checking connections and refusing; a turn without it says the extension would let it, instead of only "connect it in Settings".
+
+### Why
+2026-09-23, three refusals to post on X — two on turns whose member row recorded all five Browser tools offered (`metadata.client_tools`, lanes `039dacc0` 05:29Z and the rig probe before [2026.09.23.5]) and one without them. Each reply cited connections ("X isn't connected … nothing writes to X"); the frame gave four statements of reach, three saying "you cannot".
+
+### Gate
+`test_adr664_the_browser_is_reach.py` 11/11 (8 falsifications RED) · `test_adr662_local_hands.py` · `test_adr632_the_seat_retires.py` §5 · `test_adr630_skills.py`.
+
 ## [2026.09.23.6] - The browser is "a tab of your own", wherever it runs
 
 ### Changed

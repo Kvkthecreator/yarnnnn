@@ -1,8 +1,8 @@
 # Local hands — the agent works in the member's browser
 
 > **Status**: Canonical — describes the live system.
-> **Ruled by**: [ADR-662](../adr/ADR-662-local-hands-the-member-keeps-the-machine.md) (proposed; amendment 2 D15, the member's own Chrome) · [ADR-663](../adr/ADR-663-the-desktop-app-is-the-website-the-host-is-versioned.md) D4 (only the executor asks for consent).
-> **Gate**: `api/test_adr662_local_hands.py` · **Instruments**: `extension/e2e/run.mjs` (the extension in a real Chrome) · `extension/e2e/bridge.mjs` (the extension ↔ the real native-messaging bridge).
+> **Ruled by**: [ADR-662](../adr/ADR-662-local-hands-the-member-keeps-the-machine.md) (proposed; amendment 2 D15, the member's own Chrome) · [ADR-664](../adr/ADR-664-the-members-browser-is-reach.md) (the browser is reach — how the agent and Reach state it) · [ADR-665](../adr/ADR-665-browser-workflows.md) (proposed: workflows that run in the browser) · [ADR-663](../adr/ADR-663-the-desktop-app-is-the-website-the-host-is-versioned.md) D4 (only the executor asks for consent).
+> **Gates**: `api/test_adr662_local_hands.py` · `api/test_adr664_the_browser_is_reach.py` · **Instruments**: `extension/e2e/run.mjs` (the extension in a real Chrome) · `extension/e2e/bridge.mjs` (the extension ↔ the real native-messaging bridge).
 
 In a conversation, the member's agent can open web pages, read them, fill fields and press buttons — sending
 and posting included — while the member keeps using their computer. It works in **a tab of its own**, and every
@@ -30,8 +30,9 @@ own sessions — was built, met a sign-in wall on its first test, and was delete
 2. The API offers the five browser tools only if that executor is at or above its minimum
    (`client_tools.offered`: `BROWSER_MIN_VERSION` 0.4.0 for the host — 0.3.x carried the deleted pane —
    `EXTENSION_MIN_VERSION` for the extension). The
-   member's message row records what was offered (`metadata.client_tools`). The frame's tool edge becomes
-   `BROWSER_FRAME` (`services/primitives/browser.py`): the agent may act on the web for the member.
+   member's message row records what was offered (`metadata.client_tools`). The frame's reach section — the
+   one place reach is stated (ADR-644/664, `reach_status.browser_sentence`) — says the member's browser reaches
+   any website and a website task goes to it first; a turn WITHOUT the tools is told how the member gets one.
 3. When the model calls one, the stream carries `{"client_tool": {call_id, name, arguments, nonce}}` and the
    turn waits (`client_tools.wait`, 150 s, then fails closed).
 4. `performClientTool` hands the act to the extension (directly, or through the host), then posts the result to

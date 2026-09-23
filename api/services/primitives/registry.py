@@ -147,7 +147,7 @@ LIST_INTEGRATIONS_TOOL = {
 
 Each row: platform, status, target (where it points), captures (what a capture reads), reads (the platform_* read tools you hold for it), agent_writes (write tools you can post with — empty means you cannot post there), member_doors (where THEY send or publish from: verb, door, pane).
 
-Call this instead of asking "are you connected to Slack?". Seeing a connection is not reaching it: only the platform_* tools you hold read through one. A platform that is not connected is connected in Settings → Connectors. Asked to send or publish somewhere, you cannot — point them to the door named in member_doors.""",
+Call this instead of asking "are you connected to Slack?". Seeing a connection is not reaching it: only the platform_* tools you hold read through one. A platform that is not connected is connected in Settings → Connectors. Through a connection you cannot send or publish — the door named in member_doors is theirs. A WEBSITE needs no connection: `websites` in the result says whether the member's browser reaches it this turn.""",
     "input_schema": {
         "type": "object",
         "properties": {},
@@ -208,6 +208,14 @@ async def handle_list_integrations(auth: Any, input: dict) -> dict:
         "success": True,
         "integrations": items,
         "count": len(items),
+        # ADR-664 — the inventory is the reach section's twin, and the reach
+        # section names the browser; so does this. Whether THIS turn holds the
+        # Browser tools is the frame's fact (the tool list), not the inventory's.
+        "websites": (
+            "A website needs no connection. If your tools include the Browser tools, "
+            "you act on any site through the member's own browser, with their sign-ins; "
+            "if not, the yarnnn extension in their Chrome gives you that."
+        ),
     }
 
 

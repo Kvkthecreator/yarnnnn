@@ -49,6 +49,7 @@ import { AttachedConnectorSubsurface } from '@/components/settings/AttachedConne
 import { FindConnectorModal } from '@/components/settings/FindConnectorModal';
 import { WorkspaceMembersCard } from '@/components/workspace-concepts/WorkspaceMembersCard';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { ReachBrowser, type BrowserDoes } from '@/components/reach/ReachBrowser';
 
 type Integration = Awaited<ReturnType<typeof api.integrations.list>>['integrations'][number];
 
@@ -85,6 +86,8 @@ export function ReachConnected() {
   const { confirm: confirmDialog, runAction } = useFeedback();
   const t = useTranslations('reach');
   const [rows, setRows] = useState<Integration[] | null>(null);
+  // ADR-664 — the member's browser, served beside the connections.
+  const [browserDoes, setBrowserDoes] = useState<BrowserDoes | null>(null);
   const [standing, setStanding] = useState<StandingSummary[]>([]);
   const [freshness, setFreshness] = useState<Record<string, Freshness>>({});
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +116,7 @@ export function ReachConnected() {
         if (cancelled) return;
         const list = ints.integrations ?? [];
         setRows(list);
+        setBrowserDoes(ints.browser ?? null);
         setStanding(decls);
         // The capture-signal fan-out (ADR-401 D6 — freshness is DERIVED from
         // the signal, never the stored status column). Each call guarded so
@@ -236,6 +240,14 @@ export function ReachConnected() {
 
   if (rows.length === 0) {
     return (
+      <div className="space-y-3">
+      {/* ADR-664 — the browser is reach with no connection at all: it shows
+          for the member who has none, who is who needs it most. */}
+      {browserDoes && (
+        <ul>
+          <ReachBrowser does={browserDoes} Fact={Fact} />
+        </ul>
+      )}
       <div className="rounded-lg border border-dashed border-border/60 px-6 py-10 text-center">
         <Plug className="mx-auto mb-3 h-6 w-6 text-muted-foreground/40" />
         <p className="text-sm font-medium text-foreground/80">{t('list.emptyTitle')}</p>
@@ -267,6 +279,7 @@ export function ReachConnected() {
           />
         )}
       </div>
+      </div>
     );
   }
 
@@ -291,6 +304,7 @@ export function ReachConnected() {
         </button>
       </div>
       <ul className="space-y-3">
+        {browserDoes && <ReachBrowser does={browserDoes} Fact={Fact} />}
         {rows.map((i) => {
           const attached = i.kind === 'attached';
           const meta = attached ? undefined : connectorMeta(i.provider);
