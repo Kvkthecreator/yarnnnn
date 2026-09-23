@@ -12,9 +12,12 @@ import {
   Shield,
   History,
   Languages,
+  Monitor,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { isNativeShell } from "@/lib/shell/external-navigation";
+import { DESKTOP_PLATFORMS, DESKTOP_DOWNLOADS, DESKTOP_PLATFORM_NAMES } from "@/lib/shell/desktop-app";
 import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { createClient } from "@/lib/supabase/client";
@@ -97,7 +100,7 @@ type NotificationKind = {
 // with members real, billing is authority-gated workspace governance (the
 // ChatGPT/Claude Team convention). Supersedes ADR-429 §13.3's account-door
 // placement.
-type SettingsTab = "account" | "notification-settings" | "language";
+type SettingsTab = "account" | "notification-settings" | "language" | "desktop";
 
 // ADR-645 D3 (2026-09-08) — the Connections pane is DELETED from this door.
 // It LED here from 2026-08-21 on the reasoning that this door is opened to
@@ -122,6 +125,9 @@ const PANE_ROSTER = [
       { key: "account", labelKey: "panes.account", icon: User },
       // ADR-660 D2 — a language belongs to the human, so it lives in the account door.
       { key: "language", labelKey: "panes.language", icon: Languages },
+      // ADR-661/662 — the desktop app is a first-class way in, on every plan
+      // (operator 2026-09-23). A device concern of the human, so the account door.
+      { key: "desktop", labelKey: "panes.desktop", icon: Monitor },
     ],
   },
 ] as const;
@@ -382,6 +388,34 @@ function SettingsPageBody() {
           Settings (authority-gated workspace governance). Legacy links redirect
           via the effect above; no cases here. */}
 
+
+      {pane === "desktop" && (
+        <section className="mb-8">
+          <PaneHeader icon={Monitor} title={t("panes.desktop")} subtitle={t("desktop.subtitle")} bordered={false} />
+          {isNativeShell() ? (
+            <p className="text-sm text-muted-foreground">{t("desktop.inApp")}</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {DESKTOP_PLATFORMS.map((platform) => {
+                const href = DESKTOP_DOWNLOADS[platform];
+                return (
+                  <li key={platform} className="flex items-center justify-between gap-4 px-4 py-3">
+                    <span className="text-sm">{DESKTOP_PLATFORM_NAMES[platform]}</span>
+                    {href ? (
+                      <a href={href} className="text-sm font-medium underline underline-offset-2">
+                        {t("desktop.download")}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">{t("desktop.notYet")}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">{t("desktop.signIn")}</p>
+        </section>
+      )}
 
       {pane === "language" && (
         <section className="mb-8">

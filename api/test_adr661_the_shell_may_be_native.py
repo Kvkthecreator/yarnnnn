@@ -763,6 +763,42 @@ check(
     f"the superseded return address is back: {_producers[:3]}",
 )
 
+# ---------------------------------------- the desktop app is surfaced, once
+print("\n§7p the desktop app is a first-class way in — one roster, no dead links")
+
+# Operator 2026-09-23: "surface the desktop features as first class, no need to
+# limit per tiers". The Settings pane lists every platform from ONE module; a
+# link appears only for a signed build (an unsigned one says "damaged" — worse
+# than no link), and nothing else in the client carries an installer URL.
+_desk = strip_comments(read("web/lib/shell/desktop-app.ts"))
+_block = re.search(r"DESKTOP_DOWNLOADS[^=]*=\s*\{(.*?)\}", _desk, re.S)
+_vals = re.findall(r"\w+\s*:\s*([^,\n]+)", _block.group(1)) if _block else []
+check(
+    "every desktop download is null or an https link",
+    bool(_vals) and all(v.strip() == "null" or re.fullmatch(r'"https://[^"]+"', v.strip()) for v in _vals),
+    f"a download entry that is neither unpublished nor https: {_vals}",
+)
+_settings = strip_comments(read("web/app/(authenticated)/settings/page.tsx"))
+check(
+    "the Settings pane renders the roster from that module",
+    re.search(r"DESKTOP_PLATFORMS\.map\(", _settings) is not None
+    and re.search(r"DESKTOP_DOWNLOADS\[\s*platform\s*\]", _settings) is not None,
+    "the desktop app is not surfaced, or the pane keeps its own list",
+)
+_installer = re.compile(r"https?://[^\s\"'`]+\.(dmg|msi|exe)\b|/[^\s\"'`]*\.(dmg|msi)\b")
+_second = [
+    str(f.relative_to(REPO))
+    for root in (WEB / "app", WEB / "components", WEB / "lib")
+    for f in root.rglob("*.ts*")
+    if f.name != "desktop-app.ts"
+    and _installer.search(strip_comments(f.read_text(encoding="utf-8", errors="ignore")))
+]
+check(
+    "no second home for an installer link",
+    not _second,
+    f"a download link outside lib/shell/desktop-app.ts: {_second[:3]}",
+)
+
 # ------------------------------------------------ §8 step 5 the return leg
 print("\n§8 step 5 the shell can be signed, and can be returned to")
 

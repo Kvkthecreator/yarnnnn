@@ -12,7 +12,8 @@
     "panes": {
       "notifications": "알림",
       "account": "계정",
-      "language": "언어"
+      "language": "언어",
+      "desktop": "데스크톱 앱"
     },
     "account": {
       "title": "데이터와 개인정보",
@@ -73,6 +74,13 @@
       "off": "받지 않기",
       "never": "받지 않기",
       "emailSoon": "이메일은 곧 지원돼요"
+    },
+    "desktop": {
+      "subtitle": "Mac과 Windows용 yarnnn: 같은 워크스페이스를 별도의 창에서.",
+      "inApp": "지금 데스크톱 앱을 쓰고 있어요.",
+      "download": "다운로드",
+      "notYet": "아직 공개되지 않았어요",
+      "signIn": "앱에서 로그인하면 브라우저가 열리고, 로그인을 마치면 바로 앱으로 돌아와요."
     }
   },
   "auth": {
@@ -111,10 +119,10 @@
     },
     "desktop": {
       "heading": "yarnnn에 로그인",
-      "lead": "브라우저에서 로그인하면 바로 이곳으로 돌아옵니다.",
+      "lead": "브라우저에서 로그인하면 바로 이곳으로 돌아와요.",
       "continue": "브라우저에서 계속하기",
       "again": "브라우저 다시 열기",
-      "waiting": "브라우저에서 로그인을 마쳐 주세요. 이 창은 자동으로 바뀝니다."
+      "waiting": "브라우저에서 로그인을 마쳐 주세요. 이 창은 저절로 바뀌어요."
     }
   },
   "surfaces": {

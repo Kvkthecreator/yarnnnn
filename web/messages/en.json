@@ -12,7 +12,8 @@
     "panes": {
       "notifications": "Notifications",
       "account": "Account",
-      "language": "Language"
+      "language": "Language",
+      "desktop": "Desktop app"
     },
     "account": {
       "title": "Data & Privacy",
@@ -73,6 +74,13 @@
       "off": "Off",
       "never": "Never",
       "emailSoon": "Email coming soon"
+    },
+    "desktop": {
+      "subtitle": "yarnnn for Mac and Windows: the same workspace, in its own window.",
+      "inApp": "You're using the desktop app.",
+      "download": "Download",
+      "notYet": "Not published yet",
+      "signIn": "Signing in from the app opens your browser, then brings you straight back."
     }
   },
   "auth": {

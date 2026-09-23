@@ -235,6 +235,12 @@ the code; nothing to do unless the origins change.
 
 ## The download page
 
+**Where members find it**: Settings → Desktop app lists every platform. It
+reads ONE roster, `web/lib/shell/desktop-app.ts` — each entry is `null` ("Not
+published yet") until you set the https URL of a **signed** build there; the
+ADR-661 gate refuses anything else and any installer link outside that file.
+Publishing = cut the signed build, upload it, set its URL, ship.
+
 A version, a size, and what it needs. The shell is not a different product, so
 it does not need its own pitch:
 
