@@ -55,8 +55,8 @@ export const DESKTOP_ASSET_NAMES: Record<DesktopPlatform, string> = {
  *  published. The bucket's public path plus the platform's asset name; set it
  *  only once the file has been published, or the link is a 404. */
 export const DESKTOP_DOWNLOADS: Record<DesktopPlatform, string | null> = {
-  mac: null,
-  windows: null,
+  mac: "https://noxgqcwynkzqabljjyon.supabase.co/storage/v1/object/public/desktop-releases/yarnnn-mac-arm64.dmg",
+  windows: "https://noxgqcwynkzqabljjyon.supabase.co/storage/v1/object/public/desktop-releases/yarnnn-windows-x64-setup.exe",
 };
 
 /** Our own address for a platform's download, or `null` if unpublished. Relative:
