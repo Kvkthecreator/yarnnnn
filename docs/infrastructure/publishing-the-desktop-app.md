@@ -21,10 +21,10 @@ app. A new installer is needed only when the HOST changes.
   `api/services/desktop_client.py` **after** the new build is published: an
   older app then shows *"This version of the yarnnn app is out of date"* with a
   link to Settings → Desktop app.
-- When a download goes live, set its https URL in `web/lib/shell/desktop-app.ts`
-  **and** add that host to the opener scope in
-  `src-tauri/capabilities/default.json` — otherwise the in-app Download link
-  opens nothing.
+- Downloads are GitHub Release assets under STABLE names, served through our
+  own `www.yarnnn.com/download/{mac,windows}` — see *Publishing a release*
+  below. The opener scope already allows `www.yarnnn.com`, so no host change
+  is needed for the in-app Download link to open.
 
 | | macOS | Windows |
 |---|---|---|
@@ -245,33 +245,61 @@ builds used were removed, which retired every 0.1.x install.
 
 ---
 
-## The download page
+## Publishing a release
 
-**Where members find it**: Settings → Desktop app lists every platform. It
-reads ONE roster, `web/lib/shell/desktop-app.ts` — each entry is `null` ("Not
-published yet") until you set the https URL of a **signed** build there; the
-ADR-661 gate refuses anything else and any installer link outside that file.
-Publishing = cut the signed build, upload it, set its URL, ship.
+Operator ruling, 2026-09-23: **during the beta, unsigned builds are published**,
+behind `www.yarnnn.com/download` (`/ko/download`), which says they are unsigned
+and gives each platform its one step to open. Signing, when it lands, removes
+those steps from the page and changes nothing else.
 
-A version, a size, and what it needs. The shell is not a different product, so
-it does not need its own pitch:
+**Where the files live.** A GitHub Release of this repo per host version, tag
+`desktop-vX.Y.Z`, with each installer under a STABLE name — the roster in
+`scripts/publish-desktop-release.sh`, mirrored by `DESKTOP_ASSET_NAMES` in
+`web/lib/shell/desktop-app.ts` (the ADR-661 gate holds the two equal). GitHub's
+`releases/latest/download/<name>` always serves the newest release.
 
-> **yarnnn for Mac** — 7.9 MB · macOS 10.15 or later · Apple Silicon
-> **yarnnn for Windows** — Windows 10 or 11 · x64
-> [Download](…)
+**The address people get is ours.** Every link points at
+`/download/{platform}` (`web/app/download/[platform]/route.ts`), a 302 to the
+asset. The host can move later without breaking a shared link.
 
-Do **not** ship instructions to bypass Gatekeeper or SmartScreen (`xattr -cr`,
-right-click → Open, *Run anyway*). If those are needed, the build is not ready
-for a stranger — asking one to disable a security check to try your product is
-a worse first impression than having no desktop app at all. A tester you know
-is a different case, and the Windows section says so.
+**A release becomes `latest` only when it carries every platform.** The
+publish script creates it as not-latest and promotes it once both files are on
+it, so a Mac-only release never 404s the Windows link.
 
----
+The steps, for version X.Y.Z (bumped in `src-tauri/Cargo.toml`, pushed):
+
+```bash
+./scripts/release-shell.sh --unsigned                   # Mac, ad-hoc sealed
+scripts/publish-desktop-release.sh mac src-tauri/target/release/bundle/dmg/yarnnn_X.Y.Z_aarch64.dmg
+
+gh workflow run shell-windows.yml && gh run watch       # Windows, on a runner
+gh run download --name yarnnn-windows
+scripts/publish-desktop-release.sh windows yarnnn_X.Y.Z_x64-setup.exe
+```
+
+The first time only: set both entries of `DESKTOP_DOWNLOADS` in
+`desktop-app.ts` to their `releases/latest/download/<name>` URLs, once the
+release exists. After that a release needs no web change at all.
+
+⚠️ **"Unsigned" must still be SEALED on the Mac.** `tauri.conf.json` carries
+`signingIdentity: "-"`, so the bundle is ad-hoc signed and `codesign --verify`
+passes. With `null` the app has only the linker's signature, verification fails
+(*"code has no resources but signature indicates they must be present"* — the
+0.2.0 build), and macOS calls it **"damaged"**, with no Open Anyway. A sealed
+build gets the milder *cannot verify the developer* prompt, which System
+Settings → Privacy & Security → **Open Anyway** clears. `--unsigned` refuses to
+finish if the seal does not verify. The page keeps the `xattr` line as the
+fallback for the damaged case only.
+
+**Where members find it**: `/download` on the site (footer → Download), and
+Settings → Desktop app, which links each platform through `/download/{platform}`
+and, once one is live, to the page's steps.
 
 ## Updating
 
-There is no auto-update yet. A new version means a new DMG or installer and a
-new link, and members find out by visiting the site.
+There is no auto-update yet. A new version means a new DMG and installer on a
+new release; the links do not change, and members find out through the
+out-of-date notice (the 426) or by visiting /download.
 
 Tauri's updater is the eventual answer — it needs a signing keypair and a
 manifest the app polls. It is deliberately not built yet: it has its own key

@@ -24,6 +24,7 @@ export interface LandingFooterWords {
   howItWorks: string;
   pricing: string;
   faq: string;
+  download: string;
 }
 
 const EN: LandingFooterWords = {
@@ -34,6 +35,7 @@ const EN: LandingFooterWords = {
   howItWorks: "How it works",
   pricing: "Pricing",
   faq: "FAQ",
+  download: "Download",
 };
 
 interface LandingFooterProps {
@@ -101,6 +103,11 @@ export default function LandingFooter({
               <li>
                 <Link href={to("/faq")} className={`${hoverClass} transition-colors`}>
                   {words.faq}
+                </Link>
+              </li>
+              <li>
+                <Link href={to("/download")} className={`${hoverClass} transition-colors`}>
+                  {words.download}
                 </Link>
               </li>
             </ul>

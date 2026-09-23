@@ -83,6 +83,7 @@ export const TRANSLATED_PATHS = [
   "/about",
   "/developers",
   "/support",
+  "/download",
 ] as const;
 
 /**

@@ -40,6 +40,7 @@ export function useMarketingChrome(): {
       howItWorks: n("howItWorks"),
       pricing: n("pricing"),
       faq: n("faq"),
+      download: f("download"),
     },
   };
 }

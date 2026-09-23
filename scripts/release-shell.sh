@@ -4,7 +4,20 @@
 # ADR-661 §8 step 5. The version is src-tauri/Cargo.toml's (ADR-663 D2); tag
 # the commit `desktop-vX.Y.Z` once the build is handed to anyone.
 #
-#   ./scripts/release-shell.sh
+#   ./scripts/release-shell.sh              # signed + notarized (needs a Developer ID)
+#   ./scripts/release-shell.sh --unsigned   # the beta build: ad-hoc signed only
+#
+# Then publish it: scripts/publish-desktop-release.sh mac <the DMG it prints>.
+#
+# --unsigned exists because the operator ruled (2026-09-23) to publish the
+# desktop app during the beta before a Developer ID exists. It is ad-hoc
+# SEALED, not merely linker-signed: `bundle.macOS.signingIdentity` is "-" in
+# tauri.conf.json. That difference is the whole difference in what a stranger
+# sees. A linker-only signature has no sealed resources, `codesign --verify`
+# fails, and macOS calls a broken signature "damaged" — a wall (0.2.0 shipped
+# that way). A sealed ad-hoc signature VERIFIES, so macOS only says it cannot
+# check the developer, and System Settings → Privacy & Security offers
+# "Open Anyway". www.yarnnn.com/download walks a visitor through that.
 #
 # WHY EACH STEP EXISTS, because skipping one produces a build that looks fine
 # on this machine and is unusable on anyone else's:
@@ -42,6 +55,8 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROFILE="${YARNNN_NOTARY_PROFILE:-yarnnn}"
+UNSIGNED=false
+[[ "${1:-}" == "--unsigned" ]] && UNSIGNED=true
 
 cd "$REPO/src-tauri"
 
@@ -58,6 +73,21 @@ export PATH="$PATH:$HOME/.cargo/bin"
 if ! command -v cargo >/dev/null; then
   echo "✗ cargo not found. Install Rust: https://rustup.rs" >&2
   exit 1
+fi
+
+if $UNSIGNED; then
+  echo "▸ beta build: ad-hoc signed, NOT notarized (tauri.conf.json signingIdentity \"-\")"
+  cargo tauri build --bundles app,dmg
+  DMG="$(find target/release/bundle/dmg -name '*.dmg' -maxdepth 1 | head -1)"
+  APP="target/release/bundle/macos/yarnnn.app"
+  [[ -f "$DMG" ]] || { echo "✗ no DMG produced" >&2; exit 1; }
+  # A seal that does not verify is the "damaged" wall — refuse to hand it out.
+  codesign --verify --deep --strict --verbose=2 "$APP"
+  echo
+  echo "✓ Beta build (unsigned):"
+  echo "  $REPO/src-tauri/$DMG"
+  echo "  Publish: scripts/publish-desktop-release.sh mac src-tauri/$DMG"
+  exit 0
 fi
 
 IDENTITY="${APPLE_SIGNING_IDENTITY:-}"
@@ -81,8 +111,8 @@ if [[ -z "$IDENTITY" ]]; then
 
   See the header of this script for the four setup steps.
 
-  To build an unsigned copy anyway (local use only):
-      cd src-tauri && cargo tauri build
+  To build the unsigned beta copy instead:
+      ./scripts/release-shell.sh --unsigned
 MSG
   exit 1
 fi

@@ -27,7 +27,7 @@
     "shortDescription": "Shared memory for AI + human work",
     "macOS": {
       "minimumSystemVersion": "10.15",
-      "signingIdentity": null,
+      "signingIdentity": "-",
       "entitlements": "entitlements.plist"
     }
   },

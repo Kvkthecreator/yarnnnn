@@ -24,6 +24,7 @@ const STATIC_LAST_MODIFIED: Record<string, string> = {
   engines: "2026-08-21",
   faq: "2026-09-12",
   support: "2026-09-17",
+  download: "2026-09-23",
   developers: "2026-09-16",
   "openapi.json": "2026-09-16",
   ".well-known/mcp.json": "2026-09-16",
@@ -92,6 +93,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: lastModifiedFor("support"),
       changeFrequency: "monthly" as const,
       priority: 0.6,
+    },
+    {
+      url: `${baseUrl}/download`,
+      lastModified: lastModifiedFor("download"),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
     },
     {
       url: `${baseUrl}/developers`,

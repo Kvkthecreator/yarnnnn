@@ -545,6 +545,14 @@ Gate arms, each proven RED in place: the desktop page opens the hand-off · it s
 
 ---
 
+## 7q. Unsigned builds publish during the beta (2026-09-23)
+
+Operator: *"we can always update the developer id and warning signs later as we're in beta."* §7o's *"acceptable for a known tester and not for a public link"* and the publishing doc's *"a link only for a signed build"* are **relaxed for the beta**, on one condition that keeps the reason they existed: **no link goes to a bare asset.** Every link — Settings, the site — points at our `/download/{platform}` (a 302 to a GitHub Release asset), and the public `/download` page (`/ko/download`) says the builds are unsigned before the button and gives each platform its one step to open. A stranger is told, not ambushed.
+
+⭐**"Unsigned" had been two different things, and only one of them is a wall.** The 0.2.0 DMG carried only the linker's ad-hoc signature with no sealed resources: `codesign --verify` fails (*"code has no resources but signature indicates they must be present"*, measured on the installed copy), and macOS calls a broken signature **"damaged"** — the message this ADR's step 5 treated as inherent to unsigned distribution. A build sealed ad-hoc (`signingIdentity: "-"`) **verifies**, so macOS only says it cannot check the developer, and Privacy & Security offers Open Anyway. The 0.3.0 build was sealed and verified this way; the dialog wording on a second machine is **not yet observed** — the page keeps the `xattr` line as the fallback for the damaged case.
+
+Mechanism: `scripts/publish-desktop-release.sh` (one roster of stable asset names, shared by the Mac and the Windows path; a release turns `latest` only when it carries every platform) · `scripts/release-shell.sh --unsigned` (refuses a seal that does not verify) · `DESKTOP_ASSET_NAMES` + `DESKTOP_DOWNLOADS` in `web/lib/shell/desktop-app.ts`. Gate §7p +7 arms, each proven RED. Signing, when it lands, removes the page's steps and nothing else.
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).
@@ -575,7 +583,7 @@ Steps 1–3 are **true of the web product today** and worth doing whether or not
 
 ## 10. Consequences
 
-- **The desktop shell is built** (§7b–§7p): macOS driven end to end by a member; Windows a build target (§7o). Distribution waits on signing.
+- **The desktop shell is built** (§7b–§7p): macOS driven end to end by a member; Windows a build target (§7o). Unsigned builds publish during the beta behind the /download page (§7q); signing removes its steps.
 - **Local attended computer use is scoped, not declined** — with the distinction from the remote sandbox recorded (§5.1) so the two are never again collapsed, and with four conditions binding at birth (§6).
 - **The remote sandbox stays declined** under ADR-395 am.1 §8.7.
 - **Steps 1–3 are live debt on the web product**, independent of packaging.

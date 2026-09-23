@@ -602,9 +602,11 @@ check(
 print("\n§7p the desktop app is a first-class way in — one roster, no dead links")
 
 # Operator 2026-09-23: "surface the desktop features as first class, no need to
-# limit per tiers". The Settings pane lists every platform from ONE module; a
-# link appears only for a signed build (an unsigned one says "damaged" — worse
-# than no link), and nothing else in the client carries an installer URL.
+# limit per tiers". The Settings pane lists every platform from ONE module, and
+# nothing else in the client carries an installer URL. The same day the
+# operator ruled to publish UNSIGNED builds during the beta, behind the
+# /download page that says so and gives each platform its one step to open —
+# so every link goes through our /download/{platform}, never to the asset.
 _desk = strip_comments(read("web/lib/shell/desktop-app.ts"))
 _block = re.search(r"DESKTOP_DOWNLOADS[^=]*=\s*\{(.*?)\}", _desk, re.S)
 _vals = re.findall(r"\w+\s*:\s*([^,\n]+)", _block.group(1)) if _block else []
@@ -632,6 +634,60 @@ check(
     "no second home for an installer link",
     not _second,
     f"a download link outside lib/shell/desktop-app.ts: {_second[:3]}",
+)
+
+# The links say `releases/latest/download/<name>`; the publish script uploads
+# under <name>. A name changed on one side only is a 404 on every download
+# link, and nothing else would notice until a visitor did.
+_pub = read("scripts/publish-desktop-release.sh")
+_script_names = dict(re.findall(r'^\s*(mac|windows)\)\s*echo\s+"([^"]+)"', _pub, re.M))
+_names_block = re.search(r"DESKTOP_ASSET_NAMES[^=]*=\s*\{(.*?)\}", _desk, re.S)
+_client_names = dict(re.findall(r'(\w+)\s*:\s*"([^"]+)"', _names_block.group(1))) if _names_block else {}
+check(
+    "the client's asset names are the ones the publish script uploads",
+    bool(_client_names) and _client_names == _script_names,
+    f"desktop-app.ts {_client_names} vs publish-desktop-release.sh {_script_names}",
+)
+_urls = dict(re.findall(r'(\w+)\s*:\s*"(https://[^"]+)"', _block.group(1))) if _block else {}
+check(
+    "a published download ends in its platform's asset name",
+    all(u.endswith("/" + _client_names.get(p, "\0")) for p, u in _urls.items()),
+    f"a download URL names a file the publish script never uploads: {_urls}",
+)
+
+# Every link goes through our address: the pane renders `downloadPath`, the
+# route redirects from the roster, and the redirect is temporary — a 308 would
+# be cached as the file's real address and pin a host we mean to move.
+check(
+    "the Settings pane links to our /download address, not the asset",
+    re.search(r"\bdownloadPath\(\s*platform\s*\)", _settings) is not None
+    and re.search(r"href=\{\s*DESKTOP_DOWNLOADS", _settings) is None,
+    "Settings links straight to the asset — past the page that says how to open an unsigned build",
+)
+_route = strip_comments(read("web/app/download/[platform]/route.ts"))
+check(
+    "/download/{platform} redirects from the roster, temporarily",
+    "DESKTOP_DOWNLOADS[" in _route
+    and re.search(r"NextResponse\.redirect\([^)]*,\s*302\s*\)", _route) is not None,
+    "the redirect route is missing, keeps its own URL, or is permanent",
+)
+_page_body = strip_comments(read("web/components/marketing/DownloadPageBody.tsx"))
+check(
+    "the /download page links each platform through downloadPath",
+    all(re.search(rf'downloadPath\(\s*"{p}"\s*\)', _page_body) for p in ("mac", "windows")),
+    "the download page lists a platform without its link",
+)
+
+# The Mac beta build must be ad-hoc SEALED. With `signingIdentity: null` the
+# app carries only the linker's signature, `codesign --verify` fails with "code
+# has no resources but signature indicates they must be present", and macOS
+# calls it "damaged" — no Open Anyway, only the Trash. Measured on the 0.2.0
+# install. "-" seals it; a real identity from release-shell.sh overrides.
+_conf = json.loads(read("src-tauri/tauri.conf.json") or "{}")
+check(
+    "an unsigned Mac build is ad-hoc sealed, not merely linker-signed",
+    _conf.get("bundle", {}).get("macOS", {}).get("signingIdentity") == "-",
+    "signingIdentity is not \"-\" — an unsigned build reads \"damaged\" on every other Mac",
 )
 
 # ------------------------------------------------ §8 step 5 the return leg

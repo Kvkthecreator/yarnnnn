@@ -68,13 +68,14 @@ records the comparison.
 | The update notice | `web/components/shell/DesktopUpdateNotice.tsx` (mounted in `app/(authenticated)/layout.tsx`) |
 | The app's sign-in panel | `web/components/auth/DesktopSignIn.tsx`, chosen by `app/auth/login/page.tsx` |
 | The browser half of sign-in | `web/app/auth/desktop/page.tsx` |
-| Download links (null until a signed build exists) | `web/lib/shell/desktop-app.ts`, shown in Settings → Desktop app |
+| Download links: the asset roster, our `/download/{platform}` redirect, the public page | `web/lib/shell/desktop-app.ts` · `web/app/download/[platform]/route.ts` · `web/app/download/page.tsx` (+ `/ko`) |
 | The minimum host version the API accepts | `api/services/desktop_client.py`, registered in `api/main.py` |
 | Local hands: the browser pane, its consent, its five acts ([local-hands.md](local-hands.md)) | `src-tauri/src/hands/mod.rs` (page routines: `extension/page.js`) |
 | The app's own commands (each gets an `allow-…` permission) | `src-tauri/build.rs` |
 | The page's side of the pane, and the Settings switch | `web/lib/shell/hands.ts` · `web/components/settings/DesktopBrowserSetting.tsx` |
 | The hand-off: offered tools, the pending acts, stop-when-stuck | `api/services/client_tools.py`; tool definitions `api/services/primitives/browser.py` |
-| Build the Mac release | `scripts/release-shell.sh` |
+| Build the Mac release | `scripts/release-shell.sh` (`--unsigned` for the beta build) |
+| Publish a built installer | `scripts/publish-desktop-release.sh` |
 | Build the Windows installer | `.github/workflows/shell-windows.yml` (manual dispatch) |
 
 ## 3. A launch, step by step
@@ -119,7 +120,7 @@ A failure comes back to `/auth/login?error=…&message=…` and is shown in word
 | You change `src-tauri/` | Bump `version` in `Cargo.toml`, cut both installers, tag the commit `desktop-vX.Y.Z`. |
 | The website starts depending on a host change | Publish the new host first, **then** raise `DESKTOP_MIN_VERSION` in `api/services/desktop_client.py`. |
 | One feature needs a newer host | Give that feature its own minimum beside the global one — `BROWSER_MIN_VERSION` (0.3.0) is the first, in `api/services/desktop_client.py`. Below it the feature is simply not offered; the host is never refused for it. Do not raise the global minimum for one feature. |
-| A download goes live | Set its https URL in `web/lib/shell/desktop-app.ts` **and** allow its host in the opener scope in `capabilities/default.json`. |
+| A new version is published | `scripts/publish-desktop-release.sh` uploads each installer to the `desktop-vX.Y.Z` GitHub Release under its stable name; the links never change ([publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md)). |
 
 **How refusal works.** The API answers a request whose `X-Yarnnn-Client` is below the minimum with **426** and
 `error.code = "desktop_update_required"`. `request()` in `web/lib/api/client.ts` turns that into an event;
@@ -175,7 +176,7 @@ the host tells the page what it needs to know.
 | Title bar | Overlaid: the traffic lights sit in the app's 56px top bar. The host positions them and sets `data-titlebar="overlay"`; `--titlebar-inset` reserves the space. | The native frame, above the app's top bar. The page is never marked, so the inset stays 0. |
 | Deep links | Delivered to the running app by the OS. | A second launch; `tauri-plugin-single-instance` (registered FIRST) forwards it. |
 | Webview | WebKit | WebView2 (Chromium; ships with Windows 10/11, installer fetches it otherwise) |
-| Installer | DMG, Apple Silicon, needs a Developer ID to open without "damaged" | NSIS, per-user, no admin; unsigned warns via SmartScreen |
+| Installer | DMG, Apple Silicon; ad-hoc sealed until a Developer ID, so the first open needs Privacy & Security → Open Anyway | NSIS, per-user, no admin; unsigned warns via SmartScreen |
 | Built on | the developer's Mac | a GitHub Actions Windows runner |
 
 ⚠️ Tauri's `title_bar_style`, `hidden_title` and `traffic_light_position` exist **only** on macOS — called

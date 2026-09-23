@@ -16,9 +16,9 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
-import { isNativeShell, openExternal } from "@/lib/shell/external-navigation";
+import { isNativeShell, openExternal, webOrigin } from "@/lib/shell/external-navigation";
 import { hostVersion } from "@/lib/shell/host";
-import { DESKTOP_PLATFORMS, DESKTOP_DOWNLOADS, DESKTOP_PLATFORM_NAMES } from "@/lib/shell/desktop-app";
+import { DESKTOP_PLATFORMS, DESKTOP_DOWNLOADS, DESKTOP_PLATFORM_NAMES, downloadPath } from "@/lib/shell/desktop-app";
 import { DesktopBrowserSetting } from "@/components/settings/DesktopBrowserSetting";
 import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
@@ -408,7 +408,9 @@ function SettingsPageBody() {
           )}
           <ul className="divide-y divide-border rounded-lg border border-border">
             {DESKTOP_PLATFORMS.map((platform) => {
-              const href = DESKTOP_DOWNLOADS[platform];
+              // Our own /download/{platform}, never the asset: the host can
+              // move, and the opener scope already allows our origin.
+              const href = DESKTOP_DOWNLOADS[platform] ? downloadPath(platform) : null;
               return (
                 <li key={platform} className="flex items-center justify-between gap-4 px-4 py-3">
                   <span className="text-sm">{DESKTOP_PLATFORM_NAMES[platform]}</span>
@@ -419,7 +421,7 @@ function SettingsPageBody() {
                         // In the app a download leaves the window (ADR-661 §4.3).
                         if (!isNativeShell()) return;
                         e.preventDefault();
-                        openExternal(href);
+                        openExternal(`${webOrigin()}${href}`);
                       }}
                       className="text-sm font-medium underline underline-offset-2"
                     >
@@ -432,7 +434,25 @@ function SettingsPageBody() {
               );
             })}
           </ul>
-          <p className="mt-3 text-xs text-muted-foreground">{t("desktop.signIn")}</p>
+          {/* Only beside a live link: next to "Not published yet" it would
+              promise help opening something nobody can download. */}
+          {DESKTOP_PLATFORMS.some((p) => DESKTOP_DOWNLOADS[p]) && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            {t("desktop.beta")}{" "}
+            <a
+              href="/download"
+              onClick={(e) => {
+                if (!isNativeShell()) return;
+                e.preventDefault();
+                openExternal(`${webOrigin()}/download`);
+              }}
+              className="underline underline-offset-2"
+            >
+              {t("desktop.howToOpen")}
+            </a>
+          </p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">{t("desktop.signIn")}</p>
           <DesktopBrowserSetting />
         </section>
       )}

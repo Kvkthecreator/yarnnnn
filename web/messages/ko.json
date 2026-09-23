@@ -93,7 +93,9 @@
         "extensionMissing": "Chrome에 yarnnn 확장 프로그램을 추가하면 에이전트가 내 Chrome에서 일할 수 있어요 — 로그인된 상태 그대로, 자기 탭에서, 사이트마다 한 번씩 물어보면서요.",
         "addToChrome": "Chrome에 추가",
         "notYet": "아직 공개되지 않았어요"
-      }
+      },
+      "beta": "데스크톱 앱은 베타 기간이라 아직 서명되지 않아서, 처음 열 때 컴퓨터가 한 번 확인을 요청해요.",
+      "howToOpen": "여는 방법 보기"
     }
   },
   "auth": {
@@ -2914,7 +2916,8 @@
       "privacyArchitecture": "개인정보 설계",
       "terms": "이용약관",
       "invest": "투자",
-      "rights": "모든 권리 보유."
+      "rights": "모든 권리 보유.",
+      "download": "다운로드"
     },
     "cta": {
       "seeHowItWorks": "작동 방식 보기",
@@ -3384,6 +3387,28 @@
       "ctaSecondary": "OpenAPI 명세 보기",
       "kindRead": "읽기",
       "kindWrite": "쓰기"
+    },
+    "download": {
+      "meta": {
+        "title": "yarnnn 다운로드 — Mac과 Windows용"
+      },
+      "heading": "yarnnn 다운로드",
+      "intro": "브라우저에서 쓰던 워크스페이스를 별도의 창에서 그대로 써요. 지금 쓰는 계정으로 로그인하면 돼요.",
+      "beta": "yarnnn은 베타 기간이라 아직 Apple이나 Microsoft의 서명을 받지 않았어요. 그래서 처음 열 때 컴퓨터가 한 번 확인을 요청해요. 아래 순서대로 하면 돼요.",
+      "platformTitle": "{platform}용 yarnnn",
+      "downloadFor": "{platform}용 다운로드",
+      "notYet": "곧 공개돼요",
+      "firstOpen": "처음 열 때",
+      "macRequires": "Apple 실리콘(M1 이상) Mac용이에요. Intel Mac은 아직 지원하지 않아요.",
+      "macStep1": "다운로드한 파일을 열고 yarnnn을 응용 프로그램 폴더로 끌어다 놓으세요.",
+      "macStep2": "yarnnn을 여세요. macOS가 개발자를 확인할 수 없다고 하면 완료를 누르세요.",
+      "macStep3": "시스템 설정에서 개인정보 보호 및 보안을 여세요. 아래로 내려서 yarnnn 옆의 그래도 열기를 누르세요. 그다음부터는 다른 앱처럼 열려요.",
+      "macDamaged": "macOS가 앱이 손상되었다고 하면, 터미널을 열고 아래 한 줄을 실행한 뒤 yarnnn을 다시 여세요.",
+      "windowsRequires": "64비트 PC의 Windows 10 또는 11용이에요.",
+      "windowsStep1": "다운로드한 설치 프로그램을 실행하세요. 지금 사용자에게만 설치돼서 관리자 권한이 필요 없어요.",
+      "windowsStep2": "Windows가 PC를 보호했다고 하면 추가 정보를 누른 뒤 실행을 누르세요.",
+      "afterTitle": "로그인",
+      "afterBody": "앱이 브라우저를 열어 로그인하게 하고, 로그인을 마치면 바로 앱으로 돌아와요. 앱에 보이는 화면은 알아서 최신으로 바뀌어요. 새 버전이 필요할 때만 알려드리면 다시 다운로드하면 돼요."
     }
   }
 }
