@@ -101,6 +101,8 @@ A first draft declined computer use outright, reading it as a fourth reach mecha
 | Data residency | Becomes a stated property with a second sentence | Unchanged |
 | Render parity | A fourth execution home, outside Render | None — no service, no deploy |
 
+> ⚠️ **Corrected by ADR-662 §2 (2026-09-23, proposed).** Two claims in this table are wrong: screenshots of the member's screen DO leave the machine — to the model provider, on every step — and screen content IS untrusted input (a third party's email or page can instruct the model), so §8.7's fifth-listed cost applies at full strength. Read ADR-662 §2 before relying on this section.
+
 §8.7's five costs were reasons against **the sandbox**. Four of the five — new execution boundary, Render parity, data residency, sandbox output as untrusted input — **do not apply to a local attended act at all**. The fifth (attribution must survive) does apply, and §6.2 is how it is met.
 
 **The trigger has also fired.** §8.7's named trigger is *"a member asking, more than once, for something that needs execution."* The Outlook sentence is that ask, and it is not the first of its kind. The operator has now asked directly. That is the trigger doing its job.

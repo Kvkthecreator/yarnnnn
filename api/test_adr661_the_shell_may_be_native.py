@@ -185,11 +185,19 @@ print("\n§6.4 no local-hands capability ships before its own ADR")
 
 # ADR-661 D3 scopes this capability IN. The tripwire fires only while ADR-661
 # is the ONLY ADR on the subject — the implementation ADR retires this arm.
+# It must be ACCEPTED to retire it: ADR-662 landed as a Proposed draft, and a
+# filename match alone would have disarmed the guard before anything was
+# ratified — the draft satisfying the check it exists to earn.
+def _accepted(p: Path) -> bool:
+    head = p.read_text(encoding="utf-8", errors="ignore")[:1500]
+    return re.search(r"\*\*Status\*\*:\s*\*\*Accepted", head) is not None
+
 impl_adrs = [
     p.name
     for p in sorted((REPO / "docs" / "adr").glob("ADR-*.md"))
     if p.name != "ADR-661-the-shell-may-be-native-the-hands-may-not.md"
     and re.search(r"computer-use|local-hands|computer_use", p.name, re.I)
+    and _accepted(p)
 ]
 
 hands_tokens = re.compile(r"computer_use|computerUse|synthetic_click|screen_capture", re.I)

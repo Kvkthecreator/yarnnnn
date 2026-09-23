@@ -151,7 +151,9 @@ browser refreshes with the token the app already spent — unverified, a hypothe
    [publishing-the-mac-app.md](infrastructure/publishing-the-mac-app.md).
 2. **Auto-update** — deliberately not built; its own key management, and one unversioned
    build is the smaller first step.
-3. **Step 6 — local hands** (§5/§6), its own implementation ADR, four conditions, driven trace.
+3. **Step 6 — local hands**: [ADR-662](adr/ADR-662-local-hands-the-member-keeps-the-machine.md) is
+   **PROPOSED, awaiting operator review** — background (Cowork-style) hands, measured by a thrown-away spike.
+   Nothing built; the Developer ID (item 1) is its prerequisite. §9 lists the open questions.
 
 ⚠️ **The two-build mechanism**: `page.web.tsx` is a route on the WEB build only
 (`pageExtensions` in `next.config.js`). A new route defaults to BOTH builds — rename it
