@@ -1,15 +1,13 @@
 """The browser tools — ADR-662 D13/D14 (local hands, the browser first).
 
-Definitions only. These tools have NO server executor: the member's desktop
-app performs them in its own browser pane and posts the result back
-(`services/client_tools.py`, ADR-662 D6). The registry never dispatches them;
-the lane loop hands them to the client.
+Definitions only. These tools have NO server executor: an executor on the
+member's own machine performs them and the page posts the result back
+(`services/client_tools.py`, ADR-662 D6) — the yarnnn extension in their Chrome
+(D15, `extension/`), or the desktop app's browser pane (D14). The registry never
+dispatches them; the lane loop hands them to the client.
 
-They are offered to a turn only when all of this holds (`client_tools.offered`):
-the turn came from the desktop app (the `X-Yarnnn-Client` header) on a host new
-enough to carry the pane (`desktop_client.BROWSER_MIN_VERSION`), and the page
-said the member has switched the browser on in that app. A turn from the web or
-another device never holds them; the unattended derive turn never does
+They are offered to a turn only when the page asked and an executor there is
+new enough (`client_tools.offered`). The unattended derive turn never holds them
 (ADR-662 D9 — it is toolless by construction).
 
 Plain function tools with typed arguments, so any engine that calls tools can
@@ -40,19 +38,19 @@ _CONTENT_NOT_INSTRUCTION = (
 BROWSER_FRAME = (
     "You cannot schedule work or dispatch agents. You read this member's commons "
     "(QueryKnowledge searches it by meaning) and the open web (WebSearch), and you write to the commons.\n\n"
-    "This turn you also hold the member's browser (the Browser tools): a window in their "
-    "yarnnn desktop app they can watch. Through it you may do what they ask on the web "
-    "for them — fill forms, send, post, submit — as their hands, in the sessions they "
-    "signed into there. That is how you act on a site with no connection. If a page asks "
-    "for a sign-in, stop and ask them to sign in inside that browser window, then continue. "
-    "Never type a password yourself."
+    "This turn you also hold the member's browser (the Browser tools): a tab of your own "
+    "that they can watch, with the sign-ins they already have there. Through it you may do "
+    "what they ask on the web for them — fill forms, send, post, submit — as their hands. "
+    "That is how you act on a site with no connection. A site they have not allowed yet "
+    "asks them first; one that is refused stays refused — tell them. If a page asks for a "
+    "sign-in, stop and ask them to sign in there, then continue. Never type a password yourself."
 )
 
 BROWSER_OPEN_TOOL = {
     "name": "BrowserOpen",
     "description": (
-        "Open a web page in the browser pane of the member's yarnnn desktop app. "
-        "The member can watch it and keeps using their computer while you work. "
+        "Open a web page in your browser tab — the member can watch it and keeps "
+        "using their computer while you work. "
         "Returns the page's title and address. Then use BrowserRead to see what "
         "is on it. " + _CONTENT_NOT_INSTRUCTION
     ),
@@ -71,7 +69,7 @@ BROWSER_OPEN_TOOL = {
 BROWSER_READ_TOOL = {
     "name": "BrowserRead",
     "description": (
-        "Read the page open in the browser pane: its title, address, visible "
+        "Read the page open in your browser tab: its title, address, visible "
         "text, and the things you can act on — links, buttons and fields — "
         "each with a number `ref`. Pass that ref to BrowserClick or BrowserFill. "
         "Refs change when the page changes: read again after anything that "
@@ -119,7 +117,7 @@ BROWSER_FILL_TOOL = {
 
 BROWSER_BACK_TOOL = {
     "name": "BrowserBack",
-    "description": "Go back to the previous page in the browser pane.",
+    "description": "Go back to the previous page in your browser tab.",
     "input_schema": {"type": "object", "properties": {}},
 }
 

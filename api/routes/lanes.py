@@ -272,15 +272,19 @@ class LaneTurnRequest(BaseModel):
     # Phase-A attachments (v1 scope: this turn only — history stays text, so
     # a later turn or a regenerate does not re-see the image bytes).
     attachments: Optional[list[LaneAttachment]] = None
-    # ADR-662 D6 — the client-tool families the member's desktop app will
-    # perform this turn (today: "browser"). A request, not a grant: the server
-    # offers only what the host's version supports (`client_tools.offered`).
+    # ADR-662 D6 — the client-tool families this page's machine will perform
+    # this turn (today: "browser"). A request, not a grant: the server offers
+    # only what an executor there supports (`client_tools.offered`).
     client_tools: Optional[list[str]] = None
+    # ADR-662 D15 — the executor in the member's Chrome, when there is one:
+    # "extension/X.Y.Z". The desktop app names its host by header instead.
+    executor: Optional[str] = None
 
 
 class LaneRegenerateRequest(BaseModel):
     # ADR-662 D6 — a regenerated turn holds the same client tools as a sent one.
     client_tools: Optional[list[str]] = None
+    executor: Optional[str] = None
 
 
 class ToolResultRequest(BaseModel):
@@ -2440,15 +2444,15 @@ def _turn_stream_response(
     )
 
 
-def _client_tools_for(header: Optional[str], requested: Optional[list[str]]) -> tuple:
-    """ADR-662 D6 — the client tools a turn holds: what the page asked for,
-    narrowed to what its host's version performs. Empty for any browser."""
+def _client_tools_for(header: Optional[str], requested: Optional[list[str]], executor: Optional[str] = None) -> tuple:
+    """ADR-662 D6/D15 — the client tools a turn holds: what the page asked
+    for, narrowed to what an executor on its machine performs."""
     from services.client_tools import offered
 
-    tools = offered(header, requested)
+    tools = offered(header, requested, executor)
     if header or requested:
-        # One line per desktop turn: what the client said and what it got.
-        logger.info("[LANE] client=%s requested=%s offered=%d", header, requested, len(tools))
+        # One line per hands-capable turn: what the client said and what it got.
+        logger.info("[LANE] client=%s executor=%s requested=%s offered=%d", header, executor, requested, len(tools))
     return tools
 
 
@@ -2526,7 +2530,7 @@ async def lane_turn(
         attachments_meta=attachments_meta,
         focus=req.focus,
         seed=req.seed,
-        client_tools=_client_tools_for(x_yarnnn_client, req.client_tools),
+        client_tools=_client_tools_for(x_yarnnn_client, req.client_tools, req.executor),
     )
 
 
@@ -2592,7 +2596,9 @@ async def regenerate_lane_turn(
         # History must end BEFORE the user message we re-run — it is passed
         # as the turn's user_message, not repeated from history.
         history_before_sequence=seq,
-        client_tools=_client_tools_for(x_yarnnn_client, req.client_tools if req else None),
+        client_tools=_client_tools_for(
+            x_yarnnn_client, req.client_tools if req else None, req.executor if req else None,
+        ),
     )
 
 

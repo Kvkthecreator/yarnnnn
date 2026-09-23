@@ -1,0 +1,19 @@
+{
+  "extName": { "message": "yarnnn" },
+  "extDescription": { "message": "yarnnn 에이전트가 Chrome에서 대신 일해요 — 자기 탭에서, 이미 로그인된 상태로, 사이트마다 허락을 받아서." },
+  "consentTitle": { "message": "yarnnn 에이전트가 $HOST$을(를) 써도 될까요?", "placeholders": { "host": { "content": "$1" } } },
+  "consentBody": { "message": "에이전트는 yarnnn 그룹 안의 자기 탭에서 일하고, 그 과정을 지켜볼 수 있어요. 이 사이트에 이미 로그인된 상태를 그대로 쓰며, 페이지를 읽고 입력란을 채우고 버튼을 누를 수 있어요 — 요청하면 보내기와 게시까지 포함해서요." },
+  "consentLater": { "message": "Chrome 도구 모음의 yarnnn 버튼에서 언제든 되돌릴 수 있어요." },
+  "allow": { "message": "허용" },
+  "deny": { "message": "허용 안 함" },
+  "popupOn": { "message": "에이전트가 Chrome을 쓸 수 있어요" },
+  "popupOff": { "message": "에이전트가 Chrome을 쓸 수 없어요" },
+  "turnOn": { "message": "켜기" },
+  "turnOff": { "message": "끄기" },
+  "allowedSites": { "message": "허용한 사이트" },
+  "deniedSites": { "message": "거절한 사이트" },
+  "none": { "message": "아직 없어요 — 처음 쓸 때 물어볼게요." },
+  "remove": { "message": "삭제" },
+  "neverTitle": { "message": "항상 차단" },
+  "neverBody": { "message": "은행·결제, 주식·암호화폐 거래, 비밀번호 관리자, 계정 보안 페이지 — 허용 여부와 상관없이요." }
+}

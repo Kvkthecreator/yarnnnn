@@ -226,6 +226,10 @@ for root in scan_roots:
 # is not Accepted, no download may be.
 _downloads = read("web/lib/shell/desktop-app.ts")
 _published = re.findall(r'^\s*(mac|windows):\s*"https?://', _downloads, re.M)
+# ADR-662 D15 — the Chrome extension is the other way local hands reach a
+# member; its listing is held to the same rule.
+if re.search(r'storeUrl:\s*"https?://', read("web/lib/shell/hands.ts")):
+    _published.append("chrome-extension")
 
 if impl_adrs:
     check(

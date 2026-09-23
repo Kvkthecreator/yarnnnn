@@ -69,7 +69,7 @@ def fn_body(src: str, name: str) -> str:
 
 HOST = rust_code(read("src-tauri/src/hands/mod.rs"))
 MAIN = rust_code(read("src-tauri/src/main.rs"))
-PAGE_JS = read("src-tauri/src/hands/page.js")
+PAGE_JS = read("extension/page.js")
 HOST_ALL = HOST + MAIN
 
 # --------------------------------------------------------------------- D1
@@ -219,10 +219,14 @@ check(
     f"Cargo {(_cargo.group(1) if _cargo else None)} < BROWSER_MIN_VERSION {BROWSER_MIN_VERSION}",
 )
 check(
-    "both turn doors resolve the tools from the header, never from the body alone",
-    lanes_src.count("client_tools=_client_tools_for(x_yarnnn_client") == 2,
-    "a web page could ask for the tools by body and receive them",
+    "both turn doors resolve the tools through the one resolver, with the header",
+    len(re.findall(r"client_tools=_client_tools_for\(\s*x_yarnnn_client,", lanes_src)) == 2,
+    "a door that skips the resolver offers tools no executor was checked for",
 )
+check("a page declaring the extension holds the browser tools", len(ct.offered(None, ["browser"], "extension/0.1.0")) == 5)
+check("a page declaring an older or malformed extension holds none",
+      ct.offered(None, ["browser"], "extension/0.0.9") == () and ct.offered(None, ["browser"], "extension/x") == ()
+      and ct.offered(None, ["browser"], "desktop/9.9.9") == ())
 
 
 async def _answering() -> list[str]:
@@ -393,8 +397,9 @@ print("\nweb the page's side")
 client_ts = read("web/lib/api/client.ts")
 hands_ts = read("web/lib/shell/hands.ts")
 check(
-    "a turn asks for the browser only when this app has it on",
-    'if (await browserHandsOn()) body = { ...(body ?? {}), client_tools: ["browser"] };' in client_ts,
+    "a turn asks for the browser only when an executor has it on",
+    "const hands = await clientToolsRequest();" in client_ts
+    and "if (!hands.on) return {};" in hands_ts,
 )
 check(
     "the result goes back with the turn's nonce",
@@ -406,6 +411,106 @@ _web_calls = [
     and re.search(r"""["']browser_act["']|["']hands_enable["']""", p.read_text(encoding="utf-8", errors="ignore"))
 ]
 check("only lib/shell/hands.ts talks to the host's hands", _web_calls == ["web/lib/shell/hands.ts"], f"{_web_calls}")
+_ext_calls = [
+    str(p.relative_to(REPO)) for p in (REPO / "web").rglob("*.ts*")
+    if "node_modules" not in p.parts and ".next" not in p.parts
+    and "CHROME_EXTENSION.id" in p.read_text(encoding="utf-8", errors="ignore")
+]
+check("only lib/shell/hands.ts talks to the extension", _ext_calls == ["web/lib/shell/hands.ts"], f"{_ext_calls}")
+
+# -------------------------------------------------------------------- D15
+print("\nD15 the member's own Chrome, through the yarnnn extension")
+
+import base64 as _b64  # noqa: E402
+import hashlib as _hl  # noqa: E402
+import subprocess as _sp  # noqa: E402
+
+manifest = json.loads(read("extension/manifest.json") or "{}")
+bg = read("extension/background.js")
+policy_js = read("extension/policy.js")
+_der = _b64.b64decode(manifest.get("key", ""))
+_ext_id = "".join(chr(ord("a") + int(c, 16)) for c in _hl.sha256(_der).hexdigest()[:32])
+_web_id = re.search(r'id: "([a-p]{32})"', hands_ts)
+check(
+    "the extension's id (from its manifest key) is the one the website calls",
+    bool(_web_id) and _web_id.group(1) == _ext_id,
+    f"manifest → {_ext_id}, web → {_web_id.group(1) if _web_id else None}",
+)
+_origins = re.findall(r'"(https?://[^"]+)"', (re.search(r"YARNNN_ORIGINS = \[(.*?)\]", policy_js) or [None, ""])[1])
+_matches = (manifest.get("externally_connectable") or {}).get("matches") or []
+check(
+    "only yarnnn's origins can reach it — Chrome's list and the worker's own check agree",
+    sorted(m.rstrip("/*") for m in _matches) == sorted(_origins)
+    and "if (!YARNNN_ORIGINS.includes(sender.origin)) return false;" in bg,
+    f"manifest {_matches} · worker {_origins}",
+)
+check(
+    "it asks for exactly what acting in a tab needs — no clipboard, cookies, debugger, history or network",
+    sorted(manifest.get("permissions") or []) == ["scripting", "storage", "tabGroups", "tabs"],
+    f"permissions {manifest.get('permissions')}",
+)
+_open = re.search(r"async function open\(url\) \{(.*?)\n\}", bg, re.S)
+_with = re.search(r"async function withTab\(fn\) \{(.*?)\n\}", bg, re.S)
+check(
+    "every act passes the site gate first — where the tab IS, not where it was sent",
+    bool(_open) and _open.group(1).lstrip().startswith("const refused = await gate(url);")
+    and bool(_with) and "const refused = await gate(tab.url);" in _with.group(1)
+    and _with.group(1).index("gate(tab.url)") < _with.group(1).index("return fn(tab)"),
+)
+check(
+    "consent is drawn by the extension, and no answer is a no",
+    "consent.html" in bg and "if (pendingConsent.delete(id)) resolve(false);" in bg
+    and "sender.id !== chrome.runtime.id" in bg,
+)
+check(
+    "the agent's tab opens in the background, never over the member's",
+    "active: false" in bg and "active: true" not in bg and "chrome.tabs.highlight" not in bg,
+)
+check(
+    "the page routines are injected by file, and the one function is a fixed dispatcher",
+    'files: ["page.js"]' in bg and bg.count("func:") == 1
+    and "func: (r, a) => window.__yarnnnHands[r](...a)," in bg,
+)
+_bg_acts = set(re.findall(r'act: "(\w+)"', bg)) | set(re.findall(r'failure\([^;]*?, "(\w+)", ', bg))
+check(
+    "the extension reports the same kinds of act the client words",
+    _bg_acts and _bg_acts <= _receipt_acts,
+    f"extension {sorted(_bg_acts)} · client {sorted(_receipt_acts)}",
+)
+_policy_probe = _sp.run(
+    ["node", "--input-type=module", "-e", """
+import { verdictFor, hostOf } from './extension/policy.js';
+const v = (u, s) => verdictFor(hostOf(u), s);
+console.log(JSON.stringify([
+  v('https://www.paypal.com/'), v('https://obank.kbstar.com/'), v('https://www.coinbase.com'),
+  v('https://1password.com'), v('https://myaccount.google.com/security'), v('javascript:alert(1)'),
+  v('https://x.com/home', {allowed: ['x.com']}), v('https://mobile.x.com', {allowed: ['x.com']}),
+  v('https://x.com', {allowed: ['x.com'], denied: ['x.com']}), v('https://news.ycombinator.com'),
+  v('https://bank.example.com', {allowed: ['bank.example.com']}),
+].map(r => r.verdict + (r.category ? ':' + r.category : ''))));
+"""], cwd=str(REPO), capture_output=True, text=True,
+)
+_verdicts = json.loads(_policy_probe.stdout or "[]")
+check(
+    "the site rules: categories deny whatever was allowed; allowing covers subdomains; a no wins",
+    _verdicts == ["denied:banking", "denied:banking", "denied:trading", "denied:passwords",
+                  "denied:accountSecurity", "denied:notAWebPage", "allowed", "allowed",
+                  "denied:yours", "ask", "denied:banking"],
+    f"{_verdicts} {_policy_probe.stderr[:200]}",
+)
+_en = json.loads(read("extension/_locales/en/messages.json") or "{}")
+_ko = json.loads(read("extension/_locales/ko/messages.json") or "{}")
+_used = set(re.findall(r'(?:\bt|getMessage)\("(\w+)"', read("extension/consent.js") + read("extension/popup.js")))
+_used |= set(re.findall(r'"\w+:(\w+)"', read("extension/popup.js")))
+check(
+    "the extension speaks English and Korean, with no missing string",
+    set(_en) == set(_ko) and _used <= set(_en) and manifest.get("default_locale") == "en",
+    f"missing {sorted(_used - set(_en))} · en≠ko {sorted(set(_en) ^ set(_ko))}",
+)
+check(
+    "one copy of the page routines: the host reads the extension's file",
+    'include_str!("../../../extension/page.js")' in HOST and not (REPO / "src-tauri/src/hands/page.js").exists(),
+)
 
 # ------------------------------------------------------------------- count
 print(f"\n  {PASS} passed, {FAIL} failed\n")

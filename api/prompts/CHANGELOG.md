@@ -15,6 +15,18 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.23.6] - The browser is "a tab of your own", wherever it runs
+
+### Changed
+- services/primitives/browser.py: `BROWSER_FRAME` and the BrowserOpen/Read/Back descriptions no longer say "the browser pane of the member's yarnnn desktop app" — the tools are now performed either by the yarnnn Chrome extension in the member's own Chrome (ADR-662 D15) or by the desktop pane. They say "your browser tab, with the sign-ins they already have there", and that a site not yet allowed asks the member first while a refused one stays refused.
+- Expected behavior: on a turn from Chrome with the extension, the agent does not tell the member to look at a desktop window, and when an act comes back "refused" it says so to the member instead of retrying.
+
+### Why
+The executor changed under the sentence (operator, 2026-09-23: use the member's existing Chrome and its sign-ins). A frame that names the wrong window is the same class of defect as `[2026.09.23.5]`: the model trusts the prose over the tools.
+
+### Gate
+`test_adr662_local_hands.py` (52 arms) · `test_adr632_the_seat_retires.py` §5 · `test_adr630_skills.py`.
+
 ## [2026.09.23.5] - A turn holding the browser is told it may act on the web; the "write only to the commons" edge no longer says otherwise
 
 ### Changed

@@ -2,9 +2,12 @@
 
 > **Status**: **Proposed** (2026-09-23 — NOT ratified). The implementation ADR that ADR-661 §5.4 and §8 step 6
 > require, carrying §6's four conditions at birth. **Amendment 1 (2026-09-23, operator: *"aligned in full"*)**:
-> the browser pane comes first (**D14**) — **phase 1 is BUILT** (host 0.3.0, server, web, gate), and ratification
-> waits on the driven trace (§7 step 6). The pixel path (D1–D2's Accessibility ladder, D10's signing
-> prerequisite) is unbuilt and stays the member's-own-apps track.
+> the browser pane comes first (**D14**) — BUILT (host 0.3.0). **Amendment 2 (2026-09-23, operator: *"most user
+> convenient, and long standing future proof … aligned in full"*)**: the member's OWN Chrome, through a yarnnn
+> extension, is the executor going forward (**D15**) — BUILT (`extension/`, driven in a real Chrome); the pane is
+> deleted once the desktop app reaches the extension. Ratification waits on the driven trace (§7 step 6). The
+> pixel path (D1–D2's Accessibility ladder, D10's signing prerequisite) is unbuilt and stays the
+> member's-own-apps track. Living reference: [local-hands.md](../architecture/local-hands.md).
 > **Date**: 2026-09-23
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Identity** (who acts: the member, through an instrument, in their
@@ -372,6 +375,46 @@ What phase 1 is, and where it lives (`docs/architecture/desktop-app.md` §6a is 
 - **Settings** (D12, partial): Settings → Desktop app → *Let your agent use a browser*. The allowed/denied lists
   and the three macOS permission rows belong to the pixel path and are not built.
 
+### D15 — The member's own Chrome, through the yarnnn extension (amendment 2, 2026-09-23)
+
+The first in-app test of D14 put the cost of the pane in front of the operator: the agent reached X and met a
+sign-in wall, because the pane holds no session the member has not made inside it. The operator: *"how come the
+browser doesn't use my existing chrome browser … a lot of the signed in and user log in considerations will be
+resolved"* — then *"most user convenient, and long standing future proof."*
+
+**The executor is a Chrome extension** (`extension/`, Manifest V3). It works in the member's own Chrome — every
+sign-in they have — in a tab of its own, in the background, on Mac and Windows and every Chromium browser. It is
+the industry route (Claude in Chrome, Cowork). Rejected on the way:
+
+- **Copying Chrome's sessions into the pane** — decrypting another app's cookie store with the Keychain key is
+  credential extraction; ADR-645 D1 closed credential adoption.
+- **Chrome's remote-debugging port** — Chrome 136+ refuses it on the member's default profile.
+- **Chrome's AppleScript interface** — Mac-only, needs a Chrome setting and an Automation grant that an unsigned
+  rebuild loses (D10).
+
+What it is (reference: [local-hands.md](../architecture/local-hands.md) §4):
+
+- **Reached** by a yarnnn page in the same Chrome (`externally_connectable`, and the worker re-checks
+  `sender.origin`). Any other page cannot see it. The desktop app reaches it through Chrome's native messaging —
+  **owed**, and the trigger for deleting the pane (§7).
+- **Consent is the extension's** (ADR-663 D4 holds with a new executor): each site is asked once, in a window the
+  extension draws; no answer is a no; categories denied by default — banking and payments, trading and crypto,
+  password managers, account security — stay denied whatever the member allowed (D1's list, now by site). The
+  gate is asked of where the tab IS. On/off and the lists live in the toolbar button, on the machine.
+- **D5's bound, restated for the member's own Chrome**: the reach is every session the member has, so the
+  per-site question and the denied categories are what keep a steered agent from their bank or their inbox.
+  The pane's argument ("it holds only sessions made inside it") no longer applies, and this is its replacement.
+- **The server** offers the tools when the page declares `executor: "extension/X.Y.Z"` at or above
+  `EXTENSION_MIN_VERSION` — a claim, not a proof: a page that lies gets tools nothing performs, and every act
+  fails closed. Attendance holds by construction: the page and the extension are in the same browser.
+- **One copy of the page routines**: `extension/page.js`; the desktop host `include_str!`s it.
+- **Identity**: the manifest's public `key` fixes the id; the web calls `CHROME_EXTENSION.id`. Publishing to the
+  Chrome Web Store waits on ratification (ADR-661's tripwire refuses a `storeUrl` while this ADR is Proposed).
+- **Driven** (2026-09-23): `extension/e2e/run.mjs`, Chrome for Testing with the extension loaded, 20/20 —
+  including three defects only driving found: Chrome's Back skips the agent's gesture-less history (acts use the
+  page's own `history.back()`), a gesture-less click cannot open a tab (new-tab links are followed in the agent's
+  tab), and a back/forward-cache restore fires no "loading" (an address change counts as the start).
+
 ### D12 — The settings surface, on the machine
 
 Modelled on the Claude desktop app's Settings ▸ System ▸ Computer use, in the shell's settings (device-local:
@@ -423,6 +466,10 @@ only for distribution.**
 ---
 
 ## 7. Build order
+
+**Amendment 2 adds, first**: the desktop app reaches the extension through Chrome's native messaging (a bridge
+launched by Chrome, relaying to the running app), then **the pane and its host code are deleted** — one executor.
+Then the Chrome Web Store listing, after ratification.
 
 **Amendment 1 re-ordered it**: the browser pane (D14) is built first and needs no Developer ID. Its remaining
 step is the driven trace (6 below) — a real job in the pane through the real path — then ratification. The list

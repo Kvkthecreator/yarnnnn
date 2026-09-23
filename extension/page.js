@@ -1,13 +1,15 @@
-// ADR-662 D13/D14 — the host's routines inside the browser pane's page.
+// ADR-662 D13/D15 — the routines that run inside a web page the agent works in.
 //
-// The HOST owns this file; the model never writes a line of it. Each act the
-// host performs is this file followed by ONE call whose arguments the host
-// JSON-encoded (`hands::call`), so a model's text reaches the page only as a
-// string value, never as code.
+// ONE copy, two executors: the yarnnn Chrome extension injects this file into
+// its tab (`background.js`, `chrome.scripting` — the extension's isolated
+// world), and the desktop host's browser pane evaluates it (`src-tauri/src/
+// hands/mod.rs` include_str!s this path). The model never writes a line of it:
+// an act is this file plus ONE call whose arguments the executor JSON-encoded,
+// so a model's text reaches the page only as a string value, never as code.
 //
-// Every routine is synchronous and returns a JSON string: the webview hands
-// the host the value of the script's last expression, and does not wait for
-// a promise.
+// Every routine is synchronous and returns a JSON string: an executor hands
+// back the value of the script's last expression and does not wait for a
+// promise.
 //
 // Idempotent: a page keeps what an earlier act installed, and a new page
 // installs it again.
@@ -145,6 +147,13 @@
     if (!el) return JSON.stringify({ ok: false, error: "stale_ref" });
     var label = labelOf(el);
     el.scrollIntoView({ block: "center", inline: "nearest" });
+    // A link that opens a NEW tab is followed in this one: a click with no
+    // user gesture behind it cannot open a tab (the browser blocks it as a
+    // popup), and the agent works in one tab (driven, 2026-09-23).
+    if (el.tagName === "A" && el.target === "_blank" && /^https?:/.test(el.href)) {
+      location.assign(el.href);
+      return JSON.stringify({ ok: true, label: label });
+    }
     el.click();
     return JSON.stringify({ ok: true, label: label });
   };

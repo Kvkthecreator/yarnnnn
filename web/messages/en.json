@@ -85,11 +85,14 @@
       "browser": {
         "title": "Let your agent use a browser",
         "body": "Your agent can open web pages in a yarnnn browser window, read them, press buttons and fill in fields for you — you watch every step and keep using your computer.",
-        "webOnly": "In the desktop app, your agent can also work in a browser for you.",
         "update": "Update the desktop app to let your agent use a browser.",
         "turnOn": "Turn on",
         "turnOff": "Turn off",
-        "declined": "Not turned on. You can turn it on here any time."
+        "declined": "Not turned on. You can turn it on here any time.",
+        "extensionConnected": "Connected to the yarnnn extension {version} in this Chrome: your agent works in its own tabs, with your sign-ins, and asks once per site. Switch it and manage sites from the yarnnn button in Chrome's toolbar.",
+        "extensionMissing": "Add the yarnnn extension to Chrome and your agent can work in your own Chrome — with your sign-ins, in its own tabs, asking once per site.",
+        "addToChrome": "Add to Chrome",
+        "notYet": "Not published yet"
       }
     }
   },

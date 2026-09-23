@@ -29,7 +29,8 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 /// The pane's window label. Never named in any capability.
 pub const PANE: &str = "browser";
 
-const PAGE_JS: &str = include_str!("page.js");
+/// The page routines, ONE copy shared with the Chrome extension (ADR-662 D15).
+const PAGE_JS: &str = include_str!("../../../extension/page.js");
 
 /// How long a page may take to load before the act reports that it did not.
 const LOAD_TIMEOUT: Duration = Duration::from_secs(30);

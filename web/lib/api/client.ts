@@ -6,7 +6,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { clientHeaders, noticeHostRefusal } from "@/lib/shell/host";
 import {
-  browserHandsOn,
+  clientToolsRequest,
   performClientTool,
   type ActRecord,
   type ClientToolFrame,
@@ -537,9 +537,11 @@ async function streamLaneTurn(
   signal?: AbortSignal,
 ): Promise<void> {
   const headers = await getAuthHeaders();
-  // ADR-662 D6 — ask for the browser tools when this app can perform them.
-  // A request, not a grant: the server offers them only to a host new enough.
-  if (await browserHandsOn()) body = { ...(body ?? {}), client_tools: ["browser"] };
+  // ADR-662 D6/D15 — ask for the browser tools when an executor on this
+  // machine (the desktop host, or the Chrome extension) has them on. A
+  // request, not a grant: the server decides by the executor's version.
+  const hands = await clientToolsRequest();
+  if (Object.keys(hands).length) body = { ...(body ?? {}), ...hands };
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {

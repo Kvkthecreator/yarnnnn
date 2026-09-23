@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extName__",
+  "version": "0.1.0",
+  "description": "__MSG_extDescription__",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArbOXTx9n/54Wg6643OVgTi4SpxZfcF0S+VcVA/SNKj1eUUTv3rYHkPHHLYHGcfrT8/ZwAcn6jgXFQD37P1ohYSklWhmqeGMRXWjS4ao3UBqazQQ8EUWQxD/0pmCOdwDMCdniJ8Ho551IB+p6Un66SOkC8INVKPg23xHLQl/Vz/W+6fla0WUjLin86hKidJ/aFZPt+dyNbHxedIHFu9uUri0bf05+Q8450U8Ufl9rB2jjNcUFLmGPTRoBmbDwPyjVy0QY3RU2nKc29rO/EE+BjEeI1SMWEhZY7N9Hc529Z8MPmlXS4TSk3VwZYzGmfPFn9MhDxBGvfDntRFghka5XlwIDAQAB",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "yarnnn",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://www.yarnnn.com/*",
+      "https://yarnnn.com/*",
+      "http://localhost:3000/*"
+    ]
+  },
+  "default_locale": "en"
+}

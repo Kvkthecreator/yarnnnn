@@ -10,9 +10,12 @@ attribution stamp, one receipt path.
 
 Four properties, each asserted by `api/test_adr662_local_hands.py`:
 
-- **Offered only to the shell that asked** (`offered`): a turn from the desktop
-  app, on a host at or above the feature's minimum, whose page said the member
-  switched the browser on. The web never holds these tools.
+- **Offered only to a page with an executor on that machine** (`offered`): the
+  page asked, AND either it runs in the desktop app on a host at or above the
+  feature's minimum, or it declared the yarnnn Chrome extension in the same
+  Chrome (`executor: "extension/X.Y.Z"`, ADR-662 D15). A page with neither
+  never holds these tools. The declaration is a claim, not a proof: a page that
+  lies gets tools nothing performs, and every act fails closed.
 - **Only that shell can answer**: every turn mints a nonce that rides only in
   its own stream; `resolve` refuses a wrong nonce and a different member.
 - **Fails closed**: an act that is not answered within `ACT_TIMEOUT_S`, a
@@ -32,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import secrets
 from dataclasses import dataclass, field
 from typing import Any, Optional
@@ -39,30 +43,47 @@ from typing import Any, Optional
 from services.desktop_client import BROWSER_MIN_VERSION, host_meets
 from services.primitives.browser import BROWSER_TOOL_NAMES, BROWSER_TOOLS
 
-#: How long one act may take in the app: a slow page load plus the read-back.
-ACT_TIMEOUT_S = 60.0
+#: How long one act may take on the member's machine: the extension's consent
+#: question (it waits up to 120 s for the member's answer) plus a page load.
+ACT_TIMEOUT_S = 150.0
 
 #: A job in a browser is dozens of acts; the lane's 8-round ceiling is a chat
 #: ceiling (ADR-662 D8: "a silent ceiling is the wrong one"). The turn says so
 #: when it reaches this.
 HANDS_MAX_ROUNDS = 30
 
-#: The client-tool families a page may ask for, each with its host minimum.
-FAMILIES: dict[str, tuple[str, tuple[dict, ...]]] = {
-    "browser": (BROWSER_MIN_VERSION, BROWSER_TOOLS),
+#: ADR-662 D15 — the first extension that performs the browser tools.
+EXTENSION_MIN_VERSION = "0.1.0"
+
+_EXTENSION = re.compile(r"^extension/(\d+)\.(\d+)\.(\d+)$")
+
+#: The client-tool families a page may ask for: the desktop host's minimum and
+#: the extension's minimum for each (either executor performs the family).
+FAMILIES: dict[str, tuple[str, str, tuple[dict, ...]]] = {
+    "browser": (BROWSER_MIN_VERSION, EXTENSION_MIN_VERSION, BROWSER_TOOLS),
 }
+
+
+def _extension_meets(executor: Optional[str], minimum: str) -> bool:
+    m = _EXTENSION.match((executor or "").strip())
+    return bool(m) and tuple(int(g) for g in m.groups()) >= tuple(int(p) for p in minimum.split("."))
 
 CLIENT_TOOL_NAMES = frozenset(BROWSER_TOOL_NAMES)
 
 
-def offered(client_header: Optional[str], requested: Optional[list[str]]) -> tuple[dict, ...]:
+def offered(
+    client_header: Optional[str],
+    requested: Optional[list[str]],
+    executor: Optional[str] = None,
+) -> tuple[dict, ...]:
     """The client tools this turn holds: the families the page asked for that
-    its host is new enough to perform. Empty for any browser request."""
+    an executor on its machine performs — the desktop host (by
+    `X-Yarnnn-Client`) or the Chrome extension (by the declared `executor`)."""
     tools: list[dict] = []
     for family in requested or []:
         entry = FAMILIES.get(family)
-        if entry and host_meets(client_header, entry[0]):
-            tools.extend(entry[1])
+        if entry and (host_meets(client_header, entry[0]) or _extension_meets(executor, entry[1])):
+            tools.extend(entry[2])
     return tuple(tools)
 
 

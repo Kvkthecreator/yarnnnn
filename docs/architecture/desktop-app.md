@@ -70,7 +70,7 @@ records the comparison.
 | The browser half of sign-in | `web/app/auth/desktop/page.tsx` |
 | Download links (null until a signed build exists) | `web/lib/shell/desktop-app.ts`, shown in Settings → Desktop app |
 | The minimum host version the API accepts | `api/services/desktop_client.py`, registered in `api/main.py` |
-| Local hands: the browser pane, its consent, its five acts | `src-tauri/src/hands/mod.rs` + `src-tauri/src/hands/page.js` |
+| Local hands: the browser pane, its consent, its five acts ([local-hands.md](local-hands.md)) | `src-tauri/src/hands/mod.rs` (page routines: `extension/page.js`) |
 | The app's own commands (each gets an `allow-…` permission) | `src-tauri/build.rs` |
 | The page's side of the pane, and the Settings switch | `web/lib/shell/hands.ts` · `web/components/settings/DesktopBrowserSetting.tsx` |
 | The hand-off: offered tools, the pending acts, stop-when-stuck | `api/services/client_tools.py`; tool definitions `api/services/primitives/browser.py` |
@@ -157,43 +157,13 @@ The page in the window is the live website. A compromised deploy, a poisoned dep
 - `tauri.conf.json` sets no CSP. The bootstrap is one local page with an inline script, and Tauri's nonce
   injection would block it (ADR-661 §7e); the website carries its own headers from Vercel.
 
-## 6a. Local hands: the browser pane (ADR-662 D14)
+## 6a. Local hands
 
-The agent can work in a **browser pane** — a second window the host owns, labelled `browser` — while the member
-keeps using their machine. It is the first local hands, and it touches nothing outside its own window: no other
-app, no pointer, no keyboard, no screen capture, no clipboard.
-
-**Switching it on.** Settings → Desktop app → *Let your agent use a browser* calls `hands_enable`, and the HOST
-draws the consent dialog (ADR-663 D4 — the page may ask, only the host may ask the member). The answer is kept in
-the app's config directory (`hands.json`), on this machine only. Off → `hands_disable` closes the pane.
-
-**A turn that uses it.**
-
-1. The page sends a turn with `client_tools: ["browser"]` — only when `hands_status` says the member switched it
-   on (`web/lib/api/client.ts`, `browserHandsOn()`).
-2. The API offers the five browser tools only if `X-Yarnnn-Client` is at or above `BROWSER_MIN_VERSION`
-   (`client_tools.offered`). A browser tab never gets them.
-3. When the model calls one, the stream carries `{"client_tool": {call_id, name, arguments, nonce}}` and the
-   turn waits (`client_tools.wait`, 60 s, then fails closed).
-4. `performClientTool` (`web/lib/shell/hands.ts`) invokes `browser_act`; the host runs the act in the pane and
-   reads its effect back; the page posts the result to `POST /api/lanes/{id}/tool-results/{call_id}` with the
-   nonce. Only that turn's nonce, from the same member, is accepted.
-5. The stream carries `{"tool_receipt": {name, text, ok, record}}`; the chat's step row turns into what happened
-   ("Pressed “Sign in” — no change"), worded from `record` in the member's language. The receipts persist on the
-   reply's `metadata.receipts`.
-
-**The acts** (`src-tauri/src/hands/page.js`, run with JSON-encoded arguments — the model never writes script):
-`BrowserOpen` (http/https only) · `BrowserRead` (title, text, and every actionable element with a `ref`; a password
-field's value never leaves the page) · `BrowserClick` · `BrowserFill` (text fields and dropdowns; optional submit)
-· `BrowserBack`. Each answers `{success, receipt, record}`.
-
-**Bounds.** A hands turn has 30 rounds (`HANDS_MAX_ROUNDS`), and stops when stuck (`StuckWatch`). The pending acts
-live in the API process — correct on today's single worker; a second worker needs them shared.
-
-**Changing it.** A new act is a routine in `page.js` + an arm in `act()` + a schema in `primitives/browser.py` + a
-`record.act` the client words (`RECEIPT_ACTS` and `chat.tools.receipts` in both catalogs) — the ADR-662 gate checks
-that the host's acts and the client's words agree. A new host command goes in `build.rs` AND the roster, and
-anything that acts on the machine needs the host-drawn consent first.
+The desktop app's browser pane is one of two executors of the browser tools; the other is the yarnnn Chrome
+extension, which works in the member's own Chrome with their sign-ins and replaces the pane once the app can reach
+it. How both work — the turn, the acts, consent, the extension — is in
+[local-hands.md](local-hands.md). What is the host's alone: the pane window `browser` is named in no capability;
+`hands_enable` draws the consent dialog; the answer lives in the app's config directory (`hands.json`).
 
 ## 7. Platform differences
 

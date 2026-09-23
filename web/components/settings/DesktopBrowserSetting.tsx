@@ -1,63 +1,63 @@
 "use client";
 
 /**
- * Settings → Desktop app → the browser switch (ADR-662 D12/D14).
+ * Settings → Desktop app → the browser row (ADR-662 D12/D14/D15).
  *
- * The switch belongs to THIS machine, not the workspace: the answer lives in
- * the desktop app's host, and turning it on is the host's own consent dialog
- * (ADR-663 D4) — this row only asks. Three states, one row:
- *   - the desktop app, with the browser pane: the switch;
- *   - the desktop app, on a host older than the pane: update to get it;
- *   - the web: what the desktop app adds.
+ * Which executor this page can reach decides the row (`browserHands()`):
+ *   - in Chrome with the yarnnn extension: connected, and its own toolbar
+ *     button is where it is switched and where sites are managed;
+ *   - in Chrome without it: what adding it gives, and where to get it;
+ *   - in the desktop app: the host's switch, whose consent is the host's own
+ *     dialog (ADR-663 D4) — this row only asks;
+ *   - in the desktop app on a host older than the pane: update to get it.
  */
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Globe } from "lucide-react";
-import { isNativeShell } from "@/lib/shell/external-navigation";
 import {
-  browserHandsAvailable,
-  browserHandsOn,
+  CHROME_EXTENSION,
+  browserHands,
   disableBrowserHands,
   enableBrowserHands,
+  type BrowserHands,
 } from "@/lib/shell/hands";
-
-type State = "loading" | "web" | "update" | "off" | "on";
 
 export function DesktopBrowserSetting() {
   const t = useTranslations("settings.desktop.browser");
-  const [state, setState] = useState<State>("loading");
+  const [hands, setHands] = useState<BrowserHands | null>(null);
   const [declined, setDeclined] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let live = true;
-    (async () => {
-      if (!isNativeShell()) return live && setState("web");
-      if (!(await browserHandsAvailable())) return live && setState("update");
-      const on = await browserHandsOn();
-      if (live) setState(on ? "on" : "off");
-    })();
+    browserHands().then((h) => live && setHands(h));
     return () => {
       live = false;
     };
   }, []);
 
-  const toggle = async () => {
+  if (!hands) return null;
+
+  const toggleHost = async () => {
     setBusy(true);
     setDeclined(false);
-    if (state === "on") {
+    if (hands.on) {
       await disableBrowserHands();
-      setState("off");
+      setHands({ executor: "host", on: false });
     } else {
       const allowed = await enableBrowserHands();
-      setState(allowed ? "on" : "off");
+      setHands({ executor: "host", on: allowed });
       setDeclined(!allowed);
     }
     setBusy(false);
   };
 
-  if (state === "loading") return null;
+  const body =
+    hands.executor === "extension" ? t("extensionConnected", { version: hands.version })
+    : hands.executor === "host" ? t("body")
+    : "hostTooOld" in hands && hands.hostTooOld ? t("update")
+    : t("extensionMissing");
 
   return (
     <div className="mt-6 rounded-lg border border-border px-4 py-3">
@@ -66,23 +66,35 @@ export function DesktopBrowserSetting() {
           <Globe className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0">
             <p className="text-sm font-medium">{t("title")}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {state === "web" ? t("webOnly") : state === "update" ? t("update") : t("body")}
-            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
             {declined && <p className="mt-1 text-xs text-muted-foreground">{t("declined")}</p>}
           </div>
         </div>
-        {(state === "on" || state === "off") && (
+        {hands.executor === "host" && (
           <button
             type="button"
             role="switch"
-            aria-checked={state === "on"}
+            aria-checked={hands.on}
             disabled={busy}
-            onClick={toggle}
+            onClick={toggleHost}
             className="shrink-0 rounded-md border border-border px-3 py-1 text-sm hover:bg-muted disabled:opacity-50"
           >
-            {state === "on" ? t("turnOff") : t("turnOn")}
+            {hands.on ? t("turnOff") : t("turnOn")}
           </button>
+        )}
+        {hands.executor === null && !("hostTooOld" in hands && hands.hostTooOld) && (
+          CHROME_EXTENSION.storeUrl ? (
+            <a
+              href={CHROME_EXTENSION.storeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-md border border-border px-3 py-1 text-sm hover:bg-muted"
+            >
+              {t("addToChrome")}
+            </a>
+          ) : (
+            <span className="shrink-0 text-sm text-muted-foreground">{t("notYet")}</span>
+          )
         )}
       </div>
     </div>

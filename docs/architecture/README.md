@@ -30,6 +30,7 @@ The canon is stacked: **THESIS** (the philosophical claim) → **FOUNDATIONS** (
 | [authored-substrate.md](authored-substrate.md) | The ledger — every write attributed, parent-pointered, revertible (ADR-209); attribution prefixes; the revision chain in depth. |
 | [compositor.md](compositor.md) | The shell — the window manager, navigation, the kernel/app seam. |
 | [desktop-app.md](desktop-app.md) | The native desktop app for Mac and Windows — the website in a native window; the host, its one version, the security boundary, sign-in, release (ADR-661/663). |
+| [local-hands.md](local-hands.md) | The agent works in the member's browser — the executors (the yarnnn Chrome extension, the desktop pane), a turn that uses them, the acts, per-site consent (ADR-662). |
 | [intake-pipeline.md](intake-pipeline.md) · [connectors.md](connectors.md) · [grants-and-reach.md](grants-and-reach.md) · [connector-reach-and-the-commons.md](connector-reach-and-the-commons.md) | How the world reaches the commons, and how work leaves it: connections, capture, turn reach, outbound, grants. |
 | [observability.md](observability.md) | Logging, telemetry, spend ceilings. |
 | [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) | The two spectrums — what tightens, what loosens, and what holds the line while it does. |

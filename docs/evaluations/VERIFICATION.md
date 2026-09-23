@@ -133,7 +133,7 @@ nothing.
 
 ---
 
-## desktop — `src-tauri/` · `web/lib/shell/` · `api/services/desktop_client.py` · `api/services/client_tools.py`
+## desktop — `src-tauri/` · `extension/` · `web/lib/shell/` · `api/services/desktop_client.py` · `api/services/client_tools.py`
 
 The desktop app is the website in a native window (ADR-663), plus local hands (ADR-662). Reference:
 `docs/architecture/desktop-app.md`.
@@ -145,7 +145,9 @@ bump `Cargo.toml`, and verify on a built host, not by reading.
 **Instruments.**
 - `api/test_adr663_the_desktop_app_is_the_website.py` (the shape, the roster) ·
   `api/test_adr661_the_shell_may_be_native.py` (sign-in, chrome, the tripwire) ·
-  `api/test_adr662_local_hands.py` (the browser pane — it drives the real lane loop with a fake engine).
+  `api/test_adr662_local_hands.py` (local hands — it drives the real lane loop with a fake engine).
+- `extension/e2e/run.mjs` — the Chrome extension driven in a real Chrome for Testing (the only instrument that
+  runs it; the gate reads it). Reference: `docs/architecture/local-hands.md`.
 - `cd src-tauri && cargo check` on the Mac; Windows through `shell-windows.yml` (a Mac cannot check the
   Windows target past `tauri-winres`).
 - `cd web && pnpm build` — the app loads the same build.
