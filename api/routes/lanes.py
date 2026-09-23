@@ -20,7 +20,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -272,6 +272,21 @@ class LaneTurnRequest(BaseModel):
     # Phase-A attachments (v1 scope: this turn only — history stays text, so
     # a later turn or a regenerate does not re-see the image bytes).
     attachments: Optional[list[LaneAttachment]] = None
+    # ADR-662 D6 — the client-tool families the member's desktop app will
+    # perform this turn (today: "browser"). A request, not a grant: the server
+    # offers only what the host's version supports (`client_tools.offered`).
+    client_tools: Optional[list[str]] = None
+
+
+class LaneRegenerateRequest(BaseModel):
+    # ADR-662 D6 — a regenerated turn holds the same client tools as a sent one.
+    client_tools: Optional[list[str]] = None
+
+
+class ToolResultRequest(BaseModel):
+    # ADR-662 D6 — the turn's nonce, which rode only in that turn's own stream.
+    nonce: str
+    result: dict
 
 
 class LanePatchRequest(BaseModel):
@@ -1888,6 +1903,9 @@ def _turn_stream_response(
     # ADR-579 D7 — the gesture target. Stamped on the user row AND rendered
     # into the frame; a regenerate passes None (the gesture fired once).
     seed: Optional[LaneSeed] = None,
+    # ADR-662 D6 — the client tools this turn holds, already resolved against
+    # the host's version (`client_tools.offered`). Empty off the desktop app.
+    client_tools: tuple = (),
 ) -> StreamingResponse:
     """The one streaming turn core — serves POST messages AND regenerate.
 
@@ -1915,6 +1933,13 @@ def _turn_stream_response(
       - {"artifact": {"path", "verb"}} — a WriteFile/EditFile LANDED (the path
                                          comes from the RESULT); the FE opens
                                          the file inline (artifact card)
+      - {"client_tool": {"call_id", "name", "arguments", "nonce"}}
+                                       — ADR-662 D6: the desktop app performs
+                                         this act and posts the result to
+                                         /lanes/{id}/tool-results/{call_id}
+      - {"tool_receipt": {"name", "text", "ok"}}
+                                       — what that act changed, in words
+                                         (ADR-662 D3); persisted as `receipts`
       - {"done": true, "rounds", "tools_called", "artifacts", "lane_name"?}
                                        — terminal (lane_name when auto-named)
       - {"error": {"code", "message"}} — a fatal turn error. `message` is the
@@ -2169,6 +2194,9 @@ def _turn_stream_response(
         accumulated: list[str] = []
         tools_called: list[str] = []
         artifacts: list[str] = []
+        # ADR-662 D3 — the plain-words record of what the member's desktop
+        # app did, riding the turn's ONE assistant row (the ADR-399 shape).
+        receipts: list[dict] = []
         rounds = 0
         errored: Optional[str] = None
         persisted = False
@@ -2191,6 +2219,8 @@ def _turn_stream_response(
                 "tools_called": tools_called,
                 "artifacts": artifacts,
             }
+            if receipts:
+                extra["receipts"] = receipts
             if stopped:
                 extra["stopped"] = True
             # WHO spoke, and WHY they were the one. Before this, `responder`
@@ -2256,6 +2286,7 @@ def _turn_stream_response(
                 # row carries the session it served, so the surface that asked
                 # (think / make / derive) is derivable at read time.
                 session_id=lane_id,
+                client_tools=client_tools,
             )):
                 if _item is None:
                     # SSE's own keepalive: a comment frame every reader skips.
@@ -2314,6 +2345,11 @@ def _turn_stream_response(
                 elif kind == "artifact":
                     artifacts.append(payload["path"])
                     yield sse({"artifact": payload})
+                elif kind == "client_tool":
+                    yield sse({"client_tool": payload})
+                elif kind == "receipt":
+                    receipts.append(payload)
+                    yield sse({"tool_receipt": payload})
                 elif kind == "error":
                     # ⭐ THE STRUCTURE THE RUNNER ALREADY BUILT SURVIVES THE WIRE.
                     #
@@ -2398,8 +2434,21 @@ def _turn_stream_response(
     )
 
 
+def _client_tools_for(header: Optional[str], requested: Optional[list[str]]) -> tuple:
+    """ADR-662 D6 — the client tools a turn holds: what the page asked for,
+    narrowed to what its host's version performs. Empty for any browser."""
+    from services.client_tools import offered
+
+    return offered(header, requested)
+
+
 @router.post("/lanes/{lane_id}/messages")
-async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
+async def lane_turn(
+    lane_id: str,
+    req: LaneTurnRequest,
+    auth: UserClient,
+    x_yarnnn_client: Optional[str] = Header(default=None),
+):
     """One lane turn — STREAMING (ADR-412 D2). See `_turn_stream_response`
     for the SSE grammar + invariants. Phase-A additions: edit-and-resend
     (`replace_from_message_id` truncates the transcript tail first) and
@@ -2467,11 +2516,34 @@ async def lane_turn(lane_id: str, req: LaneTurnRequest, auth: UserClient):
         attachments_meta=attachments_meta,
         focus=req.focus,
         seed=req.seed,
+        client_tools=_client_tools_for(x_yarnnn_client, req.client_tools),
     )
 
 
+@router.post("/lanes/{lane_id}/tool-results/{call_id}")
+async def post_tool_result(lane_id: str, call_id: str, req: ToolResultRequest, auth: UserClient) -> dict:
+    """ADR-662 D6 — the desktop app's result for one client act, handed to
+    the turn waiting for it. Only the shell that received the act can answer:
+    the nonce rode in that turn's stream alone, and the turn must be this
+    member's. The lane is resolved first so a stranger's id reads 404."""
+    from services.client_tools import resolve
+
+    _get_lane(auth, lane_id)
+    outcome = resolve(req.nonce, call_id, auth.user_id, req.result)
+    if outcome == "not_yours":
+        raise HTTPException(status_code=403, detail="This act belongs to another member's turn")
+    if outcome != "ok":
+        raise HTTPException(status_code=404, detail="That act has ended")
+    return {"ok": True}
+
+
 @router.post("/lanes/{lane_id}/regenerate")
-async def regenerate_lane_turn(lane_id: str, auth: UserClient):
+async def regenerate_lane_turn(
+    lane_id: str,
+    auth: UserClient,
+    req: Optional[LaneRegenerateRequest] = None,
+    x_yarnnn_client: Optional[str] = Header(default=None),
+):
     """Phase-A turn controls: regenerate — drop the transcript tail after the
     last USER message and run its turn again (no new user row). Also serves
     retry-after-error (a trailing user row with no reply regenerates cleanly).
@@ -2510,6 +2582,7 @@ async def regenerate_lane_turn(lane_id: str, auth: UserClient):
         # History must end BEFORE the user message we re-run — it is passed
         # as the turn's user_message, not repeated from history.
         history_before_sequence=seq,
+        client_tools=_client_tools_for(x_yarnnn_client, req.client_tools if req else None),
     )
 
 

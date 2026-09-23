@@ -11,9 +11,10 @@ A browser sends no header and is never refused. Raising the minimum is how a
 host change that the website depends on is rolled out: ship the new host, then
 raise this.
 
-Per-feature minimums (Claude Code's `tengu_bridge_min_version` pattern) join
-beside the global one when a feature needs a newer host — none does yet;
-ADR-662's local hands is the first expected.
+Per-feature minimums (Claude Code's `tengu_bridge_min_version` pattern) sit
+beside the global one: a feature that needs a newer host names its own floor
+and is simply not offered below it — the host is never refused for it.
+`BROWSER_MIN_VERSION` (ADR-662 D14, the browser pane) is the first.
 """
 
 from __future__ import annotations
@@ -23,6 +24,10 @@ import re
 from typing import Optional
 
 DESKTOP_MIN_VERSION = "0.2.0"
+
+#: ADR-662 D14 — the first host that carries the browser pane and its commands.
+#: Below it the browser tools are not offered; the app still works.
+BROWSER_MIN_VERSION = "0.3.0"
 
 CLIENT_HEADER = b"x-yarnnn-client"
 
@@ -57,6 +62,22 @@ _BODY = json.dumps({
         "hint": {"min_version": DESKTOP_MIN_VERSION},
     }
 }).encode()
+
+
+def host_version(header: Optional[str]) -> Optional[tuple[int, int, int]]:
+    """The desktop host's version from `X-Yarnnn-Client`, or None for a
+    browser (no header) or a header that does not parse."""
+    if not header:
+        return None
+    m = _DESKTOP.match(header.strip())
+    return tuple(int(g) for g in m.groups()) if m else None  # type: ignore[return-value]
+
+
+def host_meets(header: Optional[str], minimum: str) -> bool:
+    """True when the request comes from a desktop host at or above `minimum` —
+    the per-feature check. A browser never meets it."""
+    version = host_version(header)
+    return version is not None and version >= _parse(minimum)
 
 
 class DesktopMinVersionMiddleware:

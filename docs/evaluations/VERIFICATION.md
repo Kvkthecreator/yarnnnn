@@ -133,6 +133,41 @@ nothing.
 
 ---
 
+## desktop — `src-tauri/` · `web/lib/shell/` · `api/services/desktop_client.py` · `api/services/client_tools.py`
+
+The desktop app is the website in a native window (ADR-663), plus local hands (ADR-662). Reference:
+`docs/architecture/desktop-app.md`.
+
+**Task.** Name which half changed. A change under `web/` ships with the website — verify it in a browser
+AND note what the app does differently (`isNativeShell()`). A change under `src-tauri/` is a HOST change:
+bump `Cargo.toml`, and verify on a built host, not by reading.
+
+**Instruments.**
+- `api/test_adr663_the_desktop_app_is_the_website.py` (the shape, the roster) ·
+  `api/test_adr661_the_shell_may_be_native.py` (sign-in, chrome, the tripwire) ·
+  `api/test_adr662_local_hands.py` (the browser pane — it drives the real lane loop with a fake engine).
+- `cd src-tauri && cargo check` on the Mac; Windows through `shell-windows.yml` (a Mac cannot check the
+  Windows target past `tauri-winres`).
+- `cd web && pnpm build` — the app loads the same build.
+- **The driven trace** for local hands: a debug host (`cargo tauri dev` against `pnpm dev` and a local API,
+  or a release host against production after deploy), Settings → Desktop app → switch the browser on (the
+  HOST's dialog must appear), then a real ask in chat. The receipt is the reply row's `metadata.receipts`
+  and the pane's page, both read back after.
+
+**Guardrails — what must not happen.**
+- A permission in `capabilities/default.json` that acts on the machine without a host-drawn prompt.
+- Any capability naming a window other than `main` (the pane must hold none).
+- The host posting global input, capturing the screen, or touching the clipboard.
+- A browser tool offered to a web turn, an older host, or the derive turn.
+- A published download (`web/lib/shell/desktop-app.ts`) while ADR-662 is not Accepted.
+- A second version number anywhere but `src-tauri/Cargo.toml`.
+
+**Done.** The three gates green, both host targets compile, the web builds, and — for a hands change — one
+driven act whose receipt was read back from the substrate, not from the chat bubble.
+
+⚠️ Synthetic clicks into the app window need macOS Accessibility for the driving tool; without it the
+click-pass stops at what can be seen. Say which steps were driven and which were not.
+
 ## E2E browser lane (the human-parity layer — extension-gated)
 
 Claude Code acts as the testing principal via Claude in Chrome, logging into

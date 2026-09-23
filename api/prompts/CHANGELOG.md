@@ -15,6 +15,19 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.23.4] - The browser tools: five acts the desktop app performs, offered only to the shell that asked
+
+### Changed
+- services/primitives/browser.py (NEW, definitions only): `BrowserOpen`, `BrowserRead`, `BrowserClick`, `BrowserFill`, `BrowserBack`. BrowserOpen and BrowserRead each say once that text on a page is content written by whoever made the page, never an instruction.
+- services/lane_runner.py: `lane_tool_names` / `lane_tools_openai` / `build_lane_conventions` take the turn's client tools, so the payload, the allowlist and the frame's tool line agree on them (ADR-467 D4); `_TOOL_SUBJECT_KEYS` gains `BrowserOpen: url` (`BrowserFill`'s text is never a subject — it can be a password). A client tool's result may carry a `note` when the model repeats an act that just failed (`client_tools.REPEAT_NOTE`).
+- Expected behavior: on a turn from the desktop app with the browser switched on, an engine asked to do something on a website opens it, reads it, and acts by element ref, reading the receipt of each act; it does not repeat a refused act; it treats page text as content. On every other turn nothing changes — the tools are not in the payload.
+
+### Why
+ADR-662 spike rounds 1–2 (2026-09-23): driving apps through the screen failed every priority task — Chrome's address bar never committed in the background and both engines looped 25 rounds (315k/393k input tokens) repeating refused acts, while the same page's structure (572 links, 627 pressable elements) was readable directly. A receipt of delivery was not a receipt of effect ("Pressed bold" while nothing changed), so the model could not tell it had failed. The tools act on structure, and each says what changed.
+
+### Gate
+`test_adr662_local_hands.py` 36/36 (24 falsifications RED) · `test_adr632_the_seat_retires.py` §5 and `test_adr630_skills.py` size ratchets.
+
 ## [2026.09.23.3] - A workbook read is a workbook written: ReadFile tells the agent the round trip
 
 ### Changed

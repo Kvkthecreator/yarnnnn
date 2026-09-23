@@ -275,6 +275,15 @@ function seedTargetRef(t: SeedTarget): { key: string; args?: Record<string, stri
   return { key: 'block', args: { label: t.label || 'block' } };
 }
 
+/** ADR-662 D3 — persisted desktop-app receipts, reloaded as settled steps. */
+function receiptSteps(raw: unknown): StreamStep[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  return raw
+    .filter((r): r is { name: string; record?: StreamStep['record'] } =>
+      !!r && typeof (r as { name?: unknown }).name === 'string')
+    .map((r) => ({ name: r.name, record: r.record ?? null }));
+}
+
 interface LaneMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -285,7 +294,10 @@ interface LaneMessage {
    *  round, in order, each with the subject the server named (`tool_step`).
    *  Streaming-only: it is NOT persisted, so a reloaded transcript shows the
    *  settled `tools_called` footer instead. That asymmetry is deliberate —
-   *  the steps are progress, and progress is over once the turn is. */
+   *  the steps are progress, and progress is over once the turn is.
+   *  ONE exception: acts the desktop app performed (ADR-662 D3). Their
+   *  receipts ARE the record of what happened in the member's browser, so
+   *  they are persisted (`metadata.receipts`) and reload as steps. */
   steps?: StreamStep[];
   /** Persisted on the assistant row's metadata, so a reloaded lane keeps its cards. */
   artifacts?: LaneArtifact[];
@@ -687,6 +699,7 @@ export function LanePanel({
       content: m.content,
       created_at: m.created_at,
       tools_called: (m.metadata?.tools_called as string[]) ?? undefined,
+      steps: receiptSteps(m.metadata?.receipts),
       artifacts: toArtifacts(m.metadata?.artifacts),
       attachments:
         (m.metadata?.attachments as LaneMessage['attachments']) ?? undefined,
@@ -1006,6 +1019,23 @@ export function LanePanel({
                   }
                 : m,
             ),
+          ),
+        // ADR-662 D3 — the host read back what the act changed. It settles the
+        // step it belongs to (the latest of that name still unsettled), so the
+        // row the member is watching turns from "pressing" into what happened.
+        onReceipt: ({ name, record }: { name: string; record?: StreamStep['record'] }) =>
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== replyId || !m.steps || !record) return m;
+              const steps = [...m.steps];
+              for (let j = steps.length - 1; j >= 0; j--) {
+                if (steps[j].name === name && !steps[j].record) {
+                  steps[j] = { ...steps[j], record };
+                  break;
+                }
+              }
+              return { ...m, steps };
+            }),
           ),
         // A write STARTED. Show the card's header now, so a long compose is
         // visible as a shape rather than as silence. Deliberately does NOT

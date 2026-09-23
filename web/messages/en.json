@@ -81,7 +81,16 @@
       "download": "Download",
       "notYet": "Not published yet",
       "signIn": "Signing in from the app opens your browser, then brings you straight back.",
-      "version": "Version {version}."
+      "version": "Version {version}.",
+      "browser": {
+        "title": "Let your agent use a browser",
+        "body": "Your agent can open web pages in a yarnnn browser window, read them, press buttons and fill in fields for you — you watch every step and keep using your computer.",
+        "webOnly": "In the desktop app, your agent can also work in a browser for you.",
+        "update": "Update the desktop app to let your agent use a browser.",
+        "turnOn": "Turn on",
+        "turnOff": "Turn off",
+        "declined": "Not turned on. You can turn it on here any time."
+      }
     }
   },
   "auth": {
@@ -539,6 +548,27 @@
         "doing": "reading GitHub releases",
         "did": "read GitHub releases",
         "withSubject": "reading releases in {subject}"
+      },
+      "BrowserOpen": {
+        "doing": "opening a page",
+        "did": "opened a page",
+        "withSubject": "opening {subject}"
+      },
+      "BrowserRead": {
+        "doing": "reading the page",
+        "did": "read the page"
+      },
+      "BrowserClick": {
+        "doing": "pressing on the page",
+        "did": "pressed on the page"
+      },
+      "BrowserFill": {
+        "doing": "filling in a field",
+        "did": "filled in a field"
+      },
+      "BrowserBack": {
+        "doing": "going back a page",
+        "did": "went back a page"
       }
     },
     "fileOpen": {
@@ -550,6 +580,20 @@
     },
     "imagePreview": {
       "close": "Close preview"
+    },
+    "receipts": {
+      "opened": "Opened {subject}",
+      "read": "Read {subject}",
+      "pressed": "Pressed “{subject}”",
+      "pressedUnchanged": "Pressed “{subject}” — no change",
+      "filled": "Filled “{subject}”",
+      "filledUnchanged": "Couldn't fill “{subject}”",
+      "back": "Went back to {subject}",
+      "backUnchanged": "No earlier page to go back to",
+      "failed": "A browser step failed",
+      "failedUnchanged": "A browser step failed",
+      "refused": "The browser is off in this app",
+      "refusedUnchanged": "The browser is off in this app"
     }
   },
   "feedback": {

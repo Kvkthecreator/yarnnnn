@@ -1,16 +1,18 @@
 # ADR-662 — Local hands: the agent works in an app while the member keeps the machine
 
-> **Status**: **Proposed** (2026-09-23, draft for operator review — NOT ratified). The implementation ADR that
-> ADR-661 §5.4 and §8 step 6 require, carrying §6's four conditions at birth. Nothing here is built; one
-> throwaway spike was driven (§3) and only its findings are kept.
+> **Status**: **Proposed** (2026-09-23 — NOT ratified). The implementation ADR that ADR-661 §5.4 and §8 step 6
+> require, carrying §6's four conditions at birth. **Amendment 1 (2026-09-23, operator: *"aligned in full"*)**:
+> the browser pane comes first (**D14**) — **phase 1 is BUILT** (host 0.3.0, server, web, gate), and ratification
+> waits on the driven trace (§7 step 6). The pixel path (D1–D2's Accessibility ladder, D10's signing
+> prerequisite) is unbuilt and stays the member's-own-apps track.
 > **Date**: 2026-09-23
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Identity** (who acts: the member, through an instrument, in their
 > presence) + **Channel** (a client-local executor for a lane tool). **No authority change**: no grant shape, no
 > credential, no kernel mechanism.
-> **Gate** (planned, written with the implementation): `api/test_adr662_local_hands.py`. Until then ADR-661's
-> §6.4 tripwire stays ARMED — it now retires only on an **Accepted** local-hands ADR (§8), so this draft does
-> not disarm it.
+> **Gate**: `api/test_adr662_local_hands.py` (36 arms, each proven RED in place). ADR-661's §6.4 tripwire stays
+> ARMED until this ADR is **Accepted**: it now also refuses a published download while the ADR is Proposed, so
+> the built pane cannot reach a member before the trace and the ratification.
 >
 > **Origin** — the operator, in order:
 > - *"one of the core intentions of expanding mac OS was … to accommodate computer use first class within yarnnn."*
@@ -321,6 +323,55 @@ deferred, NOT blocked — its scripting path is proven (§3.1). The browser tool
 typed schemas, so they work on any engine that can call tools — which is D7's engine neutrality delivered for
 the first-class target without waiting on a provider's computer-use protocol.
 
+### D14 — The browser pane first (amendment 1, 2026-09-23)
+
+The first browser the agent drives is **a pane the host owns** — a second window of the desktop app — not the
+member's own Chrome. The member's Chrome stays D13's phase 2.
+
+**Why the pane first**, weighed with the operator:
+
+| | The pane (built) | The member's Chrome (phase 2) |
+|---|---|---|
+| OS permissions | none — the host drives its own webview | Accessibility, Automation, Screen Recording |
+| Blocked by the Developer ID (D10) | no | yes |
+| Windows | yes, the same code (WebView2) | no — macOS scripting |
+| Background | by construction | proven only by probe (§3.1) |
+| The member's logins | no — they sign in inside the pane | yes |
+| Blast radius of a steered agent (D5) | only sites signed in inside the pane | every allowed app |
+
+The last row is why D1's allowed/denied APP lists are not built for the pane: the pane holds only the sessions
+the member made in it, so a hostile page can reach no bank, inbox or password manager the member did not open
+there. **Revisit trigger** for a denied-SITE list: the first act on a site the member did not intend.
+
+What phase 1 is, and where it lives (`docs/architecture/desktop-app.md` §6a is the living reference):
+
+- **Host** (`src-tauri/src/hands/`): the pane is the window labelled `browser`, **named in no capability**, so
+  any page loaded there can ask the host for nothing. It opens without taking focus. Five acts — `BrowserOpen`,
+  `BrowserRead`, `BrowserClick`, `BrowserFill`, `BrowserBack` — each a routine in `page.js` run by the host with
+  JSON-encoded arguments (D13: the model never writes a script). Each reads its effect back (D3): a fill compares
+  the field's value, a click compares the page's fingerprint before and after, and "no change observed" is said
+  in those words. A password field's value never leaves the page. No global input, no screen capture, no clipboard.
+- **Consent** (D4 under ADR-663 D4): `hands_enable` draws the host's own dialog; the page can only ask.
+  `browser_act` refuses until the member said yes. The answer lives in the app's config directory — this
+  machine, never the commons.
+- **Transport** (D6, as designed): the `client_tool` frame, `POST /api/lanes/{id}/tool-results/{call_id}`, a
+  per-turn nonce, owner-checked, fail-closed after 60 s (`api/services/client_tools.py`). One uvicorn worker today,
+  so the in-process table is correct; a second worker needs it shared.
+- **Offered** only when the page asks (`client_tools: ["browser"]`, sent when the member switched it on) AND the
+  `X-Yarnnn-Client` host is at or above `BROWSER_MIN_VERSION` (0.3.0) — ADR-663 D3's per-feature minimum, the
+  first one. The web, an older host, and the derive turn (D9) never hold the tools.
+- **D7 simplified for the browser**: the tools are plain function tools with typed schemas, so every engine
+  that calls tools can use them. No `computer` capability flag is added — a flag nobody varies is not a
+  capability. It arrives with the pixel adapter, if that is built.
+- **D8**: a hands turn has its own bound (`HANDS_MAX_ROUNDS = 30`) and stops when stuck (`StuckWatch`: the same
+  failed act twice is named to the model; four failures in a row end the turn in a sentence).
+- **The step list and Stop** (§9 open question 1): the steps are the chat's own stepped thread, worded from each
+  act's receipt in the member's language, persisted on the reply as `metadata.receipts` so a reload keeps them.
+  Stop is the chat's Stop (a stopped turn fails every waiting act closed). The pane itself is the live view. No
+  always-on-top panel is built: the pane is visible beside the app.
+- **Settings** (D12, partial): Settings → Desktop app → *Let your agent use a browser*. The allowed/denied lists
+  and the three macOS permission rows belong to the pixel path and are not built.
+
 ### D12 — The settings surface, on the machine
 
 Modelled on the Claude desktop app's Settings ▸ System ▸ Computer use, in the shell's settings (device-local:
@@ -373,6 +424,10 @@ only for distribution.**
 
 ## 7. Build order
 
+**Amendment 1 re-ordered it**: the browser pane (D14) is built first and needs no Developer ID. Its remaining
+step is the driven trace (6 below) — a real job in the pane through the real path — then ratification. The list
+below is the pixel path's order, unchanged.
+
 1. **Developer ID** (operator) — D10's prerequisite.
 1a. **Round 3 of the spike**: the D13 tools for Chrome and Word, with stop-when-stuck, on the same tasks —
     the measurement that decides whether D13 holds before any product code.
@@ -388,7 +443,10 @@ only for distribution.**
 
 ## 8. Gate
 
-Planned `api/test_adr662_local_hands.py`, each arm proven RED in place:
+`api/test_adr662_local_hands.py` — **built with amendment 1** for the browser pane: 36 arms over D1, D3, D4,
+D6 (driven through the real lane loop with a fake engine), D8, D9, D13 and the web's side, each proven RED by
+breaking the guarded thing in place (24 falsifications, 2026-09-23). The pixel path adds its own arms when it is
+built; the list it was planned with:
 
 - the host posts nothing to the global event tap and never activates an app outside a borrow;
 - a borrow requires idle input and restores the prior frontmost app;

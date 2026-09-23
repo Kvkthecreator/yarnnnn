@@ -279,6 +279,14 @@ ALLOWED = {
     "core:window:allow-start-dragging",  # the top bar is the grab handle (ADR-661 §7n)
     "deep-link:default",             # the yarnnn:// return leg
     "opener:allow-open-url",         # the system-browser hand-off, URL-scoped (ADR-661 §7j)
+    # ADR-662 D14 — local hands, the browser pane. Admitted under D4's rule:
+    # the page may REQUEST; `hands_enable` draws the host's own consent dialog
+    # and `browser_act` refuses until the member said yes there. Both halves
+    # are asserted, and proven RED, in api/test_adr662_local_hands.py.
+    "allow-hands-status",
+    "allow-hands-enable",
+    "allow-hands-disable",
+    "allow-browser-act",
 }
 check(
     "the roster names exactly what the interface needs",

@@ -42,6 +42,9 @@
 
 /** The catalog namespace every key below lives under. */
 export const TOOL_LABEL_NS = 'chat.tools';
+/** ADR-662 D3 — what a desktop-app act changed; its own namespace, because
+ *  `chat.tools` is the verb roster and a receipt is not a verb. */
+export const RECEIPT_LABEL_NS = 'chat.receipts';
 
 /**
  * Which verbs the catalog names, and which of them can take a subject. A name
@@ -90,9 +93,22 @@ const TOOL_VERBS: Record<string, boolean> = {
   platform_github_get_repo_metadata: true,
   platform_github_get_readme: true,
   platform_github_get_releases: true,
+
+  // ADR-662 D14 — the desktop app's browser pane. Only BrowserOpen takes its
+  // subject (the address); the others are worded from their RECEIPT once the
+  // host has read the effect back (`toolStepRef`'s `record` arm), because
+  // "pressing a button" says nothing and "Pressed “Sign in”" says what happened.
+  BrowserOpen: true,
+  BrowserRead: false,
+  BrowserClick: false,
+  BrowserFill: false,
+  BrowserBack: false,
 };
 
 /** "WriteFile" → "write file", "list_integrations" → "list integrations". */
+/** The acts the host reports (`src-tauri/src/hands/mod.rs`, `record.act`). */
+const RECEIPT_ACTS = new Set(['opened', 'read', 'pressed', 'filled', 'back', 'failed', 'refused']);
+
 function humanize(name: string): string {
   return name
     .replace(/_/g, ' ')
@@ -129,12 +145,28 @@ function shortenSubject(subject: string): string {
  *  `TOOL_LABEL_NS` and its ICU arguments, or `fallback` when the verb has no
  *  catalog entry (an unknown name from a newer roster). */
 export type ToolLabelRef =
-  | { key: string; args?: Record<string, string>; fallback?: undefined }
+  | { key: string; args?: Record<string, string>; fallback?: undefined; receipt?: boolean }
   | { key?: undefined; args?: undefined; fallback: string };
 
 /** One streaming step's line: verb + subject when the server named one AND the
  *  verb reads well with one, the plain present-tense verb when it does not. */
-export function toolStepRef(step: { name: string; subject?: string }): ToolLabelRef {
+export function toolStepRef(step: {
+  name: string;
+  subject?: string;
+  record?: { act: string; subject: string; changed: boolean } | null;
+}): ToolLabelRef {
+  // ADR-662 D3 — an act the desktop app performed is worded from what it
+  // CHANGED, read back by the host, in the member's language. A settled act
+  // with no change says so: that is the receipt, not a failure to render one.
+  if (step.record && RECEIPT_ACTS.has(step.record.act)) {
+    const { act, subject, changed } = step.record;
+    const unchanged = !changed && act !== 'read' && act !== 'opened';
+    return {
+      receipt: true,
+      key: `${act}${unchanged ? 'Unchanged' : ''}`,
+      args: { subject: subject.length > 60 ? `${subject.slice(0, 59)}…` : subject },
+    };
+  }
   const takesSubject = TOOL_VERBS[step.name];
   if (takesSubject === undefined) return { fallback: sentenceCase(humanize(step.name)) };
   if (step.subject && takesSubject) {

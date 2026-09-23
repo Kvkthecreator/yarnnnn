@@ -11,7 +11,7 @@
 # (api/services/desktop_client.py) is compared against it.
 [package]
 name = "yarnnn"
-version = "0.2.0"
+version = "0.3.0"
 description = "yarnnn — shared memory for AI + human work"
 authors = ["yarnnn"]
 edition = "2021"
@@ -31,6 +31,11 @@ tauri-plugin-opener = "2"
 # app; this forwards it to the running one. `deep-link` makes the forwarded
 # URL arrive as the same `on_open_url` event macOS delivers natively.
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# ADR-662 D4 / ADR-663 D4 — the consent prompt for local hands is drawn by the
+# HOST, never by the page. No dialog permission is granted to the website.
+tauri-plugin-dialog = "2"
+# The browser pane's waits (ADR-662 D14). Already in the tree through Tauri.
+tokio = { version = "1", features = ["time"] }
 
 [features]
 # Tauri's own; kept as generated.

@@ -28,9 +28,13 @@
 //! itself draws the consent prompt the member answers.
 //!
 //! §8's constraint, kept on purpose: this stays a HOST with a capability seam,
-//! not a thin `WebView::new`. Step 6 (local hands, §5/§6) would add a command
-//! here — behind a per-act permission the member grants — and that must not
-//! require reopening the packaging decision.
+//! not a thin `WebView::new`. Local hands (ADR-662) live in `hands/`: a
+//! browser pane the agent works in, switched on by a consent dialog this host
+//! draws, reached by the page only through the commands `build.rs` declares.
+
+mod hands;
+
+use std::sync::Mutex;
 
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -68,7 +72,19 @@ fn main() {
         // rather than navigating the window, because the session it carries
         // has to be handed to the Supabase client, not to the router.
         .plugin(tauri_plugin_deep_link::init())
+        // ADR-662 D4 — the host draws the consent prompt. The page is granted
+        // no dialog permission; only `hands::hands_enable` opens one.
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            hands::hands_status,
+            hands::hands_enable,
+            hands::hands_disable,
+            hands::browser_act,
+        ])
         .setup(|app| {
+            let consent = hands::load_consent(app.handle());
+            app.manage(hands::Consent(Mutex::new(consent)));
+
             // A debug build's page comes from the dev server, which the release
             // roster does not name. Grant it the SAME roster, re-pointed — never
             // a second list, which is how two rosters drift apart.

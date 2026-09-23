@@ -5,6 +5,12 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { clientHeaders, noticeHostRefusal } from "@/lib/shell/host";
+import {
+  browserHandsOn,
+  performClientTool,
+  type ActRecord,
+  type ClientToolFrame,
+} from "@/lib/shell/hands";
 import { sseEvents, SseIdleError } from "@/lib/sse";
 import type { StudioVocabulary } from "@/components/authoring/StudioToolbar";
 import type { StagePreset } from "@/components/authoring/NewArtifactModal";
@@ -490,6 +496,9 @@ type LaneStreamHandlers = {
   onArtifactPending?: (a: { path: string; verb: string }) => void;
   /** A WriteFile/EditFile landed — render the file inline (artifact card). */
   onArtifact?: (a: { path: string; verb: string }) => void;
+  /** ADR-662 D3 — what an act in the desktop app's browser CHANGED, read back
+   *  by the host. `record` is the structured half the catalog words. */
+  onReceipt?: (r: { name: string; text: string; ok: boolean; record?: ActRecord | null }) => void;
   onDone?: (info: {
     rounds: number;
     tools_called: string[];
@@ -521,12 +530,16 @@ export const LANE_IDLE_MS_UNTIL_HEARTBEAT = 450_000;
  *  — POST, dispatch the lane vocabulary, swallow member aborts (stop is a
  *  control act, not an error; the server persists the partial). */
 async function streamLaneTurn(
+  laneId: string,
   path: string,
   body: Record<string, unknown> | null,
   handlers: LaneStreamHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
   const headers = await getAuthHeaders();
+  // ADR-662 D6 — ask for the browser tools when this app can perform them.
+  // A request, not a grant: the server offers them only to a host new enough.
+  if (await browserHandsOn()) body = { ...(body ?? {}), client_tools: ["browser"] };
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
@@ -578,6 +591,17 @@ async function streamLaneTurn(
         );
       } else if (evt.artifact && typeof evt.artifact === "object") {
         handlers.onArtifact?.(evt.artifact as { path: string; verb: string });
+      } else if (evt.client_tool && typeof evt.client_tool === "object") {
+        // ADR-662 D6 — the server handed this app an act and is waiting for
+        // it. Not awaited: the stream keeps being read (heartbeats, the next
+        // frames) while the host works; the result goes back by its own POST.
+        void performClientTool(laneId, evt.client_tool as ClientToolFrame, (p, b) =>
+          request(p, { method: "POST", body: JSON.stringify(b) }),
+        );
+      } else if (evt.tool_receipt && typeof evt.tool_receipt === "object") {
+        handlers.onReceipt?.(
+          evt.tool_receipt as { name: string; text: string; ok: boolean; record?: ActRecord | null },
+        );
       } else if (evt.error && typeof evt.error === "object") {
         // The structured frame: `message` is the member's sentence, `code` is
         // for branching. Only the sentence is shown — a code in a bubble is
@@ -942,6 +966,7 @@ export const api = {
       },
     ): Promise<void> =>
       streamLaneTurn(
+        laneId,
         `/api/lanes/${laneId}/messages`,
         {
           content,
@@ -962,7 +987,7 @@ export const api = {
       handlers: LaneStreamHandlers,
       opts?: { signal?: AbortSignal },
     ): Promise<void> =>
-      streamLaneTurn(`/api/lanes/${laneId}/regenerate`, null, handlers, opts?.signal),
+      streamLaneTurn(laneId, `/api/lanes/${laneId}/regenerate`, null, handlers, opts?.signal),
     /** Phase-A hygiene: rename / pin. */
     patch: (laneId: string, data: { name?: string; pinned?: boolean }) =>
       request<{ id: string; name: string; pinned: boolean }>(`/api/lanes/${laneId}`, {

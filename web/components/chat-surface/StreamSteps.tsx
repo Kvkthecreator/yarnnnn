@@ -39,7 +39,12 @@ import { WorkingGlyph } from '@/components/shared/Working';
 import { toolStepRef } from './toolLabels';
 import { useToolLabels } from './useToolLabels';
 
-export type StreamStep = { name: string; subject?: string };
+export type StreamStep = {
+  name: string;
+  subject?: string;
+  /** ADR-662 D3 — what a desktop-app act changed, once the host read it back. */
+  record?: { act: string; subject: string; changed: boolean } | null;
+};
 
 interface StreamStepsProps {
   steps: StreamStep[];

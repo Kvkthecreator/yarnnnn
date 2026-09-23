@@ -492,6 +492,9 @@ _TOOL_SUBJECT_KEYS: dict = {
     "QueryKnowledge": ("query",),
     "WebSearch": ("query",),
     "GenerateImage": ("prompt",),
+    # ADR-662 — the address is the subject. BrowserFill's `text` is NOT one:
+    # a field can hold a password, and the receipt names the field instead.
+    "BrowserOpen": ("url",),
     "platform_slack_get_channel_history": ("channel", "channel_id"),
     "platform_notion_search": ("query",),
     "platform_notion_get_page": ("page_id",),
@@ -955,7 +958,8 @@ def resolve_turn_reach(
 
 def lane_tool_names(turn_reach: bool = False,
                     reach_platforms: Optional[tuple] = None,
-                    attached: Optional[list] = None) -> tuple:
+                    attached: Optional[list] = None,
+                    client_tools: tuple = ()) -> tuple:
     """THE lane's tool-name set: the file + folder verbs + the uniform reads
     (ADR-467 D4). One set, every lane, every Agent.
 
@@ -985,12 +989,19 @@ def lane_tool_names(turn_reach: bool = False,
         from services.attached_connectors import attached_tool_names
 
         names = names + attached_tool_names(attached)
+    if client_tools:
+        # ADR-662 D6 — tools the member's desktop app performs, offered only
+        # to the shell turn that asked (`client_tools.offered`). Definitions
+        # ride in with the names, so the payload, the allowlist and the frame
+        # prose agree on them exactly as on every other surface.
+        names = names + tuple(t["name"] for t in client_tools)
     return names
 
 
 def lane_tools_openai(turn_reach: bool = False,
                       reach_platforms: Optional[tuple] = None,
-                      attached: Optional[list] = None) -> list[dict]:
+                      attached: Optional[list] = None,
+                      client_tools: tuple = ()) -> list[dict]:
     """The lane tool surface in OpenAI format, derived from the registry's
     own definitions (no parallel schemas — Singular Implementation).
 
@@ -1044,7 +1055,8 @@ def lane_tools_openai(turn_reach: bool = False,
         from services.attached_connectors import attached_tool_defs
 
         by_name.update({t["name"]: t for t in attached_tool_defs(attached)})
-    names = lane_tool_names(turn_reach, reach_platforms, attached)
+    by_name.update({t["name"]: t for t in client_tools})
+    names = lane_tool_names(turn_reach, reach_platforms, attached, client_tools)
     missing = [n for n in names if n not in by_name]
     if missing:
         raise ValueError(
@@ -1384,6 +1396,7 @@ def build_lane_conventions(
     cast: Optional[list[dict]] = None,
     responder_reason: Optional[str] = None,
     attached: Optional[list] = None,
+    client_tools: tuple = (),
 ) -> str:
     """Compose the AGENTS.md-shaped system prompt for one lane turn.
 
@@ -1439,7 +1452,7 @@ def build_lane_conventions(
         from services.attached_connectors import attached_surface
 
         attached = attached_surface(client, user_id) if _reach else []
-    tools_line = " · ".join(lane_tool_names(_reach, _reach_plats, attached))
+    tools_line = " · ".join(lane_tool_names(_reach, _reach_plats, attached, client_tools))
 
     # ADR-644 — the reach section is RENDERED from the ONE structure every
     # face reads (`services/reach_status.py`): the member's Connectors + Reach
@@ -2113,6 +2126,9 @@ async def run_lane_turn_stream(
     # deny that a cast-mate exists (observed 2026-08-13).
     cast: Optional[list[dict]] = None,
     responder_reason: Optional[str] = None,
+    # ADR-662 D6 — the tools the member's desktop app performs this turn
+    # (`client_tools.offered`); empty for every turn not from a shell that asked.
+    client_tools: tuple = (),
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -2141,6 +2157,12 @@ async def run_lane_turn_stream(
                                             text may follow. The consumer
                                             separates here instead of welding
                                             the plan to the report.
+      - ``("client_tool", {call_id, name, arguments, nonce})``
+                                          — ADR-662 D6: the member's desktop
+                                            app performs this act and posts its
+                                            result; the loop waits for it here
+      - ``("receipt", {name, text, ok})`` — what a client act CHANGED, read
+                                            back by the app (ADR-662 D3)
       - ``("done", {result dict})``       — terminal; the same shape
                                             ``run_lane_turn`` returns
       - ``("error", {error, message})``   — a fatal precondition
@@ -2197,11 +2219,12 @@ async def run_lane_turn_stream(
     from services.attached_connectors import attached_surface
 
     _attached = attached_surface(auth.client, auth.user_id) if _reach else []
-    tools = lane_tools_openai(_reach, _reach_plats, _attached)
-    _allowed = lane_tool_names(_reach, _reach_plats, _attached)
+    tools = lane_tools_openai(_reach, _reach_plats, _attached, client_tools)
+    _allowed = lane_tool_names(_reach, _reach_plats, _attached, client_tools)
     system = build_lane_conventions(
         auth.client, auth.user_id, model=model, member_label=member_label,
         attached=_attached,
+        client_tools=client_tools,
         artifact_path=artifact_path,
         skill=skill, derive_source=derive_source,
         agent=agent,
@@ -2230,191 +2253,244 @@ async def run_lane_turn_stream(
     byok_key = _resolve_byok_key(auth, model)
     byok_cost_override = 0.0 if byok_key else None
 
-    for round_idx in range(_LANE_MAX_ROUNDS):
-        rounds = round_idx + 1
-        routed = None
-        # Stream this round. On a text round the deltas are user-visible; on
-        # a tool round they are empty and we act on `routed.tool_calls`.
-        #
-        # ADR-559 D3 — same observe-and-re-raise as the non-streaming loop.
-        # An account refusal on a streamed round raises before the first
-        # delta, so it is learnable here too.
-        try:
-            async for kind, payload in route_completion_stream(
-                model, messages, system=system,
-                max_tokens=max_tokens, timeout=_LANE_TIMEOUT_S, tools=tools,
-                api_key=byok_key,
-            ):
-                if kind == "delta":
-                    yield ("delta", payload)
-                elif kind == "done":
-                    routed = payload
-        except Exception as exc:
-            note_upstream_refusal(model, exc)
-            raise
-        clear_upstream_refusal(model)  # a success heals the engine
+    # ADR-662 D6 — a turn holding client tools mints the nonce its acts are
+    # answered under, and closes it however the turn ends (a stop cancels this
+    # generator; every act still waiting fails closed).
+    from services import client_tools as client_tools_mod
 
-        if routed is None:  # defensive — the generator always yields done
-            yield ("error", {"error": "stream_incomplete",
-                             "message": "the model stream closed without a result"})
-            return
+    _client_names = {t["name"] for t in client_tools}
+    nonce = client_tools_mod.open_turn(auth.user_id) if client_tools else None
+    watch = client_tools_mod.StuckWatch()
+    stuck = False
+    # ADR-662 D8 — a browser job is dozens of acts; its bound is its own.
+    max_rounds = client_tools_mod.HANDS_MAX_ROUNDS if client_tools else _LANE_MAX_ROUNDS
 
-        total_in += routed.usage.get("input_tokens", 0)
-        total_out += routed.usage.get("output_tokens", 0)
+    try:
+        for round_idx in range(max_rounds):
+            rounds = round_idx + 1
+            routed = None
+            # Stream this round. On a text round the deltas are user-visible; on
+            # a tool round they are empty and we act on `routed.tool_calls`.
+            #
+            # ADR-559 D3 — same observe-and-re-raise as the non-streaming loop.
+            # An account refusal on a streamed round raises before the first
+            # delta, so it is learnable here too.
+            try:
+                async for kind, payload in route_completion_stream(
+                    model, messages, system=system,
+                    max_tokens=max_tokens, timeout=_LANE_TIMEOUT_S, tools=tools,
+                    api_key=byok_key,
+                ):
+                    if kind == "delta":
+                        yield ("delta", payload)
+                    elif kind == "done":
+                        routed = payload
+            except Exception as exc:
+                note_upstream_refusal(model, exc)
+                raise
+            clear_upstream_refusal(model)  # a success heals the engine
 
-        # ADR-411 D5 / ADR-396: one metered judgment invocation per round,
-        # attributed to the member — identical to the non-streaming path.
-        # ADR-439: BYOK rounds record cost_usd=0 (explicit at-cost exception).
-        try:
-            from services.supabase import get_service_client
-            from services.telemetry import record_execution_event
-            record_execution_event(
-                get_service_client(),
-                user_id=auth.user_id,
-                slug=ledger_slug,
-                mode="judgment",
-                trigger_type="addressed",
-                status="success",
-                tool_rounds=rounds,
-                model=routed.ledger_model,
-                principal_id=getattr(auth, "principal_id", None) or auth.user_id,
-                workspace_id=getattr(auth, "workspace_id", None),
-                cost_override_usd=byok_cost_override,
-                session_id=session_id,  # W0 — the falsifier join key
-                **routed.usage,
+            if routed is None:  # defensive — the generator always yields done
+                yield ("error", {"error": "stream_incomplete",
+                                 "message": "the model stream closed without a result"})
+                return
+
+            total_in += routed.usage.get("input_tokens", 0)
+            total_out += routed.usage.get("output_tokens", 0)
+
+            # ADR-411 D5 / ADR-396: one metered judgment invocation per round,
+            # attributed to the member — identical to the non-streaming path.
+            # ADR-439: BYOK rounds record cost_usd=0 (explicit at-cost exception).
+            try:
+                from services.supabase import get_service_client
+                from services.telemetry import record_execution_event
+                record_execution_event(
+                    get_service_client(),
+                    user_id=auth.user_id,
+                    slug=ledger_slug,
+                    mode="judgment",
+                    trigger_type="addressed",
+                    status="success",
+                    tool_rounds=rounds,
+                    model=routed.ledger_model,
+                    principal_id=getattr(auth, "principal_id", None) or auth.user_id,
+                    workspace_id=getattr(auth, "workspace_id", None),
+                    cost_override_usd=byok_cost_override,
+                    session_id=session_id,  # W0 — the falsifier join key
+                    **routed.usage,
+                )
+            except Exception as exc:
+                logger.warning("[LANE stream] cost ledger record failed: %s", exc)
+
+            if not routed.tool_calls:
+                # ADR-648 follow-on (2026-09-16): a `length` finish with no text is
+                # a CUT-OFF answer, not an empty one. See `_final_text_for`.
+                final_text = _final_text_for(routed, final_text)
+                break
+
+            messages.append(
+                routed.raw_assistant_message
+                or {"role": "assistant", "content": routed.text or ""}
             )
-        except Exception as exc:
-            logger.warning("[LANE stream] cost ledger record failed: %s", exc)
-
-        if not routed.tool_calls:
-            # ADR-648 follow-on (2026-09-16): a `length` finish with no text is
-            # a CUT-OFF answer, not an empty one. See `_final_text_for`.
-            final_text = _final_text_for(routed, final_text)
-            break
-
-        messages.append(
-            routed.raw_assistant_message
-            or {"role": "assistant", "content": routed.text or ""}
-        )
-        # ⭐ THE ROUND ENDED AND MORE TEXT IS COMING (2026-09-22).
-        #
-        # Deltas are stream FRAGMENTS, so the consumer joins them with "" —
-        # correct inside a round, and the reason a round BOUNDARY has to be
-        # announced. Without this the last fragment before a tool call is
-        # welded to the first fragment after it and the member reads
-        # "…keeping everything else intact.Done. Title and standfirst are
-        # in" — one run-on sentence out of two separate statements, the plan
-        # and the report.
-        #
-        # Measured before the fix, on production `session_messages`: 46 of
-        # the 130 most recent tool-using assistant turns carried a welded
-        # boundary (35%), and 0 of the 37 toolless turns did — the
-        # correlation is exact, because no other path can produce it. Not
-        # app-specific: the oldest in that window is 2026-08-28 and every
-        # lane shares this loop.
-        #
-        # Announced rather than joined HERE because this generator is the
-        # only place that knows a round closed; `route_completion_stream`
-        # sees one round and the route sees an undifferentiated delta
-        # sequence. Emitting it keeps the transport carrying raw fragments.
-        yield ("round_break", None)
-        # Pixels for image reads in THIS round, appended only after every
-        # tool_result has landed (see the ADR-623 note in the loop body).
-        pending_vision: list[dict] = []
-        for tc in routed.tool_calls:
-            name = tc["name"]
-            tools_called.append(name)
-            # The subject rides with the name (never the raw argument dict —
-            # `tool_subject_from` exposes one named key). A step row that can
-            # say WHICH file is being read is legible mid-turn; the bare verb
-            # is the honest fallback when no key applies.
-            yield ("tool", {"name": name, "subject": tool_subject_from(name, tc.get("arguments"))})
-            # ⭐ THE SHAPE OF THE WRITE, BEFORE THE WRITE (2026-09-17).
+            # ⭐ THE ROUND ENDED AND MORE TEXT IS COMING (2026-09-22).
             #
-            # A card only exists once the write LANDS (`artifact_path_from`
-            # reads the RESULT, and that rule is not relaxed here). But a
-            # WriteFile composing a long document can run for many seconds, and
-            # for all of them the member saw tool rows, then silence, then a
-            # card — the output's shape arrived last. This frame announces WHAT
-            # IS BEING MADE at the moment the call starts, so the card's header
-            # is on screen while the body is still being written.
+            # Deltas are stream FRAGMENTS, so the consumer joins them with "" —
+            # correct inside a round, and the reason a round BOUNDARY has to be
+            # announced. Without this the last fragment before a tool call is
+            # welded to the first fragment after it and the member reads
+            # "…keeping everything else intact.Done. Title and standfirst are
+            # in" — one run-on sentence out of two separate statements, the plan
+            # and the report.
             #
-            # ⚠️ IT IS A WEAKER CLAIM AND ITS SOURCE SAYS SO. The path here is
-            # read from the ARGUMENTS because no result exists yet — the same
-            # source, and the same honesty, as the step row above: "this is
-            # what was asked for", never "this landed". The pending card is
-            # therefore NEVER persisted and NEVER joins `artifacts`; the
-            # terminal list stays result-derived, so a write that fails leaves
-            # a step row and no card, exactly as before.
+            # Measured before the fix, on production `session_messages`: 46 of
+            # the 130 most recent tool-using assistant turns carried a welded
+            # boundary (35%), and 0 of the 37 toolless turns did — the
+            # correlation is exact, because no other path can produce it. Not
+            # app-specific: the oldest in that window is 2026-08-28 and every
+            # lane shares this loop.
             #
-            # ⚠️ IT MUST BE NORMALIZED, and that is not optional. The model
-            # sends any of three spellings ("/workspace/x", "workspace/x", "x")
-            # and `handle_write_file` is what canonicalizes them — so the raw
-            # argument is NOT the path the landed card will carry. Left raw,
-            # the pending card and the real card key differently and the member
-            # gets TWO cards for one write. `pending_artifact_from` is the one
-            # place that reconciliation lives.
-            _pending = pending_artifact_from(name, tc.get("arguments"))
-            if _pending:
-                yield ("artifact_pending", _pending)
-            if name not in _allowed:
-                result: Any = {
-                    "success": False, "error": "tool_not_on_lane_surface",
-                    "message": f"lane tools: {', '.join(_allowed)}",
-                }
-            else:
-                try:
-                    # Round-boundary abort discipline (Phase-A stop): a member
-                    # abort cancels the turn at any await — a STARTED primitive
-                    # completes whole (the ledger never holds half a revision).
-                    # The stopped transcript may omit a write that landed; the
-                    # ledger is truth (the no-rewind rule).
-                    result = await asyncio.shield(
-                        execute_primitive(tool_auth, name, tc["arguments"])
-                    )
-                except Exception as exc:
-                    result = {"success": False, "error": "tool_raised", "message": str(exc)}
-            # The work landed in a file — say WHICH file, so the member's chat
-            # can open it inline. This is the ADR-411 lane contract ("the
-            # transcript is private; the work lands in files") made visible.
-            produced = artifact_path_from(name, result)
-            if produced and produced not in artifacts:
-                artifacts.append(produced)
-                yield ("artifact", {"path": produced, "verb": name})
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "content": _stringify_tool_result(result),
-            })
-            # ADR-623 — a read of an image ENDS IN SEEING IT. The tool result
-            # above stays the honest binary notice; the pixels ride beside it as
-            # a user message, the one shape the content-parts protocol lets
-            # carry them. None when the file is not a viewable image, the read
-            # failed, or the engine cannot see.
-            #
-            # HELD, not appended here: every tool_use in the round must be
-            # answered by its tool_result in the IMMEDIATELY following message.
-            # Appending the pixels inside this loop splits that run the moment a
-            # round carries two calls and a non-final one is an image —
-            # "tool_use ids were found without tool_result blocks immediately
-            # after", and the turn dies. One call could never show it, which is
-            # how it shipped. The pixels go after the whole run instead.
-            vision_msg = image_part_for_tool_result(tool_auth, model, name, result)
-            if vision_msg is not None:
-                pending_vision.append(vision_msg)
-        messages.extend(pending_vision)
-    else:
-        # 2026-08-31 — a member-legible sentence, not a bracketed internal
-        # note. The observed shape: a truncated WriteFile arrives with an
-        # empty `content` key, `empty_content_blocked` correctly refuses it,
-        # the model retries, and the round cap ends the turn. The member had
-        # no way to tell that from a hang, and nothing told them their
-        # document was untouched — which is the fact that matters most.
-        final_text = final_text or (
-            "I ran out of steps on this turn and did not finish — your"
-            " document is unchanged. Asking for a smaller piece at a time"
-            " (a few slides, or one section) usually gets there."
-        )
+            # Announced rather than joined HERE because this generator is the
+            # only place that knows a round closed; `route_completion_stream`
+            # sees one round and the route sees an undifferentiated delta
+            # sequence. Emitting it keeps the transport carrying raw fragments.
+            yield ("round_break", None)
+            # Pixels for image reads in THIS round, appended only after every
+            # tool_result has landed (see the ADR-623 note in the loop body).
+            pending_vision: list[dict] = []
+            for tc in routed.tool_calls:
+                name = tc["name"]
+                tools_called.append(name)
+                # The subject rides with the name (never the raw argument dict —
+                # `tool_subject_from` exposes one named key). A step row that can
+                # say WHICH file is being read is legible mid-turn; the bare verb
+                # is the honest fallback when no key applies.
+                yield ("tool", {"name": name, "subject": tool_subject_from(name, tc.get("arguments"))})
+                # ⭐ THE SHAPE OF THE WRITE, BEFORE THE WRITE (2026-09-17).
+                #
+                # A card only exists once the write LANDS (`artifact_path_from`
+                # reads the RESULT, and that rule is not relaxed here). But a
+                # WriteFile composing a long document can run for many seconds, and
+                # for all of them the member saw tool rows, then silence, then a
+                # card — the output's shape arrived last. This frame announces WHAT
+                # IS BEING MADE at the moment the call starts, so the card's header
+                # is on screen while the body is still being written.
+                #
+                # ⚠️ IT IS A WEAKER CLAIM AND ITS SOURCE SAYS SO. The path here is
+                # read from the ARGUMENTS because no result exists yet — the same
+                # source, and the same honesty, as the step row above: "this is
+                # what was asked for", never "this landed". The pending card is
+                # therefore NEVER persisted and NEVER joins `artifacts`; the
+                # terminal list stays result-derived, so a write that fails leaves
+                # a step row and no card, exactly as before.
+                #
+                # ⚠️ IT MUST BE NORMALIZED, and that is not optional. The model
+                # sends any of three spellings ("/workspace/x", "workspace/x", "x")
+                # and `handle_write_file` is what canonicalizes them — so the raw
+                # argument is NOT the path the landed card will carry. Left raw,
+                # the pending card and the real card key differently and the member
+                # gets TWO cards for one write. `pending_artifact_from` is the one
+                # place that reconciliation lives.
+                _pending = pending_artifact_from(name, tc.get("arguments"))
+                if _pending:
+                    yield ("artifact_pending", _pending)
+                if name not in _allowed:
+                    result: Any = {
+                        "success": False, "error": "tool_not_on_lane_surface",
+                        "message": f"lane tools: {', '.join(_allowed)}",
+                    }
+                elif name in _client_names:
+                    # ADR-662 D6 — the member's desktop app performs this act. The
+                    # act is registered BEFORE its frame goes out, so an answer
+                    # that beats the next await is never lost; `wait` fails closed.
+                    args = tc.get("arguments")
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args or "{}")
+                        except ValueError:
+                            args = {}
+                    fut = client_tools_mod.expect(nonce, tc["id"])
+                    yield ("client_tool", {
+                        "call_id": tc["id"], "name": name,
+                        "arguments": args or {}, "nonce": nonce,
+                    })
+                    result = await client_tools_mod.wait(nonce, tc["id"], fut)
+                    ok = bool(result.get("success"))
+                    if result.get("receipt"):
+                        yield ("receipt", {
+                        "name": name, "text": str(result["receipt"]), "ok": ok,
+                        # The structured half, for the member's own language:
+                        # {act, subject, changed}, worded by the client's
+                        # catalog. `text` is the model's sentence.
+                        "record": result.get("record") if isinstance(result.get("record"), dict) else None,
+                    })
+                    verdict = watch.note(name, args, ok)
+                    if verdict == "warn":
+                        result = {**result, "note": client_tools_mod.REPEAT_NOTE}
+                    elif verdict == "stop":
+                        stuck = True
+                else:
+                    try:
+                        # Round-boundary abort discipline (Phase-A stop): a member
+                        # abort cancels the turn at any await — a STARTED primitive
+                        # completes whole (the ledger never holds half a revision).
+                        # The stopped transcript may omit a write that landed; the
+                        # ledger is truth (the no-rewind rule).
+                        result = await asyncio.shield(
+                            execute_primitive(tool_auth, name, tc["arguments"])
+                        )
+                    except Exception as exc:
+                        result = {"success": False, "error": "tool_raised", "message": str(exc)}
+                # The work landed in a file — say WHICH file, so the member's chat
+                # can open it inline. This is the ADR-411 lane contract ("the
+                # transcript is private; the work lands in files") made visible.
+                produced = artifact_path_from(name, result)
+                if produced and produced not in artifacts:
+                    artifacts.append(produced)
+                    yield ("artifact", {"path": produced, "verb": name})
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": _stringify_tool_result(result),
+                })
+                # ADR-623 — a read of an image ENDS IN SEEING IT. The tool result
+                # above stays the honest binary notice; the pixels ride beside it as
+                # a user message, the one shape the content-parts protocol lets
+                # carry them. None when the file is not a viewable image, the read
+                # failed, or the engine cannot see.
+                #
+                # HELD, not appended here: every tool_use in the round must be
+                # answered by its tool_result in the IMMEDIATELY following message.
+                # Appending the pixels inside this loop splits that run the moment a
+                # round carries two calls and a non-final one is an image —
+                # "tool_use ids were found without tool_result blocks immediately
+                # after", and the turn dies. One call could never show it, which is
+                # how it shipped. The pixels go after the whole run instead.
+                vision_msg = image_part_for_tool_result(tool_auth, model, name, result)
+                if vision_msg is not None:
+                    pending_vision.append(vision_msg)
+            messages.extend(pending_vision)
+            if stuck:
+                # ADR-662 D8 — stop when stuck: a run of failed acts ends the
+                # turn in a sentence, instead of spending the round budget
+                # repeating them (the spike's 300–400k-token loops).
+                final_text = client_tools_mod.STUCK_SENTENCE
+                break
+        else:
+            # 2026-08-31 — a member-legible sentence, not a bracketed internal
+            # note. The observed shape: a truncated WriteFile arrives with an
+            # empty `content` key, `empty_content_blocked` correctly refuses it,
+            # the model retries, and the round cap ends the turn. The member had
+            # no way to tell that from a hang, and nothing told them their
+            # document was untouched — which is the fact that matters most.
+            final_text = final_text or (
+                client_tools_mod.ROUNDS_SENTENCE if client_tools else
+                "I ran out of steps on this turn and did not finish — your"
+                " document is unchanged. Asking for a smaller piece at a time"
+                " (a few slides, or one section) usually gets there."
+            )
+    finally:
+        if nonce:
+            client_tools_mod.close_turn(nonce)
 
     logger.info(
         "[LANE stream] model=%s rounds=%d tokens=%d/%d tools=%d artifacts=%d",

@@ -19,6 +19,7 @@ import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { isNativeShell, openExternal } from "@/lib/shell/external-navigation";
 import { hostVersion } from "@/lib/shell/host";
 import { DESKTOP_PLATFORMS, DESKTOP_DOWNLOADS, DESKTOP_PLATFORM_NAMES } from "@/lib/shell/desktop-app";
+import { DesktopBrowserSetting } from "@/components/settings/DesktopBrowserSetting";
 import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { createClient } from "@/lib/supabase/client";
@@ -432,6 +433,7 @@ function SettingsPageBody() {
             })}
           </ul>
           <p className="mt-3 text-xs text-muted-foreground">{t("desktop.signIn")}</p>
+          <DesktopBrowserSetting />
         </section>
       )}
 

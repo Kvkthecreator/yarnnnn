@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the desktop app's page may ask the host to do. ADR-663 D4: the page is the WEBSITE (remote), served as it is now, so this roster is the security boundary — it names exactly what the interface needs, never a default set. Nothing that acts on the member's machine may be added unless the host itself draws the consent prompt the member answers (ADR-662's local hands are bound by this).",
+  "description": "What the desktop app's page may ask the host to do. ADR-663 D4: the page is the WEBSITE (remote), served as it is now, so this roster is the security boundary — it names exactly what the interface needs, never a default set. Nothing that acts on the member's machine may be added unless the host itself draws the consent prompt the member answers (ADR-662's local hands are bound by this). ADR-662 D14: the four hands commands are the app's own; hands_enable draws the host's consent dialog, and browser_act refuses until the member said yes there. The browser pane's window ('browser') is named in no capability, so a page loaded there can ask the host for nothing.",
   "windows": [
     "main"
   ],
@@ -11,6 +11,10 @@
     "core:window:default",
     "core:window:allow-start-dragging",
     "deep-link:default",
+    "allow-hands-status",
+    "allow-hands-enable",
+    "allow-hands-disable",
+    "allow-browser-act",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

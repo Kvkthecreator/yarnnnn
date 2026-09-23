@@ -3,7 +3,7 @@
 > **Status**: Canonical — describes the live system.
 > **Ruled by**: [ADR-661](../adr/ADR-661-the-shell-may-be-native-the-hands-may-not.md) (a native client is permitted; sign-in is the browser's; the conditions on local hands) · [ADR-663](../adr/ADR-663-the-desktop-app-is-the-website-the-host-is-versioned.md) (the shape: the website in a native window; what is versioned) · bound on [ADR-662](../adr/ADR-662-local-hands-the-member-keeps-the-machine.md) (local hands, proposed).
 > **Operations**: [publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md) — signing, notarizing, cutting installers.
-> **Gates**: `api/test_adr663_the_desktop_app_is_the_website.py` (the shape) · `api/test_adr661_the_shell_may_be_native.py` (sign-in, the host's chrome, the rulings).
+> **Gates**: `api/test_adr663_the_desktop_app_is_the_website.py` (the shape) · `api/test_adr661_the_shell_may_be_native.py` (sign-in, the host's chrome, the rulings) · `api/test_adr662_local_hands.py` (the browser pane).
 
 This is the reference for anyone changing the desktop app, or changing the web product in a way the desktop app
 will feel. The ADRs hold the reasoning and the history; this document holds how it works **now**. When they
@@ -24,6 +24,7 @@ disagree, fix this document in the same commit as the code.
 │   • the system-browser hand-off (opener, URL-scoped)                           │
 │   • the yarnnn:// return leg (deep link; single-instance on Windows)           │
 │   • the capability roster — what the page may ask of the host                  │
+│   • the browser pane — local hands (ADR-662 D14), switched on by the member     │
 │                                                                                │
 │  BOOTSTRAP  src-tauri/bootstrap/index.html   ← the only bundled page           │
 │   • opens the website when it answers; says "offline" when it does not         │
@@ -69,6 +70,10 @@ records the comparison.
 | The browser half of sign-in | `web/app/auth/desktop/page.tsx` |
 | Download links (null until a signed build exists) | `web/lib/shell/desktop-app.ts`, shown in Settings → Desktop app |
 | The minimum host version the API accepts | `api/services/desktop_client.py`, registered in `api/main.py` |
+| Local hands: the browser pane, its consent, its five acts | `src-tauri/src/hands/mod.rs` + `src-tauri/src/hands/page.js` |
+| The app's own commands (each gets an `allow-…` permission) | `src-tauri/build.rs` |
+| The page's side of the pane, and the Settings switch | `web/lib/shell/hands.ts` · `web/components/settings/DesktopBrowserSetting.tsx` |
+| The hand-off: offered tools, the pending acts, stop-when-stuck | `api/services/client_tools.py`; tool definitions `api/services/primitives/browser.py` |
 | Build the Mac release | `scripts/release-shell.sh` |
 | Build the Windows installer | `.github/workflows/shell-windows.yml` (manual dispatch) |
 
@@ -113,7 +118,7 @@ A failure comes back to `/auth/login?error=…&message=…` and is shown in word
 | You change `web/` | Nothing. It ships with the next deploy, to browsers and apps alike. |
 | You change `src-tauri/` | Bump `version` in `Cargo.toml`, cut both installers, tag the commit `desktop-vX.Y.Z`. |
 | The website starts depending on a host change | Publish the new host first, **then** raise `DESKTOP_MIN_VERSION` in `api/services/desktop_client.py`. |
-| One feature needs a newer host | Give that feature its own minimum beside the global one (none exist yet; ADR-662 is the first expected). Do not raise the global minimum for one feature. |
+| One feature needs a newer host | Give that feature its own minimum beside the global one — `BROWSER_MIN_VERSION` (0.3.0) is the first, in `api/services/desktop_client.py`. Below it the feature is simply not offered; the host is never refused for it. Do not raise the global minimum for one feature. |
 | A download goes live | Set its https URL in `web/lib/shell/desktop-app.ts` **and** allow its host in the opener scope in `capabilities/default.json`. |
 
 **How refusal works.** The API answers a request whose `X-Yarnnn-Client` is below the minimum with **426** and
@@ -136,7 +141,10 @@ The page in the window is the live website. A compromised deploy, a poisoned dep
 
 - **`capabilities/default.json` is an explicit list, never a default set.** Today: `core:event:default` (deep-link
   events), `core:app:allow-version` (the header), `core:window:default` (chrome), `core:window:allow-start-dragging`
-  (the top bar is the grab handle), `deep-link:default`, and `opener:allow-open-url` with a URL scope.
+  (the top bar is the grab handle), `deep-link:default`, `opener:allow-open-url` with a URL scope, and the app's
+  four hands commands (`allow-hands-status`, `allow-hands-enable`, `allow-hands-disable`, `allow-browser-act` — §6a).
+- **The roster names the `main` window only.** A window the host opens for anything else — the browser pane —
+  gets no capability, so the internet pages loaded there can ask the host for nothing.
 - **Remote origins: `https://www.yarnnn.com/*` and `https://yarnnn.com/*` only.** `"local": false` — the bootstrap
   needs nothing from the host.
 - **Nothing that acts on the member's machine may be granted to the website's origin unless the host itself draws
@@ -148,6 +156,44 @@ The page in the window is the live website. A compromised deploy, a poisoned dep
   (`add_capability` in `main.rs`). There is never a second, hand-written list.
 - `tauri.conf.json` sets no CSP. The bootstrap is one local page with an inline script, and Tauri's nonce
   injection would block it (ADR-661 §7e); the website carries its own headers from Vercel.
+
+## 6a. Local hands: the browser pane (ADR-662 D14)
+
+The agent can work in a **browser pane** — a second window the host owns, labelled `browser` — while the member
+keeps using their machine. It is the first local hands, and it touches nothing outside its own window: no other
+app, no pointer, no keyboard, no screen capture, no clipboard.
+
+**Switching it on.** Settings → Desktop app → *Let your agent use a browser* calls `hands_enable`, and the HOST
+draws the consent dialog (ADR-663 D4 — the page may ask, only the host may ask the member). The answer is kept in
+the app's config directory (`hands.json`), on this machine only. Off → `hands_disable` closes the pane.
+
+**A turn that uses it.**
+
+1. The page sends a turn with `client_tools: ["browser"]` — only when `hands_status` says the member switched it
+   on (`web/lib/api/client.ts`, `browserHandsOn()`).
+2. The API offers the five browser tools only if `X-Yarnnn-Client` is at or above `BROWSER_MIN_VERSION`
+   (`client_tools.offered`). A browser tab never gets them.
+3. When the model calls one, the stream carries `{"client_tool": {call_id, name, arguments, nonce}}` and the
+   turn waits (`client_tools.wait`, 60 s, then fails closed).
+4. `performClientTool` (`web/lib/shell/hands.ts`) invokes `browser_act`; the host runs the act in the pane and
+   reads its effect back; the page posts the result to `POST /api/lanes/{id}/tool-results/{call_id}` with the
+   nonce. Only that turn's nonce, from the same member, is accepted.
+5. The stream carries `{"tool_receipt": {name, text, ok, record}}`; the chat's step row turns into what happened
+   ("Pressed “Sign in” — no change"), worded from `record` in the member's language. The receipts persist on the
+   reply's `metadata.receipts`.
+
+**The acts** (`src-tauri/src/hands/page.js`, run with JSON-encoded arguments — the model never writes script):
+`BrowserOpen` (http/https only) · `BrowserRead` (title, text, and every actionable element with a `ref`; a password
+field's value never leaves the page) · `BrowserClick` · `BrowserFill` (text fields and dropdowns; optional submit)
+· `BrowserBack`. Each answers `{success, receipt, record}`.
+
+**Bounds.** A hands turn has 30 rounds (`HANDS_MAX_ROUNDS`), and stops when stuck (`StuckWatch`). The pending acts
+live in the API process — correct on today's single worker; a second worker needs them shared.
+
+**Changing it.** A new act is a routine in `page.js` + an arm in `act()` + a schema in `primitives/browser.py` + a
+`record.act` the client words (`RECEIPT_ACTS` and `chat.tools.receipts` in both catalogs) — the ADR-662 gate checks
+that the host's acts and the client's words agree. A new host command goes in `build.rs` AND the roster, and
+anything that acts on the machine needs the host-drawn consent first.
 
 ## 7. Platform differences
 
@@ -164,7 +210,8 @@ the host tells the page what it needs to know.
 
 ⚠️ Tauri's `title_bar_style`, `hidden_title` and `traffic_light_position` exist **only** on macOS — called
 outside the `#[cfg(target_os = "macos")]` block, the host does not compile for Windows (ADR-661 §7o). Check a host
-change with `cargo check --target x86_64-pc-windows-msvc`.
+change for Windows with the `shell-windows.yml` workflow: `cargo check --target x86_64-pc-windows-msvc` on a Mac
+stops in `tauri-winres` without `llvm-rc`, before it reaches the host's own code.
 
 ## 8. Writing web code the desktop app will run
 
@@ -216,4 +263,5 @@ Each of these was built once, and each is why the current shape exists:
 ADR-661 (2026-09-21) permitted a native client and built it as a static export, then spent §7a–§7p learning what
 that shape cost: sign-in rebuilt three times, build-time origin pinning, a two-build route split, Windows blockers.
 ADR-663 (2026-09-23) replaced the shape with the website in a native window and made the host the only versioned
-thing. ADR-662 (proposed) plans local hands on that host, under ADR-663 D4.
+thing. ADR-662 (proposed) plans local hands on that host, under ADR-663 D4; its amendment 1 built the browser pane
+first (host 0.3.0), ahead of the member's-own-apps path.
