@@ -133,7 +133,9 @@ browser refreshes with the token the app already spent — unverified, a hypothe
 
 **Windows (§7o, 2026-09-23) — BUILT, not yet driven by a member.** The installer is cut by
 `.github/workflows/shell-windows.yml` (manual dispatch) → `yarnnn_<ver>_x64-setup.exe`, UNSIGNED
-(SmartScreen → More info → Run anyway). OPEN: (a) a real Windows sign-in round trip — the check that
+(SmartScreen → More info → Run anyway). First good cut: run `35809577767` at `b98001a`, 6.1MB, sha256
+`cd5c574b…d3e6e5`; the runner's export generated 48/48 and passed the §7m/§7o origin + anon-key guards.
+Repo secrets `NEXT_PUBLIC_SUPABASE_URL`/`_ANON_KEY` are SET. OPEN: (a) a real Windows sign-in round trip — the check that
 matters is that the hand-off reaches the RUNNING app (single-instance) and no second window opens;
 (b) WebView2 layout at 1280 and 1920 (scrollbars take width; Hangul → Malgun Gothic);
 (c) a signing route before any public link — Azure Trusted Signing eligibility for a Korean entity is
@@ -141,7 +143,9 @@ unchecked. Steps in [publishing-the-desktop-app.md](infrastructure/publishing-th
 
 ⚠️ **The shell's email sign-up + password reset still ride the SUPERSEDED `yarnnn://auth/callback`
 path** (`authCallbackUrl` → `AuthForm`'s `emailRedirectTo`/`redirectTo`); only Google moved to
-§7i's `/auth/desktop` hand-off. Unverified on either platform. Either drive it or route both through
+§7i's `/auth/desktop` hand-off. Unverified on either platform, and the allowlist entry itself is unverifiable from outside (GoTrue's
+OAuth `state` is now opaque; no Management API token is configured) — check it in the dashboard
+(Authentication → URL Configuration). Either drive it or route both through
 the website like Google, and delete `authCallbackUrl`'s shell branch in the same commit.
 
 **Owed after that:**
