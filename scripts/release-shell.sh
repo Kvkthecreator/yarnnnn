@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build a SIGNED, NOTARIZED, STAPLED macOS build of the shell.
-# ADR-661 §8 step 5.
+# Build a SIGNED, NOTARIZED, STAPLED macOS build of the desktop app.
+# ADR-661 §8 step 5. The version is src-tauri/Cargo.toml's (ADR-663 D2); tag
+# the commit `desktop-vX.Y.Z` once the build is handed to anyone.
 #
 #   ./scripts/release-shell.sh
 #
@@ -104,7 +105,7 @@ echo "▸ notary profile:   $PROFILE"
 # Tauri signs during the bundle step when this is set, so the .app inside the
 # DMG is signed too — signing only the DMG leaves the app inside it unsigned,
 # and Gatekeeper checks the app.
-echo "▸ building (this runs the shell's web export first)…"
+echo "▸ building the host (the interface is the website — ADR-663 D1)…"
 APPLE_SIGNING_IDENTITY="$IDENTITY" cargo tauri build
 
 DMG="$(find target/release/bundle/dmg -name '*.dmg' -maxdepth 1 | head -1)"

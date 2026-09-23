@@ -1,9 +1,28 @@
 # Publishing the desktop app
 
 What stands between a build and a stranger downloading it and it just working.
-ADR-661 §8 steps 4–5 (macOS) and §7o (Windows). One host (`src-tauri/`), one
-web tree, one launcher (`web/scripts/shell-next.mjs`); the two platforms differ
-only in where the installer is cut and how it is signed.
+ADR-661 §8 steps 4–5 (macOS) and §7o (Windows); ADR-663 for what is versioned.
+
+**The desktop app is the website in a native window** (ADR-663). The installer
+carries only the host (`src-tauri/`) and a bootstrap page; the interface loads
+from `https://www.yarnnn.com/desktop`, so a web deploy updates every installed
+app. A new installer is needed only when the HOST changes.
+
+## Versioning — one number, the host's
+
+- The version lives in **`src-tauri/Cargo.toml`** and nowhere else (Tauri reads
+  it; `tauri.conf.json` carries none). macOS and Windows share it.
+- Bump it when the host changes. Tag the commit a handed-out build was cut from:
+  `git tag desktop-v0.2.0 && git push origin desktop-v0.2.0`.
+- The app sends `X-Yarnnn-Client: desktop/<version>` on every API request. To
+  retire old installs, raise `DESKTOP_MIN_VERSION` in
+  `api/services/desktop_client.py` **after** the new build is published: an
+  older app then shows *"This version of the yarnnn app is out of date"* with a
+  link to Settings → Desktop app.
+- When a download goes live, set its https URL in `web/lib/shell/desktop-app.ts`
+  **and** add that host to the opener scope in
+  `src-tauri/capabilities/default.json` — otherwise the in-app Download link
+  opens nothing.
 
 | | macOS | Windows |
 |---|---|---|
@@ -80,7 +99,7 @@ Your team ID is the parenthesised code in the certificate name above.
 ```
 
 It refuses early, with a sentence you can act on, if any of the four setup
-steps is missing. Otherwise it builds the web export, bundles and signs the
+steps is missing. Otherwise it builds the host, bundles and signs the
 app, submits it to Apple, waits for the scan (usually 1–5 minutes), staples the
 ticket to the DMG, and asks Gatekeeper directly whether a stranger could open
 it.
@@ -164,18 +183,9 @@ gh run watch                                # ~10–15 min
 gh run download --name yarnnn-windows      # → yarnnn_<ver>_x64-setup.exe
 ```
 
-**Once, before the first run**, the runner needs the two Supabase values the
-build freezes into the app (it has no `.env.local`). They are the public anon
-pair — the same values every browser receives from yarnnn.com — kept as secrets
-only so they live in one place:
-
-```bash
-grep '^NEXT_PUBLIC_SUPABASE_URL=' web/.env.local | cut -d= -f2- | gh secret set NEXT_PUBLIC_SUPABASE_URL
-grep '^NEXT_PUBLIC_SUPABASE_ANON_KEY=' web/.env.local | cut -d= -f2- | gh secret set NEXT_PUBLIC_SUPABASE_ANON_KEY
-```
-
-If either is missing the build **stops** with an ADR-661 §7o/§7m message rather
-than shipping an app that cannot reach Supabase.
+The installer carries only the native host and its bootstrap page — the
+interface is the website, loaded at launch (ADR-663 D1) — so the runner builds
+no web code and needs no secrets.
 
 ## Installing it (what a tester sees)
 
@@ -227,9 +237,9 @@ method it has (password, Google, sign-up, a reset link) through its existing
 never sees. A `yarnnn://auth/callback` entry left from the superseded design is
 unused and can be removed.
 
-**2. The API's CORS allowlist** already carries the shell's origins
-(`tauri://localhost` on macOS, `http://tauri.localhost` on Windows — `api/main.py`). They ship with
-the code; nothing to do unless the origins change.
+**2. The API's CORS allowlist needs nothing.** The app's requests carry the
+website's own origin (ADR-663 D1). The Tauri origins the old static-export
+builds used were removed, which retired every 0.1.x install.
 
 ---
 

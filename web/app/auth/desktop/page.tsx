@@ -4,9 +4,9 @@
  * `/auth/desktop` — the browser finishes the sign-in and hands the session to
  * the app (ADR-661 §7i).
  *
- * This route exists only on the WEB build (`page.web.tsx`), and that is the
- * whole point: the shell does not authenticate, the website does. The desktop
- * app opens this URL in the member's own browser and waits for a deep link.
+ * It runs in the member's own BROWSER, and that is the whole point: the
+ * desktop app does not authenticate, the website does. The app opens this URL
+ * in the system browser and waits for a deep link.
  *
  * WHY THIS SHAPE. It is what Notion, Slack, Linear and Claude's own desktop
  * clients do, and it is the shape the failures argued us into. The previous

@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
-import { isNativeShell } from "@/lib/shell/external-navigation";
+import { isNativeShell, openExternal } from "@/lib/shell/external-navigation";
+import { hostVersion } from "@/lib/shell/host";
 import { DESKTOP_PLATFORMS, DESKTOP_DOWNLOADS, DESKTOP_PLATFORM_NAMES } from "@/lib/shell/desktop-app";
 import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
@@ -142,6 +143,11 @@ type DangerAction =
 
 function SettingsPageBody() {
   const t = useTranslations("settings");
+  // ADR-663 D2 — the installed host's version; null in a browser.
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    void hostVersion().then(setAppVersion);
+  }, []);
   const paneGroups: PaneGroup[] = PANE_ROSTER.map((group) => ({
     label: t(group.labelKey),
     panes: group.panes.map((pane) => ({ key: pane.key, label: t(pane.labelKey), icon: pane.icon })),
@@ -392,27 +398,39 @@ function SettingsPageBody() {
       {pane === "desktop" && (
         <section className="mb-8">
           <PaneHeader icon={Monitor} title={t("panes.desktop")} subtitle={t("desktop.subtitle")} bordered={false} />
-          {isNativeShell() ? (
-            <p className="text-sm text-muted-foreground">{t("desktop.inApp")}</p>
-          ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
-              {DESKTOP_PLATFORMS.map((platform) => {
-                const href = DESKTOP_DOWNLOADS[platform];
-                return (
-                  <li key={platform} className="flex items-center justify-between gap-4 px-4 py-3">
-                    <span className="text-sm">{DESKTOP_PLATFORM_NAMES[platform]}</span>
-                    {href ? (
-                      <a href={href} className="text-sm font-medium underline underline-offset-2">
-                        {t("desktop.download")}
-                      </a>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">{t("desktop.notYet")}</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+          {/* ADR-663 D6 — the list shows inside the app too: it is where an
+              out-of-date host is sent to update. */}
+          {appVersion && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              {t("desktop.inApp")} {t("desktop.version", { version: appVersion })}
+            </p>
           )}
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {DESKTOP_PLATFORMS.map((platform) => {
+              const href = DESKTOP_DOWNLOADS[platform];
+              return (
+                <li key={platform} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <span className="text-sm">{DESKTOP_PLATFORM_NAMES[platform]}</span>
+                  {href ? (
+                    <a
+                      href={href}
+                      onClick={(e) => {
+                        // In the app a download leaves the window (ADR-661 §4.3).
+                        if (!isNativeShell()) return;
+                        e.preventDefault();
+                        openExternal(href);
+                      }}
+                      className="text-sm font-medium underline underline-offset-2"
+                    >
+                      {t("desktop.download")}
+                    </a>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">{t("desktop.notYet")}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
           <p className="mt-3 text-xs text-muted-foreground">{t("desktop.signIn")}</p>
         </section>
       )}

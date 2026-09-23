@@ -1,12 +1,17 @@
 # ADR-661 §8 step 4 — the desktop host.
 #
-# This crate is the SHELL, not the product: it opens a window, serves the
-# exported web app from disk, and owns the two things a browser tab cannot do
-# (a real window, and handing an external URL to the system browser). Product
-# behaviour stays in `web/` — D4, one codebase, N build targets.
+# This crate is the HOST, not the product: it opens a window onto the website
+# (ADR-663 D1) and owns what a browser tab cannot do (a real window, the system
+# browser hand-off, the `yarnnn://` return leg). Product behaviour stays in
+# `web/`.
+#
+# `version` below is the desktop app's ONE version (ADR-663 D2): tauri.conf.json
+# carries none, so Tauri reads this; macOS and Windows share it; a build handed
+# to anyone is tagged `desktop-vX.Y.Z`. The API's DESKTOP_MIN_VERSION
+# (api/services/desktop_client.py) is compared against it.
 [package]
 name = "yarnnn"
-version = "0.1.0"
+version = "0.2.0"
 description = "yarnnn — shared memory for AI + human work"
 authors = ["yarnnn"]
 edition = "2021"

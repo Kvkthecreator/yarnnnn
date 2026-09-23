@@ -2,6 +2,7 @@
 
 > **Status**: **Accepted** (2026-09-21, operator-ratified) **+ Implemented — steps 1–5** (2026-09-21 → 09-23). The Mac shell ships (§7b–§7n), Windows is a build target (§7o), and the app signs in through the browser only (§7i, §7p). **Owed**: signing and notarization need the Apple Developer ID; auto-update is not built; Windows is not yet driven by a member. **Local attended computer use is IN SCOPE** (§5, §6) and has its own implementation ADR — [ADR-662](ADR-662-local-hands-the-member-keeps-the-machine.md), **Proposed**.
 > **Date**: 2026-09-21
+> **⚠️ Mechanism superseded by [ADR-663](ADR-663-the-desktop-app-is-the-website-the-host-is-versioned.md) (2026-09-23)**: the desktop app is the WEBSITE in a native window, not a static export. §7a's export-only route work, §7b (two builds, `pageExtensions`), §7f, §7m, the launcher half of §7o and §7p's page pair describe deleted code; every RULING they served (D1–D5, §7p D6, §6) stands.
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Channel** (Axiom 6 — the client is a form of addressed surface, and §5 adds a *local* channel that is not a boundary crossing) + **Identity** (Axiom 2 — the whole of §5 is who acts and who the far side sees). **No authority change**: the credential chokepoint, the grant model and the kernel are untouched.
 >

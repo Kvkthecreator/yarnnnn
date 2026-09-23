@@ -113,9 +113,7 @@ def main() -> int:
 
     # The sandbox is NOT loosened. This is the check that stops a future session
     # reading "we extract text now" as "we may inline HTML".
-    # ADR-661 (d8b1542) renamed the share page to `page.web.tsx` (the web build
-    # target); the arm crashed on the old name and reported nothing.
-    page = _strip_comments((WEB / "app/s/[token]/page.web.tsx").read_text(encoding="utf-8"))
+    page = _strip_comments((WEB / "app/s/[token]/page.tsx").read_text(encoding="utf-8"))
     results.append(_check(
         "D2d the locked sandbox survives and nothing is inlined",
         'sandbox=""' in page
@@ -182,8 +180,7 @@ def main() -> int:
     results.append(_check(
         "D4c it carries the capability headers on every exit",
         "_CAPABILITY_HEADERS" in alias_fn))
-    # renamed to route.web.ts by ADR-661 (d8b1542); the arm crashed on the old name.
-    alias = (WEB / "app/s/[token]/txt/route.web.ts").read_text(encoding="utf-8")
+    alias = (WEB / "app/s/[token]/txt/route.ts").read_text(encoding="utf-8")
     results.append(_check(
         "D4d the app-domain alias is a pure transport hop (no second projection)",
         "project" not in _strip_comments(alias).lower()

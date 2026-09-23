@@ -1,100 +1,112 @@
 "use client";
 
-/**
- * Sign-in for the DESKTOP APP (ADR-661 §7p). `page.web.tsx` beside this file
- * is the website's sign-in, and exactly one of the two exists in any build
- * (`pageExtensions` in `next.config.js`).
- *
- * The desktop app does not authenticate — the website does (§7i D5). So this
- * page has no form: one button opens `/auth/desktop` in the member's own
- * browser, where every sign-in method the website has works (password, Google,
- * sign-up, a reset link), and the browser hands the session back over
- * `yarnnn://auth/session`, which `DeepLinkBridge` redeems. This is the shape
- * Notion, Slack and Linear use, and it is why the app never starts an auth
- * flow of its own: an email link or an OAuth return can only complete in the
- * context that began it, and that context is the browser.
- *
- * What this page must still do (§7h): say WHY a hand-off failed. The bridge
- * lands a failure here as `?error=…&message=…`.
- */
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { Wordmark } from "@/components/shared/Wordmark";
-import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
-import { createClient } from "@/lib/supabase/client";
-import { getSafeNextPath } from "@/lib/auth/redirect";
+import { authCallbackUrl, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
-import { openExternal, webOrigin } from "@/lib/shell/external-navigation";
+import { AuthForm } from "@/components/auth/AuthForm";
+import Link from "next/link";
+import { Wordmark } from "@/components/shared/Wordmark";
+import { Working } from '@/components/shared/Working';
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useTranslations } from "next-intl";
+import { DesktopSignIn } from "@/components/auth/DesktopSignIn";
+import { isNativeShell } from "@/lib/shell/external-navigation";
 
-export default function DesktopSignIn() {
-  const t = useTranslations("auth.desktop");
-  const router = useRouter();
-  const [failure, setFailure] = useState<string | null>(null);
-  const [opened, setOpened] = useState(false);
+function LoginForm() {
+  const t = useTranslations("auth");
+  const searchParams = useSearchParams();
+  const [initialError, setInitialError] = useState<string | null>(null);
+  const nextPath = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
+  const callbackRedirect = authCallbackUrl(nextPath);
 
+  // Show OAuth callback errors
   useEffect(() => {
-    // `window.location`, not `useSearchParams`: under a static export the hook
-    // demands a Suspense boundary (§7a), and an effect only runs in the app.
-    const params = new URLSearchParams(window.location.search);
-    const error = params.get("error");
-    const message = params.get("message");
-    if (error) setFailure(message ? `${error}: ${message}` : error);
-
-    // Already signed in (a session survived, or the hand-off just landed):
-    // go where the member was going.
-    const next = getSafeNextPath(params.get("next"), HOME_ROUTE);
-    void createClient()
-      .auth.getSession()
-      .then(({ data: { session } }) => {
-        if (session) router.replace(next);
-      });
-  }, [router]);
-
-  const continueInBrowser = () => {
-    setFailure(null);
-    setOpened(true);
-    openExternal(`${webOrigin()}/auth/desktop`);
-  };
+    const errorParam = searchParams.get("error");
+    const messageParam = searchParams.get("message");
+    if (errorParam) {
+      setInitialError(`${errorParam}${messageParam ? `: ${messageParam}` : ""}`);
+    }
+  }, [searchParams]);
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
       <GrainOverlay />
       <ShaderBackground />
 
-      <div className="relative z-10 w-full max-w-md text-center">
-        <h1 className="text-[#1a1a1a]">
-          <Wordmark className="text-3xl" />
-        </h1>
-        <p className="mt-6 text-[#1a1a1a]">{t("heading")}</p>
-        <p className="mt-2 text-sm text-[#1a1a1a]/60">{t("lead")}</p>
+      <div className="relative z-10 w-full max-w-md">
+        <div className="text-center">
+          <Link
+            href="/"
+            className="inline-block text-[#1a1a1a] hover:opacity-80 transition-opacity"
+          >
+            <Wordmark className="text-3xl" />
+          </Link>
+        </div>
 
-        <button
-          type="button"
-          onClick={continueInBrowser}
-          className="mt-8 w-full rounded-lg bg-[#1a1a1a] px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
-        >
-          {opened ? t("again") : t("continue")}
-        </button>
+        <AuthForm
+          onPasswordSuccess={() => {
+            // A full load re-enters `middleware.ts`, which must see the new
+            // cookie. (Web-only page — the desktop app signs in through the
+            // browser, ADR-661 §7p.)
+            window.location.href = nextPath;
+          }}
+          callbackRedirect={callbackRedirect}
+          // `?mode=signup` opens in sign-up (2026-09-16). Every conversion CTA
+          // on the marketing site — "Start free", "Connect your AI", "Bring the
+          // team" — used to land here in SIGN-IN mode, so the first thing a
+          // stranger who just decided to try the product saw was a form asking
+          // for a password they do not have, with the actual sign-up affordance
+          // a small link at the bottom. Observed in a first-time-visitor pass,
+          // 2026-09-15. Anything but "signup" stays on sign-in, so an
+          // unrecognised value degrades to today's behaviour.
+          initialMode={searchParams.get("mode") === "signup" ? "signup" : "login"}
+          loginSubheading={t("loginSubheading")}
+          signupSubheading={t("signupSubheading")}
+          initialError={initialError}
+        />
 
-        {opened && !failure && (
-          <p className="mt-4 text-sm text-[#1a1a1a]/60" role="status">
-            {t("waiting")}
-          </p>
-        )}
-        {failure && (
-          <p className="mt-4 text-sm text-red-700" role="alert">
-            {failure}
-          </p>
-        )}
-
-        <div className="mt-8 flex justify-center">
+        {/* ADR-660 D2 — signed out, the choice is the device cookie; the first
+            signed-in render adopts it into the account. */}
+        <div className="mt-6 flex justify-center">
           <LanguageSwitcher variant="inline" />
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // ADR-660 — the fallback is rendered by THIS component, so the word is bound
+  // here; `Working` itself stays locale-free (it is also mounted by routes
+  // outside every scope, where a translation hook would throw).
+  const t = useTranslations("auth");
+
+  // ADR-663 D5 — the desktop app has no sign-in form; the browser signs in
+  // (ADR-661 §7p D6). Which page this is can only be known in the window, so
+  // it is decided after mount. The form below is client-rendered behind a
+  // Suspense boundary anyway, so waiting one tick paints nothing twice.
+  const [inApp, setInApp] = useState<boolean | null>(null);
+  useEffect(() => setInApp(isNativeShell()), []);
+
+  const fallback = (
+    <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
+      <div className="relative z-10 w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h1 className="text-[#1a1a1a]"><Wordmark className="text-3xl" /></h1>
+          <div className="mt-2 flex justify-center"><Working label={t('loading')} /></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (inApp === null) return fallback;
+  if (inApp) return <DesktopSignIn />;
+  return (
+    <Suspense fallback={fallback}>
+      <LoginForm />
+    </Suspense>
   );
 }

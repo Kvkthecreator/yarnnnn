@@ -1,8 +1,10 @@
 'use client';
 
 /**
- * SurfaceBoundary — the Suspense boundary a surface route needs to survive a
- * static export (ADR-661 §8 step 3, §7a blocker 4).
+ * SurfaceBoundary — the page-level Suspense boundary for a surface that reads
+ * `useSearchParams()` (ADR-661 §8 step 3, §7a blocker 4). Found by the static
+ * export that ADR-663 later retired; kept because the web's first paint needs
+ * it too (below).
  *
  * `useSearchParams()` makes a component read the request's query string. Under
  * SSR that is a dynamic render and Next handles it; under `output: 'export'`

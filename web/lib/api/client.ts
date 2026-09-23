@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/client";
+import { clientHeaders, noticeHostRefusal } from "@/lib/shell/host";
 import { sseEvents, SseIdleError } from "@/lib/sse";
 import type { StudioVocabulary } from "@/components/authoring/StudioToolbar";
 import type { StagePreset } from "@/components/authoring/NewArtifactModal";
@@ -159,6 +160,9 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   } catch {
     // SSR / storage unavailable — owner default applies
   }
+
+  // ADR-663 D3 — the desktop host names its version; a browser adds nothing.
+  Object.assign(headers, await clientHeaders());
 
   return headers;
 }
@@ -455,6 +459,7 @@ async function request<T>(
       return healed;
     }
 
+    noticeHostRefusal(response.status, data);
     throw new APIError(response.status, response.statusText, data);
   }
 

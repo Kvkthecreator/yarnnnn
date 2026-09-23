@@ -82,6 +82,12 @@ app = FastAPI(
     version="5.0.0",
 )
 
+# ADR-663 D3 — refuse a desktop host below the minimum. Added BEFORE CORS so
+# CORS wraps it (the last middleware added is the outermost): a 426 without
+# CORS headers reads as a network error and the page never sees it.
+from services.desktop_client import DesktopMinVersionMiddleware
+app.add_middleware(DesktopMinVersionMiddleware)
+
 # CORS - allow frontend origins
 # Note: allow_origin_regex is used for Vercel preview deployments
 app.add_middleware(
@@ -92,18 +98,9 @@ app.add_middleware(
         "https://www.yarnnn.com",
         "https://yarnnnn.vercel.app",
         "https://www.yarnnnn.vercel.app",
-        # ADR-661 §8 step 4 — the packaged desktop shell. A Tauri window serves
-        # the exported app from disk under its own scheme, so its requests
-        # carry one of these Origins rather than a yarnnn.com one. Without them
-        # every API call from the shell fails CORS while the app itself loads
-        # fine — a whole-product failure that looks like a backend outage.
-        # (Measured during the §8 click-pass: a dev origin off this list could
-        # not reach the API at all.)
-        #   macOS/iOS webview
-        "tauri://localhost",
-        
-        #   Linux/Windows webview (Tauri v2 serves over http on these)
-        "http://tauri.localhost",
+        # The desktop app needs no entry: it is the website in a native window
+        # (ADR-663 D1), so its requests carry the website's origin. The Tauri
+        # origins the static-export shell used were removed with it.
     ],
     allow_origin_regex=r"https://yarnnnn-.*\.vercel\.app",  # Vercel preview URLs (includes git branch deployments)
     allow_credentials=True,

@@ -1,40 +1,42 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { HOME_ROUTE } from '@/lib/routes';
+import type { Metadata } from "next";
+import { getMarketingMetadata } from "@/lib/metadata";
+import { MarketingIntlScope } from "@/components/marketing/MarketingIntlScope";
+import { LandingPageBody } from "@/components/marketing/LandingPageBody";
 
 /**
- * The shell's root (ADR-661 §8 step 4).
+ * The English landing page — `/`, unprefixed and unmoved.
  *
- * On the web `/` is the marketing landing page (`page.web.tsx`), which the
- * shell does not ship: a member who opened the app has already arrived, and a
- * pitch is what they came through, not what they came for.
+ * The page itself is `components/marketing/LandingPageBody`, rendered here in
+ * English and at `/ko` in Korean. One component, two routes: the CANON-LOCK
+ * hero arc cannot drift between languages because there is only one of it.
  *
- * ⚠️ **This is a CLIENT redirect, and that is not a violation of ADR-308 — it
- * is the only thing that works here.** ADR-308 requires a stub to be pure
- * server transport, because a `'use client'` redirect paints one orphaned
- * frame inside the OS shell. That ruling is about the WEB build, which has a
- * server to do the redirecting.
- *
- * A static export has none. `redirect()` from `next/navigation` is a server
- * call, and Next exported this route as an ERROR PAGE (`id="__next_error__"`)
- * — which is exactly what the member saw: sign in successfully, land on a page
- * that looks like a logged-out start, and wonder why the app forgot them.
- * Found by reading the exported HTML after the operator reported it.
- *
- * The orphaned-frame cost ADR-308 names does not apply the same way: the shell
- * reaches this route only at cold boot, before any Desktop exists to be
- * orphaned, and `replace` keeps it out of history so no Back button returns to
- * it. The web build still uses the server redirect — `page.web.tsx` is
- * untouched.
+ * English stays at the bare path deliberately (see `lib/marketing/locale.ts`):
+ * no live URL moves, so no redirect is introduced and no ranking is disturbed.
  */
-export default function ShellRoot() {
-  const router = useRouter();
 
-  useEffect(() => {
-    router.replace(HOME_ROUTE);
-  }, [router]);
+export const metadata: Metadata = getMarketingMetadata({
+  title: "your true AI-first workspace | yarnnn",
+  description:
+    "One workspace for you, your people, and the AI you already use. Nothing to set up — and every change signed by whoever made it, human or not.",
+  path: "/",
+  locale: "en",
+  keywords: [
+    "ai workspace",
+    "ai-first workspace",
+    "shared ai workspace",
+    "co-work with ai",
+    "work with chatgpt and claude together",
+    "shared workspace for ai and humans",
+    "ai collaboration workspace",
+    "ai workspace you own",
+    "cross-llm workspace",
+  ],
+});
 
-  return null;
+export default function LandingPage() {
+  return (
+    <MarketingIntlScope locale="en">
+      <LandingPageBody locale="en" />
+    </MarketingIntlScope>
+  );
 }

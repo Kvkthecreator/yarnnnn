@@ -14,10 +14,17 @@
 //!     handoff is one-way — the member signs in, the browser holds the session,
 //!     and the app never hears about it.
 //!
-//! What it does NOT own: anything a member sees. The product is the exported
-//! web app it serves from disk, one codebase with the web build (D4). A
-//! platform difference belongs here as a capability the host fills, never as a
-//! branch inside a surface.
+//! What it does NOT own: anything a member sees. The product is the WEBSITE,
+//! loaded into this window (ADR-663 D1) — the installer carries this host and
+//! one local page, `bootstrap/index.html`, that opens the website or says it is
+//! offline. So the host is the only versioned thing (`Cargo.toml`, ADR-663 D2).
+//! A platform difference belongs here as a capability the host fills, never as
+//! a branch inside a surface.
+//!
+//! ⚠️ ADR-663 D4: the page is whatever the website serves NOW. What it may ask
+//! of this host is `capabilities/default.json`'s remote roster, and nothing
+//! that acts on the member's machine may be added there unless this host
+//! itself draws the consent prompt the member answers.
 //!
 //! §8's constraint, kept on purpose: this stays a HOST with a capability seam,
 //! not a thin `WebView::new`. Step 6 (local hands, §5/§6) would add a command
@@ -26,6 +33,13 @@
 
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
+
+/// Where the interface comes from (ADR-663 D1). A debug build opens the local
+/// dev server, so `cargo tauri dev` runs against `pnpm dev`.
+#[cfg(not(debug_assertions))]
+const APP_URL: &str = "https://www.yarnnn.com/desktop";
+#[cfg(debug_assertions)]
+const APP_URL: &str = "http://localhost:3000/desktop";
 
 fn main() {
     tauri::Builder::default()
@@ -54,7 +68,22 @@ fn main() {
         // has to be handed to the Supabase client, not to the router.
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
+            // A debug build's page comes from the dev server, which the release
+            // roster does not name. Grant it the SAME roster, re-pointed — never
+            // a second list, which is how two rosters drift apart.
+            #[cfg(debug_assertions)]
+            {
+                let mut dev: serde_json::Value =
+                    serde_json::from_str(include_str!("../capabilities/default.json"))?;
+                dev["identifier"] = "dev-server".into();
+                dev["remote"]["urls"] = serde_json::json!(["http://localhost:3000/*"]);
+                app.add_capability(dev.to_string())?;
+            }
+
+            // The window opens the bundled bootstrap, which opens APP_URL once
+            // the website answers — or says the app is offline (ADR-663 D1).
             let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .initialization_script(&format!("window.__YARNNN_APP_URL__ = {:?};", APP_URL))
                 .title("yarnnn")
                 // Roomy enough for the compositor's windows (the product is a
                 // desktop metaphor — ADR-297 D17), small enough for a laptop.

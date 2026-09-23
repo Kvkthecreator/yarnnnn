@@ -120,7 +120,6 @@ _to_delete/
 # Investor decks stay on disk, out of git (18MB of .pptx in a code repo; 2026-09-12)
 docs/working_docs/investors/*.pptx
 
-# ADR-661 §8 step 4 — the desktop shell's build outputs.
-web/.next-shell/
+# ADR-661 §8 step 4 — the desktop host's build outputs.
 src-tauri/target/
 src-tauri/gen/

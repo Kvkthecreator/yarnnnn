@@ -1,12 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the shell's web content may ask the host to do. ADR-661 \u00a78 step 4 \u2014 a capability is granted here, never assumed: the roster is the audit surface for what the host exposes, and it stays as small as the product needs. Local hands (\u00a75/\u00a76) would add a permission to this file behind a per-act member grant, in their own ADR.",
+  "description": "What the desktop app's page may ask the host to do. ADR-663 D4: the page is the WEBSITE (remote), served as it is now, so this roster is the security boundary — it names exactly what the interface needs, never a default set. Nothing that acts on the member's machine may be added unless the host itself draws the consent prompt the member answers (ADR-662's local hands are bound by this).",
   "windows": [
     "main"
   ],
   "permissions": [
-    "core:default",
+    "core:event:default",
+    "core:app:allow-version",
+    "core:window:default",
     "core:window:allow-start-dragging",
     "deep-link:default",
     {
@@ -29,5 +31,12 @@
         }
       ]
     }
-  ]
+  ],
+  "local": false,
+  "remote": {
+    "urls": [
+      "https://www.yarnnn.com/*",
+      "https://yarnnn.com/*"
+    ]
+  }
 }

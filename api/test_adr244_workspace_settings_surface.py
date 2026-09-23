@@ -31,7 +31,7 @@ WORKSPACE_PURGE_SVC = REPO_ROOT / "api" / "services" / "workspace_purge.py"
 WORKSPACE_SECTION_FE = REPO_ROOT / "web" / "components" / "settings" / "WorkspaceSection.tsx"
 SETTINGS_PAGE_FE = REPO_ROOT / "web" / "app" / "(authenticated)" / "settings" / "page.tsx"
 # Web-only since ADR-661 §7p (the desktop app never receives a callback).
-CALLBACK_PAGE_FE = REPO_ROOT / "web" / "app" / "auth" / "callback" / "page.web.tsx"
+CALLBACK_PAGE_FE = REPO_ROOT / "web" / "app" / "auth" / "callback" / "page.tsx"
 API_CLIENT_FE = REPO_ROOT / "web" / "lib" / "api" / "client.ts"
 
 ONBOARDING_MODAL_FE = REPO_ROOT / "web" / "components" / "onboarding" / "OnboardingModal.tsx"

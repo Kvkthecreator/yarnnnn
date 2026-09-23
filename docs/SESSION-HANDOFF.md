@@ -109,41 +109,43 @@ AI-shaped copy shown to humans (`b31aed3`), and the stale governance gate (`c3e6
   user exists any more** (teardown ran; 22 users live, neither present). Annotations corrected
   in `d77821e`, but **no cold instrument exists** — re-mint one before any first-run pass.
 
-## ADR-661/662 — the desktop app: what stays OPEN (2026-09-23)
+## ADR-661/662/663 — the desktop app: what stays OPEN (2026-09-23)
 
-Shipped and member-driven on macOS: sign-in through the browser (§7i–§7l, §7p), the production API
-pinned (§7m), the top bar as title bar (§7n). Windows is a build target (§7o). The app has ONE
-sign-in — `/auth/login` in the desktop build is a button that opens `/auth/desktop` (§7p); there is
-no `yarnnn://auth/callback`. Settings → Desktop app surfaces it on every plan, from ONE roster
-(`web/lib/shell/desktop-app.ts`). Gate `api/test_adr661_the_shell_may_be_native.py` **81/81**.
+**ADR-663: the desktop app IS the website in a native window.** The installer carries the host
+(`src-tauri/`) + one bootstrap page; the window opens `https://www.yarnnn.com/desktop` (debug:
+`localhost:3000`). The static export, the `.web.tsx` two-build split, the shell's own Supabase client
+and locale chain are DELETED — a web deploy updates every desktop app. The host is the one versioned
+thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build; the page sends
+`X-Yarnnn-Client: desktop/X.Y.Z`; the API refuses a host below `DESKTOP_MIN_VERSION`
+(`api/services/desktop_client.py`) with 426 → `DesktopUpdateNotice`. Gates `test_adr663_*` **34/34**,
+`test_adr661_*` 64/64.
 
 **OPEN:**
-1. **Drive §7p on the rebuilt Mac app** — sign out, sign in with the one button; and the window drags
-   by its top bar (§7n; a capture cannot show it).
-2. **Apple Developer ID** (operator) — the Mac build is unsigned, so a download says *"damaged"*; it
-   is also ADR-662's prerequisite (macOS grants attach to the code signature). Steps in
-   [publishing-the-desktop-app.md](infrastructure/publishing-the-desktop-app.md). Publishing a build =
-   set its https URL in `desktop-app.ts`.
-3. **Windows** (§7o): not yet driven by a member — the hand-off must reach the RUNNING app
-   (single-instance) with no second window; WebView2 layout at 1280/1920; a signing route before any
-   public link (Azure Trusted Signing eligibility for a Korean entity unchecked). Installer: workflow
-   `shell-windows.yml`, manual dispatch, unsigned.
-4. **Auto-update** — not built, deliberately.
-5. **ADR-662 is PROPOSED** — local hands (background, Cowork-style), Office DEFERRED, the browser first.
-   Round 3 (the D13 browser tools, with stop-when-stuck) is the measurement before any product code;
-   §9 lists what is still open.
-6. ⚠️ Watch: the browser and the app share one refresh-token lineage. If the app is signed out ~1h
+1. **Every 0.1.x install is retired** (the Tauri origins left CORS). Reinstall 0.2.0 on the operator's
+   Mac and on any Windows tester.
+2. **Drive ADR-663 on a real build** once the web deploy is live: sign in with the one button (the
+   hand-off lands in the WEBSITE's cookie session now — `refreshSession` through auth-helpers); the
+   window drags by its top bar; Settings → Desktop app shows the version; offline launch shows the
+   bootstrap's message. Windows: the hand-off reaches the RUNNING app (single-instance).
+3. **Apple Developer ID** (operator) — the Mac build is unsigned (*"damaged"* on download); ADR-662's
+   prerequisite too. Publishing a build = set its https URL in `web/lib/shell/desktop-app.ts` — and
+   add that host to the opener scope in `src-tauri/capabilities/default.json`, or the in-app
+   Download link opens nothing.
+4. **Windows signing** — SmartScreen warns; Azure Trusted Signing eligibility for a Korean entity
+   unchecked. Installer: `shell-windows.yml`, manual dispatch.
+5. **Auto-update** — deferred by ADR-663 D6 (its own keypair + a hosted manifest); D3's 426 is the lever.
+6. **ADR-662 is PROPOSED** — and now bound by ADR-663 D4: anything that acts on the machine is asked
+   for through a HOST-drawn prompt, never granted to the website's origin in the roster.
+7. ⚠️ Watch: the browser and the app share one refresh-token lineage. If the app is signed out ~1h
    after signing in, suspect Supabase's reuse detection — a hypothesis, unverified.
 
-⚠️ **Two builds, one tree**: `page.web.tsx` is a route on the WEB build only (`pageExtensions`);
-`page.tsx` beside it is the desktop build's. A new route defaults to BOTH. Baselines: web **30 ○ +
-1 ● / 52 ƒ** (the older "29 static" count excluded `/_not-found`), shell **47/47**.
 ⚠️ **Testing leaves ghosts** in Launch Services; unregister by path (the publishing doc).
 
 **Found RED at HEAD, not from this arc** (measured on a clean worktree, left for their owners):
 ADR-660's literal-copy meter reads **251 > 248**; `test_adr244_workspace_settings_surface.py`
-crashes on the long-deleted `WorkspaceSection.tsx`; the voice guard lists **17** un-allowlisted
-kernel nouns (15 in `app/invest/page.web.tsx`).
+crashes on the long-deleted `WorkspaceSection.tsx`. (The `.web` rename had also blinded seven gates
+that read the old paths — adr308, adr513, adr563, auth-gate coverage, action-feedback,
+workspace-binding and the voice guard; ADR-663's renames returned them to health.)
 
 ## App click-passes: Text · Chat · Slides — what stays OPEN (2026-09-22)
 

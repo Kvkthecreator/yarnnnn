@@ -23,6 +23,8 @@
 >   (support.claude.com article 14128542, and the Claude desktop app's Settings ▸ System ▸ Computer use), with
 >   *"Chrome browser and office suite like programs"* as the first priority — D1, D2, D11, D12.
 
+**Bound by** [ADR-663](ADR-663-the-desktop-app-is-the-website-the-host-is-versioned.md) D4 (2026-09-23): the desktop app's page is the live website, so no permission that acts on the machine may be granted to the website's origin in `src-tauri/capabilities/default.json` unless the HOST draws the consent prompt the member answers — D4's layered consent is load-bearing, not belt-and-braces. A feature needing a newer host gets its own minimum beside `DESKTOP_MIN_VERSION`.
+
 **Preserves**: ADR-661 §6 in full (the four conditions) · ADR-645 D1/D2 (a lane IS the member's hands; no
 credential moves) · ADR-615/639 (the unattended derive turn is toolless by construction) · ADR-209 D1 (one write
 path) · Axiom 9 Clause B (every invocation emits an entry) · ADR-642 (three reach mechanisms, closed).

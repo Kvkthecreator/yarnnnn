@@ -269,30 +269,8 @@ check(
 conf_path = TAURI / "tauri.conf.json"
 conf = json.loads(conf_path.read_text(encoding="utf-8")) if conf_path.exists() else {}
 
-# D4: ONE codebase. The host must build the web tree, never carry its own copy.
-# §7o: through the one launcher, which sets the env on every OS.
-before = (conf.get("build") or {}).get("beforeBuildCommand", "")
-launcher = read("web/scripts/shell-next.mjs")
-check(
-    "the shell builds from web/, never its own tree",
-    before == "node web/scripts/shell-next.mjs build"
-    and re.search(r'YARNNN_SHELL:\s*"1"', launcher) is not None,
-    f"beforeBuildCommand does not build the shared tree: {before!r}",
-)
-
-# The API must accept the shell's Origin, or every call fails CORS while the
-# app itself loads fine — a whole-product failure that reads as a backend
-# outage. Measured during the §8 click-pass.
-main_py = read("api/main.py")
-check(
-    "the API allows the shell's origins",
-    "tauri://localhost" in main_py and "http://tauri.localhost" in main_py,
-    "the shell would load and then fail every API call on CORS",
-)
-
-# §5/§6: the capability roster is the audit surface for what the host exposes.
-# Local hands would add a permission HERE, in their own ADR — so the roster
-# staying small is what makes that addition visible.
+# The capability roster is read here for the §7j/§7n arms; what it may GRANT
+# the website's origin is ADR-663 D4's, asserted by that ADR's gate.
 cap_path = TAURI / "capabilities" / "default.json"
 caps = json.loads(cap_path.read_text(encoding="utf-8")) if cap_path.exists() else {}
 # A permission is either a bare string or a SCOPED object ({identifier, allow}).
@@ -302,27 +280,6 @@ caps = json.loads(cap_path.read_text(encoding="utf-8")) if cap_path.exists() els
 _raw_perms = caps.get("permissions") or []
 perms = {p if isinstance(p, str) else p.get("identifier") for p in _raw_perms}
 _scoped = {p.get("identifier"): p for p in _raw_perms if isinstance(p, dict)}
-# `core:window:allow-start-dragging` (§7n): the overlaid title bar makes the
-# app's top bar the window's only grab handle, and `core:default` does not
-# include dragging — without it the window cannot be moved. It moves the
-# window the member is looking at, nothing else.
-check(
-    "the host grants only what the product needs today",
-    perms and perms <= {
-        "core:default", "opener:allow-open-url", "deep-link:default",
-        "core:window:allow-start-dragging",
-    },
-    f"the capability roster grew without an ADR: {sorted(perms)}",
-)
-
-# The shell build must not ship Hat-B tooling or the marketing site.
-for rel in ("web/app/admin/page.web.tsx", "web/app/page.web.tsx"):
-    check(
-        f"{rel.split('/', 1)[1]} is web-only",
-        (REPO / rel).exists(),
-        "a web-only route lost its .web suffix and would enter the shell build",
-    )
-
 # ------------------------------------ §7j the opener has a URL scope
 print("\n§7j the opener is allowed to open the URLs the product uses")
 
@@ -368,26 +325,19 @@ print("\n§7i the browser signs in, the app receives a session")
 # ordinary web flow and hands the session back over the custom scheme. The PKCE
 # verifier therefore never crosses a process boundary — the failure that
 # defeated the previous design three times.
-handoff = REPO / "web" / "app" / "auth" / "desktop" / "page.web.tsx"
+handoff = REPO / "web" / "app" / "auth" / "desktop" / "page.tsx"
 check(
     "the web has a desktop hand-off page",
     handoff.exists(),
     "the shell would have to authenticate itself again",
 )
 
-# It must be WEB-ONLY: a hand-off page inside the shell would be the app
-# talking to a provider, which is the design this replaces.
-check(
-    "the hand-off page is web-only",
-    handoff.exists() and not (REPO / "web" / "app" / "auth" / "desktop" / "page.tsx").exists(),
-    "the shell must not ship the page that signs a member in",
-)
-
-# §7p — the desktop app has NO sign-in form. Its `/auth/login` is its own page
-# (`page.tsx`; the website's is `page.web.tsx`) that opens `/auth/desktop` in
-# the browser. Anchor on the page, and assert it starts no auth flow: an email
-# link or OAuth return can only complete in the context that began it.
-shell_login = strip_comments(read("web/app/auth/login/page.tsx"))
+# §7p — the desktop app has NO sign-in form. `/auth/login` renders
+# `DesktopSignIn` in the app (chosen at runtime, ADR-663 D5), which opens
+# `/auth/desktop` in the browser. Anchor on the component, and assert it starts
+# no auth flow: an email link or OAuth return can only complete in the context
+# that began it.
+shell_login = strip_comments(read("web/components/auth/DesktopSignIn.tsx"))
 check(
     "the desktop sign-in page opens the website's hand-off",
     re.search(r"openExternal\(\s*`\$\{webOrigin\(\)\}/auth/desktop`\s*\)", shell_login) is not None,
@@ -471,78 +421,6 @@ check(
 )
 
 # ---------------------------- §7m a shipped binary reaches production
-print("\n§7m the shell build cannot freeze a developer's origin into the app")
-
-# The first signed-in build baked `.env.local`'s `http://localhost:8000` into
-# the binary: sign-in worked (Supabase's URL happened to be production) and
-# then every API call went to the member's own machine — "Couldn't load your
-# workspaces", an empty desktop (observed, screenshot). Load the REAL config
-# with a scrubbed env, the way `next build` does.
-def _load_next_config(
-    api_url: str, node_env: str = "production", anon_key: str = "anon",
-) -> str | None:
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "HOME": os.environ.get("HOME", ""),
-        "NODE_ENV": node_env,
-        "YARNNN_SHELL": "1",
-        "NEXT_PUBLIC_API_URL": api_url,
-        "NEXT_PUBLIC_SUPABASE_URL": "https://example.supabase.co",
-    }
-    if anon_key:
-        env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] = anon_key
-    prog = 'try{require("./next.config.js");console.log("LOADED")}catch(e){console.log("REFUSED")}'
-    try:
-        out = subprocess.run(
-            ["node", "-e", prog], cwd=REPO / "web", env=env,
-            capture_output=True, text=True, timeout=60,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    lines = out.stdout.strip().splitlines()
-    return lines[-1] if lines else None
-
-_prod_ok = _load_next_config("https://yarnnn-api.onrender.com")
-check(
-    "the shell config loads with a production https origin",
-    _prod_ok == "LOADED",
-    f"the guard (or the config) refuses a correct origin — got {_prod_ok!r}",
-)
-check(
-    "a shell production build refuses a loopback API origin",
-    _load_next_config("http://localhost:8000") == "REFUSED",
-    "a developer's .env.local ships in the DMG and every API call goes to the member's own machine",
-)
-check(
-    "a shell production build refuses a plain-http API origin",
-    _load_next_config("http://yarnnn-api.onrender.com") == "REFUSED",
-    "a distributed binary must reach production over https",
-)
-check(
-    "a shell DEV build may point at a local API",
-    _load_next_config("http://localhost:8000", node_env="development") == "LOADED",
-    "the guard must not break `cargo tauri dev` against a local API",
-)
-
-# §7o: a CI runner has no .env.local, so a missing anon key would freeze an
-# app that boots and fails every Supabase call.
-check(
-    "a shell production build refuses a missing anon key",
-    _load_next_config("https://yarnnn-api.onrender.com", anon_key="") == "REFUSED",
-    "a build machine with no .env.local ships an app that cannot reach Supabase",
-)
-
-# The pin lives in the launcher (§7o), applied on the BUILD branch only.
-_launch = strip_comments(read("web/scripts/shell-next.mjs"))
-_origin = re.search(r'\bSHELL_API_ORIGIN\s*=\s*"([^"]+)"', _launch)
-check(
-    "the release build pins the API origin, not the developer's env",
-    bool(_origin) and _origin.group(1).startswith("https://")
-    and "localhost" not in _origin.group(1)
-    and re.search(r'mode\s*===\s*"build"\)\s*env\.NEXT_PUBLIC_API_URL\s*=\s*SHELL_API_ORIGIN\b', _launch) is not None,
-    "the build falls back to .env.local — the guard will refuse it, but the release cannot be cut",
-)
-
 # ------------------------------ §7n the app's chrome is the window's chrome
 print("\n§7n the shell's top bar knows who is signed in and where the window controls are")
 
@@ -602,15 +480,6 @@ check(
 # ------------------------------------- §7o the host builds for Windows too
 print("\n§7o one host, macOS and Windows")
 
-# Tauri runs before*Command through `cmd` on Windows, which reads a leading
-# `NAME=value` as a program name: the Windows build could not start.
-_cmds = [(conf.get("build") or {}).get(k, "") for k in ("beforeBuildCommand", "beforeDevCommand")]
-check(
-    "the build commands carry no POSIX-only syntax",
-    all(c and not re.search(r"(^|\s|&&)\s*[A-Z_][A-Z0-9_]*=", c) and "&&" not in c for c in _cmds),
-    f"cmd.exe cannot run {_cmds!r}",
-)
-
 # The overlay title-bar methods do not EXIST on Windows — outside the macOS
 # block the host fails to compile there (E0599, observed by cross-checking).
 _code = re.sub(r"//[^\n]*", "", main_rs)
@@ -646,10 +515,8 @@ check(
 
 wf = read(".github/workflows/shell-windows.yml")
 check(
-    "the Windows build runs on a Windows runner and supplies the anon key",
-    "runs-on: windows-" in wf and "--bundles nsis" in wf
-    and "secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY" in wf
-    and "secrets.NEXT_PUBLIC_SUPABASE_URL" in wf,
+    "the Windows installer is cut on a Windows runner",
+    "runs-on: windows-" in wf and "--bundles nsis" in wf,
     "no reproducible way to cut the Windows installer",
 )
 
@@ -671,49 +538,6 @@ check(
     "a late ?error= would be computed and dropped",
 )
 
-# ----------------------------------------- §7g the shell's OAuth flow is PKCE
-print("\n§7g the shell signs in the way a native app must")
-
-client_src = strip_comments(read("web/lib/supabase/client.ts"))
-
-# supabase-js defaults to flowType: 'implicit', which returns the session in a
-# URL FRAGMENT. A fragment is never sent anywhere — not to a server, not
-# through a custom-scheme deep link — so the app got a callback carrying
-# nothing and stayed signed out. The web's auth-helpers sets pkce for us, which
-# is why only the shell was affected.
-#
-# PKCE is also the conventional flow for a native app (RFC 8252): no client
-# secret, and the verifier never leaves the device.
-check(
-    "the shell client uses the PKCE flow",
-    '"pkce"' in client_src or "'pkce'" in client_src,
-    "implicit returns the session in a fragment the deep link cannot carry",
-)
-
-# --------------------------------------- §7f the shell root is not an error
-print("\n§7f the shell root is a real page")
-
-# `redirect()` from next/navigation is a SERVER call. In a static export Next
-# emits the route as an ERROR page (id="__next_error__") instead — which is
-# what a member saw after signing in: a page that looks like a logged-out
-# start, on an app that had just authenticated them.
-#
-# The check is on the SOURCE, because the export is a build artifact that may
-# not exist when the gate runs.
-shell_root = strip_comments(read("web/app/page.tsx"))
-check(
-    "the shell root redirects client-side, not with server redirect()",
-    "use client" in read("web/app/page.tsx") and "router.replace" in shell_root,
-    "a server redirect() exports as an error page in a static build",
-)
-# The web's `/` is the marketing LANDING PAGE, not a stub — the two roots are
-# different pages, which is the whole reason the shell needs its own.
-check(
-    "the web root is still the marketing landing page",
-    "LandingPageBody" in strip_comments(read("web/app/page.web.tsx")),
-    "the web build lost its landing page to the shell's redirect",
-)
-
 # ------------------------------------------------- §7e the app must hydrate
 print("\n§7e the shell ships a LIVE app, not dead HTML")
 
@@ -731,7 +555,7 @@ check(
 # --------------------------------------- §8 step 5a the sign-in round trip
 print("\n§8 step 5a sign-in leaves, comes back, and stays")
 
-callback = strip_comments(read("web/app/auth/callback/page.web.tsx"))
+callback = strip_comments(read("web/app/auth/callback/page.tsx"))
 
 # The shell's client sets detectSessionInUrl: false (its callback is a deep
 # link, not a navigation it can inspect), so the PKCE code must be exchanged
@@ -742,15 +566,8 @@ check(
     "a returning member's code would never be redeemed",
 )
 
-# §7p — the callback is WEB-ONLY: the desktop app never receives one, so the
-# soft-navigation branches it (and the sign-in page) carried for the shell are
-# deleted, and nothing may mint the superseded `yarnnn://auth/callback`.
-check(
-    "the auth callback is a web-only route",
-    (REPO / "web/app/auth/callback/page.web.tsx").exists()
-    and not (REPO / "web/app/auth/callback/page.tsx").exists(),
-    "a callback in the desktop build is the superseded design's return leg",
-)
+# §7p — nothing may mint the superseded `yarnnn://auth/callback`: the app
+# never receives a callback; the browser completes every sign-in.
 _producers = []
 for _root in (WEB / "app", WEB / "components", WEB / "lib"):
     for _f in _root.rglob("*.ts*"):

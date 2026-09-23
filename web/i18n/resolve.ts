@@ -4,14 +4,19 @@ import { getRequestUser } from "@/lib/supabase/server";
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
+  LOCALE_METADATA_KEY,
   isLocale,
   negotiateLocale,
   type Locale,
 } from "./config";
-// The account step is ONE reader, shared with the client chain
-// (`resolve-client.ts`, ADR-661 §8 step 2) so "what counts as the account's
-// preference" cannot answer differently on the two builds.
-import { accountLocaleFrom } from "./resolve-client";
+
+/** The account's own preference, or null — "unset" must be distinguishable from "en". */
+function accountLocaleFrom(userMetadata: unknown): Locale | null {
+  const value = (userMetadata as Record<string, unknown> | null | undefined)?.[
+    LOCALE_METADATA_KEY
+  ];
+  return isLocale(value) ? value : null;
+}
 
 /**
  * ADR-660 D2 — the ONE resolution chain. A language belongs to the human, so

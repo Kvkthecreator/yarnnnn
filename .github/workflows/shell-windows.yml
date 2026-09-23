@@ -1,16 +1,17 @@
 name: shell-windows
 
-# ADR-661 §7o — build the desktop shell's Windows installer.
+# ADR-661 §7o / ADR-663 — build the desktop app's Windows installer.
 #
-# The Mac build is cut on a Mac (scripts/release-shell.sh signs and notarizes
-# with a keychain identity). Windows is cut HERE because building a Windows
-# installer needs Windows — the resource compiler and NSIS — and this repo's
-# developers work on Macs. Same host, same web tree, same launcher
-# (web/scripts/shell-next.mjs); only the runner differs.
+# The installer carries only the native host and its bootstrap page: the
+# interface is the website, loaded at launch (ADR-663 D1), so nothing from
+# web/ is built here and no Supabase value is frozen in. A Windows installer
+# still needs Windows (the resource compiler, NSIS), which is why this runs on
+# a Windows runner rather than a developer's Mac.
 #
 # Manual on purpose: an installer is a release act, not a side effect of a
-# push. Run it from the Actions tab (or `gh workflow run shell-windows.yml`)
-# and download the `yarnnn-windows` artifact.
+# push. Run it from the Actions tab (or `gh workflow run shell-windows.yml`),
+# download the `yarnnn-windows` artifact, and tag the commit
+# `desktop-vX.Y.Z` (the version is src-tauri/Cargo.toml's — ADR-663 D2).
 #
 # ⚠️ UNSIGNED. Windows SmartScreen warns on first run ("Windows protected your
 # PC" → More info → Run anyway) until a code-signing certificate is added —
@@ -29,32 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install web dependencies
-        working-directory: web
-        run: npm ci
-
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
 
-      # The build freezes NEXT_PUBLIC_* into the binary (§7m). The API origin is
-      # pinned by the launcher; the Supabase pair comes from repo secrets
-      # because a runner has no .env.local, and next.config.js refuses the
-      # build if either is missing or not https.
       - name: Build the installer
         working-directory: src-tauri
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_TELEMETRY_DISABLED: "1"
         run: npx --yes @tauri-apps/cli@2.11.5 build --bundles nsis
 
       - uses: actions/upload-artifact@v4

@@ -80,7 +80,8 @@
       "inApp": "You're using the desktop app.",
       "download": "Download",
       "notYet": "Not published yet",
-      "signIn": "Signing in from the app opens your browser, then brings you straight back."
+      "signIn": "Signing in from the app opens your browser, then brings you straight back.",
+      "version": "Version {version}."
     }
   },
   "auth": {
@@ -285,7 +286,11 @@
       "nothingOpenTitle": "Nothing open",
       "nothingOpenBody": "Click an icon in the dock, or open the Launcher (the grid icon) to see everything in this workspace."
     },
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "hostUpdate": {
+      "message": "This version of the yarnnn app is out of date, so it can’t load your workspace.",
+      "action": "Get the latest version"
+    }
   },
   "chat": {
     "title": "Chat",

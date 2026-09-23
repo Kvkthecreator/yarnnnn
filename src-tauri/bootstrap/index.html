@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  The desktop app's only bundled page (ADR-663 D1).
+
+  The app is the website in a native window. This page opens it once the
+  website answers, and otherwise says the app is offline and tries again when
+  the network returns. The host injects the address as
+  `window.__YARNNN_APP_URL__` (src-tauri/src/main.rs: production in a release
+  build, the local dev server in a debug build).
+
+  It runs before any catalog exists, so its two languages live here, chosen
+  from navigator.language (ADR-660's roster is English and Korean).
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>yarnnn</title>
+    <style>
+      :root { color-scheme: light dark; --bg: #faf8f5; --fg: #1a1a1a; --muted: #1a1a1a99; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #151413; --fg: #f2efe9; --muted: #f2efe999; } }
+      html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg);
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+      main { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 0 24px; text-align: center; }
+      h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+      p { margin: 0; color: var(--muted); max-width: 360px; }
+      button { margin-top: 8px; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--fg); color: var(--bg); font: inherit; cursor: pointer; }
+      [hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>yarnnn</h1>
+      <p id="status"></p>
+      <button id="retry" type="button" hidden></button>
+    </main>
+    <script>
+      (function () {
+        var target = window.__YARNNN_APP_URL__ || "https://www.yarnnn.com/desktop";
+        var ko = (navigator.language || "").toLowerCase().indexOf("ko") === 0;
+        var copy = ko
+          ? { opening: "여는 중…", offline: "yarnnn에 연결할 수 없어요. 인터넷 연결을 확인해 주세요.", retry: "다시 시도" }
+          : { opening: "Opening…", offline: "Can't reach yarnnn. Check your internet connection.", retry: "Try again" };
+        var status = document.getElementById("status");
+        var retry = document.getElementById("retry");
+        retry.textContent = copy.retry;
+
+        function open() {
+          status.textContent = copy.opening;
+          retry.hidden = true;
+          // no-cors: an opaque answer is still an answer — the website is up.
+          fetch(new URL("/", target).href, { mode: "no-cors", cache: "no-store" })
+            .then(function () { window.location.replace(target); })
+            .catch(function () {
+              status.textContent = copy.offline;
+              retry.hidden = false;
+            });
+        }
+
+        retry.addEventListener("click", open);
+        window.addEventListener("online", open);
+        open();
+      })();
+    </script>
+  </body>
+</html>

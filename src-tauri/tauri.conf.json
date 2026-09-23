@@ -1,13 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "yarnnn",
-  "version": "0.1.0",
   "identifier": "com.yarnnn.desktop",
   "build": {
-    "beforeDevCommand": "node web/scripts/shell-next.mjs dev",
-    "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "node web/scripts/shell-next.mjs build",
-    "frontendDist": "../web/.next-shell"
+    "frontendDist": "bootstrap"
   },
   "app": {
     "windows": [],

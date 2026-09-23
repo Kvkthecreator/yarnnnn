@@ -1,4 +1,5 @@
 import { errorDetailFrom, getActiveWorkspaceId, healStaleWorkspacePin, isStaleWorkspacePin } from "./client";
+import { clientHeaders } from "@/lib/shell/host";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -70,6 +71,8 @@ export async function postChatWithFallback({
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(workspaceId ? { "X-Workspace-Id": workspaceId } : {}),
+    // ADR-663 D3 — the same identity `getAuthHeaders()` sends.
+    ...(await clientHeaders()),
   };
 
   let lastError: unknown;
