@@ -7,10 +7,8 @@ fn main() {
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(
             tauri_build::AppManifest::new().commands(&[
-                // ADR-662 D14 — local hands, the browser pane.
+                // ADR-662 D15 — local hands: the relay to the yarnnn extension.
                 "hands_status",
-                "hands_enable",
-                "hands_disable",
                 "browser_act",
             ]),
         ),

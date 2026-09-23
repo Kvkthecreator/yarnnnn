@@ -146,19 +146,20 @@ bump `Cargo.toml`, and verify on a built host, not by reading.
 - `api/test_adr663_the_desktop_app_is_the_website.py` (the shape, the roster) ·
   `api/test_adr661_the_shell_may_be_native.py` (sign-in, chrome, the tripwire) ·
   `api/test_adr662_local_hands.py` (local hands — it drives the real lane loop with a fake engine).
-- `extension/e2e/run.mjs` — the Chrome extension driven in a real Chrome for Testing (the only instrument that
-  runs it; the gate reads it). Reference: `docs/architecture/local-hands.md`.
+- `extension/e2e/run.mjs` — the Chrome extension driven in a real Chrome for Testing; `extension/e2e/bridge.mjs`
+  — the extension ↔ the real Rust native-messaging bridge ↔ a stand-in app. The only instruments that run them;
+  the gate reads them. Reference: `docs/architecture/local-hands.md`.
 - `cd src-tauri && cargo check` on the Mac; Windows through `shell-windows.yml` (a Mac cannot check the
   Windows target past `tauri-winres`).
 - `cd web && pnpm build` — the app loads the same build.
 - **The driven trace** for local hands: a debug host (`cargo tauri dev` against `pnpm dev` and a local API,
-  or a release host against production after deploy), Settings → Desktop app → switch the browser on (the
-  HOST's dialog must appear), then a real ask in chat. The receipt is the reply row's `metadata.receipts`
-  and the pane's page, both read back after.
+  or a release host against production after deploy) with the yarnnn extension loaded in the member's
+  Chrome; Settings → Desktop app must say *Connected*; then a real ask in chat — the extension asks for the
+  site once. The receipt is the reply row's `metadata.receipts` and the agent's tab, both read back after.
 
 **Guardrails — what must not happen.**
 - A permission in `capabilities/default.json` that acts on the machine without a host-drawn prompt.
-- Any capability naming a window other than `main` (the pane must hold none).
+- Any capability naming a window other than `main`; the host performing an act itself (it relays).
 - The host posting global input, capturing the screen, or touching the clipboard.
 - A browser tool offered to a web turn, an older host, or the derive turn.
 - A published download (`web/lib/shell/desktop-app.ts`) while ADR-662 is not Accepted.

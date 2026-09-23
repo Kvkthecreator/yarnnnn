@@ -145,16 +145,17 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
 4. **Windows signing** — SmartScreen warns; Azure Trusted Signing eligibility for a Korean entity
    unchecked. Installer: `shell-windows.yml`, manual dispatch.
 5. **Auto-update** — deferred by ADR-663 D6 (its own keypair + a hosted manifest); D3's 426 is the lever.
-6. **Local hands (ADR-662, Proposed)** — reference `docs/architecture/local-hands.md`. The executor going
-   forward is the **yarnnn Chrome extension** (`extension/`, D15): built, driven 20/20 in Chrome for
-   Testing (`extension/e2e/run.mjs`). The desktop **pane** (D14, host 0.3.0) is installed on the operator's
-   Mac; its first in-app test proved the chain (tools offered, `metadata.client_tools`) and found the
-   frame refusing to post (fixed, CHANGELOG `[2026.09.23.5]`). Owed, in order: (a) the operator loads the
-   extension unpacked (`chrome://extensions` → Load unpacked → `extension/`) and drives a real job from
-   yarnnn in Chrome — read `metadata.receipts` back; (b) **desktop → extension via native messaging**, then
-   **delete the pane** (`src-tauri/src/hands/`, the dialog plugin, the four commands) — one executor;
-   (c) ratify ADR-662 (retires ADR-661's tripwire), then publish the extension (Chrome Web Store developer
-   account + review) and set `CHROME_EXTENSION.storeUrl`.
+6. **Local hands (ADR-662, Proposed)** — reference `docs/architecture/local-hands.md`. ONE executor: the
+   **yarnnn Chrome extension** (`extension/`, D15), reached from yarnnn in Chrome directly and from the
+   desktop app (host **0.4.0**) over native messaging — the pane is DELETED. Driven: `extension/e2e/run.mjs`
+   20/20 and `extension/e2e/bridge.mjs` 5/5 (the real Rust bridge, a stand-in app). NOT driven: the running
+   app's socket listener and `browser_act` from its page, and anything on the operator's own Chrome.
+   Owed, in order: (a) the operator loads the extension unpacked (`chrome://extensions` → Load unpacked →
+   `extension/`), installs host 0.4.0, and drives a real job from the desktop app AND from yarnnn in Chrome
+   — read `metadata.receipts` back; (b) Windows native messaging (a registry key + a named pipe; today the
+   Windows app refuses in words); (c) ratify ADR-662 (retires ADR-661's tripwire, which now watches only
+   the extension's listing), then publish the extension (Chrome Web Store account + review) and set
+   `CHROME_EXTENSION.storeUrl`.
 7. ⚠️ Watch: the browser and the app share one refresh-token lineage. If the app is signed out ~1h
    after signing in, suspect Supabase's reuse detection — a hypothesis, unverified.
 

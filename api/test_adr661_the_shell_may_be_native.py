@@ -218,16 +218,14 @@ for root in scan_roots:
         if hands_tokens.search(body):
             offenders.append(str(path.relative_to(REPO)))
 
-# 2026-09-23 — ADR-662's browser pane is BUILT while the ADR is still Proposed:
-# §7 builds it so the driven trace §6.4 demands can happen, and ratification
+# 2026-09-23 — ADR-662's local hands are BUILT while the ADR is still Proposed:
+# §7 builds them so the driven trace §6.4 demands can happen, and ratification
 # follows that trace. What the tripwire must still refuse is a member RECEIVING
-# it before then. The pane reaches only a host at or above BROWSER_MIN_VERSION,
-# and no host reaches a member until a download is published — so while the ADR
-# is not Accepted, no download may be.
-_downloads = read("web/lib/shell/desktop-app.ts")
-_published = re.findall(r'^\s*(mac|windows):\s*"https?://', _downloads, re.M)
-# ADR-662 D15 — the Chrome extension is the other way local hands reach a
-# member; its listing is held to the same rule.
+# them before then. Since D15 the only thing that performs an act is the yarnnn
+# Chrome extension — the desktop host (0.4.0+) relays to it and performs
+# nothing — so a published desktop download carries no hands of its own, and
+# the one listing held back is the extension's.
+_published = []
 if re.search(r'storeUrl:\s*"https?://', read("web/lib/shell/hands.ts")):
     _published.append("chrome-extension")
 
@@ -240,9 +238,9 @@ if impl_adrs:
     print(f"      (found {impl_adrs[0]}; §6.4's evidence standard now governs)")
 else:
     check(
-        "no host carrying local hands reaches a member before the ADR is Accepted",
+        "the extension that performs local hands is not published before the ADR is Accepted",
         not _published,
-        f"a download is published ({_published}) while ADR-662 is not Accepted — drive the trace and ratify first",
+        f"a listing is published ({_published}) while ADR-662 is not Accepted — drive the trace and ratify first",
     )
     check(
         "no local-hands capability ships ahead of its ADR",

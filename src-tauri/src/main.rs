@@ -28,13 +28,12 @@
 //! itself draws the consent prompt the member answers.
 //!
 //! §8's constraint, kept on purpose: this stays a HOST with a capability seam,
-//! not a thin `WebView::new`. Local hands (ADR-662) live in `hands/`: a
-//! browser pane the agent works in, switched on by a consent dialog this host
-//! draws, reached by the page only through the commands `build.rs` declares.
+//! not a thin `WebView::new`. Local hands (ADR-662 D15) live in `hands/`: the
+//! app relays the agent's browser acts to the yarnnn Chrome extension, which
+//! performs them in the member's own Chrome and draws its own consent. The page
+//! reaches the relay only through the commands `build.rs` declares.
 
 mod hands;
-
-use std::sync::Mutex;
 
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -47,6 +46,13 @@ const APP_URL: &str = "https://www.yarnnn.com/desktop";
 const APP_URL: &str = "http://localhost:3000/desktop";
 
 fn main() {
+    // ADR-662 D15 — Chrome launched us as the extension's native-messaging
+    // host: relay, and never start the app (no window, no single-instance).
+    #[cfg(unix)]
+    if hands::bridge::requested() {
+        hands::bridge::run();
+    }
+
     tauri::Builder::default()
         // ADR-661 §7o — ONE running app. On Windows a `yarnnn://` link does
         // not reach the running app: the OS starts a SECOND copy with the URL
@@ -72,18 +78,12 @@ fn main() {
         // rather than navigating the window, because the session it carries
         // has to be handed to the Supabase client, not to the router.
         .plugin(tauri_plugin_deep_link::init())
-        // ADR-662 D4 — the host draws the consent prompt. The page is granted
-        // no dialog permission; only `hands::hands_enable` opens one.
-        .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![
-            hands::hands_status,
-            hands::hands_enable,
-            hands::hands_disable,
-            hands::browser_act,
-        ])
+        .invoke_handler(tauri::generate_handler![hands::hands_status, hands::browser_act])
+        .manage(hands::Relay::default())
         .setup(|app| {
-            let consent = hands::load_consent(app.handle());
-            app.manage(hands::Consent(Mutex::new(consent)));
+            // ADR-662 D15 — let Chrome find this app, and listen for the bridge.
+            hands::register_with_browsers();
+            hands::listen(app.handle());
 
             // A debug build's page comes from the dev server, which the release
             // roster does not name. Grant it the SAME roster, re-pointed — never

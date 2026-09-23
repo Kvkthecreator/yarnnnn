@@ -72,8 +72,11 @@ MAIN = rust_code(read("src-tauri/src/main.rs"))
 PAGE_JS = read("extension/page.js")
 HOST_ALL = HOST + MAIN
 
+BRIDGE = rust_code(read("src-tauri/src/hands/bridge.rs"))
+BG = read("extension/background.js")
+
 # --------------------------------------------------------------------- D1
-print("\nD1 the host never takes the machine")
+print("\nD1 nothing takes the machine; the host acts on no page itself")
 
 _TAKEOVER = re.compile(
     r"CGEvent|CGWarpMouse|enigo|SendInput|keybd_event|mouse_event|NSPasteboard|clipboard"
@@ -82,20 +85,15 @@ _TAKEOVER = re.compile(
 )
 check(
     "no global input, screen capture or clipboard in the host",
-    not _TAKEOVER.search(HOST_ALL),
-    f"found {(_TAKEOVER.search(HOST_ALL) or [''])[0]!r} — ADR-662 D1/D2",
+    not _TAKEOVER.search(HOST_ALL + BRIDGE),
+    f"found {(_TAKEOVER.search(HOST_ALL + BRIDGE) or [''])[0]!r} — ADR-662 D1/D2",
 )
 caps = json.loads(read("src-tauri/capabilities/default.json") or "{}")
-_pane = re.search(r'pub const PANE: &str = "([^"]+)";', HOST)
 check(
-    "the pane has a label, and no capability names it",
-    bool(_pane) and caps.get("windows") == ["main"] and _pane.group(1) not in (caps.get("windows") or []),
-    f"windows={caps.get('windows')} pane={_pane.group(1) if _pane else None}",
-)
-check(
-    "the pane opens without taking the member's focus",
-    ".focused(false)" in fn_body(HOST, "pane"),
-    "the pane would steal focus from what the member is doing",
+    "the host opens no window and runs no page routine for hands — the extension performs every act",
+    not re.search(r"WebviewWindowBuilder|eval_with_callback|PAGE_JS|include_str!", HOST + BRIDGE)
+    and caps.get("windows") == ["main"],
+    "a second executor in the host is the ambiguity D15 deleted",
 )
 check(
     "no page value leaves a password field",
@@ -104,26 +102,15 @@ check(
 )
 
 # --------------------------------------------------------------------- D4
-print("\nD4 consent is the host's")
+print("\nD4 consent is the executor's — the extension asks, the page and the host cannot")
 
-enable = fn_body(HOST, "hands_enable")
-check(
-    "switching on draws the host's own dialog",
-    ".dialog()" in enable and ".blocking_show()" in enable,
-    "hands_enable must ask the member through a host-drawn prompt (ADR-663 D4)",
-)
-check(
-    "the answer is the dialog's, never an argument from the page",
-    re.search(r"=\s*allowed;", enable) is not None and "hands_enable<R: Runtime>(app: AppHandle<R>)" in HOST,
-    "the page could set consent by passing a flag",
-)
-_act = fn_body(HOST, "browser_act")
-check(
-    "an act refuses before doing anything until the member said yes",
-    "require_enabled(&app)" in _act and _act.index("require_enabled(&app)") < _act.index("act(&app"),
-    "browser_act must check consent first",
-)
 _perms = {p if isinstance(p, str) else p.get("identifier") for p in caps.get("permissions") or []}
+check(
+    "the host holds no consent of its own to be flipped: no dialog, no switch, no stored answer",
+    "tauri-plugin-dialog" not in read("src-tauri/Cargo.toml") and "hands_enable" not in HOST_ALL
+    and "hands.json" not in HOST_ALL,
+    "a host-side switch is a second consent the page could reach",
+)
 check(
     "no dialog or file permission is granted to the website",
     not any(p.startswith(("dialog:", "fs:")) for p in _perms),
@@ -132,39 +119,47 @@ check(
 _manifest = re.findall(r'"(\w+)"', (re.search(r"commands\(&\[(.*?)\]\)", read("src-tauri/build.rs"), re.S) or [None, ""])[1])
 check(
     "the app's commands are declared, and the roster names exactly them",
-    sorted(_manifest) == ["browser_act", "hands_disable", "hands_enable", "hands_status"]
-    and {f"allow-{c.replace('_', '-')}" for c in _manifest} <= _perms,
+    sorted(_manifest) == ["browser_act", "hands_status"]
+    and {f"allow-{c.replace('_', '-')}" for c in _manifest} <= _perms
+    and not any(p.startswith("allow-hands-") and p not in ("allow-hands-status",) for p in _perms),
     f"manifest {_manifest}",
 )
 
-# -------------------------------------------------------------------- D13
-print("\nD13 the model never writes a script")
+# ------------------------------------------------------------ D15 the relay
+print("\nD15 the desktop app reaches the extension, and only the extension")
 
-_call = fn_body(HOST, "call")
 check(
-    "every argument is JSON-encoded by the host",
-    "serde_json::to_string(a)" in _call and "PAGE_JS" in _call,
-    "an argument reaching the page as code is arbitrary execution",
-)
-_evals = re.findall(r"eval_with_callback\(([^,]+),", HOST)
-check(
-    "the one eval site runs `call(...)` and nothing else",
-    _evals == ["call(routine"],
-    f"eval sites: {_evals}",
+    "Chrome's launch goes to the bridge before the app starts",
+    re.search(r"fn main\(\) \{\s*//[^\n]*\n(\s*//[^\n]*\n)*\s*#\[cfg\(unix\)\]\s*if hands::bridge::requested\(\) \{\s*hands::bridge::run\(\);", read("src-tauri/src/main.rs")) is not None,
+    "a bridge launch would start a second app window",
 )
 check(
-    "only http and https are opened",
-    'url.scheme() != "http" && url.scheme() != "https"' in HOST,
-    "file:, javascript: or a custom scheme would reach the pane",
+    "the bridge serves the yarnnn extension only",
+    'if std::env::args().nth(1).as_deref() != Some(EXTENSION_ORIGIN) {' in BRIDGE
+    and '"allowed_origins": [EXTENSION_ORIGIN]' in HOST,
+)
+check(
+    "the socket is the owner's alone",
+    "from_mode(0o600)" in HOST,
+)
+check(
+    "an act the extension never answers fails closed, in words",
+    "tokio::time::timeout(ACT_TIMEOUT, rx)" in HOST and "nothing is known to have changed" in HOST
+    and "Nothing was done" in HOST,
+)
+check(
+    "acts from the app take the extension's one door — same gate, same consent, same tab",
+    "const result = await perform(msg.tool, msg.args);" in BG and BG.count("perform(") == 3,
+    "a second path through the extension could skip the site gate",
 )
 
 # --------------------------------------------------------------------- D3
 print("\nD3 every act says what changed")
 
 # Literal records, and the act named at each `failure(receipt, act, subject)` call.
-_acts = set(re.findall(r'"act": "(\w+)"', HOST)) | set(re.findall(r'failure\([^;]*?, "(\w+)", ', HOST))
+_acts = set(re.findall(r'act: "(\w+)"', BG)) | set(re.findall(r'failure\([^;]*?, "(\w+)", ', BG))
 check(
-    "each act kind reports a record, and the client words every one",
+    "each act kind reports a record",
     _acts >= {"opened", "read", "pressed", "filled", "back", "failed", "refused"},
     f"acts {sorted(_acts)}",
 )
@@ -174,14 +169,14 @@ en = json.loads(read("web/messages/en.json"))
 ko = json.loads(read("web/messages/ko.json"))
 _needed = {a for a in _acts} | {f"{a}Unchanged" for a in _acts if a not in ("read", "opened")}
 check(
-    "the client knows every act the host reports, in both languages",
+    "the client words every act the executor reports, in both languages",
     _acts <= _receipt_acts
     and _needed <= set(en["chat"]["receipts"]) and _needed <= set(ko["chat"]["receipts"]),
-    f"host {sorted(_acts)} · client {sorted(_receipt_acts)}",
+    f"executor {sorted(_acts)} · client {sorted(_receipt_acts)}",
 )
 check(
     "no change is a measurement: clicks compare the page before and after",
-    'before.get("sig") != after.get("sig")' in HOST and "no change observed" in HOST,
+    "const changed = navigated || before.sig !== after.sig;" in BG and "no change observed" in BG,
     "a click would claim an effect it never read",
 )
 lanes_src = read("api/routes/lanes.py")
@@ -426,7 +421,7 @@ import hashlib as _hl  # noqa: E402
 import subprocess as _sp  # noqa: E402
 
 manifest = json.loads(read("extension/manifest.json") or "{}")
-bg = read("extension/background.js")
+bg = BG
 policy_js = read("extension/policy.js")
 _der = _b64.b64decode(manifest.get("key", ""))
 _ext_id = "".join(chr(ord("a") + int(c, 16)) for c in _hl.sha256(_der).hexdigest()[:32])
@@ -446,7 +441,7 @@ check(
 )
 check(
     "it asks for exactly what acting in a tab needs — no clipboard, cookies, debugger, history or network",
-    sorted(manifest.get("permissions") or []) == ["scripting", "storage", "tabGroups", "tabs"],
+    sorted(manifest.get("permissions") or []) == ["nativeMessaging", "scripting", "storage", "tabGroups", "tabs"],
     f"permissions {manifest.get('permissions')}",
 )
 _open = re.search(r"async function open\(url\) \{(.*?)\n\}", bg, re.S)
@@ -471,11 +466,11 @@ check(
     'files: ["page.js"]' in bg and bg.count("func:") == 1
     and "func: (r, a) => window.__yarnnnHands[r](...a)," in bg,
 )
-_bg_acts = set(re.findall(r'act: "(\w+)"', bg)) | set(re.findall(r'failure\([^;]*?, "(\w+)", ', bg))
+_host_id = re.search(r'EXTENSION_ORIGIN: &str = "chrome-extension://([a-p]{32})/"', HOST)
 check(
-    "the extension reports the same kinds of act the client words",
-    _bg_acts and _bg_acts <= _receipt_acts,
-    f"extension {sorted(_bg_acts)} · client {sorted(_receipt_acts)}",
+    "the desktop host lets through the same extension id",
+    bool(_host_id) and _host_id.group(1) == _ext_id,
+    f"host {_host_id.group(1) if _host_id else None} · manifest {_ext_id}",
 )
 _policy_probe = _sp.run(
     ["node", "--input-type=module", "-e", """
@@ -507,9 +502,12 @@ check(
     set(_en) == set(_ko) and _used <= set(_en) and manifest.get("default_locale") == "en",
     f"missing {sorted(_used - set(_en))} · en≠ko {sorted(set(_en) ^ set(_ko))}",
 )
+_page_copies = [str(p.relative_to(REPO)) for p in REPO.rglob("page.js")
+                if not {"node_modules", ".next", "target"} & set(p.parts)]
 check(
-    "one copy of the page routines: the host reads the extension's file",
-    'include_str!("../../../extension/page.js")' in HOST and not (REPO / "src-tauri/src/hands/page.js").exists(),
+    "one copy of the page routines, in the extension",
+    _page_copies == ["extension/page.js"],
+    f"{_page_copies}",
 )
 
 # ------------------------------------------------------------------- count

@@ -4,8 +4,9 @@
 > require, carrying §6's four conditions at birth. **Amendment 1 (2026-09-23, operator: *"aligned in full"*)**:
 > the browser pane comes first (**D14**) — BUILT (host 0.3.0). **Amendment 2 (2026-09-23, operator: *"most user
 > convenient, and long standing future proof … aligned in full"*)**: the member's OWN Chrome, through a yarnnn
-> extension, is the executor going forward (**D15**) — BUILT (`extension/`, driven in a real Chrome); the pane is
-> deleted once the desktop app reaches the extension. Ratification waits on the driven trace (§7 step 6). The
+> extension, is the ONE executor (**D15**) — BUILT (`extension/`, driven in a real Chrome); the desktop app (host
+> 0.4.0) relays to it over Chrome's native messaging, and **D14's pane is DELETED**. Ratification waits on the
+> driven trace (§7 step 6). The
 > pixel path (D1–D2's Accessibility ladder, D10's signing prerequisite) is unbuilt and stays the
 > member's-own-apps track. Living reference: [local-hands.md](../architecture/local-hands.md).
 > **Date**: 2026-09-23
@@ -326,7 +327,7 @@ deferred, NOT blocked — its scripting path is proven (§3.1). The browser tool
 typed schemas, so they work on any engine that can call tools — which is D7's engine neutrality delivered for
 the first-class target without waiting on a provider's computer-use protocol.
 
-### D14 — The browser pane first (amendment 1, 2026-09-23)
+### D14 — The browser pane first (amendment 1, 2026-09-23) — SUPERSEDED by D15, the pane deleted
 
 The first browser the agent drives is **a pane the host owns** — a second window of the desktop app — not the
 member's own Chrome. The member's Chrome stays D13's phase 2.
@@ -395,8 +396,14 @@ the industry route (Claude in Chrome, Cowork). Rejected on the way:
 What it is (reference: [local-hands.md](../architecture/local-hands.md) §4):
 
 - **Reached** by a yarnnn page in the same Chrome (`externally_connectable`, and the worker re-checks
-  `sender.origin`). Any other page cannot see it. The desktop app reaches it through Chrome's native messaging —
-  **owed**, and the trigger for deleting the pane (§7).
+  `sender.origin`); any other page cannot see it. **And from the desktop app** (host 0.4.0), through Chrome's
+  native messaging: the host registers `com.yarnnn.desktop` for the extension's origin only, Chrome launches the
+  host's binary as a bridge (routed before Tauri starts), and the running app talks to the bridge over an
+  owner-only socket. An act from the app takes the extension's one door — the same gate, consent and tab. The
+  host performs nothing, and holds no switch or dialog of its own: **D14's pane, its consent dialog, its stored
+  answer and two of its four commands are deleted** (the host keeps `hands_status` and `browser_act`, now a relay).
+  Driven: `extension/e2e/bridge.mjs` 5/5 against the real bridge binary. Windows is owed (a registry key and a
+  named pipe); until then the Windows app refuses in words.
 - **Consent is the extension's** (ADR-663 D4 holds with a new executor): each site is asked once, in a window the
   extension draws; no answer is a no; categories denied by default — banking and payments, trading and crypto,
   password managers, account security — stay denied whatever the member allowed (D1's list, now by site). The
@@ -467,9 +474,9 @@ only for distribution.**
 
 ## 7. Build order
 
-**Amendment 2 adds, first**: the desktop app reaches the extension through Chrome's native messaging (a bridge
-launched by Chrome, relaying to the running app), then **the pane and its host code are deleted** — one executor.
-Then the Chrome Web Store listing, after ratification.
+**Amendment 2 built, first**: the extension, then the desktop app's relay to it over Chrome's native messaging,
+and deleted the pane — one executor. Owed: the driven trace in the operator's own Chrome, Windows native
+messaging, then the Chrome Web Store listing after ratification.
 
 **Amendment 1 re-ordered it**: the browser pane (D14) is built first and needs no Developer ID. Its remaining
 step is the driven trace (6 below) — a real job in the pane through the real path — then ratification. The list

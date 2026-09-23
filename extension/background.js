@@ -315,6 +315,39 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
+// The desktop app reaches this worker through Chrome's native messaging: the
+// app registers itself as `com.yarnnn.desktop` (src-tauri/src/hands/), and
+// Chrome launches its bridge when we connect. When the app is not installed
+// the port closes at once and nothing retries until the worker starts again;
+// when the app is installed but not running, the bridge waits for it and
+// sends {type: "app"} when it arrives. Acts from the app take the same
+// `perform` — same gate, same consent, same tab — as acts from a yarnnn page.
+const DESKTOP_HOST = "com.yarnnn.desktop";
+
+function connectDesktop() {
+  let port;
+  try {
+    port = chrome.runtime.connectNative(DESKTOP_HOST);
+  } catch {
+    return;
+  }
+  const hello = () => port.postMessage({ type: "hello", version: VERSION });
+  port.onMessage.addListener(async (msg) => {
+    if (msg?.type === "app") return hello();
+    if (msg?.type === "act") {
+      const result = await perform(msg.tool, msg.args);
+      port.postMessage({ type: "result", id: msg.id, result });
+    }
+  });
+  port.onDisconnect.addListener(() => {
+    // Reading lastError marks it handled; "host not found" is the ordinary
+    // answer when the desktop app is not installed.
+    void chrome.runtime.lastError;
+  });
+  hello();
+}
+connectDesktop();
+
 // The consent window answers here (an extension page, so an internal message).
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (msg?.type !== "consent" || sender.id !== chrome.runtime.id) return;

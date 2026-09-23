@@ -14,7 +14,7 @@ raise this.
 Per-feature minimums (Claude Code's `tengu_bridge_min_version` pattern) sit
 beside the global one: a feature that needs a newer host names its own floor
 and is simply not offered below it — the host is never refused for it.
-`BROWSER_MIN_VERSION` (ADR-662 D14, the browser pane) is the first.
+`BROWSER_MIN_VERSION` (ADR-662 D15, the relay to the extension) is the first.
 """
 
 from __future__ import annotations
@@ -25,9 +25,10 @@ from typing import Optional
 
 DESKTOP_MIN_VERSION = "0.2.0"
 
-#: ADR-662 D14 — the first host that carries the browser pane and its commands.
-#: Below it the browser tools are not offered; the app still works.
-BROWSER_MIN_VERSION = "0.3.0"
+#: ADR-662 D15 — the first host that relays the browser tools to the yarnnn
+#: Chrome extension. 0.3.x carried the retired pane and is not offered them;
+#: below this the app still works, without the browser.
+BROWSER_MIN_VERSION = "0.4.0"
 
 CLIENT_HEADER = b"x-yarnnn-client"
 

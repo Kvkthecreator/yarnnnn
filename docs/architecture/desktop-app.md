@@ -24,7 +24,7 @@ disagree, fix this document in the same commit as the code.
 │   • the system-browser hand-off (opener, URL-scoped)                           │
 │   • the yarnnn:// return leg (deep link; single-instance on Windows)           │
 │   • the capability roster — what the page may ask of the host                  │
-│   • the browser pane — local hands (ADR-662 D14), switched on by the member     │
+│   • the relay to the yarnnn Chrome extension — local hands (ADR-662 D15)       │
 │                                                                                │
 │  BOOTSTRAP  src-tauri/bootstrap/index.html   ← the only bundled page           │
 │   • opens the website when it answers; says "offline" when it does not         │
@@ -70,9 +70,9 @@ records the comparison.
 | The browser half of sign-in | `web/app/auth/desktop/page.tsx` |
 | Download links: the asset roster, our `/download/{platform}` redirect, the public page | `web/lib/shell/desktop-app.ts` · `web/app/download/[platform]/route.ts` · `web/app/download/page.tsx` (+ `/ko`) |
 | The minimum host version the API accepts | `api/services/desktop_client.py`, registered in `api/main.py` |
-| Local hands: the browser pane, its consent, its five acts ([local-hands.md](local-hands.md)) | `src-tauri/src/hands/mod.rs` (page routines: `extension/page.js`) |
+| Local hands: the relay to the Chrome extension, and the native-messaging bridge ([local-hands.md](local-hands.md)) | `src-tauri/src/hands/mod.rs` · `src-tauri/src/hands/bridge.rs` |
 | The app's own commands (each gets an `allow-…` permission) | `src-tauri/build.rs` |
-| The page's side of the pane, and the Settings switch | `web/lib/shell/hands.ts` · `web/components/settings/DesktopBrowserSetting.tsx` |
+| The page's side of local hands, and the Settings row | `web/lib/shell/hands.ts` · `web/components/settings/DesktopBrowserSetting.tsx` |
 | The hand-off: offered tools, the pending acts, stop-when-stuck | `api/services/client_tools.py`; tool definitions `api/services/primitives/browser.py` |
 | Build the Mac release | `scripts/release-shell.sh` (`--unsigned` for the beta build) |
 | Publish a built installer | `scripts/publish-desktop-release.sh` |
@@ -143,9 +143,8 @@ The page in the window is the live website. A compromised deploy, a poisoned dep
 - **`capabilities/default.json` is an explicit list, never a default set.** Today: `core:event:default` (deep-link
   events), `core:app:allow-version` (the header), `core:window:default` (chrome), `core:window:allow-start-dragging`
   (the top bar is the grab handle), `deep-link:default`, `opener:allow-open-url` with a URL scope, and the app's
-  four hands commands (`allow-hands-status`, `allow-hands-enable`, `allow-hands-disable`, `allow-browser-act` — §6a).
-- **The roster names the `main` window only.** A window the host opens for anything else — the browser pane —
-  gets no capability, so the internet pages loaded there can ask the host for nothing.
+  two hands commands (`allow-hands-status`, `allow-browser-act` — §6a).
+- **The roster names the `main` window only.** Any other window the host ever opens gets no capability.
 - **Remote origins: `https://www.yarnnn.com/*` and `https://yarnnn.com/*` only.** `"local": false` — the bootstrap
   needs nothing from the host.
 - **Nothing that acts on the member's machine may be granted to the website's origin unless the host itself draws
@@ -160,11 +159,13 @@ The page in the window is the live website. A compromised deploy, a poisoned dep
 
 ## 6a. Local hands
 
-The desktop app's browser pane is one of two executors of the browser tools; the other is the yarnnn Chrome
-extension, which works in the member's own Chrome with their sign-ins and replaces the pane once the app can reach
-it. How both work — the turn, the acts, consent, the extension — is in
-[local-hands.md](local-hands.md). What is the host's alone: the pane window `browser` is named in no capability;
-`hands_enable` draws the consent dialog; the answer lives in the app's config directory (`hands.json`).
+The yarnnn Chrome extension performs the agent's browser acts in the member's own Chrome
+([local-hands.md](local-hands.md)). The desktop app performs none: `browser_act` relays each act to the extension
+and returns its answer. How they meet is **Chrome's native messaging**: at startup the host registers itself as
+`com.yarnnn.desktop` with every Chromium browser it finds (only the yarnnn extension may connect); Chrome launches
+this same binary in bridge mode (`hands/bridge.rs`, routed in `main` before Tauri starts, so no window opens), and
+the bridge relays between Chrome's stdio and the app's owner-only socket. macOS today; Windows is owed (a registry
+key and a named pipe) and says so when asked.
 
 ## 7. Platform differences
 
@@ -234,5 +235,6 @@ Each of these was built once, and each is why the current shape exists:
 ADR-661 (2026-09-21) permitted a native client and built it as a static export, then spent §7a–§7p learning what
 that shape cost: sign-in rebuilt three times, build-time origin pinning, a two-build route split, Windows blockers.
 ADR-663 (2026-09-23) replaced the shape with the website in a native window and made the host the only versioned
-thing. ADR-662 (proposed) plans local hands on that host, under ADR-663 D4; its amendment 1 built the browser pane
-first (host 0.3.0), ahead of the member's-own-apps path.
+thing. ADR-662 (proposed) plans local hands on that host, under ADR-663 D4; its amendment 1 built a browser pane
+(host 0.3.0), and amendment 2 replaced it with the member's own Chrome through a yarnnn extension — host 0.4.0
+relays to it.

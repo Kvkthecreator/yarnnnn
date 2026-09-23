@@ -10,10 +10,11 @@
  *    member's own Chrome, with their sign-ins, in a tab group of its own, and
  *    asks once per site (`extension/`).
  *  - In the desktop app: the **host** (`src-tauri/src/hands/`), reached with
- *    Tauri's `invoke`.
+ *    Tauri's `invoke` — which relays each act to that same extension over
+ *    Chrome's native messaging. The host performs nothing itself.
  *
- * Both answer the same contract — `{success, receipt, record}` per act — and
- * both draw their own consent; the page can only ask.
+ * Either way the extension performs the act and draws the consent; the page
+ * can only ask. The contract is `{success, receipt, record}` per act.
  *
  *  - `browserHands()` — which executor this page has, and whether the member
  *    has it on. A turn asks for the browser tools only when it is on, naming
@@ -21,8 +22,8 @@
  *  - `performClientTool()` — one act the server handed to this page mid-turn:
  *    the executor performs it, and the result is posted back to the waiting
  *    turn with the turn's nonce.
- *  - `enableBrowserHands()` / `disableBrowserHands()` — the desktop app's
- *    Settings switch (the extension's switch is its own toolbar button).
+ *
+ * The switch and the site lists are the extension's own toolbar button.
  */
 
 import { isNativeShell } from "./external-navigation";
@@ -48,7 +49,7 @@ export type ClientToolFrame = {
 export type ActRecord = { act: string; subject: string; changed: boolean };
 
 export type BrowserHands =
-  | { executor: "host"; on: boolean }
+  | { executor: "host"; on: boolean; version?: string }
   | { executor: "extension"; on: boolean; version: string }
   | { executor: null; on: false; hostTooOld?: boolean };
 
@@ -97,8 +98,10 @@ const ACT_TIMEOUT_MS = 180_000;
 export async function browserHands(): Promise<BrowserHands> {
   if (isNativeShell()) {
     try {
-      const status = await invoke<{ browser?: boolean }>("hands_status");
-      return { executor: "host", on: status?.browser === true };
+      const status = await invoke<{ extension?: boolean; version?: string | null }>("hands_status");
+      // A host before the relay (0.3.x, the retired pane) answers another shape.
+      if (typeof status?.extension !== "boolean") return { executor: null, on: false, hostTooOld: true };
+      return { executor: "host", on: status.extension, version: status.version ?? undefined };
     } catch {
       return { executor: null, on: false, hostTooOld: true };
     }
@@ -120,22 +123,6 @@ export async function clientToolsRequest(): Promise<Record<string, unknown>> {
   return hands.executor === "extension"
     ? { client_tools: ["browser"], executor: `extension/${hands.version}` }
     : { client_tools: ["browser"] };
-}
-
-export async function enableBrowserHands(): Promise<boolean> {
-  try {
-    return await invoke<boolean>("hands_enable");
-  } catch {
-    return false;
-  }
-}
-
-export async function disableBrowserHands(): Promise<void> {
-  try {
-    await invoke("hands_disable");
-  } catch {
-    /* nothing to switch off on this host */
-  }
 }
 
 async function act(frame: ClientToolFrame): Promise<Record<string, unknown>> {

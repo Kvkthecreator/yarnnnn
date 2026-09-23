@@ -83,14 +83,10 @@
       "signIn": "앱에서 로그인하면 브라우저가 열리고, 로그인을 마치면 바로 앱으로 돌아와요.",
       "version": "버전 {version}.",
       "browser": {
-        "title": "에이전트가 브라우저를 쓰게 하기",
-        "body": "에이전트가 yarnnn 브라우저 창에서 웹 페이지를 열고, 읽고, 버튼을 누르고, 입력란을 채워 줘요. 모든 단계를 지켜볼 수 있고, 그동안 컴퓨터는 계속 쓸 수 있어요.",
-        "update": "에이전트가 브라우저를 쓰게 하려면 데스크톱 앱을 업데이트하세요.",
-        "turnOn": "켜기",
-        "turnOff": "끄기",
-        "declined": "켜지 않았어요. 언제든 여기서 켤 수 있어요.",
-        "extensionConnected": "이 Chrome의 yarnnn 확장 프로그램 {version}에 연결됐어요. 에이전트는 로그인된 상태 그대로 자기 탭에서 일하고, 사이트마다 한 번씩 물어봐요. 켜고 끄기와 사이트 관리는 Chrome 도구 모음의 yarnnn 버튼에서 해요.",
-        "extensionMissing": "Chrome에 yarnnn 확장 프로그램을 추가하면 에이전트가 내 Chrome에서 일할 수 있어요 — 로그인된 상태 그대로, 자기 탭에서, 사이트마다 한 번씩 물어보면서요.",
+        "title": "에이전트가 내 브라우저를 쓰게 하기",
+        "update": "에이전트가 내 브라우저를 쓰게 하려면 데스크톱 앱을 업데이트하세요.",
+        "extensionConnected": "Chrome의 yarnnn 확장 프로그램 {version}에 연결됐어요. 에이전트는 로그인된 상태 그대로 자기 탭에서 일하고, 사이트마다 한 번씩 물어봐요. 켜고 끄기와 사이트 관리는 Chrome 도구 모음의 yarnnn 버튼에서 해요.",
+        "extensionMissing": "Chrome에 yarnnn 확장 프로그램을 추가하면 에이전트가 내 Chrome에서 일할 수 있어요 — 로그인된 상태 그대로, 자기 탭에서, 사이트마다 한 번씩 물어보면서요. 데스크톱 앱에서는 Chrome을 열어 두세요.",
         "addToChrome": "Chrome에 추가",
         "notYet": "아직 공개되지 않았어요"
       },
