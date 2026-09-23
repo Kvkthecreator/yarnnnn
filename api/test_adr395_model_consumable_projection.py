@@ -276,6 +276,9 @@ def test_second_upload_same_name_does_not_clobber():
     # an OLE `.doc`, so it only ever reached the marker while the registry
     # claimed it readable. D18 — the Hancom pair joins.
     ("doc", "deferred"), ("hwp", "text"), ("hwpx", "text"),
+    # am.2 phase 3 (§11.8 closed) — their bytes ARE utf-8 text; `deferred` gave
+    # a JSON upload a "cannot read" marker over a file an agent reads verbatim.
+    ("json", "text"), ("yaml", "text"), ("yml", "text"), ("tsv", "text"),
     ("wat-is-this", "deferred"),  # unknown = retained-not-consumable, never a break
     (None, "deferred"),
 ])
@@ -1271,6 +1274,311 @@ def test_am2_d18_olefile_reaches_both_services():
     import re
     reqs = (ROOT / "requirements.txt").read_text(encoding="utf-8")
     assert re.search(r"^olefile\b", reqs, re.MULTILINE), "olefile is not a declared dependency"
+
+
+# ── am.2 phase 3 (§11.11) — the outbound writer, its doors ─────────────────
+
+
+_MD_SOURCE = """# Quarterly Brief
+
+Opening with **Zanzibar revenue** and a [reference](https://example.com/q3).
+
+## Plan
+
+- Hire the Okonkwo team
+  - nested Tamarind detail
+1. first ordered Quokka
+
+| Item | Cost |
+|---|---|
+| Pelican staff | 1,200 |
+"""
+
+_DECK_SOURCE = """<html data-template="deck"><head><title>Deck</title>
+<style>.slide{color:red}</style></head><body>
+<section class="slide" data-arrange="title"><div data-area="heading">
+  <p class="kicker" data-block="heading">Series Marmoset</p>
+  <h1 data-block="heading">Files are first-class Wombat.</h1>
+  <p data-block="heading">Framing Narwhal line.</p></div></section>
+<section class="slide" data-arrange="content"><div data-area="heading">
+  <h2 data-block="heading">Second Heron point</h2></div>
+  <div data-area="main"><div data-block="prose"><p>One Ibex idea.</p>
+  <ul><li>Axolotl bullet</li></ul><script>window.boom = 1</script></div></div></section>
+<section class="slide"><div><p>Capybara untitled body</p></div></section>
+</body></html>"""
+
+_CSV_SOURCE = 'name,amount,code\nPelican,1200,007\nMallard,"=HYPERLINK(""http://x"")",1.5\n'
+
+
+def _extract(data: bytes, ft: str) -> str:
+    from services.documents import extract_text
+    return asyncio.run(extract_text(data, ft))[0]
+
+
+@pytest.mark.parametrize("src,to,source,words", [
+    ("brief.md", "docx", _MD_SOURCE,
+     ["Quarterly Brief", "Zanzibar revenue", "reference", "Okonkwo", "Tamarind", "Quokka", "Pelican staff\t1,200"]),
+    ("deck.html", "docx", _DECK_SOURCE, ["Marmoset", "Wombat", "Heron", "Ibex", "Axolotl", "Capybara"]),
+    ("deck.html", "pptx", _DECK_SOURCE, ["Marmoset", "Wombat", "Narwhal", "Heron", "Ibex", "Axolotl", "Capybara"]),
+    ("data.csv", "xlsx", _CSV_SOURCE, ["Pelican\t1200\t007", "Mallard"]),
+    ("data.tsv", "xlsx", "name\tamount\nPelican\t1200\n", ["Pelican\t1200"]),
+])
+def test_am2_p3_every_target_opens_and_its_words_survive_the_round_trip(src, to, source, words):
+    """§11.11 — each writer, DRIVEN: the output opens in its own library, and
+    reading it back through the phase-1 extractor returns the source's words.
+
+    The writer is looked up through the registry (`export_writer`), never
+    imported by name, so the arm also proves the binding is declared."""
+    from services.file_formats import export_writer
+
+    writer = export_writer(f"/workspace/{src}", to, source)
+    assert writer is not None, f"{src} → .{to} has no writer"
+    data = writer(source, "title")
+    opener = {
+        "docx": lambda b: __import__("docx").Document(io.BytesIO(b)),
+        "pptx": lambda b: __import__("pptx").Presentation(io.BytesIO(b)),
+        "xlsx": lambda b: __import__("openpyxl").load_workbook(io.BytesIO(b)),
+    }[to]
+    opener(data)  # raises if the bytes are not the format they claim
+    text = _extract(data, to)
+    for w in words:
+        assert w in text, f"{src} → .{to} lost {w!r}:\n{text}"
+    assert "boom" not in text and "color:red" not in text, "script/style leaked in as text"
+
+
+def test_am2_p3_a_deck_is_one_slide_per_section_title_first():
+    """The deck model mapped, not guessed: one slide per `section.slide`; the
+    first heading is the slide's TITLE placeholder, the title slide's kicker
+    and framing line its subtitle; an untitled slide keeps no empty title."""
+    from pptx import Presentation
+    from services.export.office import deck_to_pptx
+
+    prs = Presentation(io.BytesIO(deck_to_pptx(_DECK_SOURCE, "deck")))
+    slides = list(prs.slides)
+    assert len(slides) == 3
+    assert slides[0].shapes.title.text == "Files are first-class Wombat."
+    assert "Marmoset" in slides[0].placeholders[1].text_frame.text
+    assert slides[1].shapes.title.text == "Second Heron point"
+    assert slides[2].shapes.title is None, "an untitled slide kept an empty title box"
+    assert prs.core_properties.title == "Files are first-class Wombat."
+
+
+def test_am2_p3_a_cell_that_says_a_formula_stays_text():
+    """Never executes content: `=HYPERLINK(...)` in a member's CSV is written as
+    a STRING cell, not a live formula; plain numbers become numbers, `007`
+    stays the identifier it is."""
+    import openpyxl
+    from services.export.office import csv_to_xlsx
+
+    ws = openpyxl.load_workbook(io.BytesIO(csv_to_xlsx(_CSV_SOURCE, "d"))).active
+    assert ws["B3"].data_type == "s" and ws["B3"].value.startswith("="), \
+        f"a formula was written live: {ws['B3'].data_type}"
+    assert ws["B2"].value == 1200 and ws["C2"].value == "007" and ws["C3"].value == 1.5
+
+
+def test_am2_p3_a_writer_refuses_past_its_cap_rather_than_truncating():
+    from services.export import office
+
+    with pytest.raises(office.ExportRefused):
+        office.markdown_to_docx("x" * (office.MAX_SOURCE_CHARS + 1), "t")
+    with pytest.raises(office.ExportRefused):
+        office.deck_to_pptx("<html><body><p>no slides</p></body></html>", "t")
+
+
+def test_am2_p3_a_target_not_offered_has_no_writer():
+    """The writer is reachable ONLY through `export_targets`: a blog post is
+    never a deck, a .pdf is never anything — whichever door asks."""
+    from services.file_formats import export_writer, FORMATS
+
+    post = '<html data-template="post"><body><section class="slide"><h2>x</h2></section></body></html>'
+    assert export_writer("/w/post.html", "pptx", post) is None
+    assert export_writer("/w/a.pdf", "docx") is None
+    assert export_writer("/w/a.md", "xlsx") is None
+    for fmt in FORMATS:
+        for t in fmt.export_as:
+            assert t.writer is not None, f".{fmt.exts[0]} offers .{t.to} with no writer"
+
+
+def test_am2_p3_save_as_lands_beside_the_source_never_over_a_file():
+    from services.export.office import sibling_export_path
+
+    src = "/workspace/deals/brief.md"
+    assert sibling_export_path(src, "docx", {src}) == "/workspace/deals/brief.docx"
+    taken = {src, "/workspace/deals/brief.docx", "/workspace/deals/brief-2.docx"}
+    assert sibling_export_path(src, "docx", taken) == "/workspace/deals/brief-3.docx"
+
+
+# -- the write, driven through the WriteFile primitive (both doors reach it) --
+
+
+class _SourceClient:
+    """workspace_files reads for `_read_source`: one live row per path."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def table(self, _name):
+        self._path = None
+        return self
+
+    def select(self, *_a, **_k):
+        return self
+
+    def eq(self, col, val):
+        if col == "path":
+            self._path = val
+        return self
+
+    def like(self, *_a):
+        return self
+
+    def limit(self, _n):
+        return self
+
+    def execute(self):
+        row = self.rows.get(self._path)
+        return type("R", (), {"data": [row] if row else []})()
+
+
+def _drive_writefile(write_input, *, rows=None, caller="member:5fa3"):
+    """The REAL handle_write_file → write_office_file → write_revision (recorded)
+    → derive_upload_projection → ExtractTextFromBlob (its write recorded too)."""
+    from services.primitives import workspace as ws
+
+    store: dict = {}
+
+    class _Auth:
+        user_id = "user-1"
+        workspace_id = "ws-1"
+        caller_identity = caller
+        client = _SourceClient(rows or {})
+
+    recorder = _make_write_recorder(store)
+
+    def _record(db_client=None, **kw):
+        rid = recorder(db_client, **kw)
+        store[kw["path"]].update(
+            derived_from=kw.get("derived_from"), revision_kind=kw.get("revision_kind"),
+            author_identity_uuid=kw.get("author_identity_uuid"),
+        )
+        return rid
+
+    with patch("services.authored_substrate.write_revision", _record), \
+         patch.object(ws, "_is_path_readable_for_principal", lambda _a, _p: True), \
+         patch.object(ws, "_scope_filter", lambda _a: ("workspace_id", "ws-1")):
+        result = asyncio.run(ws.handle_write_file(_Auth(), write_input))
+    return result, store
+
+
+def test_am2_p3_writefile_converts_an_existing_file_attributed_and_derived():
+    """The agent door, and the member route's delegate: WriteFile to an office
+    path with content='' + one derived_from converts that file's head. Lands
+    BYTES (never the text), cites the source, carries the actor's attribution,
+    and its projection reads the source's words back."""
+    result, store = _drive_writefile(
+        {"path": "deals/brief.docx", "content": "", "derived_from": ["deals/brief.md"]},
+        rows={"/workspace/deals/brief.md": {"content": _MD_SOURCE, "content_type": "text/markdown"}},
+    )
+    assert result["success"], result
+    row = store["/workspace/deals/brief.docx"]
+    assert row["content"] is None and row["content_bytes"], "the office file was written as text"
+    import docx
+    docx.Document(io.BytesIO(row["content_bytes"]))
+    assert row["derived_from"] == ["/workspace/deals/brief.md"]
+    assert row["revision_kind"] == "derivation"
+    assert row["authored_by"] == "member:5fa3", "the export lost its actor"
+    projection = store["/workspace/deals/brief.extracted.md"]
+    assert projection["authored_by"] == "system:extract"
+    assert "derived_from: /workspace/deals/brief.docx" in projection["content"]
+    assert "Zanzibar revenue" in projection["content"], "the exported file is not readable back"
+
+
+def test_am2_p3_text_under_an_office_name_is_written_not_stored():
+    """Before phase 3 a WriteFile of Markdown to `x.docx` stored the Markdown
+    verbatim under a Word name — a file that claimed a format it was not."""
+    result, store = _drive_writefile({"path": "memo.docx", "content": "# Memo\n\nKiwi body."})
+    assert result["success"], result
+    row = store["/workspace/memo.docx"]
+    assert row["content"] is None and row["content_bytes"][:2] == b"PK"
+    assert "Kiwi body." in _extract(row["content_bytes"], "docx")
+
+
+def test_am2_p3_a_truncated_office_write_is_still_refused():
+    """The empty-content guard survives: only a PRESENT empty `content` with
+    exactly one source converts. A call that lost its `content` key is refused,
+    and so is an empty write with no source."""
+    r1, s1 = _drive_writefile({"path": "memo.docx", "derived_from": ["a.md"]})
+    r2, s2 = _drive_writefile({"path": "memo.docx", "content": ""})
+    assert r1["error"] == "empty_content_blocked" and not s1
+    assert r2["error"] == "empty_content_blocked" and not s2
+
+
+def test_am2_p3_the_route_refuses_without_the_create_grant():
+    """The member door asks the ONE decider (ADR-643) — READ the source, CREATE
+    beside it — and a refusal writes nothing."""
+    from fastapi import HTTPException
+    from routes import documents as route
+    from services.access import Decision
+
+    asked = []
+
+    def _deny_create(_auth, path, verb):
+        asked.append((verb, path))
+        return Decision(allowed=(verb != "create"), reason="Your grant does not permit this.")
+
+    class _Auth:
+        user_id = "user-1"
+        workspace_id = "ws-1"
+        caller_identity = "member:5fa3"
+        client = _SourceClient({})
+
+    _Auth.client.execute = lambda: type("R", (), {"data": [{"path": "/workspace/deals/brief.md"}]})()
+    wrote = []
+    with patch("services.access.resolve_access", _deny_create), \
+         patch("services.primitives.registry.execute_primitive",
+               lambda *a, **k: wrote.append(a)):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(route.export_document(route.ExportRequest(path="/workspace/deals/brief.md", to="docx"), _Auth()))
+    assert exc.value.status_code == 403
+    assert ("create", "/workspace/deals/brief.docx") in asked
+    assert not wrote, "the route wrote past a refused grant"
+
+
+def test_am2_p3_the_member_action_reads_the_served_export_as():
+    """The member door reads `file.export_as` through ONE client entry point
+    (`lib/workspace/exportAs.ts`), and the menu and Properties render one entry
+    per resolved target — an absent `export_as` resolves to NO entries.
+
+    Anchored on the expressions, not the files: the same names appear in
+    comments and other mounts (the whole-file substring lesson)."""
+    import re
+    web = ROOT.parent / "web"
+
+    def code(rel):
+        src = (web / rel).read_text(encoding="utf-8")
+        src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
+        return re.sub(r"(?m)^\s*//.*$", "", src)
+
+    lib = code("lib/workspace/exportAs.ts")
+    assert re.search(r"return\s+file\.export_as\s*\?\?\s*\[\]", lib), \
+        "the resolver no longer reads the served export_as (or guesses when absent)"
+    assert "api.documents.exportAs(" in lib
+    menu = code("components/workspace/FileContextMenu.tsx")
+    assert re.search(r"exportTargets\?\.map\(\s*\(to\)", menu), "the menu no longer renders the resolved targets"
+    assert re.search(r"verbs\.exportTargetsFor\(target\)", menu), "the menu no longer resolves targets on open"
+    assert re.search(r"exportTargets=\{exportTargets\}", menu), "the resolved targets never reach the menu"
+    panel = code("components/workspace/NodeDetailsPanel.tsx")
+    # The FileSaveAs component only — the panel's Kind-label table legitimately
+    # names office extensions (presentation, §11.3), and is not this door.
+    props = panel[panel.index("function FileSaveAs("):panel.index("function FileOpensWith(")]
+    assert re.search(r"resolveExportTargets\(", props) and re.search(r"targets\.map\(\s*\(to\)", props)
+    assert "<FileSaveAs node={node}" in panel, "Properties no longer mounts Save as"
+    files = code("app/(authenticated)/files/page.tsx")
+    assert re.search(r"exportTargetsFor:\s*resolveExportTargets", files)
+    # No second format table on the client: the targets come from the server.
+    for f in (lib, menu, props):
+        for spelling in ("'xlsx'", '"xlsx"', "'pptx'", '"pptx"', "'docx'", '"docx"'):
+            assert spelling not in f, f"a client-side format literal {spelling}"
 
 
 # ── D15 phase 2 — the office viewers ────────────────────────────────────────

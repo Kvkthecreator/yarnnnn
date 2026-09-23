@@ -58,7 +58,7 @@ Every primitive is **read-only** (reads and narration — `READ_ONLY_PRIMITIVES`
 | `ReadFile` | file | read-only | ● | ○ | — | Read a file from the workspace filesystem (file layer, path-based). |
 | `Restore` | file · folder | queueable | ● | ○ | the Trash view (`restore_group`) | Put a file or folder BACK from Trash (the inverse of DeleteFile / DeleteFolder). |
 | `SearchFiles` | file | read-only | ● | ○ | — | Search the workspace filesystem for content (file layer). |
-| `WriteFile` | file | queueable | ● | ○ | — | Write a file to the workspace filesystem (file layer, path-based). |
+| `WriteFile` | file | queueable | ● | ○ | `routes/documents` (Save as, ADR-395 am.2 §11.11) | Write a file to the workspace filesystem (file layer, path-based). An OFFICE path (`.docx`/`.pptx`/`.xlsx`) is WRITTEN in that format from a source — `content`, or `content=''` + one `derived_from` — via `services/export/office.py`; MCP `save` inherits it. |
 | `DeleteFolder` | folder | queueable | ● | ○ | `routes/documents` (the fan) | Move a whole FOLDER to Trash — one attributed revision per file inside it. |
 | `MoveFolder` | folder | queueable | ● | ○ | `routes/documents` (the fan) | Move or RENAME a whole FOLDER — the same act, addressed differently (ADR-337 D3 at folder grain). |
 | `DiffRevisions` | revisions | read-only | ○ | ○ | **none — registered, no live surface** | Compare two revisions of the same workspace file. |

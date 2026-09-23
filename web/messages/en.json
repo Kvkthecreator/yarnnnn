@@ -1430,7 +1430,9 @@
       "saveToComputer": "Save to your computer",
       "opensWith": "Opens with",
       "handlerDefault": " (default)",
-      "changeHandlerFailed": "Could not change which app opens this file"
+      "changeHandlerFailed": "Could not change which app opens this file",
+      "saveAs": "Save as",
+      "saveAsFormat": ".{format}"
     },
     "kind": {
       "md": "Markdown document",
@@ -1514,7 +1516,8 @@
       "move": "Move to…",
       "trash": "Move to Trash",
       "trashCount": "Move to Trash ({count, plural, one {# item} other {# items}})",
-      "fileActions": "File actions"
+      "fileActions": "File actions",
+      "saveAs": "Save as .{format}"
     },
     "viewer": {
       "pickSomething": "Select a file or folder from the explorer",
@@ -1579,6 +1582,11 @@
       "trashedPartial": "Moved {trashed} of {total} to Trash. {failed} could not be moved.{lockedLine}",
       "trashFailed": "{count, plural, one {# item could not be moved to Trash.} other {# items could not be moved to Trash.}}",
       "trashed": "{count, plural, one {# item moved to Trash.} other {# items moved to Trash.}}{lockedLine}"
+    },
+    "exportAs": {
+      "saving": "Saving as .{format}…",
+      "saved": "Saved as .{format} — a new file beside the original",
+      "failed": "Could not save as .{format}"
     }
   },
   "supervisor": {

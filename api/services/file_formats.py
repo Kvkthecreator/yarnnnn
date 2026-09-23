@@ -58,7 +58,17 @@ from services.documents import (
     extract_text_from_xlsx,
 )
 
+from services.export.office import (
+    csv_to_xlsx,
+    deck_to_pptx,
+    html_to_docx,
+    markdown_to_docx,
+    tsv_to_xlsx,
+)
+
 Extractor = Callable[[bytes], Awaitable[Tuple[str, int]]]
+#: `(source_text, title) -> bytes` — an outbound writer (ADR-395 am.2 §11.11).
+Writer = Callable[[str, str], bytes]
 
 
 @dataclass(frozen=True)
@@ -69,10 +79,16 @@ class ExportTarget:
     whose declared type (`data-template`, ADR-459) is owned by that app — a
     Slides deck can become a `.pptx`; a blog post cannot, although both are
     `.html`. None means every file of the format qualifies.
+
+    `writer` is the function that writes THIS source format as `to` (phase 3,
+    `services/export/office.py`). It rides the row the way `extractor` does,
+    so which source becomes which target is declared in one place, and a
+    target with no writer cannot be offered.
     """
 
     to: str
     when_app: Optional[str] = None
+    writer: Optional[Writer] = None
 
 
 @dataclass(frozen=True)
@@ -108,16 +124,20 @@ _IMG, _MOV, _AUD, _TXT, _DAT = (
 FORMATS: Tuple[FileFormat, ...] = (
     # ── prose and structured text — the bytes ARE utf-8 text ─────────────────
     FileFormat(("md", "markdown"), "text/markdown", _TXT, "text", "markdown",
-               export_as=(ExportTarget("docx"),)),
+               export_as=(ExportTarget("docx", writer=markdown_to_docx),)),
     FileFormat(("txt",), "text/plain", _TXT, "text", "text"),
     FileFormat(("csv",), "text/csv", _TXT, "text", "csv",
-               export_as=(ExportTarget("xlsx"),)),
-    FileFormat(("tsv",), "text/tab-separated-values", _TXT, "deferred", "csv"),
+               export_as=(ExportTarget("xlsx", writer=csv_to_xlsx),)),
+    FileFormat(("tsv",), "text/tab-separated-values", _TXT, "text", "csv",
+               export_as=(ExportTarget("xlsx", writer=tsv_to_xlsx),)),
     FileFormat(("html", "htm"), "text/html", _TXT, "text", "html",
-               export_as=(ExportTarget("docx"), ExportTarget("pptx", when_app="slides"))),
-    # json/yaml read `deferred` — unchanged by am.2, recorded as a finding (§11.7).
-    FileFormat(("json",), "application/json", _TXT, "deferred", "text"),
-    FileFormat(("yaml", "yml"), "application/yaml", _TXT, "deferred", "text"),
+               export_as=(ExportTarget("docx", writer=html_to_docx),
+                          ExportTarget("pptx", when_app="slides", writer=deck_to_pptx))),
+    # json/yaml/tsv read `text` since am.2 phase 3 (§11.8): their bytes ARE
+    # utf-8 text, so the `deferred` verdict gave a JSON upload a "cannot read"
+    # marker over a file an agent could read verbatim.
+    FileFormat(("json",), "application/json", _TXT, "text", "text"),
+    FileFormat(("yaml", "yml"), "application/yaml", _TXT, "text", "text"),
     # ── binary documents with an in-process text extractor (am.1 D10, am.2 D18)
     FileFormat(("pdf",), "application/pdf", _DAT, "text", "pdf",
                extractor=extract_text_from_pdf),
@@ -255,6 +275,49 @@ def export_targets(path: str, content: Optional[str] = None) -> list:
     ]
 
 
+def export_writer(path: str, to: str, content: Optional[str] = None) -> Optional[Writer]:
+    """The writer that turns THIS file into `to` — or None if it is not offered.
+
+    Answers through `export_targets`, so a target the member is not shown is
+    a target no door can produce: the menu, the route and the agent's
+    WriteFile all ask this one function.
+    """
+    if to not in export_targets(path, content):
+        return None
+    fmt = format_of_path(path)
+    return next((t.writer for t in fmt.export_as if t.to == to), None) if fmt else None
+
+
+def is_export_target(path: Optional[str]) -> bool:
+    """Is this path's format one yarnnn WRITES from a source (an office file)?
+
+    True for the extensions some row exports to. A WriteFile to such a path
+    carries the SOURCE (Markdown, HTML, CSV) and the kernel writes the format —
+    text written verbatim under a `.docx` name is not a Word document.
+    """
+    ext = ext_of(path)
+    return bool(ext) and any(t.to == ext for fmt in FORMATS for t in fmt.export_as)
+
+
+def inline_source_ext(to: str, looks_like_markup: bool) -> Optional[str]:
+    """Which source format an INLINE source for `to` is read as.
+
+    A WriteFile to an office path hands the source as text with no name of
+    its own. Of the formats that export to `to`, markup reads as the HTML row
+    and anything else as the first non-HTML row (Markdown for a document, CSV
+    for a sheet). A presentation has only the HTML row, so plain text offered
+    as one is still read as HTML — and refused unless it is a Slides deck.
+    """
+    candidates = [fmt.exts[0] for fmt in FORMATS if any(t.to == to for t in fmt.export_as)]
+    if not candidates:
+        return None
+    html = next((e for e in candidates if format_for(e).view == "html"), None)
+    plain = next((e for e in candidates if format_for(e).view != "html"), None)
+    if looks_like_markup and html:
+        return html
+    return plain or html
+
+
 def served_capabilities(path: str, content: Optional[str] = None) -> dict:
     """The per-file format fields `GET /workspace/file` serves (am.2 D15/D16).
 
@@ -272,11 +335,15 @@ def served_capabilities(path: str, content: Optional[str] = None) -> dict:
 
 __all__ = [
     "ExportTarget",
+    "Writer",
     "FileFormat",
     "FORMATS",
     "ext_of",
     "ext_for_mime",
     "export_targets",
+    "export_writer",
+    "inline_source_ext",
+    "is_export_target",
     "format_for",
     "format_of_path",
     "is_binary_text_family",

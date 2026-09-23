@@ -36,6 +36,7 @@ import type {
   WorkspaceTreeNode,
   WorkspaceFile,
   WorkspaceFileWithRevision,
+  ExportTarget,
   // ADR-219 Commit 4: narrative filter-over-substrate
   // ADR-250: per-invocation execution log
   ExecutionEvent,
@@ -1556,6 +1557,15 @@ export const api = {
       request<{ success: boolean; path: string; new_path: string }>(
         "/api/documents/duplicate",
         { method: "POST", body: JSON.stringify({ path }) }
+      ),
+
+    // ADR-395 am.2 §11.11: "Save as .docx/.pptx/.xlsx" — a NEW file beside the
+    // source, named by the kernel, `derived_from` the source. `to` is one of
+    // the file's served `export_as`; the server refuses any other.
+    exportAs: (path: string, to: ExportTarget) =>
+      request<{ success: boolean; path: string; new_path: string; format: ExportTarget }>(
+        "/api/documents/export",
+        { method: "POST", body: JSON.stringify({ path, to }) }
       ),
 
     // ADR-424 D2: create a folder — a top-level PEER (no parent) or INSIDE an

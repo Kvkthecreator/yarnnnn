@@ -1430,7 +1430,9 @@
       "saveToComputer": "내 컴퓨터에 저장",
       "opensWith": "연결 프로그램",
       "handlerDefault": " (기본)",
-      "changeHandlerFailed": "이 파일을 여는 앱을 바꾸지 못했어요"
+      "changeHandlerFailed": "이 파일을 여는 앱을 바꾸지 못했어요",
+      "saveAs": "다른 형식으로 저장",
+      "saveAsFormat": ".{format}"
     },
     "kind": {
       "md": "Markdown 문서",
@@ -1514,7 +1516,8 @@
       "move": "이동…",
       "trash": "휴지통으로 이동",
       "trashCount": "휴지통으로 이동 ({count, plural, other {#개}})",
-      "fileActions": "파일 작업"
+      "fileActions": "파일 작업",
+      "saveAs": ".{format} 파일로 저장"
     },
     "viewer": {
       "pickSomething": "탐색기에서 파일이나 폴더를 고르세요",
@@ -1579,6 +1582,11 @@
       "trashedPartial": "{total}개 중 {trashed}개를 휴지통으로 옮겼어요. {failed}개는 옮기지 못했어요.{lockedLine}",
       "trashFailed": "{count, plural, other {#개를 휴지통으로 옮기지 못했어요.}}",
       "trashed": "{count, plural, other {#개를 휴지통으로 옮겼어요.}}{lockedLine}"
+    },
+    "exportAs": {
+      "saving": ".{format} 파일로 저장하는 중…",
+      "saved": "원본 옆에 새 .{format} 파일로 저장했습니다",
+      "failed": ".{format} 파일로 저장하지 못했습니다"
     }
   },
   "supervisor": {

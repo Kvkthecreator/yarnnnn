@@ -36,7 +36,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useViewportClamp } from '@/hooks/useViewportClamp';
-import { Info, ExternalLink, Pencil, FolderInput, FolderPlus, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight, Download } from 'lucide-react';
+import { Info, ExternalLink, Pencil, FolderInput, FolderPlus, Trash2, Share2, MoreVertical, CopyPlus, ChevronRight, Download, FileOutput } from 'lucide-react';
+import type { ExportTarget } from '@/types';
 import { cn } from '@/lib/utils';
 import { useCoarsePointer } from '@/hooks/useCoarsePointer';
 
@@ -101,6 +102,15 @@ export interface FileVerbs {
    * is why the pair travels together and the href alone is never enough.
    */
   downloadFor?: (t: FileMenuTarget) => Promise<{ href: string; filename: string } | null>;
+  /**
+   * "Save as .docx / .pptx / .xlsx" (ADR-395 am.2 §11.11) — resolved when the
+   * menu OPENS, the same async shape as `downloadFor`: which formats a file
+   * can become is the server's per-file answer (`export_as`), so the menu
+   * learns it per target. [] → no entry. `onExportAs` performs the act (a NEW
+   * file beside the source); both go through `lib/workspace/exportAs.ts`.
+   */
+  exportTargetsFor?: (t: FileMenuTarget) => Promise<ExportTarget[]>;
+  onExportAs?: (t: FileMenuTarget, to: ExportTarget) => void;
   /**
    * The BLAST RADIUS of Move to Trash on this target, resolved when the menu
    * OPENS (2026-08-21) — the same async shape as `downloadFor`, and for the
@@ -201,6 +211,11 @@ export interface FileContextMenuProps {
   /** The resolved download for the target, or null when there is nothing to
    *  save. `filename` carries the file's OWN name (the CAS href does not). */
   download?: { href: string; filename: string } | null;
+  /** The formats the target can be saved as (ADR-395 am.2 §11.11); [] or
+   *  undefined → no "Save as" entries. */
+  exportTargets?: ExportTarget[];
+  /** Save the target as one of `exportTargets` — a new file beside it. */
+  onExportAs?: (t: FileMenuTarget, to: ExportTarget) => void;
   /** Share a link to the target (ADR-437 D4). */
   onShare?: (t: FileMenuTarget) => void;
   /** Duplicate the target as an attributed derivation (ADR-514 D1, files only). */
@@ -218,6 +233,7 @@ export interface FileContextMenuProps {
 export function FileContextMenu({
   target, x, y, onClose, onOpen, onProperties, onRename, onMove, onDelete, onShare,
   onDuplicate, onOpenWith, handlers, onNewFolder, extraItems, download, deleteLabel,
+  exportTargets, onExportAs,
 }: FileContextMenuProps) {
   const t = useTranslations('files.menu');
   useEffect(() => {
@@ -287,6 +303,17 @@ export function FileContextMenu({
           <span className="flex-1">{t('download')}</span>
         </a>
       )}
+      {/* Save as — one entry per format the SERVER offers for this file. A new
+          file beside the source; the format list is never guessed here. */}
+      {isFile && onExportAs && exportTargets?.map((to) => (
+        <MenuItem
+          key={to}
+          icon={<FileOutput className="w-3.5 h-3.5 text-muted-foreground" />}
+          onClick={() => { onExportAs(target, to); onClose(); }}
+        >
+          {t('saveAs', { format: to })}
+        </MenuItem>
+      ))}
       {onProperties && (
         <MenuItem icon={<Info className="w-3.5 h-3.5 text-muted-foreground" />} onClick={() => run(onProperties)}>
           {t('properties')}
@@ -490,6 +517,9 @@ export function useFileContextMenu(
   // expired link), cleared on close, and dropped if the menu moved on before
   // the mint landed.
   const [download, setDownload] = useState<{ href: string; filename: string } | null>(null);
+  // The formats the OPEN menu's target can be saved as — same lifecycle as
+  // `download`: resolved per open, cleared on close.
+  const [exportTargets, setExportTargets] = useState<ExportTarget[]>([]);
   // The resolved Move-to-Trash count for the OPEN menu's target (2026-08-21).
   // Same lifecycle as `download` — minted per open, cleared on close, dropped
   // if the menu moved on before it landed. Null = no count worth naming, and
@@ -512,6 +542,7 @@ export function useFileContextMenu(
   const resolveOnOpen = useCallback((target: FileMenuTarget) => {
     setDownload(null);
     setBlastRadius(null);
+    setExportTargets([]);
     // Only apply a result if this is still the target on screen — the menu can
     // move on (another right-click) before an in-flight resolve lands.
     const ifStillOpen = (apply: () => void) =>
@@ -520,6 +551,11 @@ export function useFileContextMenu(
       void verbs.downloadFor(target)
         .then((d) => ifStillOpen(() => setDownload(d)))
         .catch(() => setDownload(null));
+    }
+    if (verbs?.exportTargetsFor) {
+      void verbs.exportTargetsFor(target)
+        .then((ts) => ifStillOpen(() => setExportTargets(ts)))
+        .catch(() => setExportTargets([]));
     }
     if (verbs?.blastRadiusFor) {
       void verbs.blastRadiusFor(target)
@@ -571,7 +607,7 @@ export function useFileContextMenu(
       target={state.target}
       x={state.x}
       y={state.y}
-      onClose={() => { setState(null); setDownload(null); setBlastRadius(null); }}
+      onClose={() => { setState(null); setDownload(null); setBlastRadius(null); setExportTargets([]); }}
       onOpen={verbs.onOpen ? () => verbs.onOpen!(state.target) : undefined}
       onProperties={verbs.onProperties ? () => verbs.onProperties!(state.target) : undefined}
       onRename={verbs.onRename ? () => verbs.onRename!(state.target) : undefined}
@@ -584,6 +620,8 @@ export function useFileContextMenu(
       onNewFolder={verbs.onNewFolder ? () => verbs.onNewFolder!(state.target) : undefined}
       extraItems={(extraItemsFor ?? verbs.extraItemsFor)?.(state.target)}
       download={download}
+      exportTargets={exportTargets}
+      onExportAs={verbs.onExportAs}
       deleteLabel={
         blastRadius === null ? undefined : t('trashCount', { count: blastRadius })
       }

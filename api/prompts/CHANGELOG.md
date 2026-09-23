@@ -15,6 +15,20 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.23.1] - WriteFile writes office formats; a skill for handing work outside
+
+### Changed
+- services/primitives/workspace.py (`WRITE_FILE_TOOL`): one paragraph — an office path (.docx/.pptx/.xlsx) names the format yarnnn WRITES; `content` is the source (Markdown/HTML, CSV, a Slides deck's HTML), or `content=''` + one `derived_from` to convert an existing file server-side.
+- mcp_server/server.py (`save` docstring): the same paragraph for interop hosts, and `content`'s arg line admits the one empty form.
+- services/skills/writing-an-office-file/SKILL.md (NEW): export vs keep in the workspace, structure over styling, which source each format needs, convert rather than retype, say what the format dropped.
+- Expected behavior: asked for "a Word doc" / "a deck I can send" / "a spreadsheet", an agent writes the office path from the workspace source (citing it) instead of pasting Markdown under a `.docx` name or declaring it cannot produce the format.
+
+### Why
+Beta members reported office files are not first-class (receipt: ADR-395 am.2 §11, operator-ratified 2026-09-23 from that feedback). The agent-side half of the failure was structural: no surface could produce a `.docx`/`.pptx`/`.xlsx`, and `WriteFile(path='x.docx', content='# …')` stored the Markdown verbatim under a Word name — a file that claimed a format it was not. The tool now writes the format (ADR-395 §11.11); these lines tell the agent it does, and the skill carries the craft the model has no prior for (the derivative/source split, the conversion form that never re-emits a deck, best-effort styling).
+
+### Gate
+`test_adr632_the_seat_retires.py` 73/73 (§5 size ratchets held) · `test_adr630_skills.py` 159/159 · `test_adr395_model_consumable_projection.py` 105/105.
+
 ## [2026.09.20.1] - The declaring skill teaches the workspace source, and the chain
 ### Changed
 - api/services/skills/declaring-standing-work/SKILL.md: the YAML example gains the third source

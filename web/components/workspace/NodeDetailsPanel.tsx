@@ -31,7 +31,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { FileText, Folder, Download } from 'lucide-react';
+import { FileText, Folder, Download, FileOutput } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { api, APIError } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -47,8 +47,9 @@ import { resolveHandlers } from '@/lib/file-types/handlers';
 import { CopyField } from '@/components/workspace/CopyField';
 import { displayPath } from '@/lib/interop/fileHandle';
 import { resolveDownload } from '@/lib/workspace/download';
+import { exportAs, resolveExportTargets } from '@/lib/workspace/exportAs';
 import { ensureKindApps, extractTemplate, knownKind, rememberKind } from '@/lib/file-types';
-import type { WorkspaceTreeNode } from '@/types';
+import type { ExportTarget, WorkspaceTreeNode } from '@/types';
 
 // ADR-388 D3: author label + accent come from the ONE shared attribution
 // module (the MCP-host form "ChatGPT (via MCP)" surfaces here too).
@@ -364,6 +365,7 @@ export function NodeDetailsPanel({ node, onSelectPath, onRevert }: NodeDetailsPa
           <FileProperties node={node} />
           <FileOpensWith path={node.path} />
           <FileDownload node={node} />
+          <FileSaveAs node={node} onSelectPath={onSelectPath} />
           {/* The share list + revoke moved into the ShareDialog (ADR-529 D1/D4).
               `FileReach` followed it (ADR-537 D2): "who can reach this file" is
               the STATE the share sheet must show before it offers to change
@@ -435,6 +437,77 @@ function FileDownload({ node }: { node: WorkspaceTreeNode }) {
           <Download className="h-3.5 w-3.5 text-muted-foreground" />
           {t('saveToComputer')}
         </a>
+      </PropRow>
+    </div>
+  );
+}
+
+
+// ── Save as — the file written as an office format (ADR-395 am.2 §11.11) ────
+//
+// Download's neighbour, because it answers the same question — "give me this
+// file in a form I can hand someone" — with the other half: in the format they
+// open. SAME entry point as the menu (`lib/workspace/exportAs.ts`); the
+// formats are the server's per-file `export_as`, so a file with none shows no
+// row. The act makes a NEW file beside this one and lands on it.
+
+function FileSaveAs({
+  node, onSelectPath,
+}: {
+  node: WorkspaceTreeNode;
+  onSelectPath?: (path: string) => void;
+}) {
+  const t = useTranslations('files.details');
+  const tExport = useTranslations('files.exportAs');
+  const { runAction } = useFeedback();
+  const [targets, setTargets] = useState<ExportTarget[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTargets([]);
+    void resolveExportTargets({ path: node.path, isFile: node.type !== 'folder' })
+      .then((ts) => { if (!cancelled) setTargets(ts); });
+    return () => { cancelled = true; };
+  }, [node.path, node.type]);
+
+  if (targets.length === 0) return null;
+
+  const save = async (to: ExportTarget) => {
+    setBusy(true);
+    try {
+      const newPath = await runAction(() => exportAs(node.path, to), {
+        pending: tExport('saving', { format: to }),
+        success: tExport('saved', { format: to }),
+        error: (e) => (e instanceof APIError
+          ? (e.data as { detail?: string })?.detail || tExport('failed', { format: to })
+          : tExport('failed', { format: to })),
+      });
+      if (newPath) onSelectPath?.(newPath);
+    } catch {
+      /* error toast already surfaced */
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2">
+      <PropRow label={t('saveAs')}>
+        <span className="inline-flex flex-wrap items-center gap-2">
+          {targets.map((to) => (
+            <button
+              key={to}
+              type="button"
+              disabled={busy}
+              onClick={() => { void save(to); }}
+              className="inline-flex items-center gap-1.5 text-[11px] text-foreground/80 underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              <FileOutput className="h-3.5 w-3.5 text-muted-foreground" />
+              {t('saveAsFormat', { format: to })}
+            </button>
+          ))}
+        </span>
       </PropRow>
     </div>
   );

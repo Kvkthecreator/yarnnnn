@@ -1318,6 +1318,71 @@ async def duplicate_document(body: DuplicateRequest, auth: UserClient):
     return {"success": True, "path": src, "new_path": result.get("new_path")}
 
 
+class ExportRequest(BaseModel):
+    path: str
+    to: str
+
+
+@router.post("/documents/export")
+async def export_document(body: ExportRequest, auth: UserClient):
+    """Save a file AS an office format — a NEW file beside it (ADR-395 am.2 §11.11).
+
+    The member's "Save as .docx/.pptx/.xlsx". The caller names the source and
+    the target format; the kernel names the file (`{stem}.{to}`, then `-2`…,
+    never over an existing file) and writes it through the ONE office write
+    (`services/export/office.py::write_office_file`) by dispatching WriteFile —
+    the SAME verb an agent uses, so the member's click and an agent's call are
+    one act with one attribution and one `derived_from` edge.
+
+    Authorization is the door's own two questions through the ONE decider
+    (ADR-643): may this principal READ the source, and CREATE beside it. A
+    target the registry does not offer for THIS file (`export_as`) is refused
+    by the write itself, so a client cannot talk the route into a format the
+    member was never shown.
+    """
+    src = body.path if body.path.startswith("/") else "/" + body.path
+    to = (body.to or "").lower().lstrip(".")
+
+    from services.file_formats import is_export_target
+    if not is_export_target(f"target.{to}"):
+        raise HTTPException(status_code=400, detail=f"yarnnn does not write .{to} files.")
+
+    _assert_may(auth, src, "read")
+
+    from services.export.office import sibling_export_path
+    from services.primitives.workspace import _scope_filter
+
+    parent = src.rpartition("/")[0]
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path")
+        .eq(*_scope_filter(auth))
+        .like("path", f"{parent}/%")
+        .execute()
+    ).data or []
+    taken = {r["path"] for r in rows}
+    if src not in taken:
+        raise HTTPException(status_code=404, detail=f"No file at {src}")
+    dst = sibling_export_path(src, to, taken)
+    if dst is None:
+        raise HTTPException(status_code=400, detail=f"Too many exports of {src} already exist.")
+
+    _assert_may(auth, dst, "create")
+
+    from services.primitives.registry import execute_primitive
+    result = await execute_primitive(auth, "WriteFile", {
+        "scope": "workspace",
+        "path": dst,
+        "content": "",
+        "derived_from": [src],
+        "message": f"Save as .{to}: from {src}",
+    })
+    if not (isinstance(result, dict) and result.get("success")):
+        detail = (result or {}).get("message", "Export failed")
+        raise HTTPException(status_code=400, detail=detail)
+    return {"success": True, "path": src, "new_path": result.get("path"), "format": to}
+
+
 # =============================================================================
 # CREATE FOLDER — ADR-424 D2/D6: the operator makes a top-level PEER folder
 # =============================================================================

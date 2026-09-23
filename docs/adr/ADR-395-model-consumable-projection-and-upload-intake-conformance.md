@@ -1,6 +1,6 @@
 # ADR-395 — The Model-Consumable Projection: upload intake conformance (retain raw · derive projection · host-gated raw reference)
 
-> **Status**: **Accepted** (canon ratified 2026-07-01 — **Phase 0 done**: FOUNDATIONS Derived Principle 34 landed at v9.14 + the DP32 cross-reference sentence. **Phase 1 (A+B) shipped to main 2026-07-01** [commit `542740e`/merge `d45d0b0`]: raw blob lands at `inbound/uploads/{principal}/{slug}.{ext}` via `content_url` [stable `/api/documents/blob` redirect]; `ExtractTextFromBlob` primitive derives the co-located `.extracted.md` text projection citing the raw via `derived_from`, invoked INLINE [refined from "capture-lane hook" — an upload is one-shot, zero-LLM in-request]. **Phase-1 completeness closeout (2026-07-02)**: an audit found two shipped defects the initial land missed — (i) the projection landed at `inbound/uploads/*.extracted.md`, a lane that was NOT embed-eligible (roots were `operation/`+`uploads/` only) AND outside `QueryKnowledge`'s hard `/workspace/operation/` search prefix, so the projection was never embedded and was unreachable by `recall` — the §4-Piece-B "closes the searchability gap" claim was aspirational, not real. Fixed: `inbound/uploads/` added to `_EMBED_ELIGIBLE_ROOTS` + a shared `is_searchable_root` predicate, and `handle_query_knowledge`'s default (no-domain) sweep now spans the searchable surface (unscoped RPC + post-filter to searchable roots) rather than locking to `operation/`. (ii) `GET /documents/{path}/download` read `storage_path` only from frontmatter, which the new raw rows don't carry (storage is in `content_url`), so Download 404'd for every new upload — fixed to resolve `storage_path` from `content_url` first, legacy-frontmatter fallback retained. A dedicated `test_adr395_model_consumable_projection.py` gate now drives the real `process_document`+`ExtractTextFromBlob` path and asserts the projection is embed-eligible+recall-reachable — the regression guard the ADR-331 gate (which mocks `process_document`) could not provide. **Embedding-over-reach correction (2026-07-02)**: an OpenAI-quota outage (surfaced by live E2E validation) exposed that the intake path had drifted toward embedding-first coupling, against ADR-325's ratified discipline (*embedding is enrichment; the mechanical floor is load-bearing*). Two corrections, per the operator's re-derivation: (i) **recall is now mechanical-first** — `handle_query_knowledge` runs the free BM25 full-text path first and escalates to the paid semantic embed ONLY when BM25 comes up empty (confines the un-metered embedding COGS — the pricing carve's B′ line — to genuinely-fuzzy queries, and keeps the recall hot path off the external rate-limited API); (ii) **the upload embed is now DEFERRED** — `ExtractTextFromBlob` gains an `embed` flag (default true); `process_document` passes `embed=False` + reports `embed_pending`, and the upload route schedules the embed via FastAPI `BackgroundTasks` AFTER the response, so a rate-limited/slow OpenAI call never blocks or breaks the upload (the projection is BM25-searchable the instant the response returns; the embedding enrichment catches up). ADR-325's upload auto-embed exception (D6, operator-initiated, not Reviewer-gated) is PRESERVED — only its *timing* moves from synchronous to deferred. Gate 21/21 (adds deferred-embed + mechanical-first assertions). **Phase 2 [C] is CLOSED by ADR-621** (§4/§7 — the medium reason does not expire). **Phase 3 SHIPPED 2026-09-21 as Amendment 1 (§8)**: the intake door drops its format allowlist entirely (D8 — acceptance is conformance to `public.data`), a file with no projection is RETAINED and carries a legible marker instead of failing the upload (D9), and `xlsx`/`pptx` join the text family while the `docx` extractor is REPAIRED of silent table/header loss (D10). §8.7 scopes the sandbox horizon without adopting it. Gate 42/42, falsified six ways. **Amendment 2 (2026-09-23, §11) — the format harness**: office files first-class on demand from beta members. Phase 1 SHIPPED: ONE server format registry (`api/services/file_formats.py`, D14) replacing five hand-kept extension tables; view kinds + per-file export targets served on `GET /workspace/file` (D15/D16); `.doc` stops claiming readability (D17); HWP/HWPX read in-process (D18). **Phase 2 SHIPPED 2026-09-23 (§11.10)**: the three office kinds draw in the client — xlsx through the ONE table app (SheetJS, lazy), docx page-faithful in a sandboxed frame (docx-preview, lazy), pptx as its own extracted words laid out per slide (no parser, by verdict); every viewer falls back to the terminal. Phase 3 (the outbound writer, then its skill) builds against it.). Ratifies **FOUNDATIONS Derived Principle 34** (the model-consumable projection — the consumption member of the perception cycle) and conforms the **human-upload** transport to it — the last context-in transport DP32 named but the code never fixed. **Substrate + Channel dimensions** (Axiom 1 — how an uploaded file is retained + derived; Axiom 6 — how a substrate object egresses to a model). Adds **one new primitive** (`ExtractTextFromBlob`), **one new capability flag** on the host profile, and **populates an existing-but-unused column** (`workspace_files.content_url`). Changes **no** existing write gate and **no** attribution taxonomy.
+> **Status**: **Accepted** (canon ratified 2026-07-01 — **Phase 0 done**: FOUNDATIONS Derived Principle 34 landed at v9.14 + the DP32 cross-reference sentence. **Phase 1 (A+B) shipped to main 2026-07-01** [commit `542740e`/merge `d45d0b0`]: raw blob lands at `inbound/uploads/{principal}/{slug}.{ext}` via `content_url` [stable `/api/documents/blob` redirect]; `ExtractTextFromBlob` primitive derives the co-located `.extracted.md` text projection citing the raw via `derived_from`, invoked INLINE [refined from "capture-lane hook" — an upload is one-shot, zero-LLM in-request]. **Phase-1 completeness closeout (2026-07-02)**: an audit found two shipped defects the initial land missed — (i) the projection landed at `inbound/uploads/*.extracted.md`, a lane that was NOT embed-eligible (roots were `operation/`+`uploads/` only) AND outside `QueryKnowledge`'s hard `/workspace/operation/` search prefix, so the projection was never embedded and was unreachable by `recall` — the §4-Piece-B "closes the searchability gap" claim was aspirational, not real. Fixed: `inbound/uploads/` added to `_EMBED_ELIGIBLE_ROOTS` + a shared `is_searchable_root` predicate, and `handle_query_knowledge`'s default (no-domain) sweep now spans the searchable surface (unscoped RPC + post-filter to searchable roots) rather than locking to `operation/`. (ii) `GET /documents/{path}/download` read `storage_path` only from frontmatter, which the new raw rows don't carry (storage is in `content_url`), so Download 404'd for every new upload — fixed to resolve `storage_path` from `content_url` first, legacy-frontmatter fallback retained. A dedicated `test_adr395_model_consumable_projection.py` gate now drives the real `process_document`+`ExtractTextFromBlob` path and asserts the projection is embed-eligible+recall-reachable — the regression guard the ADR-331 gate (which mocks `process_document`) could not provide. **Embedding-over-reach correction (2026-07-02)**: an OpenAI-quota outage (surfaced by live E2E validation) exposed that the intake path had drifted toward embedding-first coupling, against ADR-325's ratified discipline (*embedding is enrichment; the mechanical floor is load-bearing*). Two corrections, per the operator's re-derivation: (i) **recall is now mechanical-first** — `handle_query_knowledge` runs the free BM25 full-text path first and escalates to the paid semantic embed ONLY when BM25 comes up empty (confines the un-metered embedding COGS — the pricing carve's B′ line — to genuinely-fuzzy queries, and keeps the recall hot path off the external rate-limited API); (ii) **the upload embed is now DEFERRED** — `ExtractTextFromBlob` gains an `embed` flag (default true); `process_document` passes `embed=False` + reports `embed_pending`, and the upload route schedules the embed via FastAPI `BackgroundTasks` AFTER the response, so a rate-limited/slow OpenAI call never blocks or breaks the upload (the projection is BM25-searchable the instant the response returns; the embedding enrichment catches up). ADR-325's upload auto-embed exception (D6, operator-initiated, not Reviewer-gated) is PRESERVED — only its *timing* moves from synchronous to deferred. Gate 21/21 (adds deferred-embed + mechanical-first assertions). **Phase 2 [C] is CLOSED by ADR-621** (§4/§7 — the medium reason does not expire). **Phase 3 SHIPPED 2026-09-21 as Amendment 1 (§8)**: the intake door drops its format allowlist entirely (D8 — acceptance is conformance to `public.data`), a file with no projection is RETAINED and carries a legible marker instead of failing the upload (D9), and `xlsx`/`pptx` join the text family while the `docx` extractor is REPAIRED of silent table/header loss (D10). §8.7 scopes the sandbox horizon without adopting it. Gate 42/42, falsified six ways. **Amendment 2 (2026-09-23, §11) — the format harness**: office files first-class on demand from beta members. Phase 1 SHIPPED: ONE server format registry (`api/services/file_formats.py`, D14) replacing five hand-kept extension tables; view kinds + per-file export targets served on `GET /workspace/file` (D15/D16); `.doc` stops claiming readability (D17); HWP/HWPX read in-process (D18). **Phase 2 SHIPPED 2026-09-23 (§11.10)**: the three office kinds draw in the client — xlsx through the ONE table app (SheetJS, lazy), docx page-faithful in a sandboxed frame (docx-preview, lazy), pptx as its own extracted words laid out per slide (no parser, by verdict); every viewer falls back to the terminal. **Phase 3 SHIPPED 2026-09-23 (§11.11)**: the outbound writer — one in-API library (`api/services/export/office.py`: md/html → docx, a Slides deck → pptx, csv/tsv → xlsx), each writer bound to its source row in the registry; the ONE write is `write_office_file` (a NEW binary revision through `write_revision`, `derived_from` the source, its projection derived as an upload's is); the member door is "Save as" in the Files menu and Properties (`POST /api/documents/export`), the agent door is WriteFile to an office path — extended, not a new primitive — which MCP `save` inherits; then the `writing-an-office-file` skill. `json`/`yaml`/`tsv` now read `text` (§11.8 closed).). Ratifies **FOUNDATIONS Derived Principle 34** (the model-consumable projection — the consumption member of the perception cycle) and conforms the **human-upload** transport to it — the last context-in transport DP32 named but the code never fixed. **Substrate + Channel dimensions** (Axiom 1 — how an uploaded file is retained + derived; Axiom 6 — how a substrate object egresses to a model). Adds **one new primitive** (`ExtractTextFromBlob`), **one new capability flag** on the host profile, and **populates an existing-but-unused column** (`workspace_files.content_url`). Changes **no** existing write gate and **no** attribution taxonomy.
 > **Date**: 2026-07-01
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Discourse base**: the operator's escalation of the upload-`.md`-not-`.pdf` observation to first principles — *"start outside YARNNN, the overall LLM handling: can LLMs via MCP receive URL links, read them, other formats — such that a pure reference-our-URL MCP tool works? If not, is text derivation necessary + does file-variety (pptx/xlsx/images/zips) need deeper consideration?"* Verified against the **MCP spec 2025-06-18** + **Anthropic Files/PDF platform docs (2026-07)**. Two analysis docs: [the-model-consumable-projection-axiom](../analysis/the-model-consumable-projection-axiom-2026-07-01.md) (the axiom) + [dumb-intake-and-the-referenceable-raw-lane](../analysis/dumb-intake-and-the-referenceable-raw-lane-2026-07-01.md) (the intake gap it grew from).
@@ -850,10 +850,10 @@ before this is called verified on real files.
 - **A conversion service / LibreOffice** — it would be the sandbox under another
   name (§11.2).
 - **Legacy `.doc` / `.xls` / `.ppt` reading** — operator-ruled not worth it.
-- **Finding, not fixed here**: `json`/`yaml`/`tsv` read `deferred` — a JSON upload
-  takes a "cannot read" marker although its bytes are text. Pre-existing and
-  unchanged by am.2 (the table preserved every verdict it did not rule on);
-  now a one-token change in one row when someone rules on it.
+- ~~**Finding, not fixed here**: `json`/`yaml`/`tsv` read `deferred`~~ — **CLOSED
+  in phase 3 (§11.11)**: all three rows read `text`. Their bytes are utf-8, so a
+  JSON upload now gets its projection instead of a "cannot read" marker; `tsv`
+  also exports to `.xlsx` (the CSV writer with a tab delimiter).
 
 ### 11.9 Gate
 
@@ -977,3 +977,135 @@ drifts · the terminal loses its button. The APPS arm reads each ROW
 expression, never the whole file. `api/test_adr436_app_registry.py` now seeds
 the two new rows and renderers. ADR-660 meter unchanged at its pre-existing
 251 (every new string is a catalog key).
+
+### 11.11 Phase 3 — the outbound writer, its doors, then its skill (2026-09-23)
+
+**The library.** `api/services/export/office.py`, beside `git_export.py` —
+ADR-417 §2b's "an in-API library call, never a standing deployed service". No
+new service, no sandbox, no LibreOffice; python-docx / python-pptx / openpyxl
+were already dependencies, and `markdown` (which `compose/engine.py` already
+imported without a declaration) is now declared in `api/requirements.txt`.
+
+| Source row | Target | Writer | What survives |
+|---|---|---|---|
+| `.md` / `.markdown` | `.docx` | `markdown_to_docx` | Markdown → HTML by the `markdown` library (tables, fenced code), then the SAME walker as HTML |
+| `.html` / `.htm` | `.docx` | `html_to_docx` | headings (+ core title), paragraphs, bold/italic/code/strike, real Word hyperlinks (http/mailto only), bullet + numbered lists to three levels, tables (`Table Grid`, `th` bold), block quotes, `pre`, image ALT text |
+| `.html` of a Slides deck | `.pptx` | `deck_to_pptx` | one slide per `<section class="slide">`; the first `h1`/`h2` is the slide title; the title slide (`data-arrange="title"`) takes its kicker + framing line as the subtitle; body blocks as text, lists as indented bullets, tables as tab-separated lines; an untitled slide carries no empty title box; 16:9 |
+| `.csv` / `.tsv` | `.xlsx` | `csv_to_xlsx` / `tsv_to_xlsx` | one sheet; a plain integer/decimal becomes a number; `007` and `1,200` stay the text they are |
+
+**Styling fidelity is best-effort, stated.** Structure and words survive; CSS,
+fonts, colours, layout, images and a deck's visual design do not. The deck
+model carries **no speaker notes** (read from `authoring.py`'s `deck` layout),
+so none are written and none are invented. The skill tells the agent to say
+what the format dropped before the member sends it.
+
+**It never executes content.** HTML is parsed by lxml with the network off and
+comments/PIs removed; `script`/`style`/`head`/`template`/`svg`/form controls are
+skipped as non-content. A CSV cell that begins with `=` is written as a STRING
+cell — openpyxl otherwise stores it as a live formula, so a member's data
+saying `=HYPERLINK(…)` would have become a link Excel follows. Bounded, and a
+bound REFUSES rather than truncates: 2,000,000 source characters, 100,000 rows
+× 1,000 columns, 300 slides, 25 MB out (the upload door's own ceiling).
+
+**The binding lives on the registry row.** `ExportTarget` grew `writer`, and
+each row names the function that writes it — the way a row already carried its
+`extractor`. `export_writer(path, to, content)` answers only through
+`export_targets`, so a target a member is not shown is a target no door can
+produce; the gate asserts every declared target has a writer. The D14 arm (no
+office-extension literal outside the registry) held unchanged: the library
+names no format.
+
+**The ONE write — `write_office_file`.** Both doors reach it:
+1. resolve the source — `source_text` given (the content IS the source), or
+   exactly one `derived_from` whose head the kernel reads under the caller's
+   READ grant (`_is_path_readable_for_principal`);
+2. ask the registry for the writer; none → `export_not_offered`, naming what a
+   `.{to}` is made from;
+3. land the bytes through `write_revision(content_bytes=…)` — the binary lane
+   (ADR-427), attributed to the acting principal (identity uuid stamped exactly
+   as a text WriteFile stamps it), `derived_from=[source]` +
+   `revision_kind='derivation'` (DP32; ADR-554's edge follows it);
+4. derive its projection through `derive_upload_projection` — the upload's
+   derive tail, EXTRACTED from `process_document` into one helper that both
+   call — reading the WRITTEN bytes back through the phase-1 extractor, so what
+   is indexed is what the file says, not what the source said.
+
+**An export is always a NEW file.** The member door names it beside the source
+— `{stem}.{to}`, then `{stem}-2.{to}`… (the upload door's `-N` grammar) — and
+never replaces a file. Replacing an earlier export in place was considered and
+declined: a member may already have sent it, and a silently-replaced
+attachment is a worse surprise than a second file. An agent names its own path
+(meaning-first, ADR-424); a WriteFile to an existing office path is an ordinary
+new revision on that file's chain.
+
+**Member door — "Save as .docx / .pptx / .xlsx".** Where Download lives: the
+Files right-click menu and Properties. ONE client entry point,
+`web/lib/workspace/exportAs.ts` (`resolveExportTargets` reads `file.export_as`,
+absent → `[]` → no entry; `exportAs` performs the act), mirroring
+`resolveDownload`. The menu resolves targets per open, like the download;
+the act lands on the new file. The route, `POST /api/documents/export
+{path, to}`, asks the ONE decider (ADR-643) two questions — READ the source,
+CREATE at the destination — then dispatches **WriteFile**, so the click and an
+agent's call are one act with one attribution. Copy under `files.menu.saveAs`,
+`files.details.saveAs*`, `files.exportAs.*` (en + ko, ADR-660).
+
+**Agent door — WriteFile to an office path, extended; no new primitive.**
+Considered, in DP22's order:
+- *A new `ExportFile` primitive* — a sixth-plus lane file verb for what is a
+  WRITE to a path. Rejected: adding is the last resort, and nothing about the
+  act is new except the bytes.
+- *A `to` parameter on `DuplicateFile`* (ADR-514's "a duplicate is a derivation
+  with a parent" is the right shape) — rejected because DuplicateFile is held
+  by NO agent surface (primitives-matrix: a desktop convenience over
+  ReadFile + WriteFile), so extending it would have meant putting a verb on the
+  lane and MCP just to carry a parameter.
+- *WriteFile, keyed on the path's extension* — **chosen**. It is already on the
+  lane and already what MCP `save` dispatches, so both agent surfaces inherit
+  it with one implementation. And it FIXES a live defect rather than adding a
+  capability: before this, `WriteFile(path='memo.docx', content='# …')` stored
+  the Markdown verbatim under a Word name — a file claiming a format it was not.
+  Now an office path means "write this format"; `content` is the source
+  (Markdown/HTML → `.docx`, CSV → `.xlsx`, a Slides deck's HTML → `.pptx`).
+  To convert an existing file, `content=''` + exactly one `derived_from`: the
+  kernel reads the source, so a 40-slide deck never passes through the model
+  and cannot be clipped by the read cap (ADR-648) on the way. The empty-content
+  guard (2026-06-11) survives: the `content` key must be PRESENT (a truncated
+  call drops it) and exactly one source named; otherwise refused as before.
+  `mode='append'` on an office path is refused. MCP `save` over an EXISTING
+  binary head is still refused by ADR-621 D3 (its text-over-binary guard runs
+  before WriteFile); a host exports to a new name.
+
+**The skill — `writing-an-office-file`.** Landed after the tool, per §11.5.
+It earns its bytes on a shape the model has no prior for: that the office file
+is a derivative and the workspace source stays where the work continues;
+that styling is dropped so emphasis must live in structure; which source
+shape each format needs (CSV with plain numbers; a presentation only from a
+Slides deck, with no speaker notes); and the `content=''` + `derived_from`
+conversion form. No `apps:` scope — an export is asked for from any surface.
+It enters the index at the default rank and overflows the byte budget on
+today's open surface ("…and N more"), deliberately: a rank moves only with a
+capture behind it.
+
+**Gate.** `api/test_adr395_model_consumable_projection.py` **105/105** (86 at
+phase 2's HEAD: +4 verdict rows for `json`/`yaml`/`yml`/`tsv`, +15 phase-3
+arms): every target
+driven from a fixture, opened in its own library and read back through the
+extractor with the source's words intact; the deck's slide/title mapping; the
+formula cell stays text; caps refuse; an un-offered target has no writer; the
+sibling name never overwrites; WriteFile driven end to end (bytes not text,
+`derived_from`, `derivation`, the actor's attribution, the projection
+carrying the source's words); text under an office name is written; a
+truncated call is still refused; the route refuses a missing CREATE grant and
+writes nothing; the client reads the served `export_as` and names no format.
+**Proven RED by breaking the product in place, fourteen ways**: the md writer
+unbound · the formula cell left live · `script` not skipped · the WriteFile
+branch off · truncation admitted · the route's create check deleted · the
+`derived_from` edge dropped · the client guessing `['docx']` · the empty title
+box kept · the sibling overwriting · the cap removed · `json` deferred again ·
+the projection not derived · the menu not passed its targets. ⭐**Two arms
+stayed GREEN on their first falsification**: the route arm, because the
+falsifier deleted the FIRST `_assert_may(auth, dst, "create")` in the file —
+the move route's, not this one (the same expression lives at three doors); and
+the menu arm, which anchored on the render and the resolve but never on the
+prop that connects them. Both re-cut and re-proven.
+

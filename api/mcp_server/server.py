@@ -1154,6 +1154,12 @@ async def save(
     they delete a file yours depends on. An uncited derivation arrives as an
     orphan; cite it and it joins the record.
 
+    OFFICE FILES: save to a .docx, .pptx or .xlsx reference and yarnnn
+    writes that format — `content` is the source (Markdown or HTML for .docx,
+    CSV for .xlsx, a Slides deck's HTML for .pptx). To convert an existing
+    file, pass content='' and derived_from=[that file]; it never passes
+    through you. Styling is best-effort; the words and structure survive.
+
     Your write lands signed as you in the workspace ledger — the user and
     their team see exactly what you changed, beside every human change. `save`
     also captures conversational conclusions worth keeping: write them by
@@ -1162,7 +1168,8 @@ async def save(
 
     Args:
         reference: The file — yarnnn://workspace/{path} or workspace-relative path.
-        content: The full new content. Required, non-empty.
+        content: The full new content. Required; empty only to convert a
+            derived_from source into an office file.
         base_revision: The head revision id from open (required for existing files).
         message: Optional one-line description of the change.
         derived_from: Optional references of the source file(s) this was made

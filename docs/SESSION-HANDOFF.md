@@ -19,6 +19,14 @@ fixtures; the local API would not boot. Open one real Excel-authored `.xlsx` (mu
 one Word-authored `.docx` (images, header) and one PowerPoint `.pptx` from Files on production, in light
 and dark, and check each draws (or falls back to the terminal) with Download working. Delete once seen.
 
+## "Save as .docx/.pptx/.xlsx" not yet clicked on production (2026-09-23)
+
+ADR-395 am.2 phase 3 (§11.11): the writer and WriteFile path were driven in-process and the gate reads
+every output back; the Files menu + Properties entries were not clicked against the production API (the
+local API does not boot). Right-click a `.md`, a Slides deck and a `.csv` in Files → Save as → check the
+new file lands beside it, opens in Word / PowerPoint / Excel, and its Properties show `derived_from`.
+Delete once seen.
+
 ## Vercel skip rule not yet observed skipping (2026-09-23)
 
 `web/vercel.json` (`037f838`) skips builds unless `web/` or `content/` changed. Unverified on Vercel:
@@ -307,8 +315,7 @@ their live build logs. `render.yaml`'s cron block was reconciled against the liv
 way (no `buildCommand`, wrong schedule) — ⭐verify infra against `get_service`, never against that
 file.
 
-Deliberately NOT built, each with its reason in the ADR: round-trip editing · an outbound
-`.docx`/`.pptx` writer (ADR-417 §2b stands) · Google Drive (a connector question — ⚠️**ADR-131
+Deliberately NOT built, each with its reason in the ADR: round-trip editing · Google Drive (a connector question — ⚠️**ADR-131
 sunset the Google tools**, read why before re-proposing) · a visual/thumbnail preview and the
 sandbox behind it (§8.7 scopes it with a named trigger: a member asking twice for something that
 needs code execution).

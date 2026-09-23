@@ -155,6 +155,13 @@ workspace-relative path.
 **scope='agent'** — write to the calling agent's own home
 (/agents/{slug}/...) — its persona/state, the app's-own-library equivalent.
 
+**Office files (.docx / .pptx / .xlsx)** — the path's extension names the
+format and yarnnn WRITES it; `content` is the source: Markdown or HTML for
+.docx, CSV for .xlsx, a Slides deck's HTML for .pptx. To convert a file that
+already exists, pass content='' and derived_from=[that file] — the kernel
+reads it, so the source never has to pass through you.
+  WriteFile(path='the-acme-deal/proposal.docx', content='', derived_from=['the-acme-deal/proposal.md'])
+
 For attribution semantics, every write lands a workspace_file_versions row
 via the Authored Substrate (ADR-209) with attribution + revision chain.""",
     "input_schema": {
@@ -1067,6 +1074,20 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     # None keeps every existing caller byte-identical.
     expected_parent_version_id = input.get("expected_parent_version_id") or None
 
+    # ADR-395 am.2 §11.11 — an OFFICE path (.docx/.pptx/.xlsx) is WRITTEN, not
+    # stored: the content is the SOURCE (Markdown/HTML/CSV, or a Slides deck)
+    # and the kernel writes the format. Before this, text written under a
+    # `.docx` name landed verbatim — a file that claimed to be Word and was
+    # not. The one legitimate empty content: `content=''` with exactly one
+    # `derived_from`, which converts that file's head server-side (the key
+    # must be PRESENT — a truncated call drops it, and is still refused).
+    from services.file_formats import is_export_target
+    office = scope == "workspace" and is_export_target(path)
+    converts_source = (
+        office and "content" in input and not content.strip()
+        and len(derived_from or []) == 1
+    )
+
     # Empty-content guard (2026-06-11): a missing `content` key silently
     # defaulted to "" and overwrote real substrate with 0-byte files — the
     # observed failure mode when an LLM caller's tool input arrives truncated
@@ -1074,7 +1095,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     # legitimate LLM write of an empty file: clearing a file is expressed by
     # writing a stub note, and placeholder seeding is system-side (UserMemory
     # direct). Defense-in-depth pair to the reviewer-loop truncation guard.
-    if not content.strip():
+    if not content.strip() and not converts_source:
         return {
             "success": False,
             "error": "empty_content_blocked",
@@ -1169,6 +1190,28 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         )
 
         from services.authored_substrate import StaleWriteError
+
+        if office:
+            if mode == "append":
+                return {"success": False, "error": "append_not_supported",
+                        "message": f"An office file cannot be appended to. Write the whole source to {path}."}
+            from services.export.office import write_office_file
+            try:
+                written = await write_office_file(
+                    auth,
+                    target_path=f"/workspace/{path}",
+                    source_text=None if converts_source else content,
+                    derived_from=derived_from,
+                    authored_by=resolved_author,
+                    message=message or f"WriteFile workspace {path}",
+                    author_identity_uuid=identity_uuid,
+                    expected_parent_version_id=expected_parent_version_id,
+                )
+            except StaleWriteError as stale:
+                return {"success": False, "error": "stale_write", "message": str(stale)}
+            if written.get("success"):
+                written["scope"] = "workspace"
+            return written
 
         try:
             ok = await um.write(

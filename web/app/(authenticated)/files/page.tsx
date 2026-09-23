@@ -102,6 +102,8 @@ import { PropertiesModal } from '@/components/workspace/PropertiesModal';
 import { FilesViewToggle } from '@/components/workspace/FilesViewToggle';
 import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { resolveDownload } from '@/lib/workspace/download';
+import { exportAs, resolveExportTargets } from '@/lib/workspace/exportAs';
+import type { ExportTarget } from '@/types';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { Working } from '@/components/shared/Working';
 import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
@@ -435,6 +437,7 @@ function ContextPageBody() {
   // window.alert/confirm/prompt for the operator's file verbs. See
   // docs/design/ACTION-FEEDBACK.md.
   const tSurface = useTranslations('files.surface');
+  const tExport = useTranslations('files.exportAs');
   const { authorLabel } = useAuthorLabel();
   const { runAction, toast } = useFeedback();
   // The pointer CAPABILITY — it decides whether a single tap opens (the
@@ -1485,6 +1488,27 @@ function ContextPageBody() {
   // + Open are the reads; rename/move/delete the organize verbs; share (ADR-437
   // D4) mints a link to the artifact. (Learn-from moved to the Studio landing
   // — ADR-452 D5: a creation act, not a file operation.)
+  // ADR-395 am.2 §11.11 — "Save as .docx/.pptx/.xlsx": a NEW file beside the
+  // source, named by the kernel. Land on it (the Duplicate gesture) so the
+  // member sees what the act made.
+  const handleExportAs = useCallback(async (path: string, to: ExportTarget) => {
+    try {
+      const newPath = await runAction(() => exportAs(path, to), {
+        pending: tExport('saving', { format: to }),
+        success: tExport('saved', { format: to }),
+        error: (e) => (e instanceof APIError
+          ? (e.data as { detail?: string })?.detail || tExport('failed', { format: to })
+          : tExport('failed', { format: to })),
+      });
+      if (newPath) {
+        await loadExplorer();
+        selectOne(newPath);
+      }
+    } catch {
+      /* error toast already surfaced */
+    }
+  }, [runAction, tExport, loadExplorer, selectOne]);
+
   const fileVerbs = useMemo(() => ({
     onOpen: (t: { path: string }) => openPath(t.path),
     // SELECT-to-inspect, like handleGetInfo — it scopes the modal, it does not
@@ -1638,6 +1662,9 @@ function ContextPageBody() {
     // ADR-514 D1: derive a sibling copy — the kernel names it and records the
     // derived_from edge, so trace on the copy walks back to this file.
     onDuplicate: organizeVerbs.onDuplicate,
+    // ADR-395 am.2 §11.11 — the formats come from the server (`export_as`).
+    exportTargetsFor: resolveExportTargets,
+    onExportAs: (t: { path: string }, to: ExportTarget) => { void handleExportAs(t.path, to); },
     // ADR-514 D2.2: Open fires the default; these expose the rest.
     handlersFor,
     onOpenWith: openWith,
@@ -1652,7 +1679,7 @@ function ContextPageBody() {
     // the file. A door here that opens the file's Text pane with the ask
     // seeded is one commit if demand names it (ADR-639 D6).
   }), [openPath, openRename, openMove, handleTreeDelete, handleShare, organizeVerbs,
-       handlersFor, openWith, openNewFolder, navigateToSurface, selection,
+       handlersFor, openWith, openNewFolder, handleExportAs, navigateToSurface, selection,
        trashSet, virtualRoot, syntheticNodeForPath]);
 
   // Upload success (2026-07-01): after files land in the Intake raw lane

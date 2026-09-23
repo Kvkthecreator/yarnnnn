@@ -610,39 +610,11 @@ async def process_document(
     #    Runs the ExtractTextFromBlob primitive so upload + connector share ONE
     #    derive path (Singular Implementation). We pass the already-extracted
     #    text so the blob isn't re-fetched/re-parsed.
-    projection_path = upload_projection_path(raw_path)
-    try:
-        from services.primitives.registry import execute_primitive
-        from services.supabase import AuthenticatedClient
-        # The derive is MECHANICAL make-AI-ready, not the operator's authored
-        # act — attributed `system:extract` (ADR-288 D2; same spirit as the
-        # capture lane's `system:<slug>`). It writes the derived projection,
-        # NOT the raw (the raw is the operator's, written above).
-        auth = AuthenticatedClient(
-            client=db_client, user_id=user_id, caller_identity="system:extract",
-        )
-        # embed=False: DEFER the paid embed off this synchronous request. The
-        # projection is written + BM25-searchable the instant this returns; the
-        # embedding (enrichment) is scheduled by the route as a background task
-        # (ADR-325: embedding is enrichment; the mechanical floor is the promise).
-        derive = await execute_primitive(auth, "ExtractTextFromBlob", {
-            "raw_path": raw_path,
-            "write_to": projection_path,
-            "text": text,          # reuse the fast-fail extraction (no re-parse)
-            "source_filename": filename,
-            "file_type": file_type,
-            "embed": False,
-        })
-        if isinstance(derive, dict) and derive.get("success"):
-            embed_pending = bool(derive.get("embed_pending"))
-        else:
-            # Non-fatal: the raw is retained; the projection just isn't there
-            # yet (retained-but-not-yet-consumable, DP34). Surface in the log.
-            embed_pending = False
-            logger.warning(f"[DOCUMENTS] Projection derive failed for {raw_path}: {derive}")
-    except Exception as e:
-        embed_pending = False
-        logger.warning(f"[DOCUMENTS] Projection derive raised for {raw_path}: {e}")
+    derived = await derive_upload_projection(
+        db_client, user_id, raw_path, text, filename=filename, file_type=file_type,
+    )
+    projection_path = derived["projection_path"] or upload_projection_path(raw_path)
+    embed_pending = derived["embed_pending"]
 
     word_count = len(text.split())
     kind = "projection" if word_count else "marker"   # am.1 D9
@@ -657,6 +629,66 @@ async def process_document(
         # The route reads this to schedule the deferred embed as a background task.
         "embed_pending": embed_pending,
     }
+
+
+async def derive_upload_projection(
+    db_client,
+    user_id: str,
+    raw_path: str,
+    text: str,
+    *,
+    filename: str,
+    file_type: str,
+    workspace_id: Optional[str] = None,
+) -> dict:
+    """Derive a landed binary's `.extracted.md` projection (ADR-395 Piece B).
+
+    The ONE derive tail for a binary that has just landed: an upload
+    (`process_document`) and an export (`services/export/office.py`, ADR-395
+    am.2 §11.11) both call it, so a file yarnnn WROTE is indexed exactly as a
+    file a member UPLOADED — same sibling, same attribution, same marker when
+    the text is empty. Runs the ExtractTextFromBlob primitive with the
+    already-extracted `text`, so the bytes are not re-parsed.
+
+    Returns {projection_path, word_count, embed_pending}; projection_path is
+    None when the derive failed (non-fatal — the raw is already retained).
+    """
+    projection_path = upload_projection_path(raw_path)
+    try:
+        from services.primitives.registry import execute_primitive
+        from services.supabase import AuthenticatedClient
+        # The derive is MECHANICAL make-AI-ready, not the member's authored
+        # act — attributed `system:extract` (ADR-288 D2; same spirit as the
+        # capture lane's `system:<slug>`). It writes the derived projection,
+        # NOT the raw (the raw is the member's, written by the caller).
+        auth = AuthenticatedClient(
+            client=db_client, user_id=user_id, caller_identity="system:extract",
+            workspace_id=workspace_id,
+        )
+        # embed=False: DEFER the paid embed off this synchronous request. The
+        # projection is written + BM25-searchable the instant this returns; the
+        # embedding (enrichment) is scheduled by the route as a background task
+        # (ADR-325: embedding is enrichment; the mechanical floor is the promise).
+        derive = await execute_primitive(auth, "ExtractTextFromBlob", {
+            "raw_path": raw_path,
+            "write_to": projection_path,
+            "text": text,          # reuse the extraction already done (no re-parse)
+            "source_filename": filename,
+            "file_type": file_type,
+            "embed": False,
+        })
+        if isinstance(derive, dict) and derive.get("success"):
+            return {
+                "projection_path": derive.get("projection_path"),
+                "word_count": int(derive.get("word_count") or 0),
+                "embed_pending": bool(derive.get("embed_pending")),
+            }
+        # Non-fatal: the raw is retained; the projection just isn't there
+        # yet (retained-but-not-yet-consumable, DP34). Surface in the log.
+        logger.warning(f"[DOCUMENTS] Projection derive failed for {raw_path}: {derive}")
+    except Exception as e:
+        logger.warning(f"[DOCUMENTS] Projection derive raised for {raw_path}: {e}")
+    return {"projection_path": None, "word_count": 0, "embed_pending": False}
 
 
 # =============================================================================
