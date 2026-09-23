@@ -13,7 +13,8 @@
 #     wants the field absent from the upload.)
 #   · `http://localhost:*` leaves `externally_connectable` — a development
 #     origin has no business in a published extension.
-#   · the development files stay out: README.md, e2e/.
+#   · the development files stay out: README.md, e2e/, and store-assets/ (the
+#     listing's images, uploaded to the dashboard, never shipped in the package).
 # ADR-662 D15; the listing's history is in docs/SESSION-HANDOFF.md.
 
 set -euo pipefail
@@ -26,7 +27,7 @@ OUT="${1:-$HOME/Downloads/yarnnn-chrome-extension-$VERSION-store.zip}"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
-rsync -a --exclude README.md --exclude e2e --exclude '.*' "$SRC/" "$STAGE/"
+rsync -a --exclude README.md --exclude e2e --exclude store-assets --exclude '.*' "$SRC/" "$STAGE/"
 
 python3 - "$STAGE" <<'EOF'
 import json, os, sys
