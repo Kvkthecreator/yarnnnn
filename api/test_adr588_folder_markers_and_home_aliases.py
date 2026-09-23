@@ -270,6 +270,48 @@ def run() -> int:
     ok &= _check("D3 the refusal is a 409 the operator can read",
                  "status_code=409" in cf_code)
 
+    # ── D2 at the PRIMITIVE door (click-pass 2026-09-23) ─────────────────────
+    # The lane frame teaches Documents/Downloads and the Files surface copies
+    # paths in that spelling, but only MCP + the web doors resolved them: an
+    # in-app agent's ReadFile("Downloads/uploads/x.xlsx") missed. Driven through
+    # the REAL execute_primitive, recording what the gate AND the handler saw.
+    import asyncio
+    from unittest.mock import patch
+    from services.primitives import registry, permission
+
+    seen: dict = {}
+
+    async def _gate(_auth, name, inp):
+        seen["gate"] = dict(inp)
+        return permission.PermissionDecision.APPLY, "test"
+
+    async def _handler(_auth, inp):
+        seen["handler"] = dict(inp)
+        return {"success": True}
+
+    def _drive(inp):
+        seen.clear()
+        with patch.object(permission, "resolve_permission", _gate), \
+             patch.dict(registry.HANDLERS, {"WriteFile": _handler}):
+            asyncio.run(registry.execute_primitive(object(), "WriteFile", inp))
+        return seen
+
+    s = _drive({"path": "Downloads/uploads/q3.xlsx", "content": "x",
+                "derived_from": ["/workspace/Documents/brief.md", "inbound/a.md"]})
+    ok &= _check("D2 primitive door: the HANDLER gets the kernel path",
+                 s.get("handler", {}).get("path") == "inbound/uploads/q3.xlsx", s)
+    ok &= _check("D2 primitive door: the GATE judges the kernel path, not the alias",
+                 s.get("gate", {}).get("path") == "inbound/uploads/q3.xlsx", s)
+    ok &= _check("D2 primitive door: derived_from resolves, keeping each form",
+                 s.get("handler", {}).get("derived_from")
+                 == ["/workspace/operation/brief.md", "inbound/a.md"], s)
+    s = _drive({"path": "notes/Documents/x.md", "content": "x"})
+    ok &= _check("D2 primitive door: only the FIRST segment aliases",
+                 s.get("handler", {}).get("path") == "notes/Documents/x.md", s)
+    s = _drive({"path": "Documents/x.md", "content": "x", "scope": "agent"})
+    ok &= _check("D2 primitive door: an agent-scope path is left alone",
+                 s.get("handler", {}).get("path") == "Documents/x.md", s)
+
     return 0 if ok else 1
 
 

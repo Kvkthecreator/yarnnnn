@@ -231,3 +231,32 @@ Every assertion was falsified against pre-fix code: the alias removed from the
 chokepoint, `_build_tree`'s marker branch disabled, the reserved-name refusal
 deleted, `is_folder_marker` stubbed to `False`, the `compose_list` filter dropped,
 and the full README seed restored verbatim — each went red, each restored green.
+
+---
+
+## Amendment 1 (2026-09-23) — D2 reaches the primitive door
+
+D2 put the told-name at `parse_file_reference`, "the one chokepoint every
+interop verb resolves through" — and `resolve_told_workspace_path` later
+carried it to the web doors. **The in-app lane was the door left out.** Its
+frame teaches every agent the same `PARTICIPANT_FILESYSTEM_MODEL` ("Documents",
+"Downloads"), and the Files surface shows and copies paths in that spelling
+("Paste it anywhere — here, or to an AI on your workspace") — but the lane's
+primitives only stripped `/workspace/`. ADR-395 am.2's production click-pass
+(§11.12) caught it: asked about `Downloads/uploads/q3-budget.xlsx`, the in-app
+agent's ReadFile missed, and it recovered only by listing and searching; in a
+later turn it ended with no reply at all.
+
+**Resolved at `execute_primitive`**, the chokepoint every lane and derive-turn
+tool call passes — the same discipline D2 named, one door further. Placed
+**before** `resolve_permission`, so the gate and the locks judge the kernel
+path, never the alias. The arguments are `path`, `new_path`, `folder` and each
+`derived_from` entry, each in the caller's own form (`resolve_told_path`, the
+form-preserving twin of `resolve_told_workspace_path`); agent-scope paths are
+left alone; only the first segment aliases (D3 already reserves those names at
+depth 1, so no real path can be misread).
+
+Gate: `test_adr588_folder_markers_and_home_aliases.py` +5 arms driving the real
+`execute_primitive` and recording what the gate and the handler each received —
+proven RED by deleting the call (3 arms) and by moving it after the gate (the
+gate-judges-the-kernel-path arm).

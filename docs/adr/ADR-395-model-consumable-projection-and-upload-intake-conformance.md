@@ -1153,6 +1153,11 @@ exactly "Save as .docx".
   stripper moved from `routes/workspace.py` to `services/documents.py` so the
   route preview and the primitive share one home.
 
+- ⭐⭐**The in-app agent could not open a file by the path the Files surface
+  gives it.** `Downloads/uploads/x.xlsx` — shown, copied, "paste it anywhere" —
+  missed every in-app ReadFile; the told-name resolved only at the MCP and web
+  doors. Fixed as ADR-588 am.1 (resolved in `execute_primitive`, before the gate).
+
 **Not a product defect**: the first `.hwpx` upload failed at the edge because
 the fixture was the gate's XXE probe (`<!ENTITY leak SYSTEM "file:///etc/hosts">`)
 stored uncompressed — the WAF in front of the API blocked the request, CORS-less.

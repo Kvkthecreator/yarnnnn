@@ -546,6 +546,30 @@ async def _run_platform_tool(auth: Any, name: str, input: dict) -> dict:
         }
 
 
+#: The arguments that carry a workspace path, across every primitive.
+_PATH_ARGS = ("path", "new_path", "folder")
+
+
+def _resolve_told_paths(input: dict) -> dict:
+    """Told-name homes → kernel paths in a primitive's path arguments.
+
+    A copy, never a mutation of the caller's dict. Agent-scope paths are
+    relative to the agent's home and are left alone."""
+    if not isinstance(input, dict) or input.get("scope") == "agent":
+        return input
+    from services.workspace_paths import resolve_told_path
+
+    out = dict(input)
+    for key in _PATH_ARGS:
+        if isinstance(out.get(key), str):
+            out[key] = resolve_told_path(out[key])
+    if isinstance(out.get("derived_from"), list):
+        out["derived_from"] = [
+            resolve_told_path(p) if isinstance(p, str) else p for p in out["derived_from"]
+        ]
+    return out
+
+
 async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     """
     Execute a primitive by name.
@@ -614,6 +638,15 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
             "message": f"Unknown primitive: {name}",
             "available": list(HANDLERS.keys()),
         }
+
+    # ADR-588 D2 at the primitive door. The lane frame teaches every agent its
+    # homes are "Documents" and "Downloads" (PARTICIPANT_FILESYSTEM_MODEL), and
+    # the Files surface shows and copies paths in that spelling — but only the
+    # MCP door (`parse_file_reference`) and the web doors resolved them, so an
+    # in-app agent's ReadFile of a path the member pasted missed, and it fell
+    # back to listing and searching (click-pass, 2026-09-23). Resolved HERE,
+    # before the gate, so permission and locks judge the real path.
+    input = _resolve_told_paths(input)
 
     # ADR-307 D1: the single uniform permission gate, above all primitives.
     # Resolves apply / queue / deny from (autonomy × read_only × action_class ×

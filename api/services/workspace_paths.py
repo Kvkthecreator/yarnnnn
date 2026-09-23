@@ -1059,6 +1059,24 @@ def resolve_told_workspace_path(raw: str) -> str:
     return f"/workspace/{resolve_home_alias(rel)}"
 
 
+def resolve_told_path(raw: str) -> str:
+    """`resolve_home_alias` for a path in whatever form a caller spelled it.
+
+    The primitive door's twin of `resolve_told_workspace_path`: it keeps the
+    caller's own form (relative, `workspace/…`, `/workspace/…`) so each
+    handler's existing prefix strip still sees what it expects, and resolves
+    only the told-name in the first workspace segment. Any other absolute path
+    (`/agents/…`) is returned byte-identical.
+    """
+    s = raw or ""
+    for prefix in ("/workspace/", "workspace/"):
+        if s.startswith(prefix):
+            return prefix + resolve_home_alias(s[len(prefix):])
+    if s.startswith("/"):
+        return s
+    return resolve_home_alias(s)
+
+
 def resolve_home_alias(rel_path: str) -> str:
     """Resolve a told-name home in the FIRST segment to its kernel path.
 
