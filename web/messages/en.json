@@ -1402,7 +1402,6 @@
       "computingDiff": "Computing diff…",
       "identical": "Content identical — different revisions written with the same bytes.",
       "revertFailed": "Revert failed: {error}",
-      "noContent": "Revision has no content to restore",
       "restoring": "Restoring…",
       "restoredFrom": "Restored the version from {id}",
       "couldNotRestore": "Could not restore that version",
@@ -2011,7 +2010,6 @@
       "restored": "Restored the version from {id}",
       "couldNotRestore": "Could not restore that version",
       "restoreFailed": "Restore failed: {error}",
-      "noContent": "revision has no content to restore",
       "alreadyCurrent": "already the current version",
       "diffFetchFailed": "# diff fetch failed\n{error}",
       "revertMessage": "revert to revision {id}"

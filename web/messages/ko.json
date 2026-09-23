@@ -1402,7 +1402,6 @@
       "computingDiff": "비교 계산 중…",
       "identical": "내용이 같아요 — 같은 바이트로 기록된 다른 버전이에요.",
       "revertFailed": "되돌리지 못했어요: {error}",
-      "noContent": "이 버전에는 복원할 내용이 없어요",
       "restoring": "복원 중…",
       "restoredFrom": "{id} 버전으로 복원했어요",
       "couldNotRestore": "그 버전으로 복원하지 못했어요",
@@ -2011,7 +2010,6 @@
       "restored": "{id} 버전으로 복원했어요",
       "couldNotRestore": "그 버전으로 복원할 수 없었어요",
       "restoreFailed": "복원에 실패했어요: {error}",
-      "noContent": "복원할 내용이 이 버전에 없어요",
       "alreadyCurrent": "이미 현재 버전이에요",
       "diffFetchFailed": "# 변경 내용을 가져오지 못했어요\n{error}",
       "revertMessage": "{id} 버전으로 되돌리기"

@@ -1176,6 +1176,18 @@ exactly "Save as .docx".
   message says to write the whole workbook back in the layout just read. The
   original stayed recoverable as r1 throughout.
 
+- ⭐⭐⭐**No binary file could be reverted.** Undoing that flattened workbook
+  from the history panel answered "Revert failed: Revision has no content to
+  restore": BOTH revert doors (`RevisionHistoryPanel`, `PaneActivityRail`) wrote
+  the old revision's TEXT back through PATCH, and a binary revision has none —
+  so every upload, image and office file, an agent's edit included, was
+  unrevertible from the UI while the ledger said "nothing is lost". New
+  `POST /workspace/revisions/{id}/restore` writes the old BYTES as a new
+  revision (service client for the bucket, attributed to the member,
+  conditional on the loaded head, the member's grant lock checked) and
+  re-derives the projection so an agent reads the restored words. Both doors
+  branch to it; the two dead `noContent` catalog keys are deleted.
+
 **Not a product defect**: the first `.hwpx` upload failed at the edge because
 the fixture was the gate's XXE probe (`<!ENTITY leak SYSTEM "file:///etc/hosts">`)
 stored uncompressed — the WAF in front of the API blocked the request, CORS-less.

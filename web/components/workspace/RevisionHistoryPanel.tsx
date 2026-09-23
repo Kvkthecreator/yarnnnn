@@ -15,11 +15,12 @@
  * so the cognitive-layer pattern is visible at a glance (supervision
  * property per ADR-198 + FOUNDATIONS Derived Principle 12).
  *
- * Revert action: surfaces for non-head revisions. Revert is a write of the
- * prior revision's content back through PATCH /api/workspace/file — which
- * lands a new revision attributed to "operator" with message
- * "revert to r{N}". No special server primitive; the revert IS a new
- * revision (the chain's DAG-shape makes this natural).
+ * Revert action: surfaces for non-head revisions. A TEXT revert writes the
+ * prior revision's content back through PATCH /api/workspace/file; a BINARY
+ * revision (no text) goes to POST /api/workspace/revisions/{id}/restore,
+ * which writes its bytes back (ADR-395 am.2 §11.12). Either way it lands a
+ * new revision attributed to "operator" with message "revert to r{N}" — the
+ * revert IS a new revision (the chain's DAG-shape makes this natural).
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -237,12 +238,13 @@ export function RevisionHistoryPanel({
       setRevertError(null);
       try {
         const detail = await api.workspace.readRevision(path, rev.id);
-        if (detail.content === null || detail.content === undefined) {
-          throw new Error(t('noContent'));
-        }
-        // Bound before the wrapper: the narrowing above does not survive into
-        // the callback's closure.
-        const content: string = detail.content;
+        // A BINARY revision has no text to write back — its bytes are restored
+        // server-side (ADR-395 am.2 §11.12). This branch used to throw "no
+        // content to restore", which made every upload, image and office file
+        // unrevertible, an agent's edit to a member's workbook included.
+        // Bound before the wrapper: a narrowing does not survive into the
+        // callback's closure.
+        const content = detail.content ?? null;
         const shortId = rev.id.slice(0, 8);
         // ADR-406 D2 — conditional write: headId is the head this panel
         // loaded (revisions[0]). If another writer moved the file past it
@@ -253,14 +255,16 @@ export function RevisionHistoryPanel({
         // wait nor a success: a revert writes a whole revision and the panel
         // sat still while it did.
         await runAction(
-          () =>
-            api.workspace.editFile(
-              path,
-              content,
-              undefined,
-              `revert to revision ${shortId}`,
-              headId
-            ),
+          (): Promise<unknown> =>
+            content === null
+              ? api.workspace.restoreRevision(path, rev.id, headId)
+              : api.workspace.editFile(
+                  path,
+                  content,
+                  undefined,
+                  `revert to revision ${shortId}`,
+                  headId
+                ),
           {
             pending: t('restoring'),
             success: t('restoredFrom', { id: shortId }),

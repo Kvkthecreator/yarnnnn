@@ -219,23 +219,27 @@ export function PaneActivityRail({
         api.workspace.readRevision(rev.path, rev.id),
         api.workspace.listRevisions({ path: rev.path }, 1),
       ]);
-      if (detail.content == null) throw new Error(t('noContent'));
       const headId = head.revisions?.[0]?.id ?? null;
       if (headId === rev.id) throw new Error(t('alreadyCurrent'));
-      // Bound before the wrapper: the null check above does not survive into
-      // the callback's closure.
-      const content: string = detail.content;
+      // A BINARY revision has no text: its bytes are restored server-side
+      // (ADR-395 am.2 §11.12) — the same branch as RevisionHistoryPanel's,
+      // which this door used to refuse with "no content to restore".
+      // Bound before the wrapper: a narrowing does not survive into the
+      // callback's closure.
+      const content = detail.content ?? null;
       // The peer of RevisionHistoryPanel's revert, and it carried even less —
       // no wait, no success, and a raw error string. Same act, same words.
       await runAction(
-        () =>
-          api.workspace.editFile(
-            rev.path,
-            content,
-            undefined,
-            t('revertMessage', { id: rev.id.slice(0, 8) }),
-            headId,
-          ),
+        (): Promise<unknown> =>
+          content === null
+            ? api.workspace.restoreRevision(rev.path, rev.id, headId)
+            : api.workspace.editFile(
+                rev.path,
+                content,
+                undefined,
+                t('revertMessage', { id: rev.id.slice(0, 8) }),
+                headId,
+              ),
         {
           pending: t('restoring'),
           success: t('restored', { id: rev.id.slice(0, 8) }),

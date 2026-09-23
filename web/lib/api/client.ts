@@ -2621,6 +2621,17 @@ export const api = {
         `/api/workspace/revisions/${encodeURIComponent(revisionId)}?path=${encodeURIComponent(path)}`
       ),
 
+    /** Revert a BINARY file to `revisionId` — its bytes become a new revision
+     *  (ADR-395 am.2 §11.12). Text reverts stay on `editFile`. */
+    restoreRevision: (path: string, revisionId: string, expectedHeadVersionId?: string | null) =>
+      request<{ success: boolean; path: string; head_version_id: string | null }>(
+        `/api/workspace/revisions/${encodeURIComponent(revisionId)}/restore`,
+        {
+          method: "POST",
+          body: JSON.stringify({ path, expected_head_version_id: expectedHeadVersionId ?? null }),
+        },
+      ),
+
     diffRevisions: (path: string, fromRev: string, toRev: string) =>
       request<{
         path: string;

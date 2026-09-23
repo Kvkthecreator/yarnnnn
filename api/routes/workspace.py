@@ -79,6 +79,13 @@ class FileResponse(BaseModel):
     export_as: Optional[list[str]] = None
 
 
+class RevisionRestoreRequest(BaseModel):
+    path: str
+    # ADR-406 D2, as on the edit route: the head the panel loaded. A moved head
+    # is a 409 naming who moved it, never a silent clobber.
+    expected_head_version_id: Optional[str] = None
+
+
 class FileEditRequest(BaseModel):
     path: str
     content: str
@@ -3513,6 +3520,87 @@ class RevisionDiffResponse(BaseModel):
     to_revision: RevisionSummary
     diff: str
     identical: bool
+
+
+@router.post("/workspace/revisions/{revision_id}/restore")
+async def restore_binary_revision(
+    auth: UserClient,
+    revision_id: str,
+    body: RevisionRestoreRequest,
+) -> dict:
+    """Revert a BINARY file to one of its revisions (ADR-395 am.2 §11.12).
+
+    The history panel reverts TEXT by writing the old revision's content back
+    through PATCH /workspace/file. A binary revision has no text, so the panel
+    refused ("Revision has no content to restore") — every upload, image and
+    office file was unrevertible from the UI, including an agent's edit to a
+    member's workbook (click-pass, 2026-09-23). This writes the old revision's
+    BYTES as a new revision through the one write path: attributed to the
+    member, conditional on the head the panel loaded, and — for a format yarnnn
+    reads — with its `.extracted.md` re-derived, so an agent never reads the
+    words of the version that was just undone.
+    """
+    from services.workspace_paths import resolve_told_workspace_path
+    from services.primitives.workspace import _is_path_locked_for_principal
+
+    path = resolve_told_workspace_path(body.path)
+    if _is_path_locked_for_principal(auth, path):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Your grant in this workspace does not permit writing {path}.",
+        )
+
+    from services.authored_substrate import StaleWriteError, read_revision, write_revision
+    from services.storage_backend import get_storage_backend
+    from services.supabase import get_service_client
+
+    rev = read_revision(auth.client, user_id=auth.user_id, path=path, revision_id=revision_id)
+    if rev is None or not rev.blob_sha:
+        raise HTTPException(status_code=404, detail=f"Revision {revision_id} not found for {path}")
+    if rev.content:
+        raise HTTPException(
+            status_code=400,
+            detail="That revision is text — restore it by editing the file.",
+        )
+
+    workspace_id = getattr(auth, "workspace_id", None)
+    # The bucket is service-keyed (see `write_office_file`): REACH, never
+    # attribution — the read above ran on the member's client.
+    service = get_service_client()
+    data = get_storage_backend(service).get_blob(rev.blob_sha, workspace_id=workspace_id)
+    kwargs: dict = {}
+    if body.expected_head_version_id is not None:
+        kwargs["expected_parent_version_id"] = body.expected_head_version_id
+    try:
+        head = write_revision(
+            service,
+            user_id=auth.user_id,
+            workspace_id=workspace_id,
+            path=path,
+            content_bytes=data,
+            authored_by="operator",
+            author_identity_uuid=auth.user_id,
+            message=f"revert to revision {revision_id[:8]}",
+            **kwargs,
+        )
+    except StaleWriteError as e:
+        raise HTTPException(status_code=409, detail={"error": "stale_write", "message": str(e)})
+
+    from services.file_formats import format_of_path
+    fmt = format_of_path(path)
+    if fmt is not None and fmt.projection == "text":
+        from services.documents import derive_upload_projection, extract_text
+        try:
+            ext = path.rsplit(".", 1)[-1].lower()
+            text, _units = await extract_text(data, ext)
+            await derive_upload_projection(
+                auth.client, auth.user_id, path, text,
+                filename=path.rsplit("/", 1)[-1], file_type=ext, workspace_id=workspace_id,
+            )
+        except Exception as exc:  # noqa: BLE001 — the bytes are restored; the index is best-effort
+            logger.warning("[WORKSPACE_API] projection re-derive after restore failed for %s: %s", path, exc)
+
+    return {"success": True, "path": path, "head_version_id": head}
 
 
 @router.get("/workspace/revisions", response_model=RevisionListResponse)

@@ -1922,3 +1922,92 @@ def test_am2_d15_phase2_the_slide_view_reads_the_servers_own_spelling():
     assert slides[0]["notes"] == "Emphasize hiring", "speaker notes were not split out"
     assert "Metric\tValue\nARR\t$2.1M" in slides[1]["blocks"], "the table block lost its TSV shape"
     assert slides[1]["notes"] is None
+
+
+# ── §11.12 — a binary file reverts (click-pass 2026-09-23) ──────────────────
+
+
+def _drive_restore(rev_content, *, locked=False, fmt_path="/workspace/inbound/uploads/q3.xlsx"):
+    """The REAL restore route, with the substrate/storage/extract edges stubbed."""
+    import types
+    from fastapi import HTTPException
+    import routes.workspace as rw
+    import services.authored_substrate as sub
+    import services.storage_backend as sb
+    import services.supabase as supa
+    import services.documents as docs
+    import services.primitives.workspace as pw
+
+    calls: dict = {}
+    service = object()
+    rev = types.SimpleNamespace(blob_sha="sha-old", content=rev_content)
+
+    class _Backend:
+        def get_blob(self, sha, *, workspace_id=None):
+            calls["blob"] = (sha, workspace_id)
+            return b"OLD-BYTES"
+
+    def _write(client, **kw):
+        calls["write"] = (client, kw)
+        return "v-new"
+
+    async def _extract(data, ext):
+        calls["extract"] = (data, ext)
+        return "words", 1
+
+    async def _derive(*a, **kw):
+        calls["derive"] = (a, kw)
+        return {}
+
+    auth = types.SimpleNamespace(client=object(), user_id="u1", workspace_id="ws-1")
+    body = rw.RevisionRestoreRequest(path=fmt_path, expected_head_version_id="v-head")
+    with patch.object(sub, "read_revision", lambda *a, **k: rev), \
+         patch.object(sub, "write_revision", _write), \
+         patch.object(sb, "get_storage_backend", lambda _c: _Backend()), \
+         patch.object(supa, "get_service_client", lambda: service), \
+         patch.object(docs, "extract_text", _extract), \
+         patch.object(docs, "derive_upload_projection", _derive), \
+         patch.object(pw, "_is_path_locked_for_principal", lambda _a, _p: locked):
+        try:
+            out = asyncio.run(rw.restore_binary_revision(auth, "rev-1234567890", body))
+        except HTTPException as e:
+            out = e
+    return out, calls, service
+
+
+def test_am2_click_pass_a_binary_revision_restores_its_bytes():
+    """The history panel refused every binary revert ("no content to
+    restore"), so an agent's edit to a member's workbook could not be undone
+    from the UI. The route writes the old BYTES as a new revision — on the
+    service client (the bucket), attributed to the member, conditional on the
+    loaded head — and re-derives the projection so an agent reads the restored
+    words, not the undone ones."""
+    out, calls, service = _drive_restore(None)
+    assert out["success"] and out["head_version_id"] == "v-new", out
+    client, kw = calls["write"]
+    assert client is service
+    assert kw["content_bytes"] == b"OLD-BYTES" and kw["path"] == "/workspace/inbound/uploads/q3.xlsx"
+    assert kw["author_identity_uuid"] == "u1" and kw["authored_by"] == "operator"
+    assert kw["expected_parent_version_id"] == "v-head", "a restore must not clobber a newer edit"
+    assert calls["extract"] == (b"OLD-BYTES", "xlsx"), "the projection still describes the undone version"
+
+
+def test_am2_click_pass_restore_refuses_text_and_locked_paths():
+    out, calls, _ = _drive_restore("some text")
+    assert getattr(out, "status_code", None) == 400 and "write" not in calls
+    out, calls, _ = _drive_restore(None, locked=True)
+    assert getattr(out, "status_code", None) == 403 and "write" not in calls
+
+
+@pytest.mark.parametrize("rel", [
+    "components/workspace/RevisionHistoryPanel.tsx",
+    "components/pane/PaneActivityRail.tsx",
+])
+def test_am2_click_pass_both_revert_doors_restore_a_binary(rel):
+    """Two doors revert a file; the binary refusal lived in BOTH. Anchored on
+    each door's `runAction(` call, not the whole file."""
+    src = (ROOT.parent / "web" / rel).read_text()
+    start = src.index("await runAction(")
+    call = src[start:src.index("pending:", start)]
+    assert "content === null" in call and "api.workspace.restoreRevision(" in call, rel
+    assert "t('noContent')" not in src, f"{rel} still refuses a binary revert"
