@@ -109,109 +109,41 @@ AI-shaped copy shown to humans (`b31aed3`), and the stale governance gate (`c3e6
   user exists any more** (teardown ran; 22 users live, neither present). Annotations corrected
   in `d77821e`, but **no cold instrument exists** — re-mint one before any first-run pass.
 
-## ADR-661 — the Mac shell ships; sign-in awaits ONE confirmation (2026-09-22)
+## ADR-661/662 — the desktop app: what stays OPEN (2026-09-23)
 
-**Steps 1–5 are SHIPPED.** `cd src-tauri && cargo tauri build` → `yarnnn_0.1.0_aarch64.dmg`
-(~7.9MB, verified, drag-to-install). Gate `api/test_adr661_the_shell_may_be_native.py` **54/54**.
-⚠️ Rust is a build dependency for the SHELL only; the web build never needs it.
+Shipped and member-driven on macOS: sign-in through the browser (§7i–§7l, §7p), the production API
+pinned (§7m), the top bar as title bar (§7n). Windows is a build target (§7o). The app has ONE
+sign-in — `/auth/login` in the desktop build is a button that opens `/auth/desktop` (§7p); there is
+no `yarnnn://auth/callback`. Settings → Desktop app surfaces it on every plan, from ONE roster
+(`web/lib/shell/desktop-app.ts`). Gate `api/test_adr661_the_shell_may_be_native.py` **81/81**.
 
-**THE AUTH DESIGN CHANGED (§7i D5) — read it before touching sign-in.** The shell does NOT
-authenticate; the website does. Sign-in opens `https://www.yarnnn.com/auth/desktop` in the
-system browser, which signs the member in with the ordinary web flow and hands the session
-back over `yarnnn://auth/session?refresh_token=…`; `DeepLinkBridge` calls `refreshSession`.
-The earlier design (browser starts OAuth, app finishes it via `yarnnn://auth/callback`) is
-SUPERSEDED — four correct fixes never produced a working sign-in because it split the PKCE
-verifier across two contexts.
+**OPEN:**
+1. **Drive §7p on the rebuilt Mac app** — sign out, sign in with the one button; and the window drags
+   by its top bar (§7n; a capture cannot show it).
+2. **Apple Developer ID** (operator) — the Mac build is unsigned, so a download says *"damaged"*; it
+   is also ADR-662's prerequisite (macOS grants attach to the code signature). Steps in
+   [publishing-the-desktop-app.md](infrastructure/publishing-the-desktop-app.md). Publishing a build =
+   set its https URL in `desktop-app.ts`.
+3. **Windows** (§7o): not yet driven by a member — the hand-off must reach the RUNNING app
+   (single-instance) with no second window; WebView2 layout at 1280/1920; a signing route before any
+   public link (Azure Trusted Signing eligibility for a Korean entity unchecked). Installer: workflow
+   `shell-windows.yml`, manual dispatch, unsigned.
+4. **Auto-update** — not built, deliberately.
+5. **ADR-662 is PROPOSED** — local hands (background, Cowork-style), Office DEFERRED, the browser first.
+   Round 3 (the D13 browser tools, with stop-when-stuck) is the measurement before any product code;
+   §9 lists what is still open.
+6. ⚠️ Watch: the browser and the app share one refresh-token lineage. If the app is signed out ~1h
+   after signing in, suspect Supabase's reuse detection — a hypothesis, unverified.
 
-**Sign-in and the Desktop CONFIRMED by a real member (2026-09-23)** — §7l (our own
-`getSafeNextPath` refused `next=/auth/desktop`) and §7m (the binary shipped `.env.local`'s
-`localhost:8000`). §7n (avatar, traffic-light inset) SEEN in a window capture. **OPEN — one check by hand**: the
-window drags by its top bar (a capture cannot show it).
-⚠️ Watch after it works: the browser and the app now share one refresh-token lineage. If the
-app is signed out ~1h later, suspect Supabase's reuse detection revoking the family when the
-browser refreshes with the token the app already spent — unverified, a hypothesis.
+⚠️ **Two builds, one tree**: `page.web.tsx` is a route on the WEB build only (`pageExtensions`);
+`page.tsx` beside it is the desktop build's. A new route defaults to BOTH. Baselines: web **30 ○ +
+1 ● / 52 ƒ** (the older "29 static" count excluded `/_not-found`), shell **47/47**.
+⚠️ **Testing leaves ghosts** in Launch Services; unregister by path (the publishing doc).
 
-**Windows (§7o, 2026-09-23) — BUILT, not yet driven by a member.** The installer is cut by
-`.github/workflows/shell-windows.yml` (manual dispatch) → `yarnnn_<ver>_x64-setup.exe`, UNSIGNED
-(SmartScreen → More info → Run anyway). First good cut: run `35809577767` at `b98001a`, 6.1MB, sha256
-`cd5c574b…d3e6e5`; the runner's export generated 48/48 and passed the §7m/§7o origin + anon-key guards.
-Repo secrets `NEXT_PUBLIC_SUPABASE_URL`/`_ANON_KEY` are SET. OPEN: (a) a real Windows sign-in round trip — the check that
-matters is that the hand-off reaches the RUNNING app (single-instance) and no second window opens;
-(b) WebView2 layout at 1280 and 1920 (scrollbars take width; Hangul → Malgun Gothic);
-(c) a signing route before any public link — Azure Trusted Signing eligibility for a Korean entity is
-unchecked. Steps in [publishing-the-desktop-app.md](infrastructure/publishing-the-desktop-app.md).
-
-⚠️ **The shell's email sign-up + password reset still ride the SUPERSEDED `yarnnn://auth/callback`
-path** (`authCallbackUrl` → `AuthForm`'s `emailRedirectTo`/`redirectTo`); only Google moved to
-§7i's `/auth/desktop` hand-off. Unverified on either platform, and the allowlist entry itself is unverifiable from outside (GoTrue's
-OAuth `state` is now opaque; no Management API token is configured) — check it in the dashboard
-(Authentication → URL Configuration). Either drive it or route both through
-the website like Google, and delete `authCallbackUrl`'s shell branch in the same commit.
-
-**Owed after that:**
-1. **Apple Developer ID** ($99/yr) — the only operator step. Until then sign → notarize →
-   staple is configured and gate-asserted but NEVER EXECUTED, and a downloaded build says
-   *"yarnnn is damaged"*, which reads as malware. Four setup steps + the verification that
-   matters (drive a QUARANTINED DMG on a machine that never built it) are in
-   [publishing-the-desktop-app.md](infrastructure/publishing-the-desktop-app.md).
-2. **Auto-update** — deliberately not built; its own key management, and one unversioned
-   build is the smaller first step.
-3. **Step 6 — local hands**: [ADR-662](adr/ADR-662-local-hands-the-member-keeps-the-machine.md) is
-   **PROPOSED, awaiting operator review** — background (Cowork-style) hands, measured by a thrown-away spike.
-   Nothing built; the Developer ID (item 1) is its prerequisite. §9 lists the open questions.
-
-⚠️ **The two-build mechanism**: `page.web.tsx` is a route on the WEB build only
-(`pageExtensions` in `next.config.js`). A new route defaults to BOTH builds — rename it
-`.web.tsx` if it must not ship in the shell. Baselines: web **29 static / 52 dynamic**,
-shell **48/48**.
-
-⚠️ **Testing leaves ghosts** in Launch Services (every build and every mounted DMG registers
-a copy). `lsregister -kill -r` does NOT clear them; unregister by path. See the publishing doc.
-
-## ADR-661 — the Mac shell is authorized and unbuilt (2026-09-21)
-
-Phase 0 is the ADR only. **Nothing is built.** Gate `test_adr661_the_shell_may_be_native.py`
-15/15, every arm proven RED (two were blind and repaired during falsification — a substring
-check stays green through a rename that EXTENDS the name).
-
-**Steps 1-3 of §8 are live debt on the WEB product, independent of packaging** — do these
-whether or not the shell ships:
-
-1. **A mount-time client auth gate.** `AuthenticatedLayout.tsx:59-63` says in its own words the
-   `onAuthStateChange` listener is "NOT an auth gate" — it fires after mount and paint. This is
-   the 2026-08-20 defect class (`lib/supabase/middleware.ts:30-43`: eight surfaces served a full
-   200 to logged-out visitors). A shell with no middleware must not re-open it.
-2. **The locale chain, client-side.** `i18n/resolve.ts` reads `cookies()`/`headers()`; steps 2-3
-   of ADR-660 D2's chain have NO SOURCE without a request, so a static shell falls SILENTLY to
-   English. WARN: the ADR-660 gate asserts the literal `<IntlScope>` in named layouts - it moves
-   in the same commit or it goes red for the wrong reason.
-3. **Eight missing page-level Suspense boundaries** (§7a blocker 4, found by the export spike —
-   NOT by reading). `useSearchParams` bails out under `output: export` on `/chat`, `/files`,
-   `/settings`, `/supervisor`, `/text`, `/slides`, `/images`, `/notifications`. Their consumers
-   ARE wrapped "where required" for SSR; export needs the boundary at the PAGE, and
-   `grep -c Suspense` on each page returns 0. Improves the web build too (a client-render
-   bailout on first paint today).
-4. **Seven external navigations + four dead share links.** OAuth handoffs
-   (`ManageConnectionSubsurface.tsx:311`, `FindConnectorModal.tsx:303,347,400`) and Stripe
-   (`useSubscription.ts:100,119,137`) must become system-browser opens; four
-   `window.location.origin` share-link builders (`StudioSurface.tsx:2327,3561,4835`,
-   `TextEditor.tsx:725`) need a canonical web origin — a share link is a web address even when
-   the shell is not.
-
-**Local hands (§5/§6) are scoped, NOT built** — they need their own implementation ADR carrying
-§6's four conditions AND ADR-577 §7's driven trace. §6.4's gate arm is a tripwire that fires if
-a capability appears first; the implementation ADR retires it. Do not start before the shell is
-real: §6.4's standard cannot be met against a shell that does not exist.
-
-**Windows** is a build-target question, not an architecture question (§7.6): the client has
-**zero runtime platform detection** and every key handler is already `e.metaKey || e.ctrlKey`.
-Keep both properties — the gate enforces them. The ONE place a platform may be read is
-`web/lib/shell/modifier-key.ts`, and it decides a NAME to print, never a behaviour.
-⚠️ The exception is local hands: screen capture and synthetic input are the most
-platform-divergent APIs there are, so that ADR scopes ONE platform at a time.
-
-⚠️ `docs/analysis/src_claudeCC/` is a vendored copy of Claude Code's own source (untracked,
-gitignored). **22 of 28 "computer use" matches under `docs/` are that tree, not canon.**
+**Found RED at HEAD, not from this arc** (measured on a clean worktree, left for their owners):
+ADR-660's literal-copy meter reads **251 > 248**; `test_adr244_workspace_settings_surface.py`
+crashes on the long-deleted `WorkspaceSection.tsx`; the voice guard lists **17** un-allowlisted
+kernel nouns (15 in `app/invest/page.web.tsx`).
 
 ## App click-passes: Text · Chat · Slides — what stays OPEN (2026-09-22)
 
