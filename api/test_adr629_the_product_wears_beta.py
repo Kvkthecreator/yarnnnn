@@ -139,7 +139,7 @@ bare_callers = sorted(
     and re.search(r"<Wordmark\b[^>]*\bbare\b", code(p.read_text(encoding="utf-8")))
 )
 check("`bare` has exactly one caller — the landing hero the canon lock governs",
-      bare_callers == ["app/page.tsx"], ", ".join(bare_callers) or "none")
+      bare_callers == ["components/marketing/LandingPageBody.tsx"], ", ".join(bare_callers) or "none")
 
 sites = sorted(
     rel(p) for p in web_sources("app", "components")
@@ -192,9 +192,12 @@ print("\n5. SAID ONCE, AT THE DOOR — and the stale beta copy is gone")
 auth_code = code(read("components/auth/AuthForm.tsx"))
 check("AuthForm speaks STAGE_NOTICE in signup mode only",
       bool(re.search(r'mode === "signup" && STAGE_NOTICE', auth_code)))
-faq = read("app/faq/page.tsx")
+faq = read("components/marketing/FaqPageBody.tsx")  # both languages render it (ADR-660 marketing pass)
 llms = read("app/llms.txt/route.ts")
-check("the FAQ's beta entry derives from BRAND.stage", "BRAND.stage" in code(faq))
+# Anchored on the entry's own guard: `BRAND.stage` also appears in the entry's
+# ICU args, so a whole-file substring check stays green with the guard broken.
+check("the FAQ's beta entry derives from BRAND.stage",
+      re.search(r"\bstageItem\s*=\s*BRAND\.stage\b", code(faq)) is not None)
 check("llms.txt states the stage from STAGE_NOTICE", "STAGE_NOTICE" in code(llms))
 check("no 'Freddie (in beta)' copy survives on the FAQ or llms.txt (ADR-632 retired the seat)",
       "freddie" not in faq.lower() and "freddie" not in llms.lower())

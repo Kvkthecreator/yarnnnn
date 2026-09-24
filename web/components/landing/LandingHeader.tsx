@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { Wordmark } from "@/components/shared/Wordmark";
 import { DEFAULT_LOCALE, type Locale } from "@/i18n/config";
-import { localePath, isTranslatedPath } from "@/lib/marketing/locale";
+import { localePath } from "@/lib/marketing/locale";
 import { MarketingLanguageToggle } from "@/components/marketing/MarketingLanguageToggle";
 
 /**
@@ -14,7 +14,7 @@ import { MarketingLanguageToggle } from "@/components/marketing/MarketingLanguag
  *
  * ⚠️ This component calls NO translation hook, deliberately. It is rendered by
  * every marketing page, including the ones that stay English by ruling
- * (`/privacy`, `/terms`, `/invest`, `/developers`, the blog), and those render
+ * (`/privacy`, `/terms`, `/invest`, `/engines`, the blog), and those render
  * OUTSIDE `MarketingIntlScope`. `useTranslations` throws outside a provider, so
  * a hook here would be a runtime crash on pages that every static check passes
  * — the ADR-660 D8 hazard exactly, one layer out.
@@ -27,6 +27,7 @@ export interface LandingHeaderNav {
   howItWorks: string;
   pricing: string;
   faq: string;
+  download: string;
   blog: string;
   about: string;
   signIn: string;
@@ -37,6 +38,7 @@ const EN: LandingHeaderNav = {
   howItWorks: "How it works",
   pricing: "Pricing",
   faq: "FAQ",
+  download: "Download",
   blog: "Blog",
   about: "About",
   signIn: "Sign In",
@@ -74,15 +76,13 @@ export default function LandingHeader({
     ? "text-white/70 hover:text-white"
     : "text-muted-foreground hover:text-foreground";
 
-  // A link points into this page's language only where that language HAS the
-  // page. `/blog` and `/about` are English-only by ruling, so they stay bare
-  // rather than becoming a `/ko/blog` that does not exist.
-  const to = (href: string) => (isTranslatedPath(href) ? localePath(href, locale) : href);
-
+  // Every link goes through `localePath`, which prefixes only a path with a
+  // Korean page — `/blog` stays bare rather than becoming a `/ko/blog` 404.
   const navLinks = [
     { href: "/how-it-works", label: nav.howItWorks },
     { href: "/pricing", label: nav.pricing },
     { href: "/faq", label: nav.faq },
+    { href: "/download", label: nav.download },
     { href: "/blog", label: nav.blog },
     { href: "/about", label: nav.about },
   ];
@@ -104,13 +104,14 @@ export default function LandingHeader({
         <Wordmark className={`text-xl ${inverted ? "text-white" : ""}`} />
       </Link>
 
-      {/* Desktop nav */}
-      <nav className="hidden md:flex items-center gap-6">
+      {/* Desktop nav — from `lg`: six links, the toggle and Sign In wrapped
+          their labels onto two lines at 768px (measured in Korean). */}
+      <nav className="hidden lg:flex items-center gap-6">
         {navLinks.map((link) => (
           <Link
             key={link.href}
-            href={to(link.href)}
-            className={`transition-colors ${linkClass}`}
+            href={localePath(link.href, locale)}
+            className={`whitespace-nowrap transition-colors ${linkClass}`}
           >
             {link.label}
           </Link>
@@ -118,7 +119,7 @@ export default function LandingHeader({
         <MarketingLanguageToggle locale={locale} path={path} inverted={inverted} />
         <Link
           href="/auth/login"
-          className={`px-4 py-2 rounded-full transition-colors ${
+          className={`whitespace-nowrap px-4 py-2 rounded-full transition-colors ${
             inverted
               ? "bg-white text-black hover:bg-white/90"
               : "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -130,7 +131,7 @@ export default function LandingHeader({
 
       {/* Mobile menu button */}
       <button
-        className={`md:hidden p-2 ${inverted ? "text-white" : "text-[#1a1a1a]"}`}
+        className={`lg:hidden p-2 ${inverted ? "text-white" : "text-[#1a1a1a]"}`}
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         aria-label={nav.menu}
       >
@@ -150,7 +151,7 @@ export default function LandingHeader({
             {navLinks.map((link) => (
               <Link
                 key={link.href}
-                href={to(link.href)}
+                href={localePath(link.href, locale)}
                 className={`transition-colors text-lg ${linkClass}`}
                 onClick={() => setMobileMenuOpen(false)}
               >

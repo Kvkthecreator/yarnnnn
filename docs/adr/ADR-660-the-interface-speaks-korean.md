@@ -525,6 +525,15 @@ to prefix an unrostered path instead of trusting each caller to check — the he
 check, the hero CTAs called it directly, and that asymmetry is exactly how the defect survived. A
 gate arm pairs each rostered path with its route, falsified RED in place.
 
+⭐ **The Korean footer was half English (found 2026-09-24).** It worded five labels and hard-coded
+nine ("Blog", "Docs", "Share feedback", "Privacy"…), and linked `/about`, `/developers` and
+`/support` bare beside their `/ko` twins — while the catalog held Korean for most of them, unread.
+Every footer label is now a prop filled by `useMarketingChrome`, and every internal link goes through
+`localePath` (which already refuses unrostered paths, so the header's and footer's own `to()` guards
+were deleted as duplicates). The English defaults the chrome carries for untranslated pages are a copy
+of the catalog, so the gate holds them equal to `messages/en.json` key for key; four arms, each
+falsified RED.
+
 ### Receipts
 
 - **Build**: **24 static routes** (23 baseline + `/ko`); every pre-existing marketing route still `○`;

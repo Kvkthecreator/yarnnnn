@@ -689,10 +689,24 @@ check(
     "the redirect route is missing, keeps its own URL, or is permanent",
 )
 _page_body = strip_comments(read("web/components/marketing/DownloadPageBody.tsx"))
+# The page renders the ROSTER, so a platform added to it appears here with its
+# link; its first-open steps are keyed by `DesktopPlatform`, so tsc refuses the
+# roster until they are written.
 check(
-    "the /download page links each platform through downloadPath",
-    all(re.search(rf'downloadPath\(\s*"{p}"\s*\)', _page_body) for p in ("mac", "windows")),
-    "the download page lists a platform without its link",
+    "the /download page lists the roster and links each platform through downloadPath",
+    re.search(r"DESKTOP_PLATFORMS\.map\(", _page_body) is not None
+    and re.search(r"\bdownloadPath\(\s*platform\s*\)", _page_body) is not None
+    and re.search(r"Record<\s*DesktopPlatform\s*,", _page_body) is not None,
+    "the download page keeps its own list, or links a platform past downloadPath",
+)
+# §7q's condition for linking an unsigned build at all: the page says so BEFORE
+# the button. Source order is render order on this page (one column, no portal).
+_beta_at = _page_body.find('t("beta")')
+_button_at = _page_body.find("<DownloadButton")
+check(
+    "the /download page says the builds are unsigned before the first button",
+    0 <= _beta_at < _button_at,
+    "a stranger reaches an unsigned build's button before the page says it is unsigned",
 )
 
 # The Mac beta build must be ad-hoc SEALED. With `signingIdentity: null` the

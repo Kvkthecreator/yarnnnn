@@ -35,7 +35,7 @@ const SECTIONS = [
   { cat: "work", items: ["inout", "models"] },
   { cat: "data", items: ["where", "cando"] },
   { cat: "pricing", items: ["cost", "cap", "runout"] },
-  { cat: "start", items: ["howstart", "firstmove"] },
+  { cat: "start", items: ["howstart", "desktop", "firstmove"] },
 ] as const;
 
 export function FaqPageBody({ locale }: { locale: Locale }) {

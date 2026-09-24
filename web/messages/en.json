@@ -2904,7 +2904,8 @@
       "blog": "Blog",
       "about": "About",
       "signIn": "Sign In",
-      "menu": "Toggle menu"
+      "menu": "Toggle menu",
+      "download": "Download"
     },
     "footer": {
       "tagline": "One workspace for you, your people, and the AI you already use.",
@@ -2912,15 +2913,18 @@
       "company": "Company",
       "resources": "Resources",
       "legal": "Legal",
-      "engines": "Engines",
+      "engines": "Choosing an engine",
       "developers": "Developers",
       "support": "Support",
       "privacy": "Privacy",
-      "privacyArchitecture": "Privacy architecture",
       "terms": "Terms",
-      "invest": "Invest",
+      "invest": "Investors",
       "rights": "All rights reserved.",
-      "download": "Download"
+      "download": "Download",
+      "docs": "Docs",
+      "feedback": "Share feedback",
+      "yourData": "Your data",
+      "desktopApp": "Get the desktop app"
     },
     "cta": {
       "seeHowItWorks": "See how it works",
@@ -2957,7 +2961,8 @@
       "whereB": "Nothing here deletes itself on a timer. Every change is signed by whoever made it, every version is kept, and the whole workspace exports as a plain git repo you can walk offline.",
       "whereLink": "Read the details — including what we don't have",
       "pricingTitle": "Free for two. A seat for the rest.",
-      "pricingBody": "The workspace is free for you and a teammate — your files, your record, reachable from any AI you use. From the 3rd person, each extra seat is paid; usage is pay-as-you-go from one shared balance. AI connections are always free — never a seat."
+      "pricingBody": "The workspace is free for you and a teammate — your files, your record, reachable from any AI you use. From the 3rd person, each extra seat is paid; usage is pay-as-you-go from one shared balance. AI connections are always free — never a seat.",
+      "desktopLink": "Also on Mac and Windows: download the desktop app"
     },
     "apps": {
       "includes": "Your workspace includes:",
@@ -3064,6 +3069,10 @@
         "howstart": {
           "q": "How do I start?",
           "a": "Start free. Connect an AI tool over MCP (or upload files, or just start typing), tell it something worth keeping, and watch it show up in the next AI you open — with the full history intact."
+        },
+        "desktop": {
+          "q": "Is there a desktop app?",
+          "a": "Yes, for Mac and Windows, free on every plan. It's the same workspace in its own window. It's in beta, so the first time you open it your computer asks you to confirm; the download page shows how. Everything also works in any browser."
         },
         "firstmove": {
           "q": "What's the best first move?",
@@ -3396,7 +3405,7 @@
         "title": "Download yarnnn for Mac and Windows"
       },
       "heading": "Download yarnnn",
-      "intro": "The same workspace you use in the browser, in its own window. Sign in with the account you already have.",
+      "intro": "Your workspace in its own window, on Mac and Windows. Sign in with the account you already have. It's free on every plan.",
       "beta": "yarnnn is in beta, and these builds aren't signed by Apple or Microsoft yet. The first time you open the app, your computer asks you to confirm. The steps below show how.",
       "platformTitle": "yarnnn for {platform}",
       "downloadFor": "Download for {platform}",
@@ -3410,8 +3419,28 @@
       "windowsRequires": "For Windows 10 or 11 on a 64-bit PC.",
       "windowsStep1": "Run the downloaded installer. It installs for you only, so you don't need an administrator.",
       "windowsStep2": "If Windows says it protected your PC, click More info, then Run anyway.",
-      "afterTitle": "Signing in",
-      "afterBody": "The app opens your browser to sign in, then brings you straight back. Everything you see in the app updates on its own. You only download again when we tell you a new version is needed."
+      "eyebrow": "Desktop app · Beta",
+      "howToOpen": "How to open it the first time",
+      "whyTitle": "What the app adds",
+      "why": {
+        "window": {
+          "title": "Its own window",
+          "body": "yarnnn sits in your Dock or taskbar, one click away, instead of somewhere among your browser tabs."
+        },
+        "signIn": {
+          "title": "Sign in with your browser",
+          "body": "The app opens the browser you already use, with your saved passwords and Google account, then brings you straight back."
+        },
+        "current": {
+          "title": "Always up to date",
+          "body": "Everything in the app updates on its own. You only download again when we tell you a new version is needed."
+        }
+      },
+      "copy": "Copy",
+      "copied": "Copied",
+      "browserTitle": "Prefer the browser?",
+      "browserBody": "yarnnn works the same in any browser, with nothing to install. The app and the browser open the same workspace, so you can switch whenever you like.",
+      "browserCta": "Start in the browser"
     }
   }
 }

@@ -364,6 +364,35 @@ for _rel in ("components/landing/LandingHeader.tsx", "components/landing/Landing
     check(f"{_rel} words itself by PROPS, not a hook",
           "next-intl" not in strip_comments(read(_rel)),
           "it also renders on untranslated marketing pages, where a hook throws")
+# ⭐ The Korean footer was half English: five labels worded, nine hard-coded,
+# and /about, /developers, /support linked bare beside their /ko twins. Every
+# label is now a prop and every internal link passes `localePath`. The English
+# defaults are a COPY of the catalog (it is too large to import client-side),
+# so they are held equal to it here, or the untranslated pages drift.
+_en_mkt = json.loads(read("messages/en.json"))["marketing"]
+def _defaults(rel: str) -> dict:
+    block = re.search(r"const EN: \w+ = \{(.*?)\n\};", read(rel), re.S)
+    return dict(re.findall(r'^\s*(\w+):\s*"([^"]*)",', block.group(1), re.M)) if block else {}
+_chrome = strip_comments(read("components/marketing/chrome.ts"))
+for _rel, _ns in (("components/landing/LandingHeader.tsx", "nav"), ("components/landing/LandingFooter.tsx", "footer")):
+    _d = _defaults(_rel)
+    _body = _chrome[_chrome.find(f"{_ns}: {{"):]
+    _body = _body[:_body.find("}")]
+    _src = {k: _en_mkt["nav" if w == "n" else "footer"].get(key)
+            for k, w, key in re.findall(r'(\w+):\s*([nf])\("(\w+)"\)', _body)}
+    _drift = sorted(k for k in _d if _src.get(k) != _d[k])
+    check(f"{_rel}'s English defaults ARE the catalog's words, key for key",
+          bool(_d) and set(_d) == set(_src) and not _drift,
+          f"defaults {sorted(set(_d) ^ set(_src))} unmapped, {_drift} differ from en.json")
+_foot = strip_comments(read("components/landing/LandingFooter.tsx"))
+_jsx = _foot[_foot.find("return ("):]
+check("the footer renders no hard-coded label",
+      not re.search(r">\s*[A-Z][a-z]+(?: [a-z]+)*\s*</(?:Link|a|button|div)>", _jsx),
+      "a literal English label in the footer's JSX reads English on the Korean page")
+check("every internal footer link passes localePath",
+      re.search(r"<Link\s+href=\{localePath\(link\.href,\s*locale\)\}", _foot) is not None
+      and not re.search(r'<Link\s+href="/', _foot),
+      "a bare internal href skips the page's Korean twin")
 check("no route outside a scope mounts a translated component", not unscoped_mounts,
       f"would throw at render: {unscoped_mounts[:3]}")
 

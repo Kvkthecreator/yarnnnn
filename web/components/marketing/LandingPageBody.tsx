@@ -121,16 +121,19 @@ export function LandingPageBody({ locale }: { locale: Locale }) {
 
                 {/* CTA — the lead door (GROWTH-LOOP Channel 1) + connector chips */}
                 <div className="flex flex-col items-center lg:items-start gap-4 mb-4">
-                  <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4">
+                  {/* Stacked again at `lg` only: the hub sits beside this column
+                      there, which leaves it ~396px — both labels wrapped onto two
+                      lines at 1024px. From `xl` the row fits. */}
+                  <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center lg:items-start gap-4">
                     <Link
                       href={CTA.signup}
-                      className="inline-block px-8 py-4 bg-[#1a1a1a] text-white text-lg font-medium rounded-full hover:bg-[#1a1a1a]/90 transition-all"
+                      className="inline-block whitespace-nowrap px-8 py-4 bg-[#1a1a1a] text-white text-lg font-medium rounded-full hover:bg-[#1a1a1a]/90 transition-all"
                     >
                       {signupLabel}
                     </Link>
                     <Link
                       href={localePath(CTA.howItWorks, locale)}
-                      className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
+                      className="inline-block whitespace-nowrap px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
                     >
                       {c("seeHowItWorks")}
                     </Link>
@@ -285,6 +288,14 @@ export function LandingPageBody({ locale }: { locale: Locale }) {
                 {c("seePricing")}
               </Link>
             </div>
+            {/* The desktop app — a quiet third door under the two CTAs, not a
+                beat of its own: the canon arc ends on pricing. */}
+            <Link
+              href={localePath("/download", locale)}
+              className="inline-flex items-center gap-2 mt-8 text-sm text-[#1a1a1a]/45 underline underline-offset-4 hover:text-[#1a1a1a] transition-colors"
+            >
+              {t("desktopLink")}
+            </Link>
           </ScrollReveal>
         </section>
 
