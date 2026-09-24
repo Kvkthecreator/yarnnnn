@@ -443,8 +443,15 @@ from services.principal_display import display_author  # noqa: E402
 check("system:standing → Standing work", display_author("system:standing") == "Standing work")
 check("system:strings (historical) → Standing work", display_author("system:strings") == "Standing work")
 _attr = _read("web/lib/workspace/attribution.ts")
+# ADR-660 moved the words to the catalog: the table maps to a KEY, and the key
+# resolves to the sentence. Anchored on the mapping expression, not the file —
+# a whole-file substring check stays green with the mapping broken.
+import json as _json  # noqa: E402
+_attr_words = (_json.loads(_read("web/messages/en.json")).get("attribution") or {})
 check("the FE attribution table maps both prefixes to Standing work",
-      "system:standing" in _attr and "system:strings" in _attr and "Standing work" in _attr)
+      re.search(r"authored_by === 'system:standing' \|\| authored_by === 'system:strings'\)\s*"
+                r"return \{ key: 'standingWork' \}", _attr) is not None
+      and _attr_words.get("standingWork") == "Standing work")
 
 # ═══════════════════════════════════════════════════════════════════════════
 print("D6. a declaration in Trash is not discovered (2026-09-07)")

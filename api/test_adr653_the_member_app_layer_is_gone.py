@@ -299,11 +299,18 @@ check("`recent` is recent RUNS (ADR-666 D8) — the run ledger, never the timeli
 
 _surf = _strip_comments_ts(_read(_WEB, "components/supervisor/SupervisorSurface.tsx"))
 check("the surface renders DECLARED sections", "SECTIONS.map" in _surf)
-check("band 2 names who is minding it", "looks after this." in _surf)
-# ⭐ Resting is not an empty state. "Nothing is waiting on you" is a complete,
-# reassuring sentence; "No items" says the same and reads like a failure.
-check("the resting copy reassures rather than reporting absence",
-      "Nothing is waiting on you." in _sec and "No items" not in _sec)
+# ADR-660 moved the words to `web/messages/en.json`: band 2 is `MinderBand`,
+# whose resting line is `t('resting')` under `supervisor.minderBand`. Assert the
+# mount, the call and the catalog sentence it resolves to.
+import json as _json  # noqa: E402
+_band = _strip_comments_ts(_read(_WEB, "components/supervisor/MinderBand.tsx"))
+_band_words = (_json.loads(_read(_WEB, "messages/en.json")).get("supervisor") or {}).get("minderBand") or {}
+check("band 2 names who is minding it",
+      "<MinderBand" in _surf and "useTranslations('supervisor.minderBand')" in _band
+      and "t('resting')" in _band and "looks after this." in (_band_words.get("resting") or ""))
+# ⭐ Resting is not an empty state — held by ADR-658's gate, which resolves
+# `needsYouEmpty` through the catalog ("the resting copy reassures; `No items`
+# never appears"). One arm, one home.
 
 # The supervisor does the work of no thread: a mention opens as a NAVIGATION.
 # (ADR-658 adds the standing-work verbs — create, pause, run, retire — which
