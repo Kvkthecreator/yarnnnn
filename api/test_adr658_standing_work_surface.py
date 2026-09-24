@@ -556,8 +556,10 @@ try:
     _hold = (_dt.now(_tzz.utc) + _td(hours=2)).isoformat()
     _task_row["claimed_until"] = _hold
     _out = run(R.run_standing_now("team-brief", auth))
+    # ADR-666 click-pass: said as `already` (the run IS happening), never
+    # `no_change` — which contradicted the run card reporting the write.
     check("a manual Run now against a HELD row is the honest no-op (never a second run)",
-          _out.get("no_change") is True and _calls == [], str(_out))
+          _out.get("already") is True and not _out.get("no_change") and _calls == [], str(_out))
     check("…and the hold is left for its owner to release",
           next(r for r in db.tables["tasks"] if r["slug"] == "standing:team-brief")["claimed_until"] == _hold)
     # (ii) an unheld row runs by hand — whatever its next_run_at says

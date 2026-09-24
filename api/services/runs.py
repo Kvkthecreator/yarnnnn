@@ -143,7 +143,9 @@ def finish_run(
         raise ValueError(f"finish_run: {state!r} is not an ended state")
     current = get_run(_svc(), run_id)
     if current and current.get("state") == "stopped":
-        state = "stopped"
+        # Stopped from outside (its Stop): the turn then ended normally and
+        # would have derived a done-style outcome. A stopped run has none.
+        state, outcome, revision_id = "stopped", None, None
     fields: dict = {"state": state, "outcome": outcome, "ended_at": _now(), "waiting_on": None}
     if revision_id:
         fields["revision_id"] = revision_id

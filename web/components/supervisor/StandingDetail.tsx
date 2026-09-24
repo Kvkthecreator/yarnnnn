@@ -197,7 +197,9 @@ export function StandingDetail({
     try {
       const res = await runAction(() => api.standing.run(s.topic), { pending: t('action.runningPending', { topic: s.topic }) });
       setNote(
-        res.no_change
+        res.already
+          ? t('detail.alreadyRunning')
+          : res.no_change
           ? t('action.ranNoChange')
           : res.success
             ? t('action.ranUpdated')

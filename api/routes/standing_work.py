@@ -309,6 +309,11 @@ def compose_standing_yaml(
     if shape:
         payload["shape"] = shape
     header = (
+        "# _standing.yaml — standing declaration (ADR-666: browser work)\n"
+        "# Run in the member's own browser, on these sites only. When it comes\n"
+        "# due it waits for that member to run it. Machine config only — what\n"
+        "# must be true when it finishes belongs in CONTRACT.md, not here.\n"
+    ) if browser else (
         "# _standing.yaml — standing declaration (ADR-639: the kept file)\n"
         "# On its schedule the sources are fetched and the designated target\n"
         "# is revised under CONTRACT.md. Machine config only — what the file\n"
@@ -982,7 +987,10 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     # index and claim it a second later.
     await _materialize(auth.client, actor)
     if not claim_run(auth.client, actor, decl.slug, STANDING_KIND):
-        return {"success": True, "slug": decl.slug, "no_change": True,
+        # `already`, not `no_change`: the run IS happening and may well change
+        # the file — reported as "nothing changed" it contradicted the run card
+        # beneath it (driven 2026-09-24, ADR-666 click-pass).
+        return {"success": True, "slug": decl.slug, "already": True,
                 "detail": "already running — another run holds this declaration"}
 
     # The member ASKED, so the pace rule does not apply (ADR-659 D6). The record

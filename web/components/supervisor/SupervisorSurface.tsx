@@ -167,7 +167,9 @@ export function SupervisorSurface() {
       const res = await runAction(() => api.standing.run(row.topic), {
         pending: t('action.runningPending', { topic: row.topic }),
       });
-      const line = res.no_change
+      const line = res.already
+        ? t('detail.alreadyRunning')
+        : res.no_change
         ? t('action.ranNoChange')
         : res.success
           ? t('action.ranUpdated')

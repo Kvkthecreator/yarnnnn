@@ -278,6 +278,21 @@ check("…and the step says it stopped",
 check("no turn and no run binding is left behind", not ct._TURNS and not ct._RUNS)
 check("the turn's cost rows ride `done` so its run can sum them", "ledger_ids" in _done)
 
+# ⭐ Found by the production click-pass: a run stopped from outside finished as
+# `stopped` but carried `outcome: no_change` — the turn ended normally after
+# the stop and derived a done-style outcome. A stopped run has none.
+_upd: list = []
+_saved_rf = (runs_mod.get_run, runs_mod._update, runs_mod._cost_of, runs_mod._svc)
+runs_mod.get_run = lambda c, rid: {"id": rid, "state": "stopped"}
+runs_mod._update = lambda rid, f: _upd.append(f)
+runs_mod._cost_of = lambda ids: None
+runs_mod._svc = lambda: None
+runs_mod.finish_run("run-x", state="done", outcome="no_change", revision_id="rev-1")
+runs_mod.get_run, runs_mod._update, runs_mod._cost_of, runs_mod._svc = _saved_rf
+check("a run stopped from outside stays stopped, with no outcome and no revision claimed",
+      _upd and _upd[-1]["state"] == "stopped" and _upd[-1]["outcome"] is None
+      and "revision_id" not in _upd[-1], str(_upd))
+
 # ═════════════════════════════════════════════════════════════════════════════
 print("\nD5 a browser turn in chat is a run; receipts have one home")
 # ═════════════════════════════════════════════════════════════════════════════
@@ -333,6 +348,13 @@ check("the standing routes read no run from execution_events",
 for _gone in ("_join_revision", "_written_revisions", "_RUN_REVISION_WINDOW_S", "_LEGACY_LEDGER_PREFIXES",
               "_recent_runs", "_last_runs", "class LastRun", "class StandingRun"):
     check(f"deleted: {_gone}", _gone not in _sw_routes)
+# ⭐ Found by the production click-pass: a lost claim read "Ran — nothing
+# changed" above a run card saying the file was updated. A run in flight is
+# `already`, never `no_change`, and both Run now handlers word it so.
+check("a Run now that finds a run in flight says `already`, never `no_change`",
+      '"already": True,\n                "detail": "already running' in _sw_routes
+      and all("res.already" in read(f) for f in ("web/components/supervisor/StandingDetail.tsx",
+                                                  "web/components/supervisor/SupervisorSurface.tsx")))
 check("the detail and the roster serve the one run shape", "list[RunOut]" in _sw_routes
       and "last_run: Optional[RunOut]" in _sw_routes)
 
