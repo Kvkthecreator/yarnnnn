@@ -28,10 +28,10 @@ from there — served as `routes.runs.RunOut`, the one shape of a run.
 
 Rendered by two mounts of one row (ADR-340 D8): the Notifications "Standing
 work" pane (the mirror) and the Supervisor app's `work` band (the composition,
-which also holds the door, the starts and the detail). Creation is ALSO
-conversational (ADR-569 D7): a colleague authors the two files through any
-lane under `declaring-standing-work`; both paths emit what the one parser
-accepts, and the ADR-658 gate holds them to it.
+which also holds the starts and the detail). Creation, revision and the
+browser's member stamp are `services.standing_door` — the ONE door, called by
+these routes and by the lane tool `DeclareWork` (ADR-667 D2), which is how the
+Supervisor's conversation sets work up. No route here formats YAML.
 
 Repair states stay LOUD (ADR-569 D3): a declaration that parses but cannot
 run carries `problem`; the last run's status rides each row from the ledger,
@@ -46,22 +46,32 @@ app and displayed, never written.
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, Optional
 
-import yaml as _yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from routes.runs import RunOut, run_out, serve_runs
+from services import standing_door as door
+from services.standing_door import DoorRefusal
 from services.supabase import UserClient
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_MAX_TOPIC_DEPTH = 6
-_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,62}$")
+
+def _http(refusal: DoorRefusal) -> HTTPException:
+    """A door refusal, served BY NAME: `{problem, message}` (ADR-658 D4)."""
+    return HTTPException(status_code=refusal.status_code,
+                         detail={"problem": refusal.problem, "message": refusal.message})
+
+
+def _validate_topic(topic: str) -> str:
+    try:
+        return door.validate_topic(topic)
+    except DoorRefusal as e:
+        raise _http(e) from e
 
 #: How many runs the detail shows (ADR-658 D6). A bound read.
 _DETAIL_RUNS = 20
@@ -69,28 +79,6 @@ _DETAIL_RUNS = 20
 #: A browser run queued this long ago whose turn never began was abandoned
 #: (the member closed the page before it started) — Run now starts afresh.
 _QUEUED_ABANDONED_S = 600
-
-
-def _validate_topic(topic: str) -> str:
-    """A topic is its folder path relative to /workspace/ — an EXISTING
-    meaning-folder, so validation is path hygiene (no traversal, no
-    machinery segments), not a naming law. Returns normalized or raises 422."""
-    t = (topic or "").strip().strip("/")
-    segments = t.split("/") if t else []
-    if (
-        not segments
-        or len(segments) > _MAX_TOPIC_DEPTH
-        or any(not _SEGMENT_RE.match(s) or s in (".", "..") for s in segments)
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail="topic must be 1..6 plain path segments (no traversal, no leading dots)",
-        )
-    if segments[0] == "system":
-        # The kernel mirror is never a member's meaning-folder (the skill's
-        # own anti-pattern: "declaring a file that lives under system/").
-        raise HTTPException(status_code=422, detail="standing work cannot live under system/")
-    return "/".join(segments)
 
 
 # ---------------------------------------------------------------------------
@@ -234,146 +222,6 @@ class StandingStart(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _decl_path(topic: str) -> str:
-    from services.standing_work import DECLARATION_LEAF
-
-    return f"/workspace/{topic}/{DECLARATION_LEAF}"
-
-
-def _contract_path(topic: str) -> str:
-    from services.standing_work import CONTRACT_LEAF
-
-    return f"/workspace/{topic}/{CONTRACT_LEAF}"
-
-
-def _acting_workspace(auth) -> Optional[str]:
-    from services.workspace_context import effective_workspace_id
-    return effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
-
-
-def _acting_owner(auth) -> str:
-    from services.workspace_context import acting_workspace_owner
-    return acting_workspace_owner(
-        auth.client, auth.user_id, getattr(auth, "workspace_id", None)
-    )
-
-
-def _read_declaration(client, user_id: str, topic: str) -> Optional[str]:
-    """The LIVE declaration's body, or None. Not-in-Trash by construction —
-    the same predicate discovery owes (2026-09-07): a retired declaration
-    must read as absent here, or Run now would fire what the roster hides."""
-    from services.workspace_context import live_files_filter
-
-    rows = (
-        live_files_filter(
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", _decl_path(topic))
-        )
-        .limit(1)
-        .execute()
-    ).data or []
-    return rows[0].get("content") if rows else None
-
-
-def compose_standing_yaml(
-    *,
-    target: str,
-    schedule: Any,
-    paused: bool,
-    sources: list[dict],
-    app: Optional[str] = None,
-    shape: Optional[dict] = None,
-    fire_on_activation: bool = False,
-    browser: Optional[dict] = None,
-) -> str:
-    """Compose the ``_standing.yaml`` body — PURE machine config (ADR-569 D2:
-    judgment prose lives in CONTRACT.md, which no machine writer touches).
-    Deterministic, machine-class (ADR-254): comment header + safe_dump.
-
-    THE ONE COMPOSER (ADR-658 D4). The door, the switch and the widened PATCH
-    all emit through here; a second formatter is the drift `DECLARATION_KEYS`
-    was created to end."""
-    payload: dict[str, Any] = {"target": target}
-    if app:
-        payload["app"] = app
-    payload["schedule"] = schedule
-    if browser:
-        payload["browser"] = {"member": browser.get("member"),
-                              "sites": list(browser.get("sites") or [])}
-    if fire_on_activation:
-        payload["fire_on_activation"] = True
-    payload["paused"] = paused
-    payload["sources"] = sources
-    if shape:
-        payload["shape"] = shape
-    header = (
-        "# _standing.yaml — standing declaration (ADR-666: browser work)\n"
-        "# Run in the member's own browser, on these sites only. When it comes\n"
-        "# due it waits for that member to run it. Machine config only — what\n"
-        "# must be true when it finishes belongs in CONTRACT.md, not here.\n"
-    ) if browser else (
-        "# _standing.yaml — standing declaration (ADR-639: the kept file)\n"
-        "# On its schedule the sources are fetched and the designated target\n"
-        "# is revised under CONTRACT.md. Machine config only — what the file\n"
-        "# must stay true to belongs in CONTRACT.md, not here.\n"
-    )
-    return header + _yaml.safe_dump(payload, sort_keys=False, allow_unicode=True,
-                                    default_flow_style=False)
-
-
-def _parse_or_none(content: str, topic: str, user_id: str):
-    from services.standing_work import parse_standing_yaml
-    from services.workspace_context import effective_workspace_id
-    return parse_standing_yaml(
-        content, topic=topic, declaration_path=_decl_path(topic), user_id=user_id,
-        workspace_id=effective_workspace_id(user_id),
-    )
-
-
-def _guard_sources(auth, user_id: str, decl) -> None:
-    """The two source rules only the DOOR can ask (ADR-659 D4 rule 6, D5).
-
-    `source_unreadable` — a run reads with the OWNER's reach, so a source the
-    DECLARER cannot read would launder it into a file they can. Asked of the
-    ONE matcher the ReadFile gate uses.
-
-    `source_cycle` — a loop is a property of the workspace's declarations
-    TOGETHER, which the one-file parse cannot see: the candidate is set among
-    the live ones and the same marker discovery uses decides.
-    """
-    from services.primitives.workspace import _is_path_readable_for_principal
-    from services.standing_work import discover_standing, mark_source_cycles
-
-    for rel, is_folder in decl.path_sources():
-        if not _is_path_readable_for_principal(auth, rel + ("/" if is_folder else "")):
-            raise _refuse("source_unreadable")
-
-    if not decl.path_sources():
-        return
-    others = [
-        d for d in discover_standing(
-            auth.client, workspace_id=decl.workspace_id
-        ).get(user_id, [])
-        if d.slug != decl.slug
-    ]
-    mark_source_cycles(others + [decl])
-    if decl.problem is not None:
-        raise _refuse(decl.problem)
-
-
-async def _materialize(client, user_id: str) -> None:
-    """Immediate index sync post-write — a switched declaration re-arms now,
-    not at the next global discovery; a retired one drops its row now."""
-    from services.standing_work import discover_standing, materialize_standing_index
-    from services.workspace_context import effective_workspace_id
-    decls = discover_standing(
-        client, workspace_id=effective_workspace_id(user_id)
-    ).get(user_id, [])
-    await materialize_standing_index(client, user_id, decls)
-
-
 def _index_rows(client, user_id: str) -> dict[str, dict]:
     from services.standing_work import STANDING_KIND
 
@@ -389,7 +237,7 @@ def _runs_by_topic(auth, topics: list[str]) -> dict[str, tuple[Optional[dict], O
     raises: an unreadable ledger is a roster without runs, not a broken one."""
     from services.runs import ENDED_STATES, list_runs
 
-    ws = _acting_workspace(auth)
+    ws = door.acting_workspace(auth)
     if not ws or not topics:
         return {}
     rows = list_runs(auth.client, ws, topics=topics, limit=6 * len(topics) + 20)
@@ -505,50 +353,6 @@ def _summary_for(auth, user_id: str, decl) -> StandingSummary:
         auth, auth.client, user_id, decl, _index_rows(auth.client, user_id).get(decl.slug),
         _runs_by_topic(auth, [decl.topic]).get(decl.topic, (None, None)),
     )
-
-
-def _refuse(problem: str, status_code: int = 422) -> HTTPException:
-    """A refusal BY NAME (ADR-658 D4): the problem token the parser would
-    have served rides `detail.problem`, so the door can say which rule
-    refused rather than "invalid"."""
-    words = {
-        "missing_target": "Name the file to keep current.",
-        "invalid_target": "The file to keep current must be in this folder, one plain name.",
-        "unsupported_format": "Only md, csv, json and txt files can be kept current.",
-        "sources_invalid": (
-            "Add at least one source. A csv, json or txt file takes exactly one, "
-            "and a file rather than a folder."
-        ),
-        "source_cycle": (
-            "That would make a loop: this file would be kept from a file that is "
-            "kept from it. Choose a different source."
-        ),
-        "source_unreadable": "You can't read that part of the workspace, so it can't be a source.",
-        "app_invalid": "That app does not exist.",
-        "missing_contract": "Write what the file must stay true to.",
-        "already_declared": "This folder already has standing work. Open it instead.",
-        "browser_invalid": "Name at least one website, as a plain address like example.com.",
-        "browser_not_yours": "This work runs in another member's browser — they start it.",
-        "browser_needs_page": (
-            "This work runs in your browser: open yarnnn in Chrome with the yarnnn "
-            "extension on, then run it."
-        ),
-    }
-    return HTTPException(
-        status_code=status_code,
-        detail={"problem": problem, "message": words.get(problem, problem)},
-    )
-
-
-def _write_access(auth, path: str) -> None:
-    # ADR-643 D2 — a declaration schedules UNATTENDED spend (ADR-618), which
-    # makes it one of the sharper writes in the substrate; the door asks the
-    # ONE decider before composing.
-    from services.access import resolve_access
-
-    decision = resolve_access(auth, path, "write")
-    if not decision.allowed:
-        raise HTTPException(status_code=403, detail=decision.reason)
 
 
 # ---------------------------------------------------------------------------
@@ -699,9 +503,9 @@ async def list_standing(auth: UserClient) -> list[StandingSummary]:
     """What stands in the acting workspace, with each declaration's last run."""
     from services.standing_work import discover_standing
 
-    actor = _acting_owner(auth)
+    actor = door.acting_owner(auth)
     decls = sorted(
-        discover_standing(auth.client, workspace_id=_acting_workspace(auth)).get(actor, []),
+        discover_standing(auth.client, workspace_id=door.acting_workspace(auth)).get(actor, []),
         key=lambda d: d.topic,
     )
     by_slug = _index_rows(auth.client, actor)
@@ -723,91 +527,22 @@ async def list_standing(auth: UserClient) -> list[StandingSummary]:
 async def list_standing_starts(auth: UserClient) -> list[StandingStart]:
     """The pre-shaped starts (ADR-658 D7), derived from what the workspace's
     owner has connected — the connections a run will actually reach through."""
-    return standing_starts(auth.client, _acting_owner(auth))
+    return standing_starts(auth.client, door.acting_owner(auth))
 
 
 @router.post("/standing", status_code=201)
 async def create_standing(request: CreateStandingRequest, auth: UserClient) -> StandingSummary:
-    """The door (ADR-658 D4). Composes through the ONE composer, parses through
-    the ONE parser, writes through the ONE write path — and refuses BY NAME.
-
-    Order: the folder is validated; a blank contract is refused (the contract
-    is the load-bearing half — without it no run can be judged); a folder
-    that already holds a LIVE declaration is refused (one per folder, ADR-569
-    D2); the composed YAML is parsed and any problem refuses the write; access
-    is asked; then CONTRACT.md and _standing.yaml land as `lifecycle='active'`
-    revisions (a retired declaration at this path is REVIVED, never left in
-    Trash — ADR-658 A1.6); the index is synced so the roster shows it now.
-    """
-    actor = _acting_owner(auth)
-    topic = _validate_topic(request.folder)
-    decl_path = _decl_path(topic)
-    contract_path = _contract_path(topic)
-
-    contract = (request.contract or "").strip()
-    if not contract:
-        raise _refuse("missing_contract")
-    if _read_declaration(auth.client, actor, topic) is not None:
-        raise _refuse("already_declared", status_code=409)
-
-    sources = [s for s in (request.sources or []) if isinstance(s, dict)]
-    app = (str(request.app).strip() if request.app else None) or None
-    shape = request.shape if isinstance(request.shape, dict) and request.shape else None
-    # ADR-666 D1 — browser work is the SIGNED-IN member's: the door stamps who.
-    browser = (
-        {"member": auth.user_id, "sites": list(request.browser_sites)}
-        if request.browser_sites is not None else None
-    )
-    content = compose_standing_yaml(
-        target=(request.target or "").strip(),
-        app=app,
-        schedule=request.schedule,
-        paused=False,
-        sources=sources,
-        shape=shape,
-        # The first run fires on the next tick, not at the first cron boundary
-        # (ADR-658 D7): the member sees the file change within minutes. Browser
-        # work is never fired by a tick — its member runs it (ADR-666 D4).
-        fire_on_activation=browser is None,
-        browser=browser,
-    )
-    decl = _parse_or_none(content, topic, actor)
-    if decl is None:  # cannot happen for content we just composed — fail loud
-        raise HTTPException(status_code=500, detail="composed declaration unparseable")
-    if decl.problem is not None:
-        raise _refuse(decl.problem)
-    _guard_sources(auth, actor, decl)
-
-    _write_access(auth, decl_path)
-
-    from services.authored_substrate import write_revision
-    ws = getattr(auth, "workspace_id", None)
-    write_revision(
-        auth.client,
-        user_id=actor,
-        path=contract_path,
-        content=contract + "\n",
-        authored_by="operator",
-        author_identity_uuid=auth.user_id,
-        message=f"declare standing work in '{topic}': the instructions",
-        workspace_id=ws,
-        lifecycle="active",
-    )
-    write_revision(
-        auth.client,
-        user_id=actor,
-        path=decl_path,
-        content=content,
-        authored_by="operator",
-        author_identity_uuid=auth.user_id,
-        message=(f"declare browser work in '{topic}': keep '{decl.target}' true"
-                 if browser else
-                 f"declare standing work in '{topic}': keep '{decl.target}' current"),
-        workspace_id=ws,
-        lifecycle="active",
-    )
-    await _materialize(auth.client, actor)
-    return _summary_for(auth, actor, decl)
+    """The door (ADR-658 D4) — `services.standing_door.declare`, the one door
+    a conversation's `DeclareWork` also calls (ADR-667 D2). Refuses BY NAME."""
+    try:
+        decl = await door.declare(
+            auth, folder=request.folder, target=request.target, schedule=request.schedule,
+            contract=request.contract, app=request.app, sources=request.sources,
+            shape=request.shape, browser_sites=request.browser_sites,
+        )
+    except DoorRefusal as e:
+        raise _http(e) from e
+    return _summary_for(auth, door.acting_owner(auth), decl)
 
 
 @router.get("/standing/{topic:path}")
@@ -815,17 +550,17 @@ async def get_standing(topic: str, auth: UserClient) -> StandingDetail:
     """The detail (ADR-658 D6): the summary, the instructions, the runs."""
     from services.standing_work import _read_file
 
-    actor = _acting_owner(auth)
+    actor = door.acting_owner(auth)
     topic = _validate_topic(topic)
-    content = _read_declaration(auth.client, actor, topic)
+    content = door.read_declaration(auth.client, actor, topic)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
-    decl = _parse_or_none(content, topic, actor)
+    decl = door.parse(content, topic, actor)
     if decl is None:
         raise HTTPException(status_code=422, detail="declaration unparseable — repair it first")
     from services.runs import list_runs
 
-    ws = _acting_workspace(auth)
+    ws = door.acting_workspace(auth)
     return StandingDetail(
         summary=_summary_for(auth, actor, decl),
         contract_path=decl.contract_path,
@@ -837,82 +572,19 @@ async def get_standing(topic: str, auth: UserClient) -> StandingDetail:
 
 @router.patch("/standing/{topic:path}")
 async def update_standing(topic: str, request: UpdateStandingRequest, auth: UserClient) -> StandingSummary:
-    """Pause / Resume, and the composer's own fields (ADR-658 D6). A change
-    that would leave the declaration unable to run is refused BY NAME and
-    writes nothing; the pause switch alone is never refused."""
-    actor = _acting_owner(auth)
-    topic = _validate_topic(topic)
-    content = _read_declaration(auth.client, actor, topic)
-    if content is None:
-        raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
-
+    """Pause / Resume, and the composer's own fields (ADR-658 D6) —
+    `services.standing_door.revise`. A change that would leave the declaration
+    unable to run is refused BY NAME and writes nothing; the pause switch
+    alone is never refused."""
     try:
-        parsed = _yaml.safe_load(_strip_frontmatter(content)) or {}
-    except _yaml.YAMLError:
-        raise HTTPException(status_code=422, detail="existing declaration unparseable — repair it in the conversation")
-    if not isinstance(parsed, dict):
-        raise HTTPException(status_code=422, detail="existing declaration unparseable — repair it in the conversation")
-
-    if request.paused is not None:
-        parsed["paused"] = request.paused
-    edited = False
-    if request.schedule is not None:
-        parsed["schedule"] = request.schedule
-        edited = True
-    if request.sources is not None:
-        parsed["sources"] = [s for s in request.sources if isinstance(s, dict)]
-        edited = True
-    if request.shape is not None:
-        parsed["shape"] = request.shape if request.shape else None
-        edited = True
-    if request.target is not None:
-        parsed["target"] = str(request.target).strip()
-        edited = True
-    if request.browser_sites is not None:
-        if not isinstance(parsed.get("browser"), dict):
-            raise _refuse("browser_invalid")
-        parsed["browser"] = {**parsed["browser"], "sites": list(request.browser_sites)}
-        edited = True
-
-    # fire_on_activation is consume-on-first-update (the radar lesson: a
-    # re-emitted create-time flag kept a never-run declaration permanently
-    # armed through every pause/resume).
-    new_content = compose_standing_yaml(
-        target=str(parsed.get("target") or ""),
-        app=(str(parsed.get("app")).strip() if parsed.get("app") else None),
-        schedule=parsed.get("schedule"),
-        paused=bool(parsed.get("paused", False)),
-        sources=[s for s in (parsed.get("sources") or []) if isinstance(s, dict)],
-        shape=parsed.get("shape") if isinstance(parsed.get("shape"), dict) else None,
-        browser=parsed.get("browser") if isinstance(parsed.get("browser"), dict) else None,
-    )
-    decl = _parse_or_none(new_content, topic, actor)
-    if decl is None:  # cannot happen for content we just composed — fail loud
-        raise HTTPException(status_code=500, detail="recomposed declaration unparseable")
-    if edited and decl.problem is not None:
-        raise _refuse(decl.problem)
-    if edited:
-        _guard_sources(auth, actor, decl)
-
-    _write_access(auth, _decl_path(topic))
-
-    from services.authored_substrate import write_revision
-    if edited:
-        message = f"edit standing work in '{topic}'"
-    else:
-        message = f"{'pause' if parsed.get('paused') else 'resume'} standing work in '{topic}'"
-    write_revision(
-        auth.client,
-        user_id=actor,
-        path=_decl_path(topic),
-        content=new_content,
-        authored_by="operator",
-        author_identity_uuid=auth.user_id,
-        message=message,
-        workspace_id=getattr(auth, "workspace_id", None),
-    )
-    await _materialize(auth.client, actor)
-    return _summary_for(auth, actor, decl)
+        decl = await door.revise(
+            auth, topic, paused=request.paused, schedule=request.schedule,
+            sources=request.sources, shape=request.shape, target=request.target,
+            browser_sites=request.browser_sites,
+        )
+    except DoorRefusal as e:
+        raise _http(e) from e
+    return _summary_for(auth, door.acting_owner(auth), decl)
 
 
 @router.delete("/standing/{topic:path}")
@@ -921,14 +593,17 @@ async def retire_standing(topic: str, auth: UserClient) -> dict:
     attributed, restorable in one act. The kept file and its instructions are
     NOT touched: retiring stops a file being kept current, it does not destroy
     what was made. The index drops the row now."""
-    actor = _acting_owner(auth)
+    actor = door.acting_owner(auth)
     topic = _validate_topic(topic)
-    content = _read_declaration(auth.client, actor, topic)
+    content = door.read_declaration(auth.client, actor, topic)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
-    decl = _parse_or_none(content, topic, actor)
-    decl_path = _decl_path(topic)
-    _write_access(auth, decl_path)
+    decl = door.parse(content, topic, actor)
+    decl_path = door.decl_path(topic)
+    try:
+        door.write_access(auth, decl_path)
+    except DoorRefusal as e:
+        raise _http(e) from e
 
     from services.authored_substrate import archive_live_file
     tombstone = archive_live_file(
@@ -942,8 +617,8 @@ async def retire_standing(topic: str, auth: UserClient) -> dict:
     )
     if tombstone is None:
         raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
-    await _materialize(auth.client, actor)
-    kept = [_contract_path(topic)]
+    await door.materialize(auth.client, actor)
+    kept = [door.contract_path(topic)]
     if decl is not None and decl.target:
         kept.insert(0, decl.target_path)
     return {
@@ -963,12 +638,12 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     from services.scheduling import claim_run, record_run
     from services.standing_work import STANDING_KIND, run_standing_sweep
 
-    actor = _acting_owner(auth)
+    actor = door.acting_owner(auth)
     topic = _validate_topic(topic)
-    content = _read_declaration(auth.client, actor, topic)
+    content = door.read_declaration(auth.client, actor, topic)
     if content is None:
         raise HTTPException(status_code=404, detail=f"no standing declaration in '{topic}'")
-    decl = _parse_or_none(content, topic, actor)
+    decl = door.parse(content, topic, actor)
     if decl is None:
         raise HTTPException(status_code=422, detail="declaration unparseable — repair it first")
     if decl.problem is not None:
@@ -985,7 +660,7 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     # Materialize FIRST: a declaration written since the last tick has no index
     # row, and "no row" must never mean "free to run unclaimed" — the tick could
     # index and claim it a second later.
-    await _materialize(auth.client, actor)
+    await door.materialize(auth.client, actor)
     if not claim_run(auth.client, actor, decl.slug, STANDING_KIND):
         # `already`, not `no_change`: the run IS happening and may well change
         # the file — reported as "nothing changed" it contradicted the run card
@@ -1044,9 +719,9 @@ async def _start_browser_run(auth, actor: str, decl) -> dict:
     from services.standing_work import _read_file, browser_run_ask
 
     if decl.browser.get("member") != auth.user_id:
-        raise _refuse("browser_not_yours", status_code=403)
+        raise _http(DoorRefusal("browser_not_yours", status_code=403))
 
-    live = runs.live_for_topic(auth.client, decl.workspace_id or _acting_workspace(auth), decl.topic)
+    live = runs.live_for_topic(auth.client, decl.workspace_id or door.acting_workspace(auth), decl.topic)
     if live and live.get("state") in ("queued", "running"):
         try:
             age = (datetime.now(_tz.utc) - datetime.fromisoformat(
@@ -1073,6 +748,3 @@ async def _start_browser_run(auth, actor: str, decl) -> dict:
     return {"success": True, "browser": True, "run_id": run_id, "lane_id": lane_id}
 
 
-def _strip_frontmatter(content: str) -> str:
-    m = re.match(r"^---\s*\n.*?\n---\s*\n", content, re.DOTALL)
-    return content[m.end():] if m else content

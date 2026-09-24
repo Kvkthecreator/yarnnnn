@@ -8,11 +8,12 @@
  * ADR-435 declined to name and ADR-653 D3.a promoted, and this is its first
  * tenant.
  *
- * ⭐ WHAT IT IS FOR (ADR-658 §11): where a member creates, sees and manages the
- * work that runs on its own — a verb bound to a connected system, minded by an
- * agent the workspace derives. The `work` band is the cockpit; a row opens its
- * detail (D6); the empty state offers pre-shaped starts (D7); the door creates
- * (D4). Files shows files, Reach shows connections, Chat shows one
+ * ⭐ WHAT IT IS FOR (ADR-658 §11 → ADR-667): where a member sets up, sees and
+ * manages the work that keeps happening. Work is SET UP IN CONVERSATION — the
+ * Supervisor's own agent, beside the cockpit (ADR-667 D1) — and the browser is
+ * the prerequisite for setting up and running it, never for seeing it
+ * (`BrowserGate`, D4). The cockpit reads by run state; a row opens its detail
+ * (ADR-658 D6). Files shows files, Reach shows connections, Chat shows one
  * conversation, Notifications shows what already happened — nothing else shows
  * the work itself, which is why this is not the glorified redirect ADR-435
  * deleted the last composition for being.
@@ -31,12 +32,11 @@
  * THE THREE BANDS (APP-BUILDER-UX §2.2, the part that survived the re-scope):
  *   1. what this is      — the name and the one-line claim
  *   2. who is minding it — the resident, named
- *   3. the work          — the declared sections
+ *   3. the work          — the declared sections, beside the conversation
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Plus } from 'lucide-react';
 import { api, type Run, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import {
   SupervisorSection,
@@ -46,8 +46,8 @@ import {
 } from '@/components/supervisor/SupervisorSection';
 import { useRuns } from '@/lib/runs/useRuns';
 import { MinderBand } from '@/components/supervisor/MinderBand';
-import { StartPicker } from '@/components/supervisor/StartPicker';
-import { NewStandingWorkModal } from '@/components/supervisor/NewStandingWorkModal';
+import { BrowserGate } from '@/components/supervisor/BrowserGate';
+import { Conversation } from '@/components/supervisor/Conversation';
 import { StandingDetail } from '@/components/supervisor/StandingDetail';
 import { Working } from '@/components/shared/Working';
 import { useFeedback } from '@/contexts/FeedbackContext';
@@ -81,16 +81,8 @@ export function SupervisorSurface() {
   const [rows, setRows] = useState<StandingSummary[] | null>(null);
   const [rosterFailed, setRosterFailed] = useState(false);
   const [starts, setStarts] = useState<StandingStart[]>([]);
-  const [timezone, setTimezone] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [newOpen, setNewOpen] = useState(false);
-  const [newStart, setNewStart] = useState<StandingStart | null>(null);
-  // ⭐ THE DOOR IS TWO STEPS, like every other creation door: pick what it
-  // should keep current, then name it. The starts used to live only in the
-  // work band's empty state, so they vanished the moment a member had one
-  // piece of work — leaving a blank form as the sole path.
-  const [pickerOpen, setPickerOpen] = useState(false);
   const { navigateToSurface, userId } = useSurfacePreferences();
   const { runAction } = useFeedback();
   const { runs, failed: runsFailed, refresh: refreshRuns } = useRuns();
@@ -104,8 +96,6 @@ export function SupervisorSurface() {
       const list = await api.standing.list();
       setRows(list);
       setRosterFailed(false);
-      const tz = list.find((r) => r.timezone)?.timezone ?? null;
-      if (tz) setTimezone(tz);
     } catch {
       setRows([]);
       setRosterFailed(true);
@@ -132,8 +122,6 @@ export function SupervisorSurface() {
       (list) => {
         if (cancelled) return;
         setRows(list);
-        const tz = list.find((r) => r.timezone)?.timezone ?? null;
-        if (tz) setTimezone(tz);
       },
       () => { if (!cancelled) { setRows([]); setRosterFailed(true); } },
     );
@@ -211,26 +199,12 @@ export function SupervisorSurface() {
   const work: WorkBand = {
     rows,
     failed: rosterFailed,
-    starts,
     busy,
     notes,
     viewerId: userId ?? null,
     onRunNow: runNow,
     onTogglePause: togglePause,
     onOpen: (row) => param.set({ work: row.topic }),
-    // The band asks for the door; the door's first step is the picker. A band
-    // that already knows the start (it does not, today) still lands correctly.
-    onNew: (start) => {
-      if (start) {
-        setNewStart(start);
-        setNewOpen(true);
-      } else {
-        setPickerOpen(true);
-      }
-    },
-    onOpenReach: () => {
-      navigateToSurface('reach');
-    },
   };
 
   const runsBand: RunsBand = {
@@ -242,9 +216,14 @@ export function SupervisorSurface() {
     onOpenFile: (path: string) => navigateToSurface('files', { path }),
     onChanged: () => { void refreshRuns(); void loadRoster(); },
   };
-  // Band 2's working state follows the LEDGER, not only this page's own
-  // click: a run going anywhere in the workspace is named.
-  const workingTopic = busy ?? (runs ?? []).find((r) => r.state === 'running' && r.topic)?.topic ?? null;
+  // ADR-667 D1 — the conversation opens on what this workspace can set up:
+  // one suggestion per start the server derives, worded here so it speaks the
+  // member's language (a start's served title does not).
+  const suggestions = starts.map((st) =>
+    st.kind === 'connector' ? t('conversation.suggestConnector', { name: st.name })
+      : st.kind === 'browser' ? t('conversation.suggestBrowser')
+      : st.kind === 'path' ? t('conversation.suggestPath')
+      : t('conversation.suggestUrl'));
 
   if (failed && rosterFailed) {
     return (
@@ -266,7 +245,7 @@ export function SupervisorSurface() {
   const state: SupervisorStateData | null = data ?? (failed ? { needs_you: [] } : null);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
+    <div className="flex h-full flex-col overflow-y-auto lg:overflow-hidden">
       {/* Band 1 — the visible claim, and the door beside it.
           ⭐ The door was reachable ONLY from inside the work band, so it moved
           as the band's contents changed and vanished entirely while the roster
@@ -280,15 +259,6 @@ export function SupervisorSurface() {
             {t('surface.claim')}
           </p>
         </div>
-        {!openTopic && rows !== null && rows.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
-          >
-            <Plus className="h-3.5 w-3.5" /> {t('surface.newWork')}
-          </button>
-        )}
       </header>
 
       {/* Band 2 — who is minding it, in its three ruled states (§4.1). It was a
@@ -296,60 +266,56 @@ export function SupervisorSurface() {
           the roster this surface already holds — no fourth read. */}
       <MinderBand
         rows={rows}
-        busyTopic={workingTopic}
+        runs={runs}
+        viewerId={userId ?? null}
+        busyTopic={busy}
         onOpen={(topic) => param.set({ work: topic })}
+        onRunIt={runsBand.onRunIt}
       />
 
 
-      {/* Band 3 — the declared sections, or one piece of work opened (D6). */}
+      {/* Band 3 — one piece of work opened (D6), or the declared sections
+          beside the Supervisor's conversation (ADR-667 D1). On a narrow
+          screen the conversation comes first: it is where work begins. */}
       {openTopic ? (
-        <StandingDetail
-          topic={openTopic}
-          onBack={() => param.set({ work: null })}
-          onChanged={() => void loadRoster()}
-        />
+        <div className="flex-1">
+          <StandingDetail
+            topic={openTopic}
+            onBack={() => param.set({ work: null })}
+            onChanged={() => void loadRoster()}
+          />
+        </div>
       ) : (
-        <div className="flex-1 space-y-5 px-5 py-4">
-          {SECTIONS.map((section) => (
-            <SupervisorSection
-              key={section.kind}
-              section={{ kind: section.kind, title: t(`surface.${section.titleKey}`) }}
-              data={state}
-              work={work}
-              runs={runsBand}
-              onOpenLane={openLane}
-            />
-          ))}
+        <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
+          <aside className="px-5 pt-4 lg:order-last lg:flex lg:w-[440px] lg:shrink-0 lg:flex-col lg:border-l lg:border-border/60 lg:p-4">
+            <BrowserGate>
+              <Conversation
+                app="supervisor"
+                suggestions={suggestions}
+                emptyState={
+                  <div className="space-y-1 text-center">
+                    <p className="text-[13px] font-medium text-foreground">{t('conversation.emptyTitle')}</p>
+                    <p className="text-xs text-muted-foreground">{t('conversation.emptyBody')}</p>
+                  </div>
+                }
+                className="h-[520px] lg:h-full"
+              />
+            </BrowserGate>
+          </aside>
+          <div className="flex-1 space-y-5 px-5 py-4 lg:overflow-y-auto">
+            {SECTIONS.map((section) => (
+              <SupervisorSection
+                key={section.kind}
+                section={{ kind: section.kind, title: t(`surface.${section.titleKey}`) }}
+                data={state}
+                work={work}
+                runs={runsBand}
+                onOpenLane={openLane}
+              />
+            ))}
+          </div>
         </div>
       )}
-
-      <StartPicker
-        open={pickerOpen}
-        starts={starts}
-        onClose={() => setPickerOpen(false)}
-        onOpenReach={() => {
-          setPickerOpen(false);
-          navigateToSurface('reach');
-        }}
-        onPick={(start) => {
-          setPickerOpen(false);
-          setNewStart(start);
-          setNewOpen(true);
-        }}
-      />
-
-      <NewStandingWorkModal
-        open={newOpen}
-        start={newStart}
-        starts={starts}
-        timezone={timezone}
-        onClose={() => setNewOpen(false)}
-        onCreated={(created) => {
-          setNewOpen(false);
-          void loadRoster();
-          param.set({ work: created.topic });
-        }}
-      />
     </div>
   );
 }

@@ -76,6 +76,8 @@ const TOOL_VERBS: Record<string, boolean> = {
   WebSearch: true,
   list_integrations: false,
   GenerateImage: false,
+  // ADR-667 D2 — the one door to standing work; its subject is the folder.
+  DeclareWork: true,
 
   // ADR-585 turn reach — the read-only platform surface a reach-bearing turn
   // holds. Un-named, these fell through `humanize` and printed

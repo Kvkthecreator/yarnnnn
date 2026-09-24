@@ -252,7 +252,7 @@ check("scheduling.__all__ names only what exists",
 # The manual door: materialize → claim → run(force) → release in `finally`.
 _run_src = _routes_src.split("async def run_standing_now")[1].split("\ndef ")[0]
 check("Run now materializes BEFORE it claims",
-      0 < _run_src.find("await _materialize(") < _run_src.find("claim_run("))
+      0 < _run_src.find("await door.materialize(") < _run_src.find("claim_run("))
 check("Run now releases in a `finally`",
       "finally:" in _run_src and _run_src.find("finally:") < _run_src.find("record_run("))
 

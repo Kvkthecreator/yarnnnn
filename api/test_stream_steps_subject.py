@@ -121,7 +121,7 @@ _SUBJECTLESS = {"list_integrations"}
 for name in LANE_TOOL_NAMES + LANE_SURFACE_EXTRA:
     if name in _SUBJECTLESS:
         continue
-    probe = {"path": "p/x.md", "query": "q", "prompt": "pr", "new_path": "p/y.md"}
+    probe = {"path": "p/x.md", "query": "q", "prompt": "pr", "new_path": "p/y.md", "folder": "p/"}
     check(f"{name} names a subject", tool_subject_from(name, probe) is not None)
 
 print()

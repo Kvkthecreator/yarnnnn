@@ -214,8 +214,10 @@ if "keeping-a-file-current" in K and "declaring-standing-work" in K:
     check("both descriptions are discovery-grade (<= 300 chars)",
           len(keep["description"]) <= 300 and len(decl["description"]) <= 300)
     check("keeping carries the output contract's honesty (NO_CHANGE) as craft", "NO_CHANGE" in keep["body"])
-    check("declaring teaches the grammar (target · app · schedule · sources · shape)",
-          all(w in decl["body"] for w in ("_standing.yaml", "target:", "app:", "schedule:", "sources:", "shape:")))
+    # ADR-667 D2 — the grammar is DeclareWork's; the app derives from the target.
+    check("declaring teaches the grammar (DeclareWork · target · schedule · sources · shape · sites)",
+          all(w in decl["body"] for w in ("DeclareWork", "_standing.yaml", "target:", "schedule:",
+                                          "sources:", "shape:", "sites:")))
     check("declaring teaches the law (only the designated target)", "DESIGNATED target" in decl["body"])
     check("neither skill names an agent (ADR-630 D5)",
           not any(a in (keep["body"] + decl["body"]) for a in ("Supervisor", "Keeper", "Editor")))

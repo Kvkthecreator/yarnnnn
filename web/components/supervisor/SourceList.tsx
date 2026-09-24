@@ -134,7 +134,6 @@ export function AddSource({
   disabled?: boolean;
 }) {
   const t = useTranslations('supervisor.sources');
-  const tn = useTranslations('supervisor.newWork');
   const [open, setOpen] = useState(false);
   const connectorStarts = starts.filter((s) => s.kind === 'connector');
   const [kind, setKind] = useState<'connector' | 'path' | 'url'>(
@@ -207,11 +206,11 @@ export function AddSource({
       <div className="flex flex-wrap gap-2">
         {connectorStarts.length > 0 && (
           <Tab active={kind === 'connector'} onClick={() => setKind('connector')}>
-            {tn('sourceConnection')}
+            {t('sourceConnection')}
           </Tab>
         )}
-        <Tab active={kind === 'path'} onClick={() => setKind('path')}>{tn('sourceWorkspace')}</Tab>
-        <Tab active={kind === 'url'} onClick={() => setKind('url')}>{tn('sourceWebPage')}</Tab>
+        <Tab active={kind === 'path'} onClick={() => setKind('path')}>{t('sourceWorkspace')}</Tab>
+        <Tab active={kind === 'url'} onClick={() => setKind('url')}>{t('sourceWebPage')}</Tab>
       </div>
 
       {kind === 'connector' ? (
@@ -239,12 +238,12 @@ export function AddSource({
             </select>
           ) : (
             <p className="text-[11px] text-amber-700 dark:text-amber-300">
-              {(chosen?.selectors.length ?? 0) > 0 ? t('allAdded') : tn('nothingChosen')}
+              {(chosen?.selectors.length ?? 0) > 0 ? t('allAdded') : t('nothingChosen')}
             </p>
           )}
           {chosen?.reads && (
             <p className="text-[11px] text-muted-foreground">
-              {tn('itReads', { reads: lowerFirst(chosen.reads) })}
+              {t('itReads', { reads: lowerFirst(chosen.reads) })}
             </p>
           )}
         </div>
@@ -254,7 +253,7 @@ export function AddSource({
             value={path}
             onChange={(e) => setPath(e.target.value)}
             list="standing-source-folders"
-            placeholder={tn('pathPlaceholder')}
+            placeholder={t('pathPlaceholder')}
             className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-foreground/30"
           />
           <datalist id="standing-source-folders">
@@ -265,7 +264,7 @@ export function AddSource({
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder={tn('urlPlaceholder')}
+          placeholder={t('urlPlaceholder')}
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
         />
       )}
@@ -276,7 +275,7 @@ export function AddSource({
           onClick={reset}
           className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
         >
-          {tn('cancel')}
+          {t('cancel')}
         </button>
         <button
           type="button"

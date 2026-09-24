@@ -374,6 +374,9 @@ export function NewArtifactModal({
 
       <WorkspacePickerModal
         open={pickingDest}
+        // Opened from inside this dialog: the nested tier dims the dialog
+        // beneath it (ADR-658 A3.3 — the defect named there, left for its owner).
+        nested
         mode="folder"
         title="Choose a destination"
         subtitle="Where the new file lives"

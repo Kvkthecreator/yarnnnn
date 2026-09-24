@@ -101,6 +101,8 @@ from .track_regime import handle_track_regime
 from .track_web_sources import handle_track_web_sources
 # ADR-335 Crawl-B Increment B (enacts ADR-335 D4/D5): generic MCP-transport
 # standing-watch executor (the first binding reads a repo via GitHub MCP).
+# ADR-667 D2 — the conversation's door to standing work.
+from .declare_work import DECLARE_WORK_TOOL, handle_declare_work
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
     EXECUTE_PROPOSAL_TOOL, handle_execute_proposal,
@@ -311,6 +313,8 @@ HANDLERS: dict[str, Callable] = {
     "SearchFiles": handle_search_files,
     "QueryKnowledge": handle_query_knowledge,
     "ListFiles": handle_list_files,
+    # ADR-667 D2: the one door to standing work, from a conversation.
+    "DeclareWork": handle_declare_work,
     # ADR-325: Embed — explicit make-AI-ready (consequential, gate-queueable).
     "Embed": handle_embed,
     # ADR-193: Approval loop

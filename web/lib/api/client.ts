@@ -726,7 +726,7 @@ export interface StandingSummary {
   next_run_at?: string | null;
   /** Parseable-but-cannot-run (served loudly): missing_target |
    *  invalid_target | unsupported_format | sources_invalid | app_invalid |
-   *  source_cycle | browser_invalid. */
+   *  source_cycle | browser_invalid | browser_member_unknown (ADR-667 D3). */
   problem?: string | null;
   /** ADR-666 — the newest ENDED run, and the run going or waiting now. */
   last_run?: Run | null;
@@ -773,20 +773,6 @@ export interface StandingStart {
   suggested_target: string;
   suggested_schedule: string;
   contract_seed: string;
-}
-
-/** What the door takes (ADR-658 D4) — every field one the composer already knows. */
-export interface StandingCreateRequest {
-  folder: string;
-  target: string;
-  schedule: string | string[];
-  contract: string;
-  app?: string | null;
-  sources?: Array<{ id: string; url?: string; connector?: string; selector?: string; path?: string }>;
-  shape?: Record<string, unknown> | null;
-  /** ADR-666 D1 — browser work on these sites, in the signed-in member's own
-   *  browser. The server stamps who; the client never names a member. */
-  browser_sites?: string[] | null;
 }
 
 /** A topic is a meaning-folder path — encode each segment, keep the '/'
@@ -1115,13 +1101,8 @@ export const api = {
     list: () => request<StandingSummary[]>("/api/standing"),
     /** The pre-shaped starts, derived from what is connected (ADR-658 D7). */
     starts: () => request<StandingStart[]>("/api/standing/starts"),
-    /** The door (ADR-658 D4). A refusal rides `detail.problem` by name. */
-    create: (body: StandingCreateRequest) =>
-      request<StandingSummary>("/api/standing", {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
-    /** The detail (ADR-658 D6): summary · instructions · runs. */
+    /** The detail (ADR-658 D6): summary · instructions · runs. Work is
+     *  created in the Supervisor's conversation (ADR-667 D1), not from here. */
     get: (topic: string) =>
       request<StandingDetailData>(`/api/standing/${encodeTopic(topic)}`),
     update: (

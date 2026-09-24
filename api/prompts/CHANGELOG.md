@@ -15,6 +15,22 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.24.2] - The Supervisor sets work up in conversation: its job re-derived, DeclareWork, the skill on the one door
+
+### Changed
+- services/apps/supervisor.py: `build_supervisor_posture` re-derived (ADR-667 D5) — the agent AUTHORS standing work with DeclareWork, sets up website work by doing it once in the member's browser and then declaring what worked, runs no piece itself, explains a failure from its record. A per-turn `THE WORK NOW` block (the roster and each piece's newest run) replaces what it used to remember. DELETED: the ADR-656 job (splitting threads, "you do the work of no thread") and the `supervisor/` folder for decisions.
+- services/agents_registry.py: the Supervisor's character drops "you do the work of no thread … hand it to the place that owns it" and "what was already decided and where it was written down"; blurb "Sets up and keeps the work that keeps happening."
+- services/primitives/declare_work.py: `DeclareWork` — NEW lane tool (ADR-667 D2), on the uniform lane surface as an artifact verb. `sites` makes it browser work in the acting member's browser; the schema names no member.
+- services/primitives/workspace.py: WriteFile/EditFile refuse `_standing.yaml`, naming DeclareWork.
+- services/skills/declaring-standing-work/SKILL.md: declares through DeclareWork, never a hand-written `_standing.yaml`; names the two kinds (on its own · in the member's browser, done once first) and `sites`.
+- Expected behavior: in the Supervisor's conversation the agent asks what the kept file must stay true to, does website work once while the member watches, then declares it with the sites it actually used; it answers "what's going on" from the roster block; no agent writes `_standing.yaml` by hand, so no agent can name a member's browser.
+
+### Why
+Observed 2026-09-24 (audit, HEAD `085c6f9`): the Supervisor's job text never mentioned standing work, runs or the browser — zero occurrences, re-counted — and still carried ADR-656's thread-splitting job; the character forbade the one thing setup-by-doing needs. The agent was reached ONCE in production (one Supervisor-bound lane, 2026-09-18) because the pane mounted no conversation. The skill could not declare browser work at all (no `browser` key), and a hand-written declaration could name any member's browser: the parser checked only uuid shape (`standing_work._parse_browser`).
+
+### Gate
+`test_adr667_the_supervisor_is_set_up_in_conversation.py` 37/37, 10 arms falsified in place · `test_adr632_the_seat_retires.py` 73/73 · `test_adr630_skills.py` 159/159 · `test_adr658` 130/130 · `test_adr666` 73/73.
+
 ## [2026.09.24.1] - A browser run's opening message, and the two sentences a stopped or out-of-scope act answers
 
 ### Changed

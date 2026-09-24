@@ -1,5 +1,9 @@
 # ADR-666 — The run: work that acts, seen while it happens
 
+> **Amended by [ADR-667](ADR-667-the-supervisor-is-set-up-in-conversation.md)** (2026-09-24): D1's member stamp holds
+> at the kernel (`browser_member_unknown`); a taken-up run keeps `trigger: scheduled` (D4); needs-you lists a waiting
+> run only for its own member, and the band names whose browser (D8).
+>
 > **Status**: **Accepted** (2026-09-24; operator: *"yes, aligned in full … ensure singular streamlined discipline
 > with code and docs, scoping in deletion and clean-up of code where warranted"*). Implemented with this
 > document — §9 is the census.

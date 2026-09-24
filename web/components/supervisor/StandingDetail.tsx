@@ -40,7 +40,7 @@ import {
   type StandingStart,
 } from '@/lib/api/client';
 import { RunView } from '@/components/runs/RunView';
-import { WorkConversation } from '@/components/supervisor/WorkConversation';
+import { Conversation } from '@/components/supervisor/Conversation';
 import { useRuns } from '@/lib/runs/useRuns';
 import { browserHands } from '@/lib/shell/hands';
 import { AddSource, MAX_SOURCES_PROSE, SourceRow, isStructured } from '@/components/supervisor/SourceList';
@@ -477,7 +477,7 @@ export function StandingDetail({
                     <input
                       value={sitesDraft}
                       onChange={(e) => setSitesDraft(e.target.value)}
-                      placeholder={t('newWork.sitesPlaceholder')}
+                      placeholder={t('detail.sitesPlaceholder')}
                       className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs"
                     />
                     <div className="flex justify-end gap-2">
@@ -622,7 +622,7 @@ export function StandingDetail({
             <h3 className="text-[13px] font-medium text-foreground/80">{t('detail.conversation')}</h3>
             <p className="text-[11px] text-muted-foreground">{t('detail.conversationHint')}</p>
           </div>
-          <WorkConversation
+          <Conversation
             laneId={laneId}
             app={s.app || 'text'}
             startRunId={activeRun}

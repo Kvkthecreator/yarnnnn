@@ -45,6 +45,7 @@ const KNOWN_PROBLEMS: readonly string[] = [
   'app_invalid',
   'source_cycle',
   'browser_invalid',
+  'browser_member_unknown',
 ];
 
 /** A served sentence composed mid-line loses its capital ("reads the latest 50 messages…").

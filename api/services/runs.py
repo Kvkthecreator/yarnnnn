@@ -164,6 +164,10 @@ def raise_due(decl: Any) -> dict:
     WAITING on its member. One per declaration — the unique index
     `runs_one_waiting_per_topic` refuses a second, which reads as "already
     waiting", not as a failure. The drain records the tick either way."""
+    if getattr(decl, "problem", None) is not None:
+        # ADR-667 D3 — a declaration that cannot run raises nothing, and one
+        # naming a browser outside the workspace would wait on nobody forever.
+        return {"success": False, "slug": decl.slug, "error_reason": decl.problem}
     member = (decl.browser or {}).get("member")
     existing = live_for_topic(_svc(), decl.workspace_id, decl.topic)
     if existing:
@@ -182,8 +186,9 @@ def start_browser_run(decl: Any, *, lane_id: str) -> Optional[str]:
     queued one opens. The turn marks it running when it begins."""
     existing = live_for_topic(_svc(), decl.workspace_id, decl.topic)
     if existing and existing.get("state") == "waiting":
-        _update(existing["id"], {"state": "queued", "trigger": "manual", "waiting_on": None,
-                                 "lane_id": lane_id})
+        # ADR-667 D7 — the trigger stays `scheduled`: the schedule raised it,
+        # its member performs it, and the row says both (`lane_id` set).
+        _update(existing["id"], {"state": "queued", "waiting_on": None, "lane_id": lane_id})
         return existing["id"]
     if existing:
         return existing["id"]

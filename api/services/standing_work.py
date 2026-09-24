@@ -235,7 +235,7 @@ class StandingDecl:
     #: A declaration that parses but cannot run — the LOUD half of D3. None
     #: when healthy. Values: missing_target | invalid_target |
     #: unsupported_format | sources_invalid | app_invalid | source_cycle |
-    #: browser_invalid.
+    #: browser_invalid | browser_member_unknown (ADR-667 D3, set at discovery).
     problem: Optional[str] = None
 
     @property
@@ -693,6 +693,7 @@ def discover_standing(client, *, workspace_id: Optional[str] = None) -> dict[str
         if decl is None:
             continue
         by_user.setdefault(key, []).append(decl)
+    mark_browser_members(d for decls in by_user.values() for d in decls)
     # ADR-659 D5 — a loop is a property of ONE workspace's declarations: an
     # owner's second workspace may hold the same paths and is no part of it.
     for decls in by_user.values():
@@ -702,6 +703,34 @@ def discover_standing(client, *, workspace_id: Optional[str] = None) -> dict[str
         for group in by_ws.values():
             mark_source_cycles(group)
     return by_user
+
+
+def mark_browser_members(decls) -> None:
+    """ADR-667 D3 — the member stamp holds at the KERNEL, not only the door.
+
+    A declaration's `browser.member` must reach its workspace — asked of the
+    ONE reach function (`principal_reaches_workspace`). The door stamps the
+    signed-in member, but the file is writable by more than the door, and a
+    member who does not reach the workspace would leave a run waiting on
+    nobody, forever. Such a declaration is the loud problem
+    `browser_member_unknown`, and `raise_due` never opens a run for it.
+
+    An UNDECIDABLE check leaves the declaration as it was: a dead socket is
+    not an answer about anyone's grant (the `ReachUndecidable` contract)."""
+    from services.supabase import ReachUndecidable, principal_reaches_workspace
+
+    reaches: dict[tuple[str, str], bool] = {}
+    for d in decls:
+        if d.browser is None or d.problem is not None or not d.workspace_id:
+            continue
+        key = (str(d.browser.get("member") or ""), str(d.workspace_id))
+        if key not in reaches:
+            try:
+                reaches[key] = principal_reaches_workspace(*key)
+            except ReachUndecidable:
+                continue
+        if not reaches[key]:
+            d.problem = "browser_member_unknown"
 
 
 # ---------------------------------------------------------------------------

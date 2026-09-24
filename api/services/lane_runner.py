@@ -350,7 +350,12 @@ LANE_TOOL_NAMES = (
 #: `READ_ONLY_PRIMITIVES` **or** in `LANE_ARTIFACT_VERBS`. Putting a spending,
 #: revision-landing verb into the read-only set to satisfy a subset check
 #: would be defeating a gate in order to pass it.
-LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations", "GenerateImage")
+#: ADR-667 D2 adds `DeclareWork` — standing work is declared through the one
+#: door, never by writing `_standing.yaml` (WriteFile/EditFile refuse that
+#: path). Consequential, so it is an artifact verb: its card is the CONTRACT.md
+#: it wrote, which exists the moment it succeeds (the kept file may not yet).
+LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations", "GenerateImage",
+                      "DeclareWork")
 
 #: The subset of the lane surface that PRODUCES substrate. A successful call
 #: to one of these lands an attributed revision, and the member should SEE what
@@ -379,7 +384,7 @@ LANE_SURFACE_EXTRA = ("QueryKnowledge", "WebSearch", "list_integrations", "Gener
 #: `DeleteFolder` is absent for the stronger form of the same reason
 #: (`DeleteFile`'s): after the fan there is nothing at that path at all.
 LANE_ARTIFACT_VERBS = (
-    "WriteFile", "EditFile", "MoveFile", "GenerateImage",
+    "WriteFile", "EditFile", "MoveFile", "GenerateImage", "DeclareWork",
 )
 
 
@@ -492,6 +497,8 @@ _TOOL_SUBJECT_KEYS: dict = {
     "QueryKnowledge": ("query",),
     "WebSearch": ("query",),
     "GenerateImage": ("prompt",),
+    # ADR-667 — the work's folder. Not a file address, so no pending card.
+    "DeclareWork": ("folder",),
     # ADR-662 — the address is the subject. BrowserFill's `text` is NOT one:
     # a field can hold a password, and the receipt names the field instead.
     "BrowserOpen": ("url",),
@@ -1017,6 +1024,7 @@ def lane_tools_openai(turn_reach: bool = False,
     from services.primitives.generate_image import GENERATE_IMAGE_TOOL
     from services.primitives.registry import LIST_INTEGRATIONS_TOOL
     from services.primitives.web_search import WEB_SEARCH_PRIMITIVE
+    from services.primitives.declare_work import DECLARE_WORK_TOOL
     from services.primitives.folder import (
         DELETE_FOLDER_TOOL,
         MOVE_FOLDER_TOOL,
@@ -1040,7 +1048,7 @@ def lane_tools_openai(turn_reach: bool = False,
                   DELETE_FOLDER_TOOL, MOVE_FOLDER_TOOL, RESTORE_TOOL,
                   SEARCH_FILES_TOOL, LIST_FILES_TOOL,
                   QUERY_KNOWLEDGE_TOOL, WEB_SEARCH_PRIMITIVE,
-                  LIST_INTEGRATIONS_TOOL, GENERATE_IMAGE_TOOL)
+                  LIST_INTEGRATIONS_TOOL, GENERATE_IMAGE_TOOL, DECLARE_WORK_TOOL)
     }
     if turn_reach:
         # ADR-585: the member's read-only reach surface, schemas from the

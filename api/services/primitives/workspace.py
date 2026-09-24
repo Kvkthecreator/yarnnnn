@@ -1125,6 +1125,26 @@ async def _emit_workspace_activity(
         logger.debug(f"[WORKSPACE] activity emission failed (non-fatal): {e}")
 
 
+def _declaration_refusal(path: str) -> Optional[dict]:
+    """ADR-667 D2 — `_standing.yaml` is written through the one door. A hand-
+    written declaration skipped the door's refusals and its member stamp (the
+    browser's member was whatever the writer typed), so both write verbs
+    refuse the path and name the tool that writes it."""
+    from services.standing_work import DECLARATION_LEAF
+
+    leaf = (path or "").strip().rstrip("/").rsplit("/", 1)[-1]
+    if leaf != DECLARATION_LEAF:
+        return None
+    return {
+        "success": False,
+        "error": "declaration_via_door",
+        "message": (
+            f"{DECLARATION_LEAF} is written with DeclareWork, never by hand — it sets up or "
+            "changes standing work through the one door. Retire it with DeleteFile."
+        ),
+    }
+
+
 async def handle_write_file(auth: Any, input: dict) -> dict:
     """Handle WriteFile primitive (ADR-168: renamed from WriteWorkspace; ADR-235 Option A: scope='workspace').
 
@@ -1142,6 +1162,9 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     (no-op writes create no revision per ADR-209).
     """
     path = input.get("path", "")
+    refused = _declaration_refusal(path)
+    if refused:
+        return refused
     content = input.get("content", "")
     mode = input.get("mode", "overwrite")
     scope = input.get("scope") or _default_file_scope(auth)
@@ -1726,6 +1749,9 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
     from services.workspace import AgentWorkspace, UserMemory, get_agent_slug
 
     path = input.get("path", "")
+    refused = _declaration_refusal(path)
+    if refused:
+        return refused
     old_string = input.get("old_string", "")
     new_string = input.get("new_string", "")
     replace_all = bool(input.get("replace_all", False))

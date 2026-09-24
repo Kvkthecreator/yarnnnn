@@ -151,17 +151,20 @@ def test_standing_routes_are_owner_keyed():
     and live: the successor owner-keyed surface is standing work, whose route
     carries the radar seam verbatim (`_acting_owner` + a workspace-scoped
     discovery keyed on the acting owner)."""
+    # ADR-667 D2 — the acting-owner / acting-workspace seam lives in the one
+    # door module; the routes call it as `door.acting_owner(auth)`.
     src = _src("routes/standing_work.py")
-    assert "_acting_owner" in src
+    assert "door.acting_owner(auth)" in src
+    assert "def acting_owner(" in _src("services/standing_door.py")
     # The scan is WORKSPACE-scoped and the lookup key is the acting owner
     # (ADR-501 + the Hat-B follow-on: keying discovery on the file's AUTHOR
     # filed a member-authored declaration under the member and hid an
     # owner-authored one from them).
-    assert "workspace_id=_acting_workspace(auth)" in src
+    assert "workspace_id=door.acting_workspace(auth)" in src
     assert ".get(actor, [])" in src
     # No data query keys on the raw caller anymore.
     assert '.eq("user_id", auth.user_id)' not in src
-    assert "_read_declaration(auth.client, actor" in src  # the guard sees the workspace
+    assert "door.read_declaration(auth.client, actor" in src  # the guard sees the workspace
 
 
 def test_standing_discovery_groups_by_workspace_owner():

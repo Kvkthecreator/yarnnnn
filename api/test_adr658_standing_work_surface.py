@@ -315,6 +315,7 @@ _su.get_workspace_timezone = lambda client, user_id, default="UTC": "UTC"
 auth = types.SimpleNamespace(client=db, user_id=U, workspace_id=WS, caller_identity="operator")
 
 import routes.standing_work as R  # noqa: E402
+import services.standing_door as _DOOR  # noqa: E402  (ADR-667 D2 — the one composer)
 from services.standing_work import (  # noqa: E402
     DECLARATION_KEYS, DECLARATION_LEAF, CONTRACT_LEAF, discover_standing, parse_standing_yaml,
 )
@@ -403,7 +404,7 @@ check("CONTRACT.md is a LIVE row carrying the member's words",
       len(db.live_file(contract_path)) == 1 and _good["contract"] in db.live_file(contract_path)[0]["content"])
 _yaml_body = db.live_file(decl_path)[0]["content"]
 check("the body is what compose_standing_yaml emits (one composer)",
-      _yaml_body == R.compose_standing_yaml(target="brief.md", schedule="0 9 * * 1-5", paused=False,
+      _yaml_body == _DOOR.compose_standing_yaml(target="brief.md", schedule="0 9 * * 1-5", paused=False,
                                             sources=_good["sources"], fire_on_activation=True))
 _parsed = parse_standing_yaml(_yaml_body, topic="team-brief", declaration_path=decl_path, user_id=U)
 check("the one parser accepts it with no problem", _parsed is not None and _parsed.problem is None)
@@ -606,16 +607,21 @@ check("DELETE on an undeclared folder is 404", _r.status_code == 404)
 # ═══════════════════════════════════════════════════════════════════════════
 print("D4. both authoring paths emit what the ONE parser accepts")
 # ═══════════════════════════════════════════════════════════════════════════
+# ADR-667 D2 — the conversational path no longer hand-writes YAML: the skill
+# calls DeclareWork, which calls the SAME door the routes call. So "both paths
+# emit what the one parser accepts" is structural, and asserted as structure.
 _skill = _read("api/services/skills/declaring-standing-work/SKILL.md")
-_m = re.search(r"\n {7}target:.*?(?=\n\n)", _skill, re.S)
-_block = "\n".join(l[7:] if l.startswith("       ") else l for l in (_m.group(0).strip("\n").splitlines() if _m else []))
-_block = re.sub(r"\s+#.*$", "", _block, flags=re.M)
-_block = "\n".join(l for l in _block.splitlines() if l.strip())
-_sk = parse_standing_yaml(_block, topic="x", declaration_path="/workspace/x/_standing.yaml", user_id=U)
-check("the skill's YAML example parses through the one parser with no problem",
-      _sk is not None and _sk.problem is None, str(_sk.problem if _sk else "unparseable") + "\n" + _block)
+_tool = _read("api/services/primitives/declare_work.py")
+check("the skill declares through DeclareWork, never a hand-written _standing.yaml",
+      "Call DeclareWork" in _skill and "never by hand" in _skill)
+check("DeclareWork calls the ONE door (declare · revise) and formats no YAML",
+      "await door.declare(" in _tool and "await door.revise(" in _tool
+      and "safe_dump" not in _tool and "compose_standing_yaml" not in _tool)
+check("the routes format no YAML either — the composer lives in the door",
+      "safe_dump" not in _read("api/routes/standing_work.py")
+      and "def compose_standing_yaml" not in _read("api/routes/standing_work.py"))
 check("the composer takes no key the parser does not name (no `assignee`, no agent field)",
-      set(inspect.signature(R.compose_standing_yaml).parameters) - {"fire_on_activation", "paused"} <= DECLARATION_KEYS)
+      set(inspect.signature(_DOOR.compose_standing_yaml).parameters) - {"fire_on_activation", "paused"} <= DECLARATION_KEYS)
 _foreign = parse_standing_yaml("target: a.md\nschedule: daily\nsources:\n  - id: s\n    url: https://x.y\nassignee: editor\n",
                                topic="x", declaration_path="/workspace/x/_standing.yaml", user_id=U)
 check("a foreign key (`assignee: editor`) is parked as inert residue, never read as authority",
@@ -659,16 +665,14 @@ check("the resting copy reassures; `No items` never appears",
 # "Nothing runs on its own yet." and so failed on a copy edit that made the
 # title SHORTER and better (VOICE §2: an empty-state title is ≤ 4 words). A
 # gate that forbids editing prose is a gate that loses an argument with the
-# style guide. What ADR-658 D7 rules is that the screen names the NEXT STEP:
-# a door into creation, and — with nothing connected — Reach.
+# style guide. What ADR-658 D7 rules is that the screen names the NEXT STEP —
+# since ADR-667 D1, the Supervisor's conversation beside it.
 check("the work band's empty state names the next step, not an absence",
       "No items" not in _sec_words
-      and re.search(r"workEmptyTitle", _sec) is not None
-      and "newStandingWork" in _sec and "openReach" in _sec)
+      and re.search(r"workEmptyTitle", _sec) is not None and "workEmptyConversation" in _sec)
 _empty_title = _catalog_get("supervisor.section.workEmptyTitle") or ""
 check("the empty-state title fits its slot budget (\u2264 4 words)",
       0 < len(_empty_title.split()) <= 4, _empty_title)
-check("with nothing connected, the empty state points at Reach", "Reach" in _sec_words)
 
 _surf = _code_only_ts(_read("web/components/supervisor/SupervisorSurface.tsx"))
 _order = re.findall(r"kind:\s*'([a-z-]+)'", _surf)
@@ -707,48 +711,10 @@ check("the row shows who minds it (the derived minder)",
       "minder" in _row and "looks after this" in _words("web/components/standing/StandingRow.tsx"))
 check("the row's repair copy names no kernel noun", "declaration" not in _row.lower())
 
-_door = _code_only_ts(_read("web/components/supervisor/NewStandingWorkModal.tsx"))
-check("the door exists", "export function NewStandingWorkModal" in _door)
-_textareas = re.findall(r"<textarea\b[^>]*?(?:/>|>)", _door, flags=re.S)
-check("the door renders a REAL instructions box — a <textarea> that is not hidden",
-      any("hidden" not in t for t in _textareas), str(_textareas)[:200])
-check("the door posts through the create door", "api.standing.create(" in _door)
-check("the door offers a folder picker (the one tree picker)", "WorkspacePickerModal" in _door)
-_door_words = _words("web/components/supervisor/NewStandingWorkModal.tsx").lower()
-check("the door says the first run starts soon", "first" in _door_words and "minutes" in _door_words)
-
-# ── am.2 — the door is TWO STEPS, and its faces are real ────────────────────
-# ⚠️ The starts used to live ONLY in the work band's empty state, so they
-# vanished the moment a member had one piece of work and the sole remaining
-# entrance was a blank form. The picker is the first step; the empty state
-# keeps its cards (D7 rules that screen) and routes into the same door.
-_picker = _code_only_ts(_read("web/components/supervisor/StartPicker.tsx"))
-check("the start picker exists — the door's first step", "export function StartPicker" in _picker)
-check("the picker offers every start, not only the connector ones",
-      "starts.map(" in _picker)
-check("the picker keeps the scratch escape hatch", "setUpFromScratch" in _picker)
-check("the picker is a real modal — portal, the shared z-tiers, escape, aria",
-      all(w in _picker for w in ("createPortal", "Z_CONFIRM_DIALOG", "'Escape'", 'role="dialog"')))
-check("the header's door opens the PICKER, never a blank form directly",
-      "setPickerOpen(true)" in _surf and "<StartPicker" in _surf)
-
-# ⭐ A START WEARS ITS CONNECTOR'S REAL BRAND. `connector` is a PLATFORM KEY,
-# so it must resolve through `connectorMeta` → `override={meta.brand}` (the
-# path Reach and the finder take). A first cut passed `connectorKey=` alone,
-# which routes to `KEY_MARKS` — an EMPTY table — and rendered a derived
-# lettermark beside a card titled "Keep a brief of your Slack channels
-# current". It typechecked, built, and was only visible by looking.
-_mark = _code_only_ts(_read("web/components/supervisor/StartMark.tsx"))
-check("a start's face resolves through the connector REGISTRY, not the empty key table",
-      "connectorMeta(" in _mark and "override=" in _mark)
-# ⭐ ONE LIST, ONE PLACE (am.4). The empty state used to render the full list
-# of starts, so opening the door showed a member the SAME five cards a second
-# time, stacked over the ones they had just clicked. The list lives in the
-# picker; the empty state is the door to it and renders no start of its own.
-check("the starts are listed in the picker ONLY — the empty state does not repeat them",
-      "<StartMark" in _picker and "<StartMark" not in _sec and "starts.map(" not in _sec)
-check("the door names the chosen start and wears its mark",
-      "<StartMark" in _door and "start.title" in _door)
+# ⚠️ THE DOOR (D4) and its two steps (am.2–am.4) are DELETED by ADR-667 D1:
+# work is set up in the Supervisor's conversation, through `DeclareWork` and the
+# one door module. Their arms live in `test_adr667_*` now. What survives here is
+# what the detail still uses: the source list (am.5).
 
 # ── am.5 — SOURCES ARE A LIST ──────────────────────────────────────────────
 # ⚠️ The kernel has always taken many: `_MAX_SOURCES_PROSE` is 12 and
@@ -769,15 +735,9 @@ check("the mirrored cap AGREES with the server's — drift here is a refusal a m
       and re.search(rf"MAX_SOURCES_PROSE\s*=\s*{_server_cap.group(1)}\b", _srclist) is not None,
       f"server={_server_cap.group(1) if _server_cap else '?'}")
 check("a structured target still maps EXACTLY ONE source (the server rule, mirrored)",
-      "isStructured" in _srclist and "isStructured" in _door
-      and re.search(r"maxSources\s*=\s*structured\s*\?\s*1\s*:", _door) is not None
-      and re.search(r"isStructured\([^)]*\)\s*\?\s*s\.selectors\.slice\(0,\s*1\)", _door) is not None)
-check("the door holds a LIST of sources, never three exclusive fields",
-      "StandingSource[]" in _door and "sourceKind" not in _door)
-check("a connector start seeds EVERY slice the member chose, not the first",
-      "s.selectors.slice(" in _door and "selectors[0]" not in _door)
-check("the door posts every source it holds (browser work posts its sites instead — ADR-666 D1)",
-      re.search(r"sources:\s*(browser\s*\?\s*\[\]\s*:\s*)?sources\.map\(", _door) is not None)
+      "isStructured" in _srclist
+      and re.search(r"maxSources\s*=\s*isStructured\([^)]*\)\s*\?\s*1\s*:\s*MAX_SOURCES_PROSE",
+                    _code_only_ts(_read("web/components/supervisor/StandingDetail.tsx"))) is not None)
 # ⭐ Driven 2026-09-21: the slice `<select>` falls back to `free[0]` for
 # display while STATE kept the previous connection's selector, so switching
 # Slack → Notion and pressing Add re-added a Slack channel. What is shown
@@ -787,10 +747,12 @@ check("the add control adds the slice it DISPLAYS, not a stale stored one",
       and re.search(r"selector:\s*effectiveSelector", _srclist) is not None)
 check("a slice already in the list is not offered twice", "taken" in _srclist and "free" in _srclist)
 
-# The nested folder picker must OUTRANK and dim the door it was opened from;
-# sharing `Z_CONFIRM_*` leaves the form at full contrast behind it.
-check("the door's folder picker is marked nested, so it dims the door",
-      re.search(r"<WorkspacePickerModal[^>]*?\bnested\b", _door, re.S) is not None)
+# The nested folder picker must OUTRANK and dim the dialog it was opened from;
+# sharing `Z_CONFIRM_*` leaves the form at full contrast behind it. The door
+# that first needed it is gone (ADR-667); the artifact door holds the same case.
+check("a folder picker opened from a dialog is marked nested, so it dims the dialog",
+      re.search(r"<WorkspacePickerModal[^>]*?\bnested\b",
+                _code_only_ts(_read("web/components/authoring/NewArtifactModal.tsx")), re.S) is not None)
 _ztiers = _read("web/lib/shell/z-tiers.ts")
 check("the nested tier sits above the confirm tier and below the feedback layer",
       "Z_NESTED_DIALOG" in _ztiers

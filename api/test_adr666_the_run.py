@@ -89,11 +89,14 @@ check("the door's request has no member field — only sites",
       "browser_sites" in R.CreateStandingRequest.model_fields
       and not any("member" in f for f in R.CreateStandingRequest.model_fields))
 _create_src = read("api/routes/standing_work.py")
+# ADR-667 D2 — the stamp lives in the ONE door both the routes and DeclareWork call.
+_door_src = read("api/services/standing_door.py")
 check("…and it stamps the signed-in member",
-      '{"member": auth.user_id, "sites": list(request.browser_sites)}' in _create_src)
+      '{"member": auth.user_id, "sites": list(browser_sites)}' in _door_src
+      and "browser_sites=request.browser_sites" in _create_src)
 check("an edit may change the sites, never the member",
       "browser_sites" in R.UpdateStandingRequest.model_fields
-      and '"sites": list(request.browser_sites)}' in _create_src)
+      and '{**parsed["browser"], "sites": list(browser_sites)}' in _door_src)
 
 
 async def _run_now_other():
@@ -409,7 +412,7 @@ _lp = read("web/components/chat-surface/LanePanel.tsx")
 check("a started run is performed through regenerate, once per run",
       "runStream('regenerate', { runId: startRunId })" in _lp and "startedRunRef.current.add(startRunId)" in _lp)
 check("the work's conversation knows its viewer (the StudioSurface defect)",
-      "viewerId={userId}" in read("web/components/supervisor/WorkConversation.tsx"))
+      "viewerId={userId}" in read("web/components/supervisor/Conversation.tsx"))
 _detail = read("web/components/supervisor/StandingDetail.tsx")
 check("ONE door starts a browser run — the detail — and only with the browser on",
       "async function startBrowserRun()" in _detail and "browserHands()" in _detail

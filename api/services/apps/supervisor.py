@@ -8,7 +8,9 @@ its declaration says.
 
 WHAT LIVES HERE
 - the app's REGISTRATION (ADR-562: residency declared where the app lives).
-- ``build_supervisor_posture`` — the bound lane's JOB overlay (ADR-606 D3).
+- ``build_supervisor_posture`` — the bound lane's JOB overlay (ADR-606 D3),
+  re-derived by ADR-667 D5: the agent AUTHORS standing work, through the
+  one door (`DeclareWork`), and performs none of it.
 
 ⚠️ THE APP IS NOT THE AGENT. The registration names `supervisor` as the
 resident; the agent's CHARACTER (who it is) lives on its `AGENTS` row, and the
@@ -24,70 +26,109 @@ sayable, never *"Editor, do this"* (ADR-460 D3.a; the gate asserts the text).
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from services.authoring import register_app
 
-#: The app's own folder — its work, and the shared memory of this concern.
-#: ADR-411 is the ruling underneath: *lanes are isolated conversations; the
-#: workspace is the shared memory*. So there is no memory store to build here;
-#: what the supervisor and its threads know in common is this folder, already
-#: versioned and attributed.
-SUPERVISOR_HOME = "supervisor/"
+logger = logging.getLogger(__name__)
+
+#: How many pieces of work the per-turn state block lists. A workspace with
+#: more is told the count; the agent lists the folder for the rest.
+_STATE_CAP = 12
 
 
-def build_supervisor_posture() -> str:
-    """The job overlay for the supervisor's bound lane (ADR-606 D3).
+def build_supervisor_posture(state: str = "") -> str:
+    """The job overlay for the supervisor's bound lane (ADR-606 D3 → ADR-667 D5).
 
-    Pure and argument-free — deliberately. Every other app's posture is built
-    from an ARTIFACT because every other app is bound to a document. This one
-    is bound to the APP itself (ADR-653 R3, the third binding kind), so there
-    is no head to read and nothing per-turn to interpolate.
+    The Supervisor is where a member sets up and keeps the work that keeps
+    happening. Its agent AUTHORS that work — through `DeclareWork`, the one
+    door the Supervisor's routes also call — and performs none of it: each
+    piece runs under the executor its kept file's type derives (ADR-639 D3),
+    in its own conversation (ADR-666 D4).
+
+    `state` is the per-turn block `supervisor_state_block` reads: the roster
+    and each piece's last run, so the agent answers from the ledger rather
+    than from what it remembers saying.
 
     ⚠️ What this posture may NOT say, and the gate holds it: no other agent's
-    name, and no verb that assigns. Routing is *where work goes*, which is a
-    fact about a lane; *who does it* derives from the app that owns the work
-    (ADR-597 D1) and is never chosen here.
+    name, and no verb that assigns. Who runs a piece of work is derived from
+    what the work is, never chosen here (ADR-596 D1).
     """
-    return "\n".join([
-        "## Your pane — the Supervisor app (what is underway)",
+    lines = [
+        "## Your pane — the Supervisor app (the work that keeps happening)",
         "",
         "THE JOB:",
-        "- The member briefs you about work. Your job is to know the SHAPE of"
-        " it: which pieces are moving, which are waiting on them, and where"
-        " each one belongs. Answer from what the workspace says, not from"
-        " what you remember saying.",
-        "- When several things arrive at once, say how they SPLIT and why —"
-        " two asks about the same file are one piece of work; two asks about"
-        " unrelated things are two. Name the split in plain words before"
-        " anything else happens.",
-        "- You do the work of no thread. When a piece belongs somewhere,"
-        " say where and hand it over; when the member asks you to do it here,"
-        " say plainly that it belongs elsewhere and why. Doing it here is how"
-        " a keeper becomes a bottleneck.",
-        f"- This app's own folder is `{SUPERVISOR_HOME}` — notes, decisions"
-        " and briefs about the work as a whole live there. The work itself"
-        " lives where it belongs in the workspace, never copied here.",
+        "- The member tells you about work that keeps happening. You set it up"
+        " as standing work — a kept file, a schedule, and CONTRACT.md saying"
+        " what must be true when a run finishes — with DeclareWork. Ask what"
+        " the file must stay true to before you ask how often.",
+        "- Work on websites is set up by doing it once. When their browser is"
+        " yours this turn, do the task now while they watch, then offer to"
+        " keep doing it: declare it with the sites you actually used, the file"
+        " you kept, and a contract written from the steps that worked. It"
+        " then runs in their browser when they start it, and waits for them"
+        " when it comes due — it never acts while they are away.",
+        "- Work that reads files, connections or websites and acts on none"
+        " runs on its own schedule. A chain is several pieces, each kept from"
+        " the one before; never ask one file to do everything.",
+        "- You run no piece of work here. Each runs in its own conversation,"
+        " and the member starts it from the Supervisor.",
+        "- When something failed, read its record (`{folder}/runs/`) and its"
+        " contract before you explain it; change or pause it with"
+        " DeclareWork, retire it by deleting its _standing.yaml.",
         "- Raise something only when it changes what the member would do"
-        " next. What merely happened is already on their timeline, and a"
-        " keeper who reports to prove it is awake teaches them to stop"
-        " reading. Having nothing to raise is a complete answer.",
-        "- Read before you claim. Your own summary is not evidence for"
-        " itself: if you are about to say a thing is done, blocked or"
-        " waiting, check the file that would show it.",
-    ])
+        " next. Having nothing to raise is a complete answer.",
+    ]
+    if state:
+        lines += ["", state]
+    return "\n".join(lines)
+
+
+def supervisor_state_block(client: Any, user_id: str) -> str:
+    """The work now, for this turn: each piece of standing work in the acting
+    workspace and its newest run. Read fresh (derived, never stored); empty
+    when there is none or the read fails — a turn never fails on it."""
+    try:
+        from services.runs import list_runs
+        from services.standing_work import discover_standing
+        from services.workspace_context import effective_workspace_id
+
+        ws = effective_workspace_id(user_id)
+        decls = sorted(
+            (d for group in discover_standing(client, workspace_id=ws).values() for d in group),
+            key=lambda d: d.topic,
+        )
+        if not decls:
+            return "THE WORK NOW: none set up yet."
+        newest: dict[str, dict] = {}
+        for r in list_runs(client, ws, topics=[d.topic for d in decls], limit=60) if ws else []:
+            newest.setdefault(r.get("topic") or "", r)
+        rows = []
+        for d in decls[:_STATE_CAP]:
+            kind = "browser, sites " + ", ".join((d.browser or {}).get("sites") or []) if d.browser else "on its own"
+            status = (f"cannot run: {d.problem}" if d.problem
+                      else "paused" if d.paused else f"schedule {d.schedule}")
+            run = newest.get(d.topic)
+            last = (f"last run {run.get('state')}"
+                    + (f" ({run.get('outcome')})" if run.get("outcome") else "")
+                    if run else "never run")
+            rows.append(f"- {d.topic}/ keeps {d.target} · {kind} · {status} · {last}")
+        more = len(decls) - _STATE_CAP
+        if more > 0:
+            rows.append(f"- …and {more} more")
+        return "THE WORK NOW:\n" + "\n".join(rows)
+    except Exception as exc:  # noqa: BLE001 — a turn never fails on its state
+        logger.warning("[SUPERVISOR] state block unavailable: %s", exc)
+        return ""
 
 
 def supervisor_pane_posture(
     client: Any, user_id: str, artifact_path: str, artifact: str
 ) -> str:
-    """The ADR-606 D3 builder shape over the pure posture.
-
-    All four arguments are part of the shared contract and deliberately
-    unused: an app-bound lane (ADR-653 R3) has no artifact, and this app reads
-    nothing per-turn that the lane frame has not already read.
-    """
-    return build_supervisor_posture()
+    """The ADR-606 D3 builder shape. An app-bound lane (ADR-653 R3) has no
+    artifact; what it reads per turn is the work (`supervisor_state_block`)."""
+    return build_supervisor_posture(supervisor_state_block(client, user_id))
 
 
 # ── ADR-562 D3: the registration, beside the code it configures ───────────

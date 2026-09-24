@@ -16,7 +16,7 @@
  * the cockpit reads by RUN STATE (ADR-666 D8):
  *
  *   running    what is happening now        runs: queued · running
- *   needs-you  what is waiting on me        runs due, recent failures, mentions
+ *   needs-you  what is waiting on me        runs due on me, recent failures, mentions
  *   work       what standing work I have    the roster (ADR-658)
  *   recent     what just happened           runs: done · failed · stopped
  *
@@ -38,10 +38,10 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, MessageSquare, Plus } from 'lucide-react';
+import { AlertTriangle, MessageSquare } from 'lucide-react';
 import { RunView } from '@/components/runs/RunView';
 import { StandingRow } from '@/components/standing/StandingRow';
-import { isLiveRun, type Run, type StandingStart, type StandingSummary } from '@/lib/api/client';
+import { isLiveRun, type Run, type StandingSummary } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 
@@ -78,13 +78,16 @@ const FAILURE_WINDOW_MS = 3 * 24 * 3600 * 1000;
 const RECENT_CAP = 8;
 
 /**
- * Which runs need the member — derived, never stored (DP29):
- *   - every run WAITING (due browser work; RunView says whose),
+ * Which runs need the member — derived, never stored (DP29), ADR-667 D6:
+ *   - every run WAITING ON THE VIEWER (due browser work waits for its own
+ *     member; another member's due run is theirs — the tray's rule, one
+ *     predicate for both),
  *   - the newest ended run of a piece of declared work, when it FAILED within
- *     the window — the newest only, so a failure a later run fixed is gone.
+ *     the window — a failure is the WORK's, so every member sees it; the
+ *     newest only, so a failure a later run fixed is gone.
  */
-export function runsNeedingYou(runs: Run[]): Run[] {
-  const waiting = runs.filter((r) => r.state === 'waiting');
+export function runsNeedingYou(runs: Run[], viewerId: string | null): Run[] {
+  const waiting = runs.filter((r) => r.state === 'waiting' && r.user_id === viewerId);
   const newestEnded = new Map<string, Run>();
   for (const r of runs) {
     if (!r.topic || isLiveRun(r)) continue;
@@ -100,22 +103,19 @@ export function runsNeedingYou(runs: Run[]): Run[] {
 
 /**
  * The `work` band's material and verbs — the standing roster read from its
- * ONE route (`api.standing.list`) plus the starts (ADR-658 D7). The verbs act
- * on DECLARATIONS (create · pause · run · retire · open), never on beings.
+ * ONE route (`api.standing.list`). The verbs act on DECLARATIONS (pause · run ·
+ * open), never on beings; creating one is the conversation's (ADR-667 D1).
  */
 export interface WorkBand {
   /** null = not read yet (or unreadable — `failed` says which). */
   rows: StandingSummary[] | null;
   failed: boolean;
-  starts: StandingStart[];
   busy: string | null;
   notes: Record<string, string>;
   viewerId: string | null;
   onRunNow: (row: StandingSummary) => void;
   onTogglePause: (row: StandingSummary) => void;
   onOpen: (row: StandingSummary) => void;
-  onNew: (start: StandingStart | null) => void;
-  onOpenReach: () => void;
 }
 
 /** The kinds this client can draw. */
@@ -193,7 +193,6 @@ function Row({
 /** `work` — *what standing work do I have, and is it running?* (ADR-658 D5) */
 function WorkSection({ work }: { work: WorkBand }) {
   const t = useTranslations('supervisor.section');
-  const connectorStarts = work.starts.filter((s) => s.kind === 'connector');
 
   if (work.failed) {
     return <SectionEmpty>{t('workUnreadable')}</SectionEmpty>;
@@ -204,46 +203,18 @@ function WorkSection({ work }: { work: WorkBand }) {
 
   if (work.rows.length === 0) {
     // ⭐ THE EMPTY STATE NAMES THE NEXT STEP, AND NOTHING ELSE (VOICE §2 —
-    // title ≤ 4 words + one sentence).
-    //
-    // ⚠️ IT USED TO RENDER THE FULL LIST OF STARTS, which is now the picker's
-    // job: opening the door showed a member the SAME five cards a second time,
-    // stacked over the ones they had just clicked. Two copies of one list is
-    // two things to keep in step and one of them is always wrong. The list
-    // lives in the modal; this screen is the door to it.
+    // title ≤ 4 words + one sentence). The next step is the conversation
+    // beside it (ADR-667 D1): work is set up by saying what keeps happening.
     return (
       <div className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-5 py-8 text-center">
         <p className="text-[15px] font-semibold text-foreground">{t('workEmptyTitle')}</p>
-        <p className="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">
-          {connectorStarts.length > 0 ? t('workEmptyWithStarts') : t('workEmptyNoStarts')}
-        </p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => work.onNew(null)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
-          >
-            <Plus className="h-3.5 w-3.5" /> {t('newStandingWork')}
-          </button>
-          {connectorStarts.length === 0 && (
-            <button
-              type="button"
-              onClick={work.onOpenReach}
-              className="rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-            >
-              {t('openReach')}
-            </button>
-          )}
-        </div>
+        <p className="mx-auto mt-1 max-w-sm text-[13px] text-muted-foreground">{t('workEmptyConversation')}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {/* The door moved to band 1, where it holds a fixed place (the header).
-          It was here, so it shifted with the band's contents and disappeared
-          entirely whenever the roster read was still out. */}
       <p className="text-xs text-muted-foreground">
         {t('workIntro')}
       </p>
@@ -304,7 +275,7 @@ function NeedsYouSection({
   rows, band, onOpenLane,
 }: { rows: SupervisorNeed[] | null; band: RunsBand; onOpenLane: (id: string) => void }) {
   const t = useTranslations('supervisor.section');
-  const needing = band.runs ? runsNeedingYou(band.runs) : [];
+  const needing = band.runs ? runsNeedingYou(band.runs, band.viewerId) : [];
   if (rows === null && band.runs === null) {
     return <SectionEmpty>{t('loading')}</SectionEmpty>;
   }
@@ -343,7 +314,7 @@ function RecentSection({ band }: { band: RunsBand }) {
   if (band.runs === null) {
     return <SectionEmpty>{band.failed ? t('runsUnreadable') : t('loading')}</SectionEmpty>;
   }
-  const raised = new Set(runsNeedingYou(band.runs).map((r) => r.id));
+  const raised = new Set(runsNeedingYou(band.runs, band.viewerId).map((r) => r.id));
   const ended = band.runs.filter((r) => !isLiveRun(r) && !raised.has(r.id)).slice(0, RECENT_CAP);
   if (ended.length === 0) return <SectionEmpty>{t('recentEmpty')}</SectionEmpty>;
   return <RunList runs={ended} band={band} />;

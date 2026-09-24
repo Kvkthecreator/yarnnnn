@@ -1,5 +1,10 @@
 # ADR-658 — The Supervisor manages standing work: the app is the door a member can reach
 
+> **Amended by [ADR-667](ADR-667-the-supervisor-is-set-up-in-conversation.md)** (2026-09-24): D4's door and the
+> two-step modal (Amendments 3–4) are DELETED — work is set up in the Supervisor's conversation through `DeclareWork`,
+> and the door's logic is `services/standing_door.py`, which the routes also call. D7's starts are the conversation's
+> suggestions.
+>
 > **Amended by [ADR-666](ADR-666-the-run.md)** (2026-09-24): the cockpit reads by RUN STATE — `running · needs-you ·
 > work · recent` (D8) — and `note` is deleted; the detail's runs are rows of `runs`, not cost-ledger rows; browser
 > work is standing work with a `browser` key, run in its own conversation inside the detail.

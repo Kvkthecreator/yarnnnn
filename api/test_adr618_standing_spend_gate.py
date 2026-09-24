@@ -237,8 +237,9 @@ if _fn is not None:
     # read, so there is no baseline to fetch. What the door owes instead is a
     # ROW to lock: it materializes first.
     check("2c it materializes BEFORE it claims (a row to lock, never a baseline to read)",
-          "_materialize" in _calls and "read_standing_task_row" not in _calls
-          and _calls.index("_materialize") < _calls.index("claim_run"),
+          # ADR-667 D2 — the materializer is the door module's (`door.materialize`).
+          "materialize" in _calls and "read_standing_task_row" not in _calls
+          and _calls.index("materialize") < _calls.index("claim_run"),
           f"calls={_calls}")
     # Ordering is the whole point: claiming after the sweep bounds nothing.
     _idx = {c: i for i, c in enumerate(_calls)}
