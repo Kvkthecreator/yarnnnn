@@ -39,6 +39,15 @@
           "yarnnn"
         ]
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3NThDM0YzM0Y3QzExQzkKUldUSkVYdy84OE5ZeDczRXZtb1pZaXF0ZWVKTTBndHd5WUtoU0xXY3EwV1h1b3F2MFIzY04xemUK",
+      "endpoints": [
+        "https://www.yarnnn.com/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

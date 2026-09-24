@@ -304,11 +304,15 @@
         "message": "이 yarnnn 앱은 오래된 버전이라 워크스페이스를 불러올 수 없어요.",
         "action": "최신 버전 받기"
       },
+      "host": {
+        "message": "yarnnn 앱 업데이트가 준비됐어요. 앱을 종료하면 설치돼요.",
+        "action": "지금 재시작"
+      },
       "web": {
         "message": "yarnnn 새 버전이 준비됐어요.",
-        "action": "새로고침",
-        "dismiss": "나중에"
-      }
+        "action": "새로고침"
+      },
+      "dismiss": "나중에"
     }
   },
   "chat": {

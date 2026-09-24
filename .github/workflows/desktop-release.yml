@@ -9,9 +9,10 @@ name: desktop-release
 # A release is ONE act: bump `version` in src-tauri/Cargo.toml (ADR-663 D2),
 # push it, then push the tag `desktop-vX.Y.Z` on that commit. This workflow
 # builds the Mac and Windows installers from the tagged commit and keeps them
-# as this run's artifacts. `scripts/publish-desktop-release.sh X.Y.Z` then
-# takes THIS run's builds of the tag and puts them where the download links
-# read. The job stays read-only: it builds, the operator's machine publishes,
+# as this run's artifacts, beside the signed files the host updater downloads
+# (ADR-663 D6). `scripts/publish-desktop-release.sh X.Y.Z` then takes THIS
+# run's builds of the tag, puts them where the download links read, and writes
+# the updater's manifest last. The job stays read-only: it builds, the operator's machine publishes,
 # so the storage key never lives in CI.
 #
 # Run by hand (Actions tab, or `gh workflow run desktop-release.yml`) to try a
@@ -40,11 +41,15 @@ jobs:
           - platform: mac
             runner: macos-latest   # Apple Silicon
             bundles: app,dmg
-            out: src-tauri/target/release/bundle/dmg/*.dmg
+            # the installer, and the signed update the host updater downloads
+            out: |
+              src-tauri/target/release/bundle/dmg/*.dmg
+              src-tauri/target/release/bundle/macos/*.app.tar.gz*
           - platform: windows
             runner: windows-latest
             bundles: nsis
-            out: src-tauri/target/release/bundle/nsis/*.exe
+            # the installer IS the update on Windows; `.sig` is its signature
+            out: src-tauri/target/release/bundle/nsis/*-setup.exe*
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
@@ -85,10 +90,18 @@ jobs:
           done
           if [[ -n "$APPLE_SIGNING_IDENTITY" ]]; then echo "▸ Developer ID signing + notarization"; else echo "▸ ad-hoc sealed (no Developer ID yet)"; fi
 
-      - name: Build the installer
+      # ADR-663 D6 — every release also yields the host updater's files, signed
+      # with the operator's key (the public half is in tauri.conf.json). Only
+      # here: a local `cargo tauri build` needs no key and makes none.
+      - name: Build the installer and the signed update
         working-directory: src-tauri
         shell: bash
-        run: npx --yes @tauri-apps/cli@2.11.5 build --bundles ${{ matrix.bundles }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: >-
+          npx --yes @tauri-apps/cli@2.11.5 build --bundles ${{ matrix.bundles }}
+          --config '{"bundle":{"createUpdaterArtifacts":true}}'
 
       # A seal that does not verify is what macOS calls "damaged" — a wall, not
       # a warning. Refuse to keep a build that would meet it.

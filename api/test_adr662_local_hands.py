@@ -119,7 +119,8 @@ check(
 _manifest = re.findall(r'"(\w+)"', (re.search(r"commands\(&\[(.*?)\]\)", read("src-tauri/build.rs"), re.S) or [None, ""])[1])
 check(
     "the app's commands are declared, and the roster names exactly them",
-    sorted(_manifest) == ["browser_act", "hands_set_enabled", "hands_status"]
+    # update_ready / update_restart are ADR-663 D6's (the host updater), asserted there.
+    sorted(_manifest) == ["browser_act", "hands_set_enabled", "hands_status", "update_ready", "update_restart"]
     and {f"allow-{c.replace('_', '-')}" for c in _manifest} <= _perms
     and not any(p.startswith("allow-hands-") and p not in ("allow-hands-status", "allow-hands-set-enabled") for p in _perms),
     f"manifest {_manifest}",

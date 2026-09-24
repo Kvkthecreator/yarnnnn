@@ -77,7 +77,9 @@ records the comparison.
 | The page's side of local hands, and the Settings row | `web/lib/shell/hands.ts` · `web/components/settings/DesktopBrowserSetting.tsx` |
 | The hand-off: offered tools, the pending acts, stop-when-stuck | `api/services/client_tools.py`; tool definitions `api/services/primitives/browser.py` |
 | Build both installers — on the `desktop-vX.Y.Z` tag, or by hand to try main | `.github/workflows/desktop-release.yml` |
-| Publish a release: both installers from the tag's run | `scripts/publish-desktop-release.sh` |
+| Publish a release: both installers from the tag's run, then the updater's manifest | `scripts/publish-desktop-release.sh` |
+| The host updater: check, download, install at quit or on *Restart now* | `src-tauri/src/update.rs`; endpoint + public key in `tauri.conf.json` → `plugins.updater` |
+| The updater's address, and where it leads | `web/app/download/latest.json/route.ts` → `DESKTOP_UPDATE_MANIFEST` in `web/lib/shell/desktop-app.ts` |
 
 ## 3. A launch, step by step
 
@@ -138,8 +140,17 @@ outside, the 426 would lose its CORS headers and the page would see only a netwo
 window is in view — at most once a quarter hour — `UpdateNotice` compares the two and, when they differ, offers
 *Reload*. The browser and the app share it; a web change still needs nothing per release.
 
-**Auto-update is not built** (ADR-663 D6): it needs its own signing keypair and a hosted manifest. The 426 is the
-lever until then.
+**The host keeps itself current** (ADR-663 D6, from 0.4.3). `src-tauri/src/update.rs` checks
+`www.yarnnn.com/download/latest.json` 20 seconds after launch and every six hours (release builds only), downloads
+a newer host in the background, and Tauri's updater verifies it against the public key compiled into
+`tauri.conf.json` → `plugins.updater.pubkey`. It installs **when the member quits** — on Windows without reopening
+the app they closed — or at once when they press *Restart now* in `UpdateNotice`. The page learns an update is
+waiting (`update_ready`, and the `update-ready` event) and chooses WHEN it installs (`update_restart`), never what.
+
+⚠️ **The key is forever.** Every installed host verifies against the key it was built with; a new key strands
+them all until each is reinstalled by hand. The private half is the operator's (`~/.tauri/yarnnn-updater.key`, its
+password in their password manager) and a repo secret for `desktop-release.yml`; the ADR-663 gate pins the public
+half. A host below 0.4.3 has no updater — it moves once, by hand, and the 426 remains the lever for it.
 
 ## 6. The security boundary
 
@@ -148,8 +159,10 @@ The page in the window is the live website. A compromised deploy, a poisoned dep
 
 - **`capabilities/default.json` is an explicit list, never a default set.** Today: `core:event:default` (deep-link
   events), `core:app:allow-version` (the header), `core:window:default` (chrome), `core:window:allow-start-dragging`
-  (the top bar is the grab handle), `deep-link:default`, `opener:allow-open-url` with a URL scope, and the app's
-  two hands commands (`allow-hands-status`, `allow-browser-act` — §6a).
+  (the top bar is the grab handle), `deep-link:default`, `opener:allow-open-url` with a URL scope, the app's
+  hands commands (`allow-hands-status`, `allow-browser-act`, `allow-hands-set-enabled` — §6a), and its two update
+  commands (`allow-update-ready`, `allow-update-restart` — §5). None of the updater plugin's own permissions: the
+  page may say when an update installs, never which.
 - **The roster names the `main` window only.** Any other window the host ever opens gets no capability.
 - **Remote origins: `https://www.yarnnn.com/*` and `https://yarnnn.com/*` only.** `"local": false` — the bootstrap
   needs nothing from the host.

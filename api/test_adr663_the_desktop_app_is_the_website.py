@@ -206,8 +206,9 @@ for lang in ("en", "ko"):
     check(
         f"the notice is worded in {lang}",
         all((hu.get(state) or {}).get(k) for state, keys in (("refused", ("message", "action")),
-                                                              ("web", ("message", "action", "dismiss")))
-            for k in keys),
+                                                              ("host", ("message", "action")),
+                                                              ("web", ("message", "action")))
+            for k in keys) and bool(hu.get("dismiss")),
         "the notice would render a raw key",
     )
 
@@ -294,6 +295,10 @@ ALLOWED = {
     "allow-hands-status",
     "allow-browser-act",
     "allow-hands-set-enabled",
+    # ADR-663 D6 — the page learns an update is waiting and says WHEN it
+    # installs, never what: the host downloaded and verified the file.
+    "allow-update-ready",
+    "allow-update-restart",
 }
 check(
     "the roster names exactly what the interface needs",
@@ -343,7 +348,7 @@ _secrets = set(re.findall(r"secrets\.(\w+)", wf))
 check(
     "the release workflow builds the host alone",
     bool(wf) and "npm ci" not in wf and "setup-node" not in wf
-    and all(k.startswith("APPLE_") for k in _secrets),
+    and all(k.startswith(("APPLE_", "TAURI_SIGNING_")) for k in _secrets),
     f"the installer would freeze web values into itself again — secrets {sorted(_secrets)}",
 )
 
@@ -372,7 +377,7 @@ check(
 check(
     "the publish script publishes both platforms or neither",
     re.search(r"^PLATFORMS=\(mac windows\)$", _pub, re.M) is not None
-    and _pub.index("Fetch both before uploading either") < _pub.index("upload \"$P\""),
+    and 0 <= _pub.find("Fetch both before uploading either") < _pub.find('upload "$(asset_mime "$P")"'),
     "a half-published release: one platform new, the other old",
 )
 _retired = [r for r in ("scripts/release-shell.sh", ".github/workflows/shell-windows.yml") if (REPO / r).exists()]
@@ -380,6 +385,99 @@ check(
     "the superseded release paths are deleted",
     not _retired,
     f"a second way to cut a release: {_retired}",
+)
+
+# --------------------------------------------------------------------- D6
+print("\nD6 the host keeps itself current")
+
+import base64  # noqa: E402
+
+_upd = (conf.get("plugins") or {}).get("updater") or {}
+try:
+    _pub = base64.b64decode(_upd.get("pubkey") or "").decode()
+except Exception:
+    _pub = ""
+# The key id is PINNED. Every installed host verifies updates against the key it
+# was built with, so a new key strands every host already out there — they
+# refuse the next update and must be reinstalled by hand. Changing this line is
+# that decision, made on purpose.
+UPDATER_KEY_ID = "C758C3F33F7C11C9"
+UPDATER_KEY = "RWTJEXw/88NYx73EvmoZYiqteeJM0gtwyYKhSLWcq0WXuoqv0R3cN1ze"
+check(
+    "the host carries the operator's public key — the same one, always",
+    _pub.strip().splitlines() == [f"untrusted comment: minisign public key: {UPDATER_KEY_ID}", UPDATER_KEY],
+    "no key, a different key, or a malformed one — every installed host would refuse the next update",
+)
+check(
+    "the host asks OUR address for its manifest",
+    _upd.get("endpoints") == ["https://www.yarnnn.com/download/latest.json"],
+    f"endpoints {_upd.get('endpoints')} — a storage URL compiled into every host strands them when it moves",
+)
+_desk = strip_comments(read("web/lib/shell/desktop-app.ts"))
+_mroute = strip_comments(read("web/app/download/latest.json/route.ts"))
+check(
+    "that address redirects to the manifest in the desktop-releases bucket",
+    re.search(r'DESKTOP_UPDATE_MANIFEST\s*=\s*"https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/desktop-releases/latest\.json"', _desk) is not None
+    and re.search(r"NextResponse\.redirect\(DESKTOP_UPDATE_MANIFEST,\s*302\)", _mroute) is not None,
+    "the hosts' endpoint leads nowhere, or somewhere the publish script does not write",
+)
+_mig264 = read("supabase/migrations/264_desktop_releases_updater.sql")
+check(
+    "the bucket admits the updater's files",
+    "'application/gzip'" in _mig264 and "'application/json'" in _mig264,
+    "the publish script's gzip and manifest uploads would be refused (415)",
+)
+
+_update_rs = rust_code(read("src-tauri/src/update.rs"))
+check(
+    "the host checks at launch and on a clock — release builds only",
+    "update::start(app.handle())" in main_rs
+    and re.search(r"fn start\(app: &AppHandle\)\s*\{\s*if cfg!\(debug_assertions\)\s*\{\s*return;", _update_rs) is not None
+    and "tokio::time::sleep(EVERY)" in _update_rs,
+    "the updater never runs, or a debug host pulls a published build over itself",
+)
+check(
+    "a waiting update installs when the member quits, without reopening the app",
+    re.search(r"RunEvent::Exit\s*=\s*event\s*\{\s*update::install_on_exit\(app\)", main_rs) is not None
+    and "restart_after_install(false).install(bytes)" in _update_rs,
+    "a downloaded update never installs — or the app the member closed reopens itself",
+)
+_build_rs = read("src-tauri/build.rs")
+check(
+    "the page's two update commands are declared, and nothing of the plugin's own",
+    '"update_ready"' in _build_rs and '"update_restart"' in _build_rs
+    and "update::update_ready" in main_rs and "update::update_restart" in main_rs
+    and not any((p or "").startswith("updater:") for p in _perms),
+    "the page could name what is installed (updater:*), or its restart is unreachable",
+)
+_notice6 = strip_comments(read("web/components/shell/UpdateNotice.tsx"))
+check(
+    "the notice hears a waiting update — asked on mount, then listened for",
+    "hostUpdateReady()" in _notice6 and "onHostUpdateReady(" in _notice6 and "restartToUpdate()" in _notice6,
+    "an update downloaded before the page loaded would never be offered",
+)
+check(
+    "every release is built signed for the updater — in CI only",
+    "secrets.TAURI_SIGNING_PRIVATE_KEY" in wf and "secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD" in wf
+    and '"createUpdaterArtifacts":true' in wf
+    and "createUpdaterArtifacts" not in json.dumps(conf.get("bundle") or {}),
+    "releases carry no signed update — or every local build demands the private key",
+)
+_pub_sh = read("scripts/publish-desktop-release.sh")
+_last_installer = _pub_sh.rfind('upload "$(asset_mime "$P")"')
+_manifest_at = _pub_sh.find('upload "application/json" "$MANIFEST" "latest.json"')
+check(
+    "the manifest is written LAST, naming versioned files with their signatures",
+    0 <= _last_installer < _manifest_at
+    and '"signature": open(sig).read().strip()' in _pub_sh
+    and 'OBJ="$VERSION/$(update_name "$P")"' in _pub_sh,
+    "a host could read a manifest naming a file not yet served, or an unsigned one",
+)
+check(
+    "a release without its signed update is refused before anything uploads",
+    '-s "$UPD.sig"' in _pub_sh
+    and _pub_sh.find('-s "$UPD.sig"') < _pub_sh.find('echo "▸ $TAG'),
+    "an unsigned release would publish installers the updater can never deliver",
 )
 
 # --------------------------------------------------------------------- D7

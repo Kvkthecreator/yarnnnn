@@ -291,12 +291,32 @@ and, once one is live, to the page's steps.
 ## Updating
 
 The interface updates itself: it is the website (ADR-663 D1), and a window left
-open across a web deploy offers *Reload* (D7). The HOST does not yet: a new host
-means a new release, the links do not change, and members find out through the
-out-of-date notice (the 426) or by visiting /download.
+open across a web deploy offers *Reload* (D7).
 
-Tauri's updater is next (ADR-663 D6): a signed manifest published beside the
-installers, which the host checks at launch and every few hours. It needs a
-signing keypair of its own — generated and held by the operator, the private
-half a GitHub secret for `desktop-release.yml` — and it reaches only hosts
-built with it, so the first updater-carrying version is installed by hand once.
+The host updates itself from 0.4.3 (D6). Every tagged release is also built as
+a signed update — the macOS `.app.tar.gz` and the Windows installer, each with
+a `.sig` made with the updater key — and the publish script writes
+`latest.json` last, naming the versioned files and their signatures. Installed
+hosts find it through `www.yarnnn.com/download/latest.json` within six hours
+(or at their next launch), download it, and install it when the member quits.
+A host older than 0.4.3 has no updater and is moved once, by hand.
+
+**Rolling back is rolling forward.** A host only moves to a HIGHER version, so
+a bad release is fixed by releasing the next one — re-publishing an older
+manifest does nothing.
+
+## The updater key — once, and forever
+
+Generated 2026-09-24 by the operator:
+
+```bash
+~/.cargo/bin/cargo tauri signer generate -w ~/.tauri/yarnnn-updater.key
+gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/yarnnn-updater.key
+gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+```
+
+The public half is `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`,
+pinned by the ADR-663 gate (key id `C758C3F33F7C11C9`). ⚠️ **Losing the private
+key or its password, or replacing the key, strands every installed host**: none
+can verify an update signed with anything else, so each would have to be
+reinstalled by hand. Keep the key file and password in the password manager.

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the desktop app's page may ask the host to do. ADR-663 D4: the page is the WEBSITE (remote), served as it is now, so this roster is the security boundary — it names exactly what the interface needs, never a default set. Nothing that acts on the member's machine may be added unless the host itself draws the consent prompt the member answers (ADR-662's local hands are bound by this). ADR-662 D15: the three hands commands relay the agent's browser acts to the yarnnn Chrome extension, which performs them in the member's own Chrome and draws its own per-site consent; the host acts on no page itself.",
+  "description": "What the desktop app's page may ask the host to do. ADR-663 D4: the page is the WEBSITE (remote), served as it is now, so this roster is the security boundary \u2014 it names exactly what the interface needs, never a default set. Nothing that acts on the member's machine may be added unless the host itself draws the consent prompt the member answers (ADR-662's local hands are bound by this). ADR-662 D15: the three hands commands relay the agent's browser acts to the yarnnn Chrome extension, which performs them in the member's own Chrome and draws its own per-site consent; the host acts on no page itself. ADR-663 D6: the two update commands let the page learn that a verified host update is waiting and choose WHEN it installs \u2014 never what; the host downloaded and verified the file against its own compiled-in key.",
   "windows": [
     "main"
   ],
@@ -14,6 +14,8 @@
     "allow-hands-status",
     "allow-browser-act",
     "allow-hands-set-enabled",
+    "allow-update-ready",
+    "allow-update-restart",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

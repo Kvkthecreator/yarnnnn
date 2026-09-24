@@ -2,6 +2,7 @@
 
 > **Status**: **Accepted** (2026-09-23, operator-ratified: *"aligned in full"*). Implemented with this document.
 > **Amended**: am.1 (2026-09-24) — one release path for both platforms, and a window hears a newer web build (§8).
+> **Amended**: am.2 (2026-09-24) — D6 built: the host keeps itself current (§9).
 > **Date**: 2026-09-23
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Channel** (the form of a client — where its interface comes from).
@@ -184,3 +185,37 @@ lever and a host change still needs a reinstall.
 
 Gate: `api/test_adr663_the_desktop_app_is_the_website.py` gains the D2 am.1 and D7 arms (45/45), each proven RED by
 breaking the guarded site in place; ADR-661's installer arms now read the one workflow.
+
+## 9. Amendment 2 — the host keeps itself current (D6 built, 2026-09-24)
+
+**Origin** — the operator generated the updater keypair and set the two repo secrets (am.1's blocker), then:
+*"can you do the update and pending items on behalf"*.
+
+**D6 am.2 — the host checks, downloads, verifies, and installs at quit.** `src-tauri/src/update.rs` is the whole
+updater. Release builds check `www.yarnnn.com/download/latest.json` 20 seconds after launch and every six hours;
+a newer host is downloaded in the background and verified by Tauri's updater against the public key compiled into
+`tauri.conf.json` → `plugins.updater.pubkey`. It installs **when the member quits** (the Claude desktop / VS Code
+convention: never an interruption) — on Windows with `restart_after_install(false)`, so the app the member closed
+does not reopen — or at once on *Restart now*.
+
+- **Why our own address.** The endpoint is compiled into every host, so it is `www.yarnnn.com/download/latest.json`
+  (302 to the bucket's `latest.json`, `DESKTOP_UPDATE_MANIFEST`), for the reason `/download/{platform}` is ours:
+  the file can move without stranding a host. Trust does not come from the address — the updater verifies the
+  downloaded file against the host's key, whoever served it.
+- **D4 holds.** The page may learn that a verified update is waiting (`update_ready`, the `update-ready` event) and
+  choose WHEN it installs (`update_restart`) — never WHAT. None of the updater plugin's own permissions reach the
+  website's origin. A compromised page can at worst restart the app early into the same signed update.
+- **One notice.** `UpdateNotice` gains the host state: a card (*"A yarnnn app update is ready. It installs when you
+  quit."* · *Restart now*), and on the 426 bar *Restart now* replaces the trip to Settings when the update is
+  already downloaded.
+- **Release.** `desktop-release.yml` builds every release with `createUpdaterArtifacts` and the key (CI only — a
+  local build needs no key and makes none). The publish script refuses a run without both signatures, uploads the
+  macOS `.app.tar.gz` under `X.Y.Z/` (the Windows update IS the versioned installer), and writes `latest.json`
+  LAST, so a host never reads a manifest naming a file not yet served. Migration 264 admits gzip and JSON in the
+  bucket. Rolling back is rolling forward: a host only moves to a higher version.
+- **The key is forever.** The ADR-663 gate pins the public key whole; replacing it strands every installed host.
+- **The first step is by hand.** A host below 0.4.3 has no updater; it moves once, by download. D3's 426 stays
+  the lever for any host that cannot update itself.
+
+Gate: 45 → 56 checks, and ADR-662's command roster names the two update commands; every D6 arm proven RED by breaking its site in place (13 sites, and the pinned key under
+two tamperings — a new key id, and edited key bytes under the same id).

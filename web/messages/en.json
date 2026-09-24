@@ -304,11 +304,15 @@
         "message": "This version of the yarnnn app is out of date, so it can’t load your workspace.",
         "action": "Get the latest version"
       },
+      "host": {
+        "message": "A yarnnn app update is ready. It installs when you quit.",
+        "action": "Restart now"
+      },
       "web": {
         "message": "A new version of yarnnn is ready.",
-        "action": "Reload",
-        "dismiss": "Not now"
-      }
+        "action": "Reload"
+      },
+      "dismiss": "Not now"
     }
   },
   "chat": {

@@ -59,6 +59,14 @@ export const DESKTOP_DOWNLOADS: Record<DesktopPlatform, string | null> = {
   windows: "https://noxgqcwynkzqabljjyon.supabase.co/storage/v1/object/public/desktop-releases/yarnnn-windows-x64-setup.exe",
 };
 
+/** The host updater's manifest (ADR-663 D6) — `latest.json` in the same bucket,
+ *  written LAST by the publish script, after the files it names. The host asks
+ *  our own `/download/latest.json` (compiled into `tauri.conf.json` →
+ *  `plugins.updater.endpoints`), which redirects here, so the file can move
+ *  without stranding a host that was built pointing at it. */
+export const DESKTOP_UPDATE_MANIFEST =
+  "https://noxgqcwynkzqabljjyon.supabase.co/storage/v1/object/public/desktop-releases/latest.json";
+
 /** Our own address for a platform's download, or `null` if unpublished. Relative:
  *  in the desktop app, prefix `webOrigin()` before handing it to the opener. */
 export function downloadPath(platform: DesktopPlatform): string | null {

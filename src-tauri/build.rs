@@ -11,6 +11,10 @@ fn main() {
                 "hands_status",
                 "browser_act",
                 "hands_set_enabled",
+                // ADR-663 D6 — the page may learn an update is ready and say
+                // WHEN it installs; never what (`src/update.rs`).
+                "update_ready",
+                "update_restart",
             ]),
         ),
     )

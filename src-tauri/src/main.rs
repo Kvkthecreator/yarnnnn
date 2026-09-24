@@ -34,8 +34,9 @@
 //! reaches the relay only through the commands `build.rs` declares.
 
 mod hands;
+mod update;
 
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
 
 /// Where the interface comes from (ADR-663 D1). A debug build opens the local
@@ -78,16 +79,26 @@ fn main() {
         // rather than navigating the window, because the session it carries
         // has to be handed to the Supabase client, not to the router.
         .plugin(tauri_plugin_deep_link::init())
+        // ADR-663 D6 — the host keeps itself current (`update.rs`). The plugin
+        // reads `plugins.updater` (the endpoint and the public key) from
+        // tauri.conf.json; the page is granted none of its own commands.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             hands::hands_status,
             hands::browser_act,
             hands::hands_set_enabled,
+            update::update_ready,
+            update::update_restart,
         ])
         .manage(hands::Relay::default())
+        .manage(update::Pending::default())
         .setup(|app| {
             // ADR-662 D15 — let Chrome find this app, and listen for the bridge.
             hands::register_with_browsers();
             hands::listen(app.handle());
+
+            // ADR-663 D6 — check, download in the background, install at quit.
+            update::start(app.handle());
 
             // A debug build's page comes from the dev server, which the release
             // roster does not name. Grant it the SAME roster, re-pointed — never
@@ -177,6 +188,13 @@ fn main() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running yarnnn");
+        .build(tauri::generate_context!())
+        .expect("error while building yarnnn")
+        .run(|app, event| {
+            // ADR-663 D6 — an update that finished downloading is installed as
+            // the member quits, so the next launch is the new host.
+            if let RunEvent::Exit = event {
+                update::install_on_exit(app);
+            }
+        });
 }

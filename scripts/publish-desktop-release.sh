@@ -12,7 +12,16 @@
 # a release builds) — and uploads each to the public `desktop-releases` bucket
 # (supabase/migrations/261) twice: under its STABLE name, which the download
 # links point at and every release overwrites, and under `<version>/`, which is
-# kept — the history, and the rollback (re-publish an old version's files).
+# kept — the history. Rolling back means releasing a HIGHER version: the host
+# updater only ever moves forward.
+#
+# THE UPDATER (ADR-663 D6). Last of all it writes `latest.json`, the manifest
+# every installed host polls (through www.yarnnn.com/download/latest.json): the
+# version, and per platform the URL of the VERSIONED update file and its
+# signature. Last, so a host never reads a manifest naming a file not yet
+# served. The signatures come from the workflow, signed with the operator's
+# key; a host refuses any file that does not verify against the public key it
+# was built with.
 #
 # WHY THE NAMES ARE STABLE: web/lib/shell/desktop-app.ts links to the bucket
 # path by name, so a versioned name would break every link on the next
@@ -49,6 +58,27 @@ asset_glob() {
     windows) echo "*-setup.exe" ;;
   esac
 }
+# What the host updater downloads, per platform: the updater's platform key,
+# the built file, and the name it is published under (in `<version>/` only).
+# On Windows the installer IS the update, already published above.
+update_key() {
+  case "$1" in
+    mac)     echo "darwin-aarch64" ;;
+    windows) echo "windows-x86_64" ;;
+  esac
+}
+update_glob() {
+  case "$1" in
+    mac)     echo "*.app.tar.gz" ;;
+    windows) echo "*-setup.exe" ;;
+  esac
+}
+update_name() {
+  case "$1" in
+    mac)     echo "yarnnn-mac-arm64.app.tar.gz" ;;
+    windows) asset_name windows ;;
+  esac
+}
 PLATFORMS=(mac windows)
 
 # The version is the host's (ADR-663 D2), read from the one place it lives.
@@ -83,19 +113,23 @@ RUN="$(gh run list --workflow "$WORKFLOW" --status success --limit 50 \
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
-# Fetch both before uploading either: a release is both platforms or neither.
+# Fetch both before uploading either: a release is both platforms or neither —
+# and neither without its signed update.
 for P in "${PLATFORMS[@]}"; do
   gh run download "$RUN" --name "yarnnn-$P" --dir "$STAGE/$P"
   FILE="$(find "$STAGE/$P" -name "$(asset_glob "$P")" | head -1)"
   [[ -f "$FILE" ]] || { echo "✗ run $RUN has no $P installer" >&2; exit 1; }
   [[ "$(basename "$FILE")" == *"_${VERSION}_"* ]] || {
     echo "✗ $P installer $(basename "$FILE") is not version $VERSION" >&2; exit 1; }
+  UPD="$(find "$STAGE/$P" -name "$(update_glob "$P")" | head -1)"
+  [[ -f "$UPD" && -s "$UPD.sig" ]] || {
+    echo "✗ run $RUN has no signed $P update — is TAURI_SIGNING_PRIVATE_KEY set?" >&2; exit 1; }
 done
 
-upload() {  # $1 = platform, $2 = file, $3 = object path, $4 = cache seconds
+upload() {  # $1 = MIME, $2 = file, $3 = object path, $4 = cache seconds
   curl -sf -X POST "$SUPABASE_URL/storage/v1/object/$BUCKET/$3" \
     -H "apikey: $SUPABASE_SERVICE_KEY" \
-    -H "Content-Type: $(asset_mime "$1")" \
+    -H "Content-Type: $1" \
     -H "cache-control: max-age=$4" \
     -H "x-upsert: true" \
     --data-binary "@$2" >/dev/null
@@ -105,8 +139,8 @@ echo "▸ $TAG (${COMMIT:0:7}, run $RUN) → $BUCKET"
 for P in "${PLATFORMS[@]}"; do
   FILE="$(find "$STAGE/$P" -name "$(asset_glob "$P")" | head -1)"
   NAME="$(asset_name "$P")"
-  upload "$P" "$FILE" "$VERSION/$NAME" 31536000   # a version's file never changes
-  upload "$P" "$FILE" "$NAME" 300                 # the stable name: shows within minutes
+  upload "$(asset_mime "$P")" "$FILE" "$VERSION/$NAME" 31536000   # a version's file never changes
+  upload "$(asset_mime "$P")" "$FILE" "$NAME" 300                 # the stable name: shows within minutes
 
   # The question is not "did the upload succeed" but "does the public link
   # serve this file". Ask it.
@@ -116,3 +150,38 @@ for P in "${PLATFORMS[@]}"; do
   [[ "$SERVED" == "$WANT" ]] || { echo "✗ $URL serves $SERVED bytes, expected $WANT" >&2; exit 1; }
   echo "✓ $P: $WANT bytes at $URL"
 done
+
+# ── The updater: its files, then the manifest that names them ───────────────
+PUBLIC="$SUPABASE_URL/storage/v1/object/public/$BUCKET"
+MANIFEST="$STAGE/latest.json"
+ENTRIES=()
+for P in "${PLATFORMS[@]}"; do
+  UPD="$(find "$STAGE/$P" -name "$(update_glob "$P")" | head -1)"
+  OBJ="$VERSION/$(update_name "$P")"
+  if [[ "$P" == mac ]]; then upload "application/gzip" "$UPD" "$OBJ" 31536000; fi
+  ENTRIES+=("$(update_key "$P")" "$PUBLIC/$OBJ" "$UPD.sig")
+done
+python3 - "$VERSION" "$MANIFEST" "${ENTRIES[@]}" <<'PY'
+import datetime, json, sys
+version, out, rest = sys.argv[1], sys.argv[2], sys.argv[3:]
+platforms = {}
+for key, url, sig in zip(rest[0::3], rest[1::3], rest[2::3]):
+    platforms[key] = {"url": url, "signature": open(sig).read().strip()}
+json.dump({
+    "version": version,
+    "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "notes": f"yarnnn {version}",
+    "platforms": platforms,
+}, open(out, "w"), indent=2)
+PY
+upload "application/json" "$MANIFEST" "latest.json" 300
+
+# The manifest is served (cache-busted: the stable object is cached for five
+# minutes), and the address compiled into every host still leads to it.
+SERVED="$(curl -sf "$PUBLIC/latest.json?v=$VERSION" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' || true)"
+[[ "$SERVED" == "$VERSION" ]] || {
+  echo "✗ $PUBLIC/latest.json serves version '$SERVED', expected $VERSION" >&2; exit 1; }
+LEADS="$(curl -sI https://www.yarnnn.com/download/latest.json | tr -d '\r' | awk 'tolower($1)=="location:"{print $2}')"
+[[ "$LEADS" == "$PUBLIC/latest.json" ]] || {
+  echo "✗ www.yarnnn.com/download/latest.json leads to '$LEADS', not $PUBLIC/latest.json" >&2; exit 1; }
+echo "✓ updater: installed hosts will move to $VERSION"

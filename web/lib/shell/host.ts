@@ -47,3 +47,45 @@ export function noticeHostRefusal(status: number, data: unknown): void {
   if (error?.code !== "desktop_update_required") return;
   window.dispatchEvent(new CustomEvent(DESKTOP_UPDATE_EVENT));
 }
+
+/**
+ * ADR-663 D6 — the host's own updater (`src-tauri/src/update.rs`) downloads and
+ * verifies a new host in the background and installs it when the member quits.
+ * The page may learn that one is waiting and ask for it NOW — never choose what
+ * is installed. A host older than 0.4.3 has no updater: the command is refused,
+ * so every function here answers "nothing waiting".
+ */
+export const HOST_UPDATE_EVENT = "update-ready";
+
+async function hostInvoke<T>(cmd: string): Promise<T | null> {
+  if (!isNativeShell()) return null;
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    return await invoke<T>(cmd);
+  } catch {
+    return null;
+  }
+}
+
+/** The host version downloaded and waiting to install, or null. */
+export function hostUpdateReady(): Promise<string | null> {
+  return hostInvoke<string | null>("update_ready");
+}
+
+/** Call `handler` with the version when the host finishes downloading one. */
+export async function onHostUpdateReady(handler: (version: string) => void): Promise<() => void> {
+  if (!isNativeShell()) return () => {};
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return await listen<string>(HOST_UPDATE_EVENT, (event) => {
+      if (typeof event.payload === "string") handler(event.payload);
+    });
+  } catch {
+    return () => {};
+  }
+}
+
+/** Install the waiting host update now and relaunch into it. */
+export function restartToUpdate(): Promise<unknown> {
+  return hostInvoke("update_restart");
+}
