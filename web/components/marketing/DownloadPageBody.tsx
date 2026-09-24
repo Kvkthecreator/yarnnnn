@@ -10,7 +10,7 @@ import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark"
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
-import { ChatReplica } from "@/components/landing/product/ChatReplica";
+import { FilesReplica } from "@/components/landing/product/FilesReplica";
 import {
   DESKTOP_PLATFORMS,
   DESKTOP_PLATFORM_NAMES,
@@ -41,6 +41,12 @@ import { HtmlLang } from "./HtmlLang";
  * page never guesses the visitor's machine (ADR-661 §7.6). `FIRST_OPEN` is
  * keyed by `DesktopPlatform`, so a platform added to the roster does not
  * compile until its steps are written.
+ *
+ * The hero's picture is co-working, not a feature of the app: FilesReplica,
+ * where a connected AI's edit lands signed beside the member's and a
+ * teammate's (operator, 2026-09-24 — the chat visual said nothing about why
+ * yarnnn is worth keeping open). The window is what the app shows; the
+ * caption says what is happening in it.
  *
  * What the app adds (§ "why") claims only what docs/architecture/desktop-app.md
  * says the host does: its own window, sign-in through the member's browser,
@@ -108,15 +114,18 @@ export function DownloadPageBody({ locale }: { locale: Locale }) {
                 </div>
               </div>
 
-              <div className="flex-1 w-full max-w-xl lg:max-w-none">
+              <figure className="flex-1 w-full max-w-xl lg:max-w-none">
                 <div className="relative">
                   <div
                     aria-hidden="true"
                     className="absolute -inset-8 rounded-[2rem] bg-[#de5a2b]/10 blur-3xl"
                   />
-                  <ChatReplica className="relative shadow-2xl shadow-black/40" />
+                  <FilesReplica className="relative shadow-2xl shadow-black/40" />
                 </div>
-              </div>
+                <figcaption className="relative mt-5 text-sm text-white/45 text-center">
+                  {t("visualCaption")}
+                </figcaption>
+              </figure>
             </div>
           </section>
 

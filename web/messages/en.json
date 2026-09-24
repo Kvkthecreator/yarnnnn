@@ -3466,7 +3466,8 @@
       "copied": "Copied",
       "browserTitle": "Prefer the browser?",
       "browserBody": "yarnnn works the same in any browser, with nothing to install. The app and the browser open the same workspace, so you can switch whenever you like.",
-      "browserCta": "Start in the browser"
+      "browserCta": "Start in the browser",
+      "visualCaption": "You, your people and your AIs in the same files. Every change is signed."
     }
   },
   "runs": {
