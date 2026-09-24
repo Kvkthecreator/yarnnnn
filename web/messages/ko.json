@@ -2158,11 +2158,11 @@
       "raiseAction": "열기"
     },
     "startPicker": {
-      "title": "무엇을 최신 상태로 유지할까요?",
+      "title": "무엇을 스스로 돌아가게 할까요?",
       "subtitle": "파일 이름은 다음 단계에서 정해요.",
       "cancel": "취소",
       "browserTitle": "웹사이트에서 할 일",
-      "browserBody": "에이전트가 지정한 사이트에서, 내 브라우저와 내 로그인으로 작업해요."
+      "browserBody": "지정한 사이트에서, 내 브라우저로."
     },
     "sources": {
       "add": "소스 추가",

@@ -105,6 +105,19 @@ async def _run_now_other():
         return getattr(exc, "status_code", None), (getattr(exc, "detail", None) or {})
     return None, {}
 
+# ⭐ Found by the production click-pass (2026-09-24): the ROUTE returned the
+# coroutine un-awaited — FastAPI 500'd on a coroutine as the response, the
+# browser saw CORS. Calling `_start_browser_run` directly (below) never saw it.
+import ast as _ast  # noqa: E402
+
+_route = next(n for n in _ast.walk(_ast.parse(read("api/routes/standing_work.py")))
+              if isinstance(n, _ast.AsyncFunctionDef) and n.name == "run_standing_now")
+_calls_bare = [n for n in _ast.walk(_route) if isinstance(n, _ast.Return)
+               and isinstance(n.value, _ast.Call) and getattr(n.value.func, "id", "") == "_start_browser_run"]
+_awaited = [n for n in _ast.walk(_route) if isinstance(n, _ast.Await)
+            and isinstance(n.value, _ast.Call) and getattr(n.value.func, "id", "") == "_start_browser_run"]
+check("Run now AWAITS the browser start (a bare coroutine is a 500 the browser reads as CORS)",
+      len(_awaited) == 1 and not _calls_bare)
 _status, _detail = asyncio.run(_run_now_other())
 check("Run now on another member's browser work is refused (403, by name)",
       _status == 403 and _detail.get("problem") == "browser_not_yours", f"{_status} {_detail}")

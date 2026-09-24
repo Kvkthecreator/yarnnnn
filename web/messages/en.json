@@ -2158,11 +2158,11 @@
       "raiseAction": "Open"
     },
     "startPicker": {
-      "title": "What should it keep current?",
+      "title": "What should run on its own?",
       "subtitle": "You name the file on the next step.",
       "cancel": "Cancel",
       "browserTitle": "Do something on websites",
-      "browserBody": "Your agent works on the sites you name, in your own browser, with your sign-ins."
+      "browserBody": "On sites you name, in your own browser."
     },
     "sources": {
       "add": "Add a source",

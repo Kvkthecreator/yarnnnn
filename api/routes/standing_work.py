@@ -969,7 +969,7 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
     if decl.problem is not None:
         raise HTTPException(status_code=422, detail=f"the declaration cannot run: {decl.problem}")
     if decl.browser is not None:
-        return _start_browser_run(auth, actor, decl)
+        return await _start_browser_run(auth, actor, decl)
 
     # The manual fire takes the SAME LOCK the scheduled drain takes (ADR-618 D2,
     # ADR-659 D1). Without it, Run-now racing a tick executes the declaration

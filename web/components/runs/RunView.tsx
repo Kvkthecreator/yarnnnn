@@ -69,7 +69,7 @@ export function RunView({
 }) {
   const t = useTranslations('runs');
   const wordStep = useToolLabels();
-  const { outcomeLine, whoLine } = useRunWords();
+  const { outcomeLine, stateWord, whoLine } = useRunWords();
   const [expanded, setExpanded] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
@@ -99,6 +99,10 @@ export function RunView({
   };
 
   const dueLine = mine ? t('dueYou') : t('dueOther', { name: run.member_name || t('someone') });
+  // The outcome line only when it says more than the badge beside the title
+  // ("Done" twice, one under the other, was the click-pass finding).
+  const outcome = !live ? outcomeLine(run) : null;
+  const saysMore = outcome !== null && outcome !== stateWord(run);
 
   return (
     <div className={cn('rounded-lg border border-border/70 bg-background px-3.5 py-3', className)}>
@@ -149,7 +153,7 @@ export function RunView({
       </div>
 
       {run.state === 'waiting' && <p className="mt-2 text-xs text-foreground">{dueLine}</p>}
-      {!live && <p className="mt-2 text-xs text-foreground">{outcomeLine(run)}</p>}
+      {saysMore && <p className="mt-2 text-xs text-foreground">{outcome}</p>}
       {stopError && <p className="mt-1 text-xs text-destructive">{stopError}</p>}
 
       {steps.length > 0 && (
