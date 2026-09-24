@@ -115,6 +115,57 @@ check(
     f"literal text in the row: {_jsx_text}",
 )
 
+# ═══ Amendment 1 (2026-09-24) — the browser is not a desktop feature ═══════
+print("\n── am.1 — every surface says the browser works from the web and the desktop app ──")
+import json as _json  # noqa: E402
+from services import reach_status  # noqa: E402
+
+_settings = read("web/app/(authenticated)/settings/page.tsx")
+check("the browser has its own Settings pane, not a row in the desktop app's",
+      re.search(r'\{ key: "browser", labelKey: "panes\.browser"', _settings) is not None
+      and re.search(r'pane === "browser" && \(.*?<BrowserSetting />', _settings, re.S) is not None
+      and "DesktopBrowserSetting" not in _settings
+      and not re.search(r'pane === "desktop" && \((?:(?!pane === ").)*<BrowserSetting', _settings, re.S))
+check("the agent is sent to that pane, never to the desktop app's",
+      "Settings → Your browser" in reach_status.browser_sentence("M", held=False)
+      and "Settings → Desktop app" not in reach_status.browser_sentence("M", held=False))
+check("'keep Chrome open' is said only inside the desktop app",
+      re.search(r"isNativeShell\(\) && \(\s*<p[^>]*>\{t\(\"desktopKeepOpen\"\)\}",
+                read("web/components/settings/BrowserSetting.tsx")) is not None)
+
+# ONE install action: no surface builds its own store link.
+_add = read("web/components/shared/AddToChrome.tsx")
+check("AddToChrome is the one install action, switched by storeUrl",
+      "if (!CHROME_EXTENSION.storeUrl)" in _add and "href={CHROME_EXTENSION.storeUrl}" in _add
+      and "export const EXTENSION_PUBLISHED = CHROME_EXTENSION.storeUrl !== null" in _add)
+_web = Path(API.parent / "web")
+_stray = [str(p.relative_to(_web)) for d in ("components", "app", "lib") for p in (_web / d).rglob("*.tsx")
+          if "storeUrl" in p.read_text(encoding="utf-8", errors="ignore") and p.name != "AddToChrome.tsx"
+          and "CHROME_EXTENSION.storeUrl" in re.sub(r"(?s)/\*.*?\*/|//[^\n]*", "", p.read_text(encoding="utf-8", errors="ignore"))]
+check("no other surface reads storeUrl to build a link", not _stray, str(_stray))
+for rel in ("web/components/settings/BrowserSetting.tsx", "web/components/reach/ReachBrowser.tsx",
+            "web/components/supervisor/BrowserGate.tsx"):
+    check(f"{rel.split('/')[-1]} renders the one install action", "<AddToChrome" in read(rel))
+
+# The public site names the browser only once a visitor can install it.
+_faq = read("web/components/marketing/FaqPageBody.tsx")
+check("the FAQ's browser answer appears only when the extension is published",
+      re.search(r"const browserItem = EXTENSION_PUBLISHED\s*\?", _faq) is not None
+      and 's.cat === "work" && browserItem' in _faq)
+_how = read("web/components/marketing/HowItWorksPageBody.tsx")
+check("How it works shows its browser step only when published",
+      's.key !== "browser" || EXTENSION_PUBLISHED' in _how and "shown.map(" in _how)
+for rel, key in (("web/components/marketing/LandingPageBody.tsx", "browserLine"),
+                 ("web/components/marketing/DownloadPageBody.tsx", "browserExtension")):
+    check(f"{rel.split('/')[-1]}'s browser line is gated on EXTENSION_PUBLISHED",
+          re.search(r"\{EXTENSION_PUBLISHED && \((?:(?!\)\}).)*t\(\"" + key + r"\"\)", read(rel), re.S) is not None)
+for lang in ("en", "ko"):
+    _cat = _json.loads(read(f"web/messages/{lang}.json"))
+    check(f"{lang}: the browser's words exist, and the desktop pane holds none",
+          all(k in _cat["extension"] for k in ("add", "notYet"))
+          and "browser" in _cat["settings"] and "browser" not in _cat["settings"]["desktop"]
+          and all(_cat["marketing"]["faq"]["q"]["browser"].get(k) for k in ("q", "a")))
+
 print(f"\n  {PASS} passed, {FAIL} failed\n")
 if FAIL:
     print("✗ ADR-664 checks FAILED")

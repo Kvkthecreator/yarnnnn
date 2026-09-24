@@ -1,9 +1,10 @@
-"""Client tools — a lane tool the member's desktop app performs (ADR-662 D6).
+"""Client tools — a lane tool the member's own machine performs (ADR-662 D6/D15).
 
 The lane turn stays ONE streamed request. When the model calls a client tool,
 the loop (`lane_runner.run_lane_turn_stream`) yields a `client_tool` frame to
-the stream and awaits the result here; the desktop app performs the act in its
-own browser pane and posts the result to
+the stream and awaits the result here; the yarnnn Chrome extension performs the
+act — asked by yarnnn on the web in that Chrome, or relayed by the desktop app
+over native messaging — and the page posts the result to
 `POST /api/lanes/{lane_id}/tool-results/{call_id}` (`routes/lanes.py`), which
 calls `resolve`. The same turn then continues — one lane runner, one
 attribution stamp, one receipt path.

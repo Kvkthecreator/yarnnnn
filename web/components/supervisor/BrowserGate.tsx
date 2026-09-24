@@ -11,9 +11,9 @@
  * but off, and a quieter *continue without it* for work that reads and acts
  * on nothing (the unattended kind, which needs no browser).
  *
- * ⚠️ THE SWITCH IS `storeUrl`, not the app stage. Until ADR-662 is Accepted,
- * ADR-661's tripwire holds `CHROME_EXTENSION.storeUrl` null, and the step
- * names the extension without offering a link it cannot honestly offer.
+ * ⚠️ THE SWITCH IS `storeUrl`, not the app stage — held in the one install
+ * action (`AddToChrome`), which names the extension without a link it cannot
+ * honestly offer until the Web Store listing exists.
  *
  * "Continue without it" is a per-viewer convenience, remembered in this
  * browser only; storage that throws (private window) just forgets it.
@@ -22,7 +22,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Globe } from 'lucide-react';
-import { CHROME_EXTENSION, browserHands, setBrowserHands, type BrowserHands } from '@/lib/shell/hands';
+import { browserHands, setBrowserHands, type BrowserHands } from '@/lib/shell/hands';
+import { AddToChrome } from '@/components/shared/AddToChrome';
 import { Working } from '@/components/shared/Working';
 
 const SKIP_KEY = 'yarnnn.supervisor.without-browser';
@@ -87,17 +88,11 @@ export function BrowserGate({ children }: { children: ReactNode }) {
           </button>
         ) : hostTooOld ? (
           <span className="text-xs text-muted-foreground">{t('updateApp')}</span>
-        ) : CHROME_EXTENSION.storeUrl ? (
-          <a
-            href={CHROME_EXTENSION.storeUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90"
-          >
-            {t('add')}
-          </a>
         ) : (
-          <span className="text-xs text-muted-foreground">{t('comingSoon')}</span>
+          <AddToChrome
+            fallback
+            className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90"
+          />
         )}
         <button
           type="button"

@@ -273,7 +273,8 @@ def browser_sentence(member: str, *, held: bool) -> str:
         )
     return (
         f" A website with no connection is not out of reach: {member}'s own browser can "
-        "act there once they add the yarnnn extension to Chrome (Settings → Desktop app). "
+        "act there once they add the yarnnn extension to Chrome — from yarnnn on the web or "
+        "the desktop app (Settings → Your browser). "
         "Asked to do something on a website, say so — not only \"connect it in Settings\"."
     )
 

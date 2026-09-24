@@ -1,5 +1,6 @@
 "use client";
 
+import { AddToChrome, EXTENSION_PUBLISHED } from "@/components/shared/AddToChrome";
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -195,6 +196,14 @@ export function DownloadPageBody({ locale }: { locale: Locale }) {
             <ScrollReveal className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">{t("browserTitle")}</h2>
               <p className="text-white/50 leading-relaxed mb-8 max-w-xl mx-auto">{t("browserBody")}</p>
+              {/* ADR-664 am.1 — nothing to install for the workspace; the
+                  extension is what lets your agent act on websites. */}
+              {EXTENSION_PUBLISHED && (
+                <p className="text-white/50 leading-relaxed -mt-4 mb-8 max-w-xl mx-auto">
+                  {t("browserExtension")}{" "}
+                  <AddToChrome className="text-white underline underline-offset-4 hover:text-white/80" />
+                </p>
+              )}
               <Link
                 href={CTA.signup}
                 className="inline-block px-7 py-3 rounded-full border border-white/20 text-white hover:bg-white/10 transition-colors"

@@ -1,5 +1,6 @@
 "use client";
 
+import { AddToChrome, EXTENSION_PUBLISHED } from "@/components/shared/AddToChrome";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import LandingHeader from "@/components/landing/LandingHeader";
@@ -296,6 +297,14 @@ export function LandingPageBody({ locale }: { locale: Locale }) {
             >
               {t("desktopLink")}
             </Link>
+            {/* ADR-664 am.1 — the member's browser, a fourth quiet door beside
+                the desktop app's, shown once the extension can be installed. */}
+            {EXTENSION_PUBLISHED && (
+              <p className="mt-3 text-sm text-[#1a1a1a]/45">
+                {t("browserLine")}{" "}
+                <AddToChrome className="underline underline-offset-4 hover:text-[#1a1a1a] transition-colors" />
+              </p>
+            )}
           </ScrollReveal>
         </section>
 

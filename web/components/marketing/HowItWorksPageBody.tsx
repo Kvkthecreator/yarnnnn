@@ -1,5 +1,6 @@
 "use client";
 
+import { EXTENSION_PUBLISHED } from "@/components/shared/AddToChrome";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import LandingHeader from "@/components/landing/LandingHeader";
@@ -43,6 +44,7 @@ const STEPS = [
   { key: "agents", Replica: AgentsReplica },
   { key: "build", Replica: StudioReplica },
   { key: "connect", Replica: ConnectReplica },
+  { key: "browser", Replica: null },
   { key: "travels", Replica: null },
 ] as const;
 
@@ -53,7 +55,10 @@ export function HowItWorksPageBody({ locale }: { locale: Locale }) {
   const c = useTranslations("marketing.cta");
   const chrome = useMarketingChrome();
 
-  const steps = STEPS.map((s, i) => ({
+  // ADR-664 am.1 — the browser step appears once the extension can be
+  // installed (`EXTENSION_PUBLISHED`), and is numbered with the rest.
+  const shown = STEPS.filter((s) => s.key !== "browser" || EXTENSION_PUBLISHED);
+  const steps = shown.map((s, i) => ({
     number: String(i + 1).padStart(2, "0"),
     title: t(`step.${s.key}.title`),
     body: t(`step.${s.key}.body`),

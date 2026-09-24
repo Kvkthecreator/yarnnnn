@@ -1,5 +1,8 @@
 # ADR-664 — The member's browser is reach
 
+> **Amended** — [Amendment 1](#amendment-1-2026-09-24--the-browser-is-not-a-desktop-feature) (2026-09-24): the browser
+> has its own Settings pane, one install action, and the public site names it once it can be installed.
+>
 > **Status**: **Accepted** (2026-09-23, operator: *"yes this should be first class. proceed"*). Implemented with
 > this document.
 > **Date**: 2026-09-23
@@ -69,3 +72,30 @@ stored on the server: the extension answers the page.
 and denies nothing; without it, names the extension; the frame's tools section claims no reach;
 `list_integrations` names websites and no longer refuses; the integrations route serves `browser_does`; Reach
 renders the row in both branches and writes no reach sentence of its own.
+
+## Amendment 1 (2026-09-24) — the browser is not a desktop feature
+
+Operator: *"if the chrome extension is available on all our platforms … shouldn't we update it on all our surfaces
+and communications as such."* The extension works from yarnnn on the web in Chrome and from the desktop app (which
+relays to it); the code always treated them alike. The words did not.
+
+**Found**: the one on/off switch sat in **Settings → Desktop app**, where no web member looks, beside "in the desktop
+app, keep Chrome open"; the agent sent a member without the browser to "(Settings → Desktop app)"; three surfaces
+each built their own store link with their own fallback words; the public site never named the capability, and
+`/download` said the browser needs "nothing to install"; `client_tools.py`, `primitives/browser.py` and
+`primitives-matrix.md` still said the desktop app (or its deleted pane) performs the acts.
+
+**D7 — The browser has its own pane.** Settings → **Your browser** (`BrowserSetting`, renamed from
+`DesktopBrowserSetting`), on the web and in the desktop app; "keep Chrome open" only inside the desktop app. The
+agent's absent-browser sentence names the web, the desktop app and that pane.
+
+**D8 — One install action.** `components/shared/AddToChrome.tsx` is the only reader of `CHROME_EXTENSION.storeUrl`
+that builds a link; Settings, Reach, the Supervisor's install step and the marketing site render it, with one
+"not yet" line (`extension.notYet`).
+
+**D9 — The public site names the browser once it can be installed.** A FAQ answer, a How-it-works step, a line on
+the home page and one on `/download`, each shown only when `EXTENSION_PUBLISHED` — the same `storeUrl` switch.
+Setting the store link turns on the install buttons and the public words together; until then nothing public
+promises what only developer mode can install.
+
+Gate: this ADR's gate, 15 new arms; 8 proven RED in place.

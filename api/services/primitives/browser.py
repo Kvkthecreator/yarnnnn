@@ -3,8 +3,9 @@
 Definitions only. These tools have NO server executor: an executor on the
 member's own machine performs them and the page posts the result back
 (`services/client_tools.py`, ADR-662 D6) — the yarnnn extension in their Chrome
-(D15, `extension/`), or the desktop app's browser pane (D14). The registry never
-dispatches them; the lane loop hands them to the client.
+(D15, `extension/`), asked by yarnnn on the web or relayed by the desktop app.
+(D14's browser pane is deleted.) The registry never dispatches them; the lane
+loop hands them to the client.
 
 They are offered to a turn only when the page asked and an executor there is
 new enough (`client_tools.offered`). The unattended derive turn never holds them

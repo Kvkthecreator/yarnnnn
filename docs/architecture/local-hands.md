@@ -75,7 +75,7 @@ words. The model never writes script: an act is `page.js` plus one call with JSO
   to a new site asks again.
 - **The member's controls.** The toolbar button (`popup.html`): on/off, the allowed and refused lists, the
   categories that are never allowed. All of it in `chrome.storage.local` — this machine, never the workspace.
-  yarnnn's Settings → Desktop app is a second on/off switch (`setBrowserHands`, from Chrome directly or through
+  yarnnn's Settings → Your browser (its own pane on the web and in the desktop app, ADR-664 am.1) is a second on/off switch (`setBrowserHands`, from Chrome directly or through
   the desktop app's `hands_set_enabled`): OFF applies at once; ON makes the extension ask in its own window
   (`consent.html?mode=enable`) — a yarnnn page can never switch it on by itself (ADR-663 D4). The extension's
   hello carries the switch, and re-sends it when the toolbar changes it, so the row tells the truth.
@@ -110,8 +110,8 @@ words. The model never writes script: an act is `page.js` plus one call with JSO
 ## 5. Trying it before it is published
 
 1. `chrome://extensions` → turn on *Developer mode* → *Load unpacked* → choose the repo's `extension/` folder.
-2. Open yarnnn in that Chrome — or the desktop app (host 0.4.0+), with Chrome running. Settings → Desktop app
-   says *Connected to the yarnnn extension*.
+2. Open yarnnn in that Chrome — or the desktop app (host 0.4.0+), with Chrome running. Settings → Your browser
+   says *On — the yarnnn extension … in Chrome*.
 3. Ask for something on a website in a conversation. The first time on each site, the extension asks.
 
 Publishing waits on ADR-662's ratification: ADR-661's tripwire refuses a `storeUrl` while ADR-662 is Proposed. (A

@@ -239,8 +239,9 @@ _client = read("web/lib/api/client.ts")
 check("the client no longer creates standing work outside the conversation",
       "StandingCreateRequest" not in _client)
 _gate = code_only_ts(read("web/components/supervisor/BrowserGate.tsx"))
+# ADR-664 am.1 — the store-link rule lives in the one install action.
 check("the install step offers Add to Chrome only with a store listing",
-      re.search(r"CHROME_EXTENSION\.storeUrl \? \(\s*<a\s+href=\{CHROME_EXTENSION\.storeUrl\}", _gate) is not None)
+      re.search(r"<AddToChrome\s+fallback", _gate) is not None and "storeUrl" not in _gate)
 check("…switch-on only when installed and answering",
       "hands.executor !== null && hands.connected && !hands.on" in _gate)
 _sec = code_only_ts(read("web/components/supervisor/SupervisorSection.tsx"))

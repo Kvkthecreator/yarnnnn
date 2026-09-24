@@ -15,6 +15,18 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.24.3] - The agent sends a member without the browser to Settings → Your browser, not the desktop app
+
+### Changed
+- services/reach_status.py: `browser_sentence(held=False)` — the extension is added "from yarnnn on the web or the desktop app (Settings → Your browser)", replacing "(Settings → Desktop app)".
+- Expected behavior: asked to act on a website without the browser, the agent points a web member at the pane that exists for them, instead of at a desktop-app pane they have no reason to open.
+
+### Why
+ADR-664 Amendment 1. The switch moved to its own pane; the sentence named the old place — and framed the browser as a desktop feature for every web member (audit 2026-09-24).
+
+### Gate
+`test_adr664_the_browser_is_reach.py` 25/25 (the sentence arm proven RED by restoring the old words).
+
 ## [2026.09.24.2] - The Supervisor sets work up in conversation: its job re-derived, DeclareWork, the skill on the one door
 
 ### Changed

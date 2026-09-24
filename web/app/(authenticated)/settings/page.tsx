@@ -13,13 +13,14 @@ import {
   History,
   Languages,
   Monitor,
+  Globe,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { isNativeShell, openExternal, webOrigin } from "@/lib/shell/external-navigation";
 import { hostVersion } from "@/lib/shell/host";
 import { DESKTOP_PLATFORMS, DESKTOP_DOWNLOADS, DESKTOP_PLATFORM_NAMES, downloadPath } from "@/lib/shell/desktop-app";
-import { DesktopBrowserSetting } from "@/components/settings/DesktopBrowserSetting";
+import { BrowserSetting } from "@/components/settings/BrowserSetting";
 import { api } from "@/lib/api/client";
 import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { createClient } from "@/lib/supabase/client";
@@ -102,7 +103,7 @@ type NotificationKind = {
 // with members real, billing is authority-gated workspace governance (the
 // ChatGPT/Claude Team convention). Supersedes ADR-429 §13.3's account-door
 // placement.
-type SettingsTab = "account" | "notification-settings" | "language" | "desktop";
+type SettingsTab = "account" | "notification-settings" | "language" | "browser" | "desktop";
 
 // ADR-645 D3 (2026-09-08) — the Connections pane is DELETED from this door.
 // It LED here from 2026-08-21 on the reasoning that this door is opened to
@@ -127,6 +128,9 @@ const PANE_ROSTER = [
       { key: "account", labelKey: "panes.account", icon: User },
       // ADR-660 D2 — a language belongs to the human, so it lives in the account door.
       { key: "language", labelKey: "panes.language", icon: Languages },
+      // ADR-664 am.1 — the member's browser, from the web or the desktop app.
+      // It sat inside the desktop pane, where no web member would look for it.
+      { key: "browser", labelKey: "panes.browser", icon: Globe },
       // ADR-661/662 — the desktop app is a first-class way in, on every plan
       // (operator 2026-09-23). A device concern of the human, so the account door.
       { key: "desktop", labelKey: "panes.desktop", icon: Monitor },
@@ -453,7 +457,13 @@ function SettingsPageBody() {
           </p>
           )}
           <p className="mt-1 text-xs text-muted-foreground">{t("desktop.signIn")}</p>
-          <DesktopBrowserSetting />
+        </section>
+      )}
+
+      {pane === "browser" && (
+        <section className="mb-8">
+          <PaneHeader icon={Globe} title={t("panes.browser")} subtitle={t("browser.subtitle")} bordered={false} />
+          <BrowserSetting />
         </section>
       )}
 

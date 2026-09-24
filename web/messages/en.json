@@ -13,7 +13,8 @@
       "notifications": "Notifications",
       "account": "Account",
       "language": "Language",
-      "desktop": "Desktop app"
+      "desktop": "Desktop app",
+      "browser": "Your browser"
     },
     "account": {
       "title": "Data & Privacy",
@@ -82,18 +83,18 @@
       "notYet": "Not published yet",
       "signIn": "Signing in from the app opens your browser, then brings you straight back.",
       "version": "Version {version}.",
-      "browser": {
-        "title": "Let your agent use your browser",
-        "update": "Update the desktop app to let your agent use your browser.",
-        "extensionConnected": "On — the yarnnn extension {version} in Chrome. Your agent works in its own tabs there, with your sign-ins, and asks once per site. Sites are managed from the yarnnn button in Chrome's toolbar.",
-        "extensionMissing": "Add the yarnnn extension to Chrome and your agent can work in your own Chrome — with your sign-ins, in its own tabs, asking once per site. In the desktop app, keep Chrome open.",
-        "addToChrome": "Add to Chrome",
-        "notYet": "Not published yet",
-        "extensionOff": "Off — the yarnnn extension {version} is connected, and your agent won't use Chrome until you turn it on. Turning it on asks you in Chrome.",
-        "declined": "Still off — you can turn it on here any time; Chrome asks you to confirm."
-      },
       "beta": "The desktop app is in beta and not yet signed, so your computer asks you to confirm the first time.",
       "howToOpen": "How to open it"
+    },
+    "browser": {
+      "title": "Let your agent use your browser",
+      "update": "Update the desktop app to let your agent use your browser.",
+      "extensionConnected": "On — the yarnnn extension {version} in Chrome. Your agent works in its own tabs there, with your sign-ins, and asks once per site. Sites are managed from the yarnnn button in Chrome's toolbar.",
+      "extensionOff": "Off — the yarnnn extension {version} is connected, and your agent won't use Chrome until you turn it on. Turning it on asks you in Chrome.",
+      "declined": "Still off — you can turn it on here any time; Chrome asks you to confirm.",
+      "subtitle": "Your agent can work in your own Chrome — from yarnnn on the web, or from the desktop app.",
+      "extensionMissing": "Add the yarnnn extension to Chrome and your agent can work in your own Chrome — with your sign-ins, in its own tabs, asking once per site.",
+      "desktopKeepOpen": "In the desktop app, keep Chrome open."
     }
   },
   "auth": {
@@ -694,8 +695,7 @@
     },
     "browser": {
       "connected": "Connected — the yarnnn extension {version} in Chrome",
-      "missing": "Not connected — add the yarnnn extension to Chrome",
-      "add": "Add to Chrome"
+      "missing": "Not connected — add the yarnnn extension to Chrome"
     }
   },
   "billing": {
@@ -2138,8 +2138,6 @@
       "body": "Supervisor sets up work by doing it once with you, in your own browser with the sign-ins you already have — then keeps doing it. That takes the yarnnn extension for Chrome.",
       "switchOn": "Switch it on",
       "updateApp": "Update the yarnnn app to use your browser.",
-      "add": "Add to Chrome",
-      "comingSoon": "The extension is on its way to the Chrome Web Store.",
       "without": "Continue without it"
     },
     "conversation": {
@@ -2966,7 +2964,8 @@
       "whereLink": "Read the details — including what we don't have",
       "pricingTitle": "Free for two. A seat for the rest.",
       "pricingBody": "The workspace is free for you and a teammate — your files, your record, reachable from any AI you use. From the 3rd person, each extra seat is paid; usage is pay-as-you-go from one shared balance. AI connections are always free — never a seat.",
-      "desktopLink": "Also on Mac and Windows: download the desktop app"
+      "desktopLink": "Also on Mac and Windows: download the desktop app",
+      "browserLine": "In Chrome, your agent can act on websites for you."
     },
     "apps": {
       "includes": "Your workspace includes:",
@@ -3085,6 +3084,10 @@
         "stage": {
           "q": "Is {brand} in {stage}?",
           "a": "Yes. It works and we run our own work on it every day, but it will keep changing, and some things will break along the way. None of that touches your files: every version is kept, every change is signed, and the whole workspace exports as a plain git repo whenever you like. If something breaks or confuses you, use Send feedback in your account menu."
+        },
+        "browser": {
+          "q": "Can my agent act on websites for me?",
+          "a": "Yes — in your own Chrome, through the yarnnn extension, from yarnnn on the web or the desktop app. Your agent works in tabs of its own with the sign-ins you already have, and asks before it uses a site for the first time. It acts while you're there to watch: work you want repeated waits for you to start it. Banking, payments, trading and password managers are never allowed."
         }
       },
       "heading": "Frequently asked questions",
@@ -3123,6 +3126,10 @@
         "travels": {
           "title": "And that's why your work travels",
           "body": "Because the work is real files you own — not history trapped in someone's app — it goes wherever you go. Share a document with a link. Invite a teammate into the workspace. Reach it from any AI you use. Leave, and it's still yours."
+        },
+        "browser": {
+          "title": "Your agent can act on websites",
+          "body": "Add the yarnnn extension to Chrome and your agent works in your own browser, with the sign-ins you already have — from the web or the desktop app. It opens, reads, fills and posts in tabs of its own while you watch, and every step lands on the workspace's record."
         }
       },
       "guaranteesTitle": "What the system guarantees.",
@@ -3445,7 +3452,8 @@
       "browserTitle": "Prefer the browser?",
       "browserBody": "yarnnn works the same in any browser, with nothing to install. The app and the browser open the same workspace, so you can switch whenever you like.",
       "browserCta": "Start in the browser",
-      "visualCaption": "You, your people and your AIs in the same files. Every change is signed."
+      "visualCaption": "You, your people and your AIs in the same files. Every change is signed.",
+      "browserExtension": "To let your agent act on websites in your own Chrome, add the yarnnn extension."
     }
   },
   "runs": {
@@ -3478,5 +3486,9 @@
       "title": "Runs",
       "openSupervisor": "Open the Supervisor"
     }
+  },
+  "extension": {
+    "add": "Add to Chrome",
+    "notYet": "The extension is on its way to the Chrome Web Store."
   }
 }

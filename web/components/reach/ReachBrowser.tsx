@@ -14,7 +14,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Globe } from 'lucide-react';
-import { CHROME_EXTENSION, browserHands, type BrowserHands } from '@/lib/shell/hands';
+import { browserHands, type BrowserHands } from '@/lib/shell/hands';
+import { AddToChrome } from '@/components/shared/AddToChrome';
 import { cn } from '@/lib/utils';
 
 export type BrowserDoes = { name: string; reads: string; writes: string; chat?: string; agents: string };
@@ -59,15 +60,8 @@ export function ReachBrowser({
                 />
               </>
             )}
-            {hands && !connected && CHROME_EXTENSION.storeUrl && (
-              <a
-                href={CHROME_EXTENSION.storeUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="ml-auto shrink-0 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              >
-                {t('browser.add')}
-              </a>
+            {hands && !connected && (
+              <AddToChrome className="ml-auto shrink-0 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground" />
             )}
           </div>
           <dl className="mt-2 space-y-1 text-[11px]">

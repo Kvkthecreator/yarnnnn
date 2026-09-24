@@ -1,11 +1,13 @@
 "use client";
 
 /**
- * Settings → Desktop app → the browser row (ADR-662 D15).
+ * Settings → Your browser (ADR-662 D15 → ADR-664 Amendment 1).
  *
- * The agent works in the member's own Chrome through the yarnnn extension, in
- * Chrome directly or relayed from the desktop app. This row says whether it is
- * connected here, and is its on/off switch. Off applies at once; ON is asked
+ * The agent works in the member's own Chrome through the yarnnn extension —
+ * from yarnnn on the web in Chrome, or relayed from the desktop app. It is not
+ * a desktop feature, so it has its own pane rather than a row in the desktop
+ * app's (where it sat until 2026-09-24, hidden from every web member). This row
+ * says whether it is connected here, and is its on/off switch. Off applies at once; ON is asked
  * of the member in a window the EXTENSION draws (ADR-663 D4) — this row can
  * only ask. The site lists stay in the extension's toolbar button.
  */
@@ -13,10 +15,12 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Globe } from "lucide-react";
-import { CHROME_EXTENSION, browserHands, setBrowserHands, type BrowserHands } from "@/lib/shell/hands";
+import { browserHands, setBrowserHands, type BrowserHands } from "@/lib/shell/hands";
+import { isNativeShell } from "@/lib/shell/external-navigation";
+import { AddToChrome } from "@/components/shared/AddToChrome";
 
-export function DesktopBrowserSetting() {
-  const t = useTranslations("settings.desktop.browser");
+export function BrowserSetting() {
+  const t = useTranslations("settings.browser");
   const [hands, setHands] = useState<BrowserHands | null>(null);
   const [busy, setBusy] = useState(false);
   const [declined, setDeclined] = useState(false);
@@ -53,13 +57,18 @@ export function DesktopBrowserSetting() {
   };
 
   return (
-    <div className="mt-6 rounded-lg border border-border px-4 py-3">
+    <div className="rounded-lg border border-border px-4 py-3">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 gap-3">
           <Globe className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0">
             <p className="text-sm font-medium">{t("title")}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
+            {/* The desktop app relays to the extension over native messaging,
+                so Chrome must be running — true only there. */}
+            {!connected && !hostTooOld && isNativeShell() && (
+              <p className="mt-1 text-xs text-muted-foreground">{t("desktopKeepOpen")}</p>
+            )}
             {declined && <p className="mt-1 text-xs text-muted-foreground">{t("declined")}</p>}
           </div>
         </div>
@@ -85,18 +94,11 @@ export function DesktopBrowserSetting() {
           </button>
         )}
         {!connected && !hostTooOld && (
-          CHROME_EXTENSION.storeUrl ? (
-            <a
-              href={CHROME_EXTENSION.storeUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="shrink-0 rounded-md border border-border px-3 py-1 text-sm hover:bg-muted"
-            >
-              {t("addToChrome")}
-            </a>
-          ) : (
-            <span className="shrink-0 text-sm text-muted-foreground">{t("notYet")}</span>
-          )
+          <AddToChrome
+            fallback
+            className="shrink-0 rounded-md border border-border px-3 py-1 text-sm hover:bg-muted"
+            fallbackClassName="max-w-[12rem] shrink-0 text-right text-xs text-muted-foreground"
+          />
         )}
       </div>
     </div>

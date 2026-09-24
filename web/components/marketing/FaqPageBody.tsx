@@ -1,5 +1,6 @@
 "use client";
 
+import { EXTENSION_PUBLISHED } from "@/components/shared/AddToChrome";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import LandingHeader from "@/components/landing/LandingHeader";
@@ -56,6 +57,12 @@ export function FaqPageBody({ locale }: { locale: Locale }) {
       }
     : null;
 
+  // ADR-664 am.1 — the member's browser, answered once a visitor can install
+  // the extension (the one switch, `EXTENSION_PUBLISHED`); gone until then.
+  const browserItem = EXTENSION_PUBLISHED
+    ? { question: t("q.browser.q"), answer: t("q.browser.a") }
+    : null;
+
   const sections = SECTIONS.map((s) => ({
     category: t(`cat.${s.cat}`),
     items: [
@@ -65,6 +72,7 @@ export function FaqPageBody({ locale }: { locale: Locale }) {
         // harmless and keeps the map one shape.
         answer: t(`q.${k}.a`, priceArgs),
       })),
+      ...(s.cat === "work" && browserItem ? [browserItem] : []),
       ...(s.cat === "start" && stageItem ? [stageItem] : []),
     ],
   }));
