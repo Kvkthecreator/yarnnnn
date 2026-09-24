@@ -221,3 +221,26 @@ how often a run stalls, and how often a sign-in stops it.
 
 **Owed** (`docs/SESSION-HANDOFF.md`): the extension-side site check and "show me the tab" (an extension
 release); a real browser run driven end to end in a Chrome holding the published extension; §8.
+
+## 10. Driven on production (2026-09-24)
+
+Chrome for Testing with the extension loaded unpacked, signed in as the owner rig (`kvkthecreator@yarnnn.com`,
+workspace `bf5b25a9`), English interface. Receipts are row ids in `runs` and revisions.
+
+| Path | Result |
+|---|---|
+| The door → "Do something on websites" → create | `_standing.yaml` names `member: 67c5c637…` (server-stamped), revision `45672f7e` |
+| Run now, in the page holding the extension | run `4381151e`: done · wrote · 47.7 s · $0.1736; revision `739746e0` attributed `member:67c5c637… via anthropic/claude-sonnet-5`; record `runs/2026-09-24-0459.md` |
+| ⭐ The site scope, unprompted | the agent reached for `timeanddate.com` to learn the date — refused before the extension: *"Did not open timeanddate.com: this work may open only example.com, iana.org."* |
+| Stop from the run card, mid-run | the act in flight answered "stopped", the turn ended, record written |
+| Due, through the real scheduler tick | run `28f55c12` WAITING on its member, nothing performed, clock advanced to the next Monday; tray "1 run due"; Needs you → Run it took up the SAME row (waiting → queued → running → done) |
+| A derive run | done · wrote · $0.0077; steps "Read inbound/web/example-com/…" · "Wrote …/summary.md"; no record file |
+| RLS | owner 9 · a non-member 0 · anon 0. **Not driven**: a second member seeing another's run (the rig has no second member) |
+| Retire | declarations archived, index rows dropped; files, records and runs kept |
+
+**Defects only driving found**, each fixed with a gate arm proven RED: Run now returned the browser start
+un-awaited (a 500 the browser reported as CORS) · a stopped run carried `outcome: no_change` · a Run now that
+lost the claim said "nothing changed" above the run card saying the file was updated · "Done" twice on a chat run ·
+the picker still asked "What should it keep current?" · the browser start's line truncated · a browser
+declaration's YAML header described fetching sources.
+

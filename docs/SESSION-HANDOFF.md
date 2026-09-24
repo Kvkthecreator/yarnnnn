@@ -6,6 +6,19 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## ADR-666 the run — what stays OPEN (2026-09-24)
+
+Built, pushed and driven on production (ADR-666 §10). Still owed:
+- **A second member seeing another's run, live.** RLS was probed (owner sees, non-member and anon see 0), never
+  driven with two members. Use the rig pair per the operator packet; one browser context per principal.
+- **The extension release** (after the Web Store listing): the site check inside the extension (a link followed
+  off the sites is not refused today — the step names it) and "show me the tab".
+- **ADR-666 §8 — unattended browser work** (ADR-665's option B): not ruled. Needs the extension's own connection
+  and the pending act in shared state instead of `client_tools._TURNS`. Measure first: how often runs stall, and
+  how often a sign-in stops one.
+- The Supervisor's band still says "Supervisor is updating results.md" for browser work run by the member's own
+  agent — the resident's job text was never re-derived (the 09-20 analysis, step 3).
+
 ## Office formats not yet driven with APPLICATION-authored files (2026-09-23)
 
 The production click-pass (ADR-395 am.2 §11.12) drove every format, Save-as, agent read/edit and binary
