@@ -1,6 +1,7 @@
 # ADR-663 — The desktop app is the website in a native window; the host is what is versioned
 
 > **Status**: **Accepted** (2026-09-23, operator-ratified: *"aligned in full"*). Implemented with this document.
+> **Amended**: am.1 (2026-09-24) — one release path for both platforms, and a window hears a newer web build (§8).
 > **Date**: 2026-09-23
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Channel** (the form of a client — where its interface comes from).
@@ -141,3 +142,45 @@ Suspense boundaries (ADR-661 §7a.1 — an improvement to first paint that never
 version source; the header is sent and the minimum refuses with 426 (driven against the real middleware); the
 remote capability grants nothing outside today's roster; the login page chooses at runtime; the retired origins
 are gone from CORS.
+
+## 8. Amendment 1 — one release path; a window hears a newer build (2026-09-24)
+
+**Origin** — the operator: *"if there are updates to the repo and yarnnn itself, are they automatically reflected
+in the app? … anyway we can more formally manage the version updates much like claude code or claude desktop app
+does?"*, then, on the recommendation (auto-update, one release pipeline, signing, a reload notice): *"yes, aligned
+in full … ensure singular streamlined discipline with code and docs, scoping in deletion and clean-up."*
+
+Two gaps against the industry convention (Claude's desktop app, VS Code, Slack), measured, not assumed:
+
+- **Two ways to cut one release.** The Mac installer was built on the operator's Mac by `scripts/release-shell.sh`
+  and the Windows one on a runner by a manually dispatched `shell-windows.yml`; the publish script took each
+  separately and tagged HEAD — which, with several sessions committing to main, is not the commit the Mac build
+  came from. One version (D2) was cut by two paths from possibly two commits.
+- **D1's promise stops at the page load.** "A web deploy updates every desktop app" holds for the next load only. A
+  window left open — for days, in a desktop app — keeps running the build it loaded, and meets the next deploy's
+  missing chunks as errors that look like bugs. Nothing told it. The browser tab has the same gap.
+
+**D2 am.1 — A release is one tag.** Bump `version` in `src-tauri/Cargo.toml`, push, and push `desktop-vX.Y.Z` on
+that commit. `.github/workflows/desktop-release.yml` builds BOTH installers from the tagged commit (a macOS and a
+Windows runner), refusing a tag that is not Cargo's version and a Mac build whose ad-hoc seal does not verify; when
+the `APPLE_*` secrets exist, Tauri signs with the Developer ID and notarizes instead — the certificate lives in CI,
+not on one Mac. `scripts/publish-desktop-release.sh X.Y.Z` takes that run's installers — the tag's commit, never
+HEAD — fetches both before uploading either, and publishes them as before (stable name + kept `X.Y.Z/`). The job
+stays read-only; the storage key never enters CI. **Deleted**: `scripts/release-shell.sh` and
+`.github/workflows/shell-windows.yml`.
+
+**D7 — A window hears that a newer interface is live.** The client is built knowing its own commit
+(`NEXT_PUBLIC_DEPLOYMENT`, from `VERCEL_GIT_COMMIT_SHA` in `web/next.config.js`); `/api/deployment` answers,
+statically per build, with the commit the site serves now. While the window is in view — at most once a quarter
+hour, never in the background — `web/lib/shell/deployment.ts` compares them and `UpdateNotice` offers *Reload*,
+dismissible, because nothing is broken yet. The commit, not a deployment id: `web/vercel.json` deploys only when
+`web/` changes, so a new commit served IS a new interface. `DesktopUpdateNotice` is renamed `UpdateNotice` and
+owns both states — D3's refusal (a blocking bar) and D7's (a card) — so "a newer yarnnn exists" has one home.
+
+**D6 stands, and is next.** The host updater (Tauri's, a signed manifest beside the installers, check at launch and
+every six hours, install at quit or on *Restart to update*) needs its own signing keypair, which is the operator's
+to generate and hold — a long-lived credential this session does not mint. Until it lands, D3's 426 remains the
+lever and a host change still needs a reinstall.
+
+Gate: `api/test_adr663_the_desktop_app_is_the_website.py` gains the D2 am.1 and D7 arms (45/45), each proven RED by
+breaking the guarded site in place; ADR-661's installer arms now read the one workflow.

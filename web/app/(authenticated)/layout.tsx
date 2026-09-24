@@ -5,7 +5,7 @@ import { getRequestUser } from '@/lib/supabase/server';
 import { IntlScope } from '@/components/i18n/IntlScope';
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
 import { AuthGate } from '@/components/shell/AuthGate';
-import { DesktopUpdateNotice } from '@/components/shell/DesktopUpdateNotice';
+import { UpdateNotice } from '@/components/shell/UpdateNotice';
 import { Wordmark } from '@/components/shared/Wordmark';
 import { Working } from '@/components/shared/Working';
 
@@ -54,7 +54,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
 
   return (
     <IntlScope>
-      <DesktopUpdateNotice />
+      <UpdateNotice />
       <Suspense fallback={<LayoutFallback loading={t('loading')} />}>
         <AuthGate fallback={<LayoutFallback loading={t('loading')} />}>
           <AuthenticatedLayout userEmail={user?.email ?? undefined}>

@@ -157,8 +157,10 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    store's copy under review is 0.1.0; upload **0.1.1** (the switch) when the review clears. (c) Only then
    `storeUrl`, which ADR-661's tripwire holds until ADR-662 is Accepted.
 4. **Windows signing** — SmartScreen warns; Azure Trusted Signing eligibility for a Korean entity
-   unchecked. Installer: `shell-windows.yml`, manual dispatch.
-5. **Auto-update** — deferred by ADR-663 D6 (its own keypair + a hosted manifest); D3's 426 is the lever.
+   unchecked. Installers: `desktop-release.yml`, on the `desktop-v*` tag.
+5. **Auto-update (ADR-663 D6, next)** — blocked on the OPERATOR generating the updater keypair and setting the
+   `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`) repo secrets; the public key then goes in `tauri.conf.json`. Also stale:
+   the `NEXT_PUBLIC_SUPABASE_*` repo secrets ADR-663 §4 retired still exist — delete them. D3's 426 is the lever until then.
 6. **Local hands (ADR-662, Proposed)** — reference `docs/architecture/local-hands.md`. ONE executor: the
    **yarnnn Chrome extension** (`extension/`, D15), reached from yarnnn in Chrome directly and from the
    desktop app (host **0.4.0**) over native messaging — the pane is DELETED. Driven: `extension/e2e/run.mjs`

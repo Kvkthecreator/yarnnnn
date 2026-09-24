@@ -299,9 +299,16 @@
       "nothingOpenBody": "Click an icon in the dock, or open the Launcher (the grid icon) to see everything in this workspace."
     },
     "loading": "Loading…",
-    "hostUpdate": {
-      "message": "This version of the yarnnn app is out of date, so it can’t load your workspace.",
-      "action": "Get the latest version"
+    "update": {
+      "refused": {
+        "message": "This version of the yarnnn app is out of date, so it can’t load your workspace.",
+        "action": "Get the latest version"
+      },
+      "web": {
+        "message": "A new version of yarnnn is ready.",
+        "action": "Reload",
+        "dismiss": "Not now"
+      }
     }
   },
   "chat": {
@@ -572,6 +579,11 @@
       "BrowserBack": {
         "doing": "going back a page",
         "did": "went back a page"
+      },
+      "DeclareWork": {
+        "doing": "setting up standing work",
+        "did": "set up standing work",
+        "withSubject": "setting up {subject}"
       }
     },
     "fileOpen": {
@@ -1675,7 +1687,6 @@
       "unreadable": "Couldn't read your work just now.",
       "sectionWork": "Standing work",
       "sectionNeedsYou": "Waiting on you",
-      "newWork": "New standing work",
       "sectionRunning": "Running now",
       "sectionRecent": "Recently"
     },
@@ -1685,19 +1696,12 @@
       "missNameless": "nameless",
       "workUnreadable": "Couldn't read your standing work just now.",
       "workEmptyTitle": "Nothing runs yet",
-      "workEmptyWithStarts": "Set up work that keeps a file current, or that happens on websites in your browser.",
-      "workEmptyNoStarts": "Start from a web page, your browser, or your workspace — or connect Slack, Notion or GitHub.",
-      "startConnector": "{name} · reads {reads}",
-      "startConnectorFallback": "what you chose",
-      "startPage": "Name a page. Its summary stays current.",
-      "setUpFromScratch": "Set up from scratch",
-      "openReach": "Open Reach",
       "workIntro": "Open one to see its runs and instructions.",
-      "newStandingWork": "New standing work",
       "needsYouEmpty": "Nothing is waiting on you.",
       "runningEmpty": "Nothing is running.",
       "recentEmpty": "Nothing has run yet.",
-      "runsUnreadable": "Couldn't read the runs just now."
+      "runsUnreadable": "Couldn't read the runs just now.",
+      "workEmptyConversation": "Say what keeps happening in the conversation, and it shows up here."
     },
     "row": {
       "openTitle": "Open",
@@ -1731,7 +1735,8 @@
       "sources_invalid": "A csv or json file takes exactly one source, and a file rather than a folder.",
       "app_invalid": "The instructions name an app that can't keep a file current.",
       "source_cycle": "This is kept from a file that is kept from it. Neither will run.",
-      "browser_invalid": "Name at least one website, as a plain address like example.com."
+      "browser_invalid": "Name at least one website, as a plain address like example.com.",
+      "browser_member_unknown": "This work names a browser that isn't a member of this workspace."
     },
     "lastRun": {
       "noChange": "Ran. Nothing changed",
@@ -1845,68 +1850,14 @@
       "runStarted": "Running in your browser — watch it below.",
       "alreadyRunning": "It's already running.",
       "conversationUnreadable": "Couldn't open the work's conversation just now.",
-      "notYours": "Only {name} can run it — it runs in their browser."
+      "notYours": "Only {name} can run it — it runs in their browser.",
+      "sitesPlaceholder": "example.com, shop.example.org"
     },
     "preset": {
       "weekdays9": "Every weekday at 09:00",
       "daily9": "Every day at 09:00",
       "monday9": "Every Monday at 09:00",
       "hourly": "Every hour"
-    },
-    "newWork": {
-      "title": "New standing work",
-      "subtitle": "The first run starts within a few minutes.",
-      "whereLabel": "Where",
-      "folderPlaceholder": "team-brief",
-      "choose": "Choose…",
-      "whereHint": "A folder of its own, new or existing.",
-      "targetLabel": "The file it keeps",
-      "targetPlaceholder": "brief.md",
-      "formatBad": "Only md, csv, json and txt files can be kept current.",
-      "targetHint": "Lives at {folder}/{target}. Made on the first run if it does not exist yet.",
-      "ellipsis": "…",
-      "whenLabel": "When",
-      "whenLabelWithZone": "When ({timezone})",
-      "custom": "Custom…",
-      "cronPlaceholder": "0 13 * * *",
-      "sourceLabel": "Where its updates come from",
-      "sourceConnection": "A connection",
-      "sourceWorkspace": "Your workspace",
-      "sourceWebPage": "A web page",
-      "nothingChosen": "Nothing is chosen on this connection yet. Choose what it reads in Reach first.",
-      "itReads": "It reads {reads}.",
-      "pathPlaceholder": "A folder, or a file inside one",
-      "pathHint": "End a folder with a slash and it reads the newest files in it. Name another kept file and this one follows it.",
-      "urlPlaceholder": "https://…",
-      "instructionsLabel": "Instructions",
-      "instructionsPlaceholder": "What this file is, and what it must stay true to.",
-      "instructionsHint": "Every run follows this. Change it any time.",
-      "cancel": "Cancel",
-      "start": "Start",
-      "couldNotSetUp": "Could not set this up.",
-      "pickerTitle": "Choose a folder",
-      "pickerSubtitle": "Where this standing work lives",
-      "pickerConfirm": "Choose",
-      "pickerEmpty": "No folders yet.",
-      "blockedFolder": "Name a folder to keep it in.",
-      "blockedTarget": "Name the file it keeps.",
-      "blockedFormat": "The file must end in .md, .csv, .json or .txt.",
-      "blockedSchedule": "Choose when it runs.",
-      "blockedConnector": "Choose what it reads in Reach first.",
-      "blockedPath": "Name a folder or file in your workspace.",
-      "blockedUrl": "Paste the address of a web page.",
-      "blockedInstructions": "Write what the file must stay true to.",
-      "blockedSource": "Add at least one source.",
-      "blockedTooMany": "{max, plural, one {# source} other {# sources}} at most.",
-      "sourceCount": "{count} of {max}",
-      "oneSourceOnly": "A csv, json or txt file reads exactly one source.",
-      "sitesLabel": "Websites it may use",
-      "sitesHint": "Plain addresses, like example.com. Separate them with commas.",
-      "sitesPlaceholder": "example.com, shop.example.org",
-      "browserContractLabel": "What must be true when it finishes — and how to get there",
-      "browserContractSeed": "Open each site, find what's needed, and keep the file up to date. Say which site needs me to sign in if one does.",
-      "browserScheduleHint": "When it comes due, it waits for you to run it — it never acts while you're away.",
-      "blockedSites": "Name at least one website it may use."
     },
     "notifications": {
       "standingIntro": "Files kept current on a schedule. Set one up in Supervisor, or ask an agent in chat.",
@@ -2152,17 +2103,14 @@
     },
     "minderBand": {
       "resting": "Supervisor looks after this.",
-      "working": "Supervisor is updating {target}.",
+      "working": "Updating {target}.",
       "raiseOne": "{target} can't run until its instructions are fixed.",
       "raiseMany": "{target} can't run until its instructions are fixed, and {count, plural, one {# other} other {# others}} too.",
-      "raiseAction": "Open"
-    },
-    "startPicker": {
-      "title": "What should run on its own?",
-      "subtitle": "You name the file on the next step.",
-      "cancel": "Cancel",
-      "browserTitle": "Do something on websites",
-      "browserBody": "On sites you name, in your own browser."
+      "raiseAction": "Open",
+      "workingBrowser": "{member}'s browser is working on {target}.",
+      "aMember": "A member",
+      "raiseDue": "{target} is due — run it in your browser.",
+      "raiseDueAction": "Run it"
     },
     "sources": {
       "add": "Add a source",
@@ -2171,6 +2119,24 @@
       "file": "File",
       "page": "Web page",
       "allAdded": "Everything you chose is already added."
+    },
+    "gate": {
+      "checking": "Checking for your browser…",
+      "title": "Add yarnnn to Chrome",
+      "body": "Supervisor sets up work by doing it once with you, in your own browser with the sign-ins you already have — then keeps doing it. That takes the yarnnn extension for Chrome.",
+      "switchOn": "Switch it on",
+      "updateApp": "Update the yarnnn app to use your browser.",
+      "add": "Add to Chrome",
+      "comingSoon": "The extension is on its way to the Chrome Web Store.",
+      "without": "Continue without it"
+    },
+    "conversation": {
+      "emptyTitle": "What keeps happening?",
+      "emptyBody": "Say what you do again and again. Supervisor sets it up with you, and every run shows here.",
+      "suggestConnector": "Keep a weekly brief of what happens in {name}.",
+      "suggestBrowser": "Every Monday, check the prices on the sites I use and keep a table.",
+      "suggestPath": "Keep a digest of what I upload, current every morning.",
+      "suggestUrl": "Watch a web page and keep a short brief of what changes."
     }
   },
   "studio": {

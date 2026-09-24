@@ -6,7 +6,7 @@
  * program around it. The page asks the host for that version once and names it
  * on every API request, `X-Yarnnn-Client: desktop/X.Y.Z` (the shape of Claude
  * Code's `claude-cli/X.Y.Z`). The API refuses a host older than its minimum with
- * 426 `desktop_update_required`, and `DesktopUpdateNotice` says so in words.
+ * 426 `desktop_update_required`, and `UpdateNotice` says so in words.
  *
  * Off the desktop app every function here answers "no host": a browser sends no
  * header and is never refused.

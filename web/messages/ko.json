@@ -299,9 +299,16 @@
       "nothingOpenBody": "독에 있는 아이콘을 누르거나, 런처(격자 아이콘)를 열어 이 워크스페이스에 있는 것을 모두 확인해 보세요."
     },
     "loading": "불러오는 중…",
-    "hostUpdate": {
-      "message": "이 yarnnn 앱은 오래된 버전이라 워크스페이스를 불러올 수 없어요.",
-      "action": "최신 버전 받기"
+    "update": {
+      "refused": {
+        "message": "이 yarnnn 앱은 오래된 버전이라 워크스페이스를 불러올 수 없어요.",
+        "action": "최신 버전 받기"
+      },
+      "web": {
+        "message": "yarnnn 새 버전이 준비됐어요.",
+        "action": "새로고침",
+        "dismiss": "나중에"
+      }
     }
   },
   "chat": {
@@ -572,6 +579,11 @@
       "BrowserBack": {
         "doing": "이전 페이지로 가는 중",
         "did": "이전 페이지로 갔어요"
+      },
+      "DeclareWork": {
+        "doing": "정기 작업을 설정하는 중",
+        "did": "정기 작업을 설정했어요",
+        "withSubject": "{subject} 설정하는 중"
       }
     },
     "fileOpen": {
@@ -1675,7 +1687,6 @@
       "unreadable": "지금은 작업을 읽어올 수 없었어요.",
       "sectionWork": "정기 작업",
       "sectionNeedsYou": "당신을 기다리는 일",
-      "newWork": "새 상시 작업",
       "sectionRunning": "지금 실행 중",
       "sectionRecent": "최근"
     },
@@ -1685,19 +1696,12 @@
       "missNameless": "이름 없는",
       "workUnreadable": "지금은 정기 작업을 읽어올 수 없었어요.",
       "workEmptyTitle": "아직 실행 중인 작업이 없어요",
-      "workEmptyWithStarts": "파일을 최신으로 유지하는 작업이나, 내 브라우저에서 웹사이트로 하는 작업을 설정하세요.",
-      "workEmptyNoStarts": "웹 페이지, 내 브라우저, 워크스페이스에서 시작하거나 Slack, Notion, GitHub를 연결하세요.",
-      "startConnector": "{name} · {reads} 읽어요",
-      "startConnectorFallback": "당신이 고른 것을",
-      "startPage": "페이지를 하나 지정하세요. 그 요약이 최신으로 유지돼요.",
-      "setUpFromScratch": "처음부터 설정",
-      "openReach": "Reach 열기",
       "workIntro": "항목을 열면 실행 기록과 안내를 볼 수 있어요.",
-      "newStandingWork": "새 정기 작업",
       "needsYouEmpty": "당신을 기다리는 일은 없어요.",
       "runningEmpty": "실행 중인 작업이 없어요.",
       "recentEmpty": "아직 실행된 작업이 없어요.",
-      "runsUnreadable": "지금은 실행 기록을 읽을 수 없어요."
+      "runsUnreadable": "지금은 실행 기록을 읽을 수 없어요.",
+      "workEmptyConversation": "대화에서 반복되는 일을 말하면 여기에 나타나요."
     },
     "row": {
       "openTitle": "열기",
@@ -1731,7 +1735,8 @@
       "sources_invalid": "csv나 json 파일은 폴더가 아닌 파일 하나만 소스로 쓸 수 있어요.",
       "app_invalid": "지시문이 파일을 최신으로 유지할 수 없는 앱을 지정했어요.",
       "source_cycle": "서로를 참조하고 있어요. 둘 다 실행되지 않아요.",
-      "browser_invalid": "example.com처럼 웹사이트 주소를 하나 이상 적어 주세요."
+      "browser_invalid": "example.com처럼 웹사이트 주소를 하나 이상 적어 주세요.",
+      "browser_member_unknown": "이 작업은 이 워크스페이스의 멤버가 아닌 사람의 브라우저를 가리키고 있어요."
     },
     "lastRun": {
       "noChange": "실행됨. 바뀐 것 없음",
@@ -1845,68 +1850,14 @@
       "runStarted": "내 브라우저에서 실행 중이에요 — 아래에서 지켜보세요.",
       "alreadyRunning": "이미 실행 중이에요.",
       "conversationUnreadable": "지금은 작업 대화를 열 수 없어요.",
-      "notYours": "{name} 님만 실행할 수 있어요 — 그분의 브라우저에서 실행돼요."
+      "notYours": "{name} 님만 실행할 수 있어요 — 그분의 브라우저에서 실행돼요.",
+      "sitesPlaceholder": "example.com, shop.example.org"
     },
     "preset": {
       "weekdays9": "평일 매일 09:00",
       "daily9": "매일 09:00",
       "monday9": "매주 월요일 09:00",
       "hourly": "매시간"
-    },
-    "newWork": {
-      "title": "새 정기 작업",
-      "subtitle": "첫 실행은 몇 분 안에 시작돼요.",
-      "whereLabel": "어디에",
-      "folderPlaceholder": "team-brief",
-      "choose": "선택…",
-      "whereHint": "새 폴더나 기존 폴더 중 하나예요.",
-      "targetLabel": "유지할 파일",
-      "targetPlaceholder": "brief.md",
-      "formatBad": "md, csv, json, txt 파일만 최신으로 유지할 수 있어요.",
-      "targetHint": "{folder}/{target}에 만들어져요. 아직 없으면 첫 실행 때 만들어요.",
-      "ellipsis": "…",
-      "whenLabel": "언제",
-      "whenLabelWithZone": "언제 ({timezone})",
-      "custom": "직접 입력…",
-      "cronPlaceholder": "0 13 * * *",
-      "sourceLabel": "업데이트가 어디에서 오는지",
-      "sourceConnection": "연결",
-      "sourceWorkspace": "내 워크스페이스",
-      "sourceWebPage": "웹 페이지",
-      "nothingChosen": "이 연결에서 아직 고른 것이 없어요. Reach에서 무엇을 읽을지 먼저 고르세요.",
-      "itReads": "{reads} 읽어요.",
-      "pathPlaceholder": "폴더, 또는 폴더 안의 파일",
-      "pathHint": "폴더 끝에 슬래시를 붙이면 그 안의 최신 파일을 읽어요. 유지 중인 다른 파일을 지정하면 그 파일을 따라가요.",
-      "urlPlaceholder": "https://…",
-      "instructionsLabel": "지시문",
-      "instructionsPlaceholder": "이 파일이 무엇이고, 무엇을 지켜야 하는지.",
-      "instructionsHint": "모든 실행이 이 내용을 따라요. 언제든 바꿀 수 있어요.",
-      "cancel": "취소",
-      "start": "시작",
-      "couldNotSetUp": "설정할 수 없었어요.",
-      "pickerTitle": "폴더 선택",
-      "pickerSubtitle": "이 정기 작업이 사는 곳",
-      "pickerConfirm": "선택",
-      "pickerEmpty": "아직 폴더가 없어요.",
-      "blockedFolder": "저장할 폴더 이름을 정해 주세요.",
-      "blockedTarget": "관리할 파일 이름을 정해 주세요.",
-      "blockedFormat": "파일은 .md, .csv, .json, .txt 중 하나여야 해요.",
-      "blockedSchedule": "실행 시점을 선택해 주세요.",
-      "blockedConnector": "먼저 Reach에서 읽을 항목을 선택해 주세요.",
-      "blockedPath": "워크스페이스의 폴더나 파일을 지정해 주세요.",
-      "blockedUrl": "웹 페이지 주소를 붙여 넣어 주세요.",
-      "blockedInstructions": "파일이 지켜야 할 내용을 적어 주세요.",
-      "blockedSource": "소스를 하나 이상 추가해 주세요.",
-      "blockedTooMany": "최대 {max}개까지 추가할 수 있어요.",
-      "sourceCount": "{max}개 중 {count}개",
-      "oneSourceOnly": "csv, json, txt 파일은 소스를 하나만 읽어요.",
-      "sitesLabel": "사용할 수 있는 웹사이트",
-      "sitesHint": "example.com처럼 주소만 쓰고, 쉼표로 구분하세요.",
-      "sitesPlaceholder": "example.com, shop.example.org",
-      "browserContractLabel": "끝났을 때 무엇이 사실이어야 하는지, 그리고 어떻게 할지",
-      "browserContractSeed": "각 사이트를 열어 필요한 내용을 찾고 파일을 최신으로 유지하세요. 로그인이 필요한 사이트가 있으면 알려 주세요.",
-      "browserScheduleHint": "실행할 때가 되면 내가 실행하기를 기다려요 — 내가 없을 때는 아무것도 하지 않아요.",
-      "blockedSites": "사용할 웹사이트를 하나 이상 적어 주세요."
     },
     "notifications": {
       "standingIntro": "일정에 맞춰 최신으로 유지되는 파일이에요. Supervisor에서 설정하거나, 채팅에서 에이전트에게 부탁하세요.",
@@ -2152,17 +2103,14 @@
     },
     "minderBand": {
       "resting": "Supervisor가 이 일을 맡고 있어요.",
-      "working": "Supervisor가 {target}을(를) 업데이트하고 있어요.",
+      "working": "{target}을(를) 업데이트하고 있어요.",
       "raiseOne": "{target}은(는) 안내를 고치기 전까지 실행할 수 없어요.",
       "raiseMany": "{target}을(를) 비롯해 {count, plural, other {#개}}가 더 안내를 고치기 전까지 실행할 수 없어요.",
-      "raiseAction": "열기"
-    },
-    "startPicker": {
-      "title": "무엇을 스스로 돌아가게 할까요?",
-      "subtitle": "파일 이름은 다음 단계에서 정해요.",
-      "cancel": "취소",
-      "browserTitle": "웹사이트에서 할 일",
-      "browserBody": "지정한 사이트에서, 내 브라우저로."
+      "raiseAction": "열기",
+      "workingBrowser": "{member}님의 브라우저가 {target} 작업을 하고 있어요.",
+      "aMember": "한 멤버",
+      "raiseDue": "{target}을(를) 실행할 차례예요 — 브라우저에서 실행해 주세요.",
+      "raiseDueAction": "실행"
     },
     "sources": {
       "add": "소스 추가",
@@ -2171,6 +2119,24 @@
       "file": "파일",
       "page": "웹 페이지",
       "allAdded": "선택한 항목을 모두 추가했어요."
+    },
+    "gate": {
+      "checking": "브라우저를 확인하는 중…",
+      "title": "Chrome에 yarnnn 추가하기",
+      "body": "Supervisor는 이미 로그인된 내 브라우저에서 일을 한 번 함께 해 본 뒤, 그 일을 계속 이어서 해요. 이를 위해 Chrome용 yarnnn 확장 프로그램이 필요해요.",
+      "switchOn": "켜기",
+      "updateApp": "브라우저를 쓰려면 yarnnn 앱을 업데이트해 주세요.",
+      "add": "Chrome에 추가",
+      "comingSoon": "확장 프로그램이 곧 Chrome 웹 스토어에 올라가요.",
+      "without": "없이 계속하기"
+    },
+    "conversation": {
+      "emptyTitle": "반복되는 일이 있나요?",
+      "emptyBody": "자주 반복하는 일을 말해 주세요. Supervisor가 함께 설정하고, 모든 실행이 여기에 보여요.",
+      "suggestConnector": "{name}에서 일어난 일을 매주 요약해 줘.",
+      "suggestBrowser": "매주 월요일, 내가 쓰는 사이트의 가격을 확인해서 표로 정리해 줘.",
+      "suggestPath": "내가 올린 파일을 매일 아침 요약해 줘.",
+      "suggestUrl": "웹 페이지를 지켜보고 바뀐 내용을 짧게 정리해 줘."
     }
   },
   "studio": {

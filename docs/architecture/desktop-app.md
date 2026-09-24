@@ -66,7 +66,8 @@ records the comparison.
 | A link meant for someone else | `webOrigin()` in the same file |
 | The return leg | `web/lib/shell/deep-link.ts` + `web/components/shell/DeepLinkBridge.tsx` (mounted in the ROOT layout) |
 | The host's version and the client header | `web/lib/shell/host.ts` |
-| The update notice | `web/components/shell/DesktopUpdateNotice.tsx` (mounted in `app/(authenticated)/layout.tsx`) |
+| The update notice — a host refused (426), a newer web build live | `web/components/shell/UpdateNotice.tsx` (mounted in `app/(authenticated)/layout.tsx`) |
+| Which web build this window loaded, and which the site serves | `web/lib/shell/deployment.ts` · `web/app/api/deployment/route.ts` · `NEXT_PUBLIC_DEPLOYMENT` in `web/next.config.js` |
 | The app's sign-in panel | `web/components/auth/DesktopSignIn.tsx`, chosen by `app/auth/login/page.tsx` |
 | The browser half of sign-in | `web/app/auth/desktop/page.tsx` |
 | Download links: the asset roster, our `/download/{platform}` redirect, the public page | `web/lib/shell/desktop-app.ts` · `web/app/download/[platform]/route.ts` · `web/app/download/page.tsx` (+ `/ko`) |
@@ -75,9 +76,8 @@ records the comparison.
 | The app's own commands (each gets an `allow-…` permission) | `src-tauri/build.rs` |
 | The page's side of local hands, and the Settings row | `web/lib/shell/hands.ts` · `web/components/settings/DesktopBrowserSetting.tsx` |
 | The hand-off: offered tools, the pending acts, stop-when-stuck | `api/services/client_tools.py`; tool definitions `api/services/primitives/browser.py` |
-| Build the Mac release | `scripts/release-shell.sh` (`--unsigned` for the beta build) |
-| Publish a built installer | `scripts/publish-desktop-release.sh` |
-| Build the Windows installer | `.github/workflows/shell-windows.yml` (manual dispatch) |
+| Build both installers — on the `desktop-vX.Y.Z` tag, or by hand to try main | `.github/workflows/desktop-release.yml` |
+| Publish a release: both installers from the tag's run | `scripts/publish-desktop-release.sh` |
 
 ## 3. A launch, step by step
 
@@ -118,20 +118,25 @@ A failure comes back to `/auth/login?error=…&message=…` and is shown in word
 | When | Do |
 |---|---|
 | You change `web/` | Nothing. It ships with the next deploy, to browsers and apps alike. |
-| You change `src-tauri/` | Bump `version` in `Cargo.toml`, cut both installers, tag the commit `desktop-vX.Y.Z`. |
+| You change `src-tauri/` | Bump `version` in `Cargo.toml`, push, push the tag `desktop-vX.Y.Z` (the workflow builds both installers), then `scripts/publish-desktop-release.sh X.Y.Z`. |
 | The website starts depending on a host change | Publish the new host first, **then** raise `DESKTOP_MIN_VERSION` in `api/services/desktop_client.py`. |
 | One feature needs a newer host | Give that feature its own minimum beside the global one — `BROWSER_MIN_VERSION` (0.3.0) is the first, in `api/services/desktop_client.py`. Below it the feature is simply not offered; the host is never refused for it. Do not raise the global minimum for one feature. |
-| A new version is published | `scripts/publish-desktop-release.sh` uploads each installer to the public `desktop-releases` storage bucket under its stable name (and a kept `X.Y.Z/` copy); the links never change ([publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md)). |
+| A new version is published | `scripts/publish-desktop-release.sh` takes both installers from the tag's run and uploads each to the public `desktop-releases` storage bucket under its stable name (and a kept `X.Y.Z/` copy); the links never change ([publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md)). |
 
 **How refusal works.** The API answers a request whose `X-Yarnnn-Client` is below the minimum with **426** and
 `error.code = "desktop_update_required"`. `request()` in `web/lib/api/client.ts` turns that into an event;
-`DesktopUpdateNotice` shows *"This version of the yarnnn app is out of date"* with a button to Settings → Desktop app.
+`UpdateNotice` shows *"This version of the yarnnn app is out of date"* with a button to Settings → Desktop app.
 A browser sends no header and is never refused. The middleware sits **inside** CORS in `api/main.py` — if it moved
 outside, the 426 would lose its CORS headers and the page would see only a network error.
 
 **Every request door sends the header.** Today there are two: `getAuthHeaders()` (all of `client.ts`) and
 `postChatWithFallback` in `chatTransport.ts`. A new fetch to the API must go through one of them, or add
 `await clientHeaders()` itself.
+
+**A window left open across a web deploy is told** (ADR-663 D7). The client is built knowing its own commit
+(`NEXT_PUBLIC_DEPLOYMENT`); `/api/deployment` answers, statically, with the commit the site serves now. While the
+window is in view — at most once a quarter hour — `UpdateNotice` compares the two and, when they differ, offers
+*Reload*. The browser and the app share it; a web change still needs nothing per release.
 
 **Auto-update is not built** (ADR-663 D6): it needs its own signing keypair and a hosted manifest. The 426 is the
 lever until then.
@@ -179,11 +184,11 @@ the host tells the page what it needs to know.
 | Deep links | Delivered to the running app by the OS. | A second launch; `tauri-plugin-single-instance` (registered FIRST) forwards it. |
 | Webview | WebKit | WebView2 (Chromium; ships with Windows 10/11, installer fetches it otherwise) |
 | Installer | DMG, Apple Silicon; ad-hoc sealed until a Developer ID, so the first open needs Privacy & Security → Open Anyway | NSIS, per-user, no admin; unsigned warns via SmartScreen |
-| Built on | the developer's Mac | a GitHub Actions Windows runner |
+| Built on | `desktop-release.yml`, a macOS runner | the same workflow, a Windows runner |
 
 ⚠️ Tauri's `title_bar_style`, `hidden_title` and `traffic_light_position` exist **only** on macOS — called
 outside the `#[cfg(target_os = "macos")]` block, the host does not compile for Windows (ADR-661 §7o). Check a host
-change for Windows with the `shell-windows.yml` workflow: `cargo check --target x86_64-pc-windows-msvc` on a Mac
+change for Windows with `gh workflow run desktop-release.yml` (it builds both platforms, releases nothing): `cargo check --target x86_64-pc-windows-msvc` on a Mac
 stops in `tauri-winres` without `llvm-rc`, before it reaches the host's own code.
 
 ## 8. Writing web code the desktop app will run
@@ -211,9 +216,9 @@ cd src-tauri && cargo tauri dev    # the host, opening localhost:3000/desktop
 **Release** — see [publishing-the-desktop-app.md](../infrastructure/publishing-the-desktop-app.md):
 
 ```bash
-./scripts/release-shell.sh                                        # Mac: build, sign, notarize, staple
-gh workflow run shell-windows.yml && gh run download --name yarnnn-windows   # Windows
-git tag desktop-vX.Y.Z <commit> && git push origin desktop-vX.Y.Z
+# bump src-tauri/Cargo.toml, commit, push — then the tag is the release:
+git tag desktop-vX.Y.Z <commit> && git push origin desktop-vX.Y.Z   # builds Mac + Windows
+scripts/publish-desktop-release.sh X.Y.Z                            # publishes both
 ```
 
 ## 10. Do not

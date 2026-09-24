@@ -13,6 +13,15 @@ const withNextIntl = require("next-intl/plugin")("./i18n/request.ts");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // ADR-663 D7 — the build this page was loaded from, baked into the client so
+  // a long-open window can tell when a newer one is live (`lib/shell/deployment.ts`).
+  // The commit, not a deployment id: `vercel.json` deploys only when `web/`
+  // changes, so a new commit here is a new interface. Empty off Vercel, which
+  // turns the check off.
+  env: {
+    NEXT_PUBLIC_DEPLOYMENT: process.env.VERCEL_GIT_COMMIT_SHA || "",
+  },
+
   // Bookmark-safety for retired legacy surface URLs. Lineage: `feed` (ADR-370)
   // → folded into `context` → renamed `channels` (ADR-385) → DISSOLVED
   // (ADR-415). Next.js carries the original query string through by default, so

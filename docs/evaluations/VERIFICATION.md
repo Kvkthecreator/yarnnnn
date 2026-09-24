@@ -149,7 +149,7 @@ bump `Cargo.toml`, and verify on a built host, not by reading.
 - `extension/e2e/run.mjs` — the Chrome extension driven in a real Chrome for Testing; `extension/e2e/bridge.mjs`
   — the extension ↔ the real Rust native-messaging bridge ↔ a stand-in app. The only instruments that run them;
   the gate reads them. Reference: `docs/architecture/local-hands.md`.
-- `cd src-tauri && cargo check` on the Mac; Windows through `shell-windows.yml` (a Mac cannot check the
+- `cd src-tauri && cargo check` on the Mac; Windows through `desktop-release.yml` (a Mac cannot check the
   Windows target past `tauri-winres`).
 - `cd web && pnpm build` — the app loads the same build.
 - **The driven trace** for local hands: a debug host (`cargo tauri dev` against `pnpm dev` and a local API,

@@ -14,8 +14,8 @@ app. A new installer is needed only when the HOST changes.
 
 - The version lives in **`src-tauri/Cargo.toml`** and nowhere else (Tauri reads
   it; `tauri.conf.json` carries none). macOS and Windows share it.
-- Bump it when the host changes. Tag the commit a handed-out build was cut from:
-  `git tag desktop-v0.2.0 && git push origin desktop-v0.2.0`.
+- Bump it when the host changes. The tag `desktop-vX.Y.Z` on that commit IS
+  the release: pushing it builds both installers (*Publishing a release*).
 - The app sends `X-Yarnnn-Client: desktop/<version>` on every API request. To
   retire old installs, raise `DESKTOP_MIN_VERSION` in
   `api/services/desktop_client.py` **after** the new build is published: an
@@ -28,7 +28,7 @@ app. A new installer is needed only when the HOST changes.
 
 | | macOS | Windows |
 |---|---|---|
-| Built on | your Mac — `scripts/release-shell.sh` | GitHub Actions — `.github/workflows/shell-windows.yml` |
+| Built on | GitHub Actions — `.github/workflows/desktop-release.yml`, macOS runner | the same workflow, Windows runner |
 | Output | `yarnnn_<ver>_aarch64.dmg` | `yarnnn_<ver>_x64-setup.exe` (per-user install, no admin) |
 | Unsigned, a stranger sees | *"yarnnn is damaged"* — a wall | *"Windows protected your PC"* — a warning with *Run anyway* |
 | Signing needs | Apple Developer ID ($99/yr) | a code-signing certificate (below) |
@@ -80,41 +80,28 @@ thing and will not work for distribution.
 **3. Create an app-specific password** — <https://account.apple.com> → Sign-In
 and Security → App-Specific Passwords. **Not** your Apple ID password.
 
-**4. Store the notarization credentials** (once; they live in your keychain,
-never in this repo):
+**4. Hand the release workflow the certificate and the credentials** — as
+GitHub repository secrets (Settings → Secrets and variables → Actions), never
+in this repo. `.github/workflows/desktop-release.yml` passes each to Tauri only
+when it is set, and Tauri then signs with the Developer ID, notarizes and
+staples; with none set the build is ad-hoc sealed, as today.
 
-```bash
-xcrun notarytool store-credentials yarnnn \
-  --apple-id "you@example.com" \
-  --team-id  "YOURTEAMID" \
-  --password "abcd-efgh-ijkl-mnop"
-```
+| Secret | Value |
+|---|---|
+| `APPLE_CERTIFICATE` | the Developer ID certificate exported from Keychain Access as `.p12`, then `base64 -i cert.p12` (one line) |
+| `APPLE_CERTIFICATE_PASSWORD` | the password you gave the `.p12` export |
+| `APPLE_SIGNING_IDENTITY` | the full name, `Developer ID Application: Your Name (TEAMID)` |
+| `APPLE_ID` | your Apple ID email |
+| `APPLE_PASSWORD` | the app-specific password from step 3 |
+| `APPLE_TEAM_ID` | the parenthesised code in the certificate name |
 
-Your team ID is the parenthesised code in the certificate name above.
+The next tagged release comes out signed. Nothing else changes.
 
 ---
 
-## Building a release
-
-```bash
-./scripts/release-shell.sh
-```
-
-It refuses early, with a sentence you can act on, if any of the four setup
-steps is missing. Otherwise it builds the host, bundles and signs the
-app, submits it to Apple, waits for the scan (usually 1–5 minutes), staples the
-ticket to the DMG, and asks Gatekeeper directly whether a stranger could open
-it.
-
-The result:
-
-```
-src-tauri/target/release/bundle/dmg/yarnnn_0.1.0_aarch64.dmg
-```
-
-⚠️ **This is an Apple Silicon build.** An Intel Mac cannot run it. If you need
-both, build on each architecture or add `--target universal-apple-darwin` (and
-install the Intel toolchain with `rustup target add x86_64-apple-darwin`).
+⚠️ **The Mac build is Apple Silicon only** (the `macos-latest` runner). An
+Intel Mac cannot run it. If that is ever needed, the workflow's Mac leg adds
+`--target universal-apple-darwin` and `rustup target add x86_64-apple-darwin`.
 
 ---
 
@@ -179,15 +166,18 @@ indexes `/Applications` reliably and a temp directory inconsistently.
 A Windows installer needs Windows (the resource compiler and NSIS), so it is
 built on a GitHub Actions runner, by hand:
 
+The release workflow builds it on a Windows runner beside the Mac build. To
+try a build of main without releasing it:
+
 ```bash
-gh workflow run shell-windows.yml          # or: Actions tab → shell-windows → Run
+gh workflow run desktop-release.yml         # or: Actions tab → desktop-release → Run
 gh run watch                                # ~10–15 min
-gh run download --name yarnnn-windows      # → yarnnn_<ver>_x64-setup.exe
+gh run download --name yarnnn-windows       # → yarnnn_<ver>_x64-setup.exe
 ```
 
 The installer carries only the native host and its bootstrap page — the
 interface is the website, loaded at launch (ADR-663 D1) — so the runner builds
-no web code and needs no secrets.
+no web code and needs no web secrets.
 
 ## Installing it (what a tester sees)
 
@@ -217,7 +207,7 @@ Unsigned, SmartScreen warns every new downloader. The options, as of 2026:
   first downloads; an EV certificate no longer skips that.
 
 Once chosen, signing is configured in `tauri.conf.json` → `bundle.windows`
-and the workflow gains the credential as a secret. Nothing else changes.
+and `desktop-release.yml` gains the credential as a secret. Nothing else changes.
 
 ## Testing leaves ghosts (Windows)
 
@@ -266,20 +256,23 @@ token.
 `/download/{platform}` (`web/app/download/[platform]/route.ts`), a 302 to the
 bucket object. The file can move later without breaking a shared link.
 
-The steps, for version X.Y.Z (bumped in `src-tauri/Cargo.toml`, pushed):
+**A release is one tag.** For version X.Y.Z:
 
 ```bash
-./scripts/release-shell.sh --unsigned                  # Mac, ad-hoc sealed
-scripts/publish-desktop-release.sh mac src-tauri/target/release/bundle/dmg/yarnnn_X.Y.Z_aarch64.dmg
-
-gh workflow run shell-windows.yml && gh run watch      # Windows, on a runner
-scripts/publish-desktop-release.sh windows             # takes that run's build of HEAD
+# 1. bump `version` in src-tauri/Cargo.toml (cargo check updates Cargo.lock), commit, push
+# 2. tag that commit — this starts .github/workflows/desktop-release.yml
+git tag desktop-vX.Y.Z <commit> && git push origin desktop-vX.Y.Z
+gh run watch                                  # both platforms, ~15 min
+# 3. publish both installers from that run
+scripts/publish-desktop-release.sh X.Y.Z
 ```
 
-The script refuses a commit not on `origin/main`, checks the public URL serves
-the uploaded byte count, and tags the commit `desktop-vX.Y.Z`. The stable name
-is cached for five minutes, so a new release reaches every link within that.
-No web change is needed per release.
+The workflow refuses a tag that is not Cargo.toml's version. The script takes
+the run built from the TAG's commit — never HEAD, which other sessions move
+while a release builds — fetches both installers before uploading either,
+refuses a tag not on `origin/main`, and checks the public URL serves the
+uploaded byte count. The stable name is cached for five minutes, so a new
+release reaches every link within that. No web change is needed per release.
 
 ⚠️ **"Unsigned" must still be SEALED on the Mac.** `tauri.conf.json` carries
 `signingIdentity: "-"`, so the bundle is ad-hoc signed and `codesign --verify`
@@ -287,8 +280,8 @@ passes. With `null` the app has only the linker's signature, verification fails
 (*"code has no resources but signature indicates they must be present"* — the
 0.2.0 build), and macOS calls it **"damaged"**, with no Open Anyway. A sealed
 build gets the milder *cannot verify the developer* prompt, which System
-Settings → Privacy & Security → **Open Anyway** clears. `--unsigned` refuses to
-finish if the seal does not verify. The page keeps the `xattr` line as the
+Settings → Privacy & Security → **Open Anyway** clears. The workflow refuses to
+keep a Mac build whose seal does not verify. The page keeps the `xattr` line as the
 fallback for the damaged case only.
 
 **Where members find it**: `/download` on the site (footer → Download), and
@@ -297,10 +290,13 @@ and, once one is live, to the page's steps.
 
 ## Updating
 
-There is no auto-update yet. A new version means a new DMG and installer on a
-new release; the links do not change, and members find out through the
+The interface updates itself: it is the website (ADR-663 D1), and a window left
+open across a web deploy offers *Reload* (D7). The HOST does not yet: a new host
+means a new release, the links do not change, and members find out through the
 out-of-date notice (the 426) or by visiting /download.
 
-Tauri's updater is the eventual answer — it needs a signing keypair and a
-manifest the app polls. It is deliberately not built yet: it has its own key
-management, and shipping one unversioned build first is the smaller step.
+Tauri's updater is next (ADR-663 D6): a signed manifest published beside the
+installers, which the host checks at launch and every few hours. It needs a
+signing keypair of its own — generated and held by the operator, the private
+half a GitHub secret for `desktop-release.yml` — and it reaches only hosts
+built with it, so the first updater-carrying version is installed by hand once.

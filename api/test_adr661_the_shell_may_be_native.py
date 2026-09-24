@@ -529,10 +529,11 @@ check(
     "the Windows build has no installer, or an installer with Tauri's default icon",
 )
 
-wf = read(".github/workflows/shell-windows.yml")
+wf = read(".github/workflows/desktop-release.yml")
 check(
     "the Windows installer is cut on a Windows runner",
-    "runs-on: windows-" in wf and "--bundles nsis" in wf,
+    re.search(r"runner:\s*windows-latest\s*\n\s*bundles:\s*nsis", wf) is not None
+    and "runs-on: ${{ matrix.runner }}" in wf,
     "no reproducible way to cut the Windows installer",
 )
 
@@ -713,7 +714,7 @@ check(
 # app carries only the linker's signature, `codesign --verify` fails with "code
 # has no resources but signature indicates they must be present", and macOS
 # calls it "damaged" — no Open Anyway, only the Trash. Measured on the 0.2.0
-# install. "-" seals it; a real identity from release-shell.sh overrides.
+# install. "-" seals it; APPLE_SIGNING_IDENTITY in desktop-release.yml overrides.
 _conf = json.loads(read("src-tauri/tauri.conf.json") or "{}")
 check(
     "an unsigned Mac build is ad-hoc sealed, not merely linker-signed",
@@ -754,18 +755,19 @@ check(
 )
 
 # A downloaded build that is not notarized says "yarnnn is damaged" — which
-# reads as malware. The script is what makes a publishable build reachable.
-release = REPO / "scripts" / "release-shell.sh"
-release_src = read("scripts/release-shell.sh")
+# reads as malware. The release workflow hands Tauri the Developer ID and the
+# notary credentials when they exist (Tauri then signs, notarizes and staples),
+# and refuses to keep a Mac build whose seal does not verify.
+_rel = read(".github/workflows/desktop-release.yml")
 check(
-    "the release script exists and is executable",
-    release.exists() and os.access(release, os.X_OK),
-    "publishing would need someone to remember the steps by hand",
+    "the release workflow signs and notarizes when the Developer ID exists",
+    all(f"secrets.{k}" in _rel for k in ("APPLE_CERTIFICATE", "APPLE_SIGNING_IDENTITY", "APPLE_ID", "APPLE_PASSWORD", "APPLE_TEAM_ID")),
+    "a signed build would need someone to remember the steps by hand",
 )
 check(
-    "the release script signs, notarizes AND staples",
-    all(k in release_src for k in ("codesign", "notarytool", "stapler")),
-    "a build missing any one of the three is unusable when downloaded",
+    "the release workflow refuses a Mac build whose seal does not verify",
+    "codesign --verify --deep --strict" in _rel,
+    "a build that reads \"damaged\" on every other Mac could be published",
 )
 
 # Notarization requires the hardened runtime, which denies the webview's JIT

@@ -197,15 +197,17 @@ check(
 layout = strip_comments(read("web/app/(authenticated)/layout.tsx"))
 check(
     "the notice is mounted inside the scope",
-    re.search(r"<IntlScope>\s*<DesktopUpdateNotice\s*/>", layout) is not None,
+    re.search(r"<IntlScope>\s*<UpdateNotice\s*/>", layout) is not None,
     "nobody would hear the event, or the notice would throw outside a provider",
 )
 for lang in ("en", "ko"):
     cat = json.loads(read(f"web/messages/{lang}.json") or "{}")
-    hu = (cat.get("shell") or {}).get("hostUpdate") or {}
+    hu = (cat.get("shell") or {}).get("update") or {}
     check(
         f"the notice is worded in {lang}",
-        bool(hu.get("message")) and bool(hu.get("action")),
+        all((hu.get(state) or {}).get(k) for state, keys in (("refused", ("message", "action")),
+                                                              ("web", ("message", "action", "dismiss")))
+            for k in keys),
         "the notice would render a raw key",
     )
 
@@ -333,13 +335,86 @@ check(
 )
 
 # --------------------------------------------------------------------- §4
+# --------------------------------------------------------------------- §4
 print("\n§4 the installer build freezes nothing")
 
-wf = read(".github/workflows/shell-windows.yml")
+wf = read(".github/workflows/desktop-release.yml")
+_secrets = set(re.findall(r"secrets\.(\w+)", wf))
 check(
-    "the Windows workflow builds the host alone",
-    "npm ci" not in wf and "setup-node" not in wf and "secrets." not in wf,
-    "the installer would freeze web values into itself again",
+    "the release workflow builds the host alone",
+    bool(wf) and "npm ci" not in wf and "setup-node" not in wf
+    and all(k.startswith("APPLE_") for k in _secrets),
+    f"the installer would freeze web values into itself again — secrets {sorted(_secrets)}",
+)
+
+# --------------------------------------------------------------------- D2
+print("\nD2 one release: one tag, both platforms, one publish")
+
+check(
+    "one workflow builds both installers from the desktop-v tag",
+    re.search(r'tags:\s*\["desktop-v\*"\]', wf) is not None
+    and re.search(r"platform:\s*mac\b", wf) is not None
+    and re.search(r"platform:\s*windows\b", wf) is not None,
+    "the two platforms are cut by two paths again, or not from the tag",
+)
+check(
+    "the workflow refuses a tag that is not Cargo.toml's version",
+    'want="${GITHUB_REF_NAME#desktop-v}"' in wf and "src-tauri/Cargo.toml" in wf,
+    "an installer could carry a different number than the tag that published it",
+)
+_pub = read("scripts/publish-desktop-release.sh")
+check(
+    "the publish script takes the TAG's run, never HEAD",
+    'rev-list -n1 "$TAG"' in _pub and 'select(.headSha==\\"$COMMIT\\")' in _pub
+    and "rev-parse HEAD" not in _pub and "desktop-release.yml" in _pub,
+    "another session's commit on main would be published under this version",
+)
+check(
+    "the publish script publishes both platforms or neither",
+    re.search(r"^PLATFORMS=\(mac windows\)$", _pub, re.M) is not None
+    and _pub.index("Fetch both before uploading either") < _pub.index("upload \"$P\""),
+    "a half-published release: one platform new, the other old",
+)
+_retired = [r for r in ("scripts/release-shell.sh", ".github/workflows/shell-windows.yml") if (REPO / r).exists()]
+check(
+    "the superseded release paths are deleted",
+    not _retired,
+    f"a second way to cut a release: {_retired}",
+)
+
+# --------------------------------------------------------------------- D7
+print("\nD7 a long-open window hears that a newer interface is live")
+
+nc_raw = read("web/next.config.js")
+check(
+    "the client is built knowing its own commit",
+    re.search(r"NEXT_PUBLIC_DEPLOYMENT:\s*process\.env\.VERCEL_GIT_COMMIT_SHA", nc_raw) is not None,
+    "a window cannot tell which build it loaded",
+)
+_route = strip_comments(read("web/app/api/deployment/route.ts"))
+check(
+    "the site answers with the build it serves — static, the same variable",
+    'dynamic = "force-static"' in _route and "process.env.VERCEL_GIT_COMMIT_SHA" in _route,
+    "the two sides compare different things, or every check invokes a function",
+)
+_dep = strip_comments(read("web/lib/shell/deployment.ts"))
+_notice = strip_comments(read("web/components/shell/UpdateNotice.tsx"))
+check(
+    "the notice offers a reload when the served build differs from the loaded one",
+    'fetch("/api/deployment", { cache: "no-store" })' in _dep
+    and re.search(r"served\s*&&\s*served\s*!==\s*LOADED_DEPLOYMENT", _notice) is not None
+    and "window.location.reload()" in _notice,
+    "a window open across a deploy keeps running the old build with no word",
+)
+check(
+    "it checks only while the window is in view",
+    "document.visibilityState !== 'visible'" in _notice,
+    "every open window would poll the site in the background",
+)
+check(
+    "one notice, not two",
+    not (WEB / "components/shell/DesktopUpdateNotice.tsx").exists(),
+    "a second component says a newer version exists",
 )
 
 # ------------------------------------------------------------------- count

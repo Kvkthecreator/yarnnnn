@@ -34,7 +34,7 @@ import { HtmlLang } from "./HtmlLang";
  *
  * The Mac step is System Settings → "Open Anyway", which needs the build's
  * ad-hoc signature to VERIFY — a broken one reads "damaged" and offers no
- * such button (scripts/release-shell.sh records why). The Terminal line is
+ * such button (.github/workflows/desktop-release.yml records why). The Terminal line is
  * the fallback for that case only.
  *
  * Every platform on the roster is listed, in the hero and in the steps; the

@@ -5,7 +5,7 @@ current, and the only installed, versioned thing is the host around it. The page
 names that host on every API request (`X-Yarnnn-Client: desktop/X.Y.Z`, the
 shape of Claude Code's `claude-cli/X.Y.Z`), and this module refuses a host older
 than `DESKTOP_MIN_VERSION` with 426 `desktop_update_required`, which the page
-turns into a notice (`web/components/shell/DesktopUpdateNotice.tsx`).
+turns into a notice (`web/components/shell/UpdateNotice.tsx`).
 
 A browser sends no header and is never refused. Raising the minimum is how a
 host change that the website depends on is rolled out: ship the new host, then
