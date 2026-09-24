@@ -104,6 +104,7 @@ This README is the entry point. The depth lives in the sibling docs:
 
 - **OAuth 2.1 + static bearer fallback** (ADR-075) — transport auth
 - **FastMCP server + stdio/HTTP transports**; served at the domain root (ADR-370)
+- **Browser door** (`browser_door.py`): a browser's page load at `/` (GET, `Accept: text/html`, no credential) gets a noindex page saying what the URL is for; every client request still gets the SDK's 401 + `WWW-Authenticate`. Gate `api/test_mcp_browser_door.py`
 - **`api/mcp_server/` module layout** (`server.py`, `auth.py`, `oauth_provider.py`, `presentation/`, `widgets/`)
 - **Render service** (`yarnnn-mcp-server`) — deploys from `main`
 - **Multi-user identity** (ADR-310 D4): resolved per request from the OAuth access token; `MCP_USER_ID` survives only as the stdio / static-bearer fallback

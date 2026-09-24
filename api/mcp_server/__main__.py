@@ -35,6 +35,11 @@ if __name__ == "__main__":
         from mcp_server.rate_limit import AuthRateLimitMiddleware
         app = AuthRateLimitMiddleware(app)
 
+        # A browser opening the connector URL gets a noindex page saying what
+        # it is; every MCP client request still reaches the SDK's 401.
+        from mcp_server.browser_door import BrowserDoorMiddleware
+        app = BrowserDoorMiddleware(app)
+
         uvicorn.run(app, host="0.0.0.0", port=port)
     else:
         mcp.run(transport="stdio")
