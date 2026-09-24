@@ -89,3 +89,6 @@ files; a workflow's page shows `WORKFLOW.md`, its runs and their receipts, its q
    member opens?
 3. What counts as consequential is the executor's call today (per act). Is that enough, or does a workflow
    declare its own?
+4. **A run that meets a sign-in wall.** Parked analysis: [access is brokered, never held](../analysis/access-is-brokered-never-held-2026-09-24.md)
+   — yarnnn never holds a member's secret; an unattended run stops and asks the member to sign in; a vault is
+   an adapter the executor hands sign-in to. It also records points for this ADR's revision (§4 there).
