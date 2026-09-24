@@ -57,6 +57,7 @@ records the comparison.
 | The host: window, plugins, dev/release address, macOS title bar | `src-tauri/src/main.rs` |
 | The one version | `src-tauri/Cargo.toml` → `version` (`tauri.conf.json` carries none) |
 | Bundle config: targets (`app`, `dmg`, `nsis`), icons, `frontendDist: bootstrap` | `src-tauri/tauri.conf.json` |
+| The app icon: two masters, never one. `master-full.png` (ball at 94% of the canvas) → `cargo tauri icon` → ICO + PNGs; `master-mac.png` (white 824px squircle on the 1024 grid) → `iconutil` → `icon.icns`, overwriting the one `tauri icon` writes. A non-squircle `.icns` is shrunk onto a grey tile by macOS 26. `ball.svg` is the traced vector both are drawn from | `src-tauri/icons/source/` |
 | What the page may ask of the host | `src-tauri/capabilities/default.json` |
 | macOS entitlements (hardened runtime needs `allow-jit`) | `src-tauri/entitlements.plist` |
 | The bundled page | `src-tauri/bootstrap/index.html` |
