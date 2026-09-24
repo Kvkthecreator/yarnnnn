@@ -163,9 +163,12 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    `storeUrl`, which ADR-661's tripwire holds until ADR-662 is Accepted.
 4. **Windows signing** — SmartScreen warns; Azure Trusted Signing eligibility for a Korean entity
    unchecked. Installers: `desktop-release.yml`, on the `desktop-v*` tag.
-5. **Auto-update (ADR-663 D6, next)** — blocked on the OPERATOR generating the updater keypair and setting the
-   `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`) repo secrets; the public key then goes in `tauri.conf.json`. Also stale:
-   the `NEXT_PUBLIC_SUPABASE_*` repo secrets ADR-663 §4 retired still exist — delete them. D3's 426 is the lever until then.
+5. **Host updater (ADR-663 D6) — two legs not yet driven.** DRIVEN on macOS 2026-09-24: a local 0.4.2 host with the
+   updater found the published 0.4.3, downloaded + verified it, and replaced itself at quit (bundle 0.4.3, seal
+   verifies, no relaunch; relaunched clean). NOT driven: (a) *Restart now* in `UpdateNotice` — needs a signed-in
+   window on an unlocked screen; (b) the whole Windows leg (passive install at quit with `restart_after_install(false)`,
+   and *Restart now*) — built and signed by CI only. Drive both at the next release. Hosts ≤0.4.2 have no updater and
+   move once by hand (the operator's Mac is on 0.4.3).
 6. **Local hands (ADR-662, Proposed)** — reference `docs/architecture/local-hands.md`. ONE executor: the
    **yarnnn Chrome extension** (`extension/`, D15), reached from yarnnn in Chrome directly and from the
    desktop app (host **0.4.0**) over native messaging — the pane is DELETED. Driven: `extension/e2e/run.mjs`
