@@ -12,6 +12,10 @@ Set up in conversation since ADR-667; the band now names whose browser (closed).
 - **The operator**: ratify ADR-662 (one run in your own Chrome — ADR-666 §10 used Chrome for Testing), then set
   `CHROME_EXTENSION.storeUrl` (`web/lib/shell/hands.ts`) once the Web Store review clears. Until then the
   Supervisor's install step names the extension with no link.
+- **A roster row lags its run** (driven 2026-09-24, pre-existing): a row read while its first run was going kept
+  "Working now…" after the run finished — Recently (the run ledger, realtime) already said Done. Rows re-read with
+  the roster, not with the runs; re-read the roster when a topic run ends (`SupervisorSurface`, `useRuns`).
+- **A row's two clocks**: "Every Monday at 09:00" is the workspace's (UTC) beside "next …, 6:00 PM" in the viewer's.
 - **A second member SEEING another's run** (not live — the stream was always the member's own). RLS was probed,
   never driven with two members. Rig pair per the operator packet; one browser context per principal.
 - **The extension release** (after the Web Store listing): the site check inside the extension (a link followed
