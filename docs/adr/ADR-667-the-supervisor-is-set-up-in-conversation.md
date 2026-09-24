@@ -159,3 +159,24 @@ names a browser run's member.
 | `web/components/supervisor/BrowserGate.tsx` | NEW — the install step |
 | `web/components/supervisor/SupervisorSection.tsx` · `MinderBand.tsx` | D6 |
 | DELETED | `StartPicker.tsx`, `NewStandingWorkModal.tsx`, `WorkConversation.tsx` (renamed), their catalog keys |
+
+## 8. Driven on production (2026-09-24)
+
+Chrome for Testing, signed in as the owner rig (`kvkthecreator@yarnnn.com`, workspace `bf5b25a9`), **English**
+interface. `92edf47` live on the API, the scheduler and Vercel.
+
+| Path | Result |
+|---|---|
+| The pane, extension loaded | the gate passed; the Supervisor's conversation mounted (it adopted the one existing app-bound lane) |
+| *"Every Monday, open example.com and keep its heading and first sentence in a file. Do it once now."* | chat run `4f151c7f` (browser · chat · done): Opened, Read, Wrote; then `DeclareWork` — `_standing.yaml` rev `0710429d` with `browser.member: 67c5c637…` (server-stamped) and `sites: [example.com]`, the site the trial used; `CONTRACT.md` rev `5d4027be`; all three revisions `member:67c5c637… via anthropic/claude-sonnet-5`, identity stamped |
+| The cockpit | the work listed "in your browser · Every Monday at 09:00 · 1 site"; the trial run under Recently as "In a conversation · in kevin kim's browser" |
+| A profile without the extension | the install step, no store link ("on its way"), *Continue without it* → the same conversation; the cockpit fully visible |
+| *"What standing work do I have, and has it run?"* | answered from the state block: one piece, run once live, not yet on its schedule |
+| *"Retire example-domain-watch"* | `DeleteFile` on `_standing.yaml`; kept file and contract left, and said so |
+
+**Found only by driving**, fixed with a gate arm proven RED twice: the work retired in the conversation stayed on
+the roster beside it until a reload — the cockpit read its roster once. `LanePanel` gains the slot `onTurnSettled`;
+the Supervisor re-reads the roster and the runs when its agent's turn settles.
+
+**Noted, pre-existing, not changed**: a row reads "Every Monday at 09:00" (the workspace's clock, UTC) beside
+"next Sep 28, 6:00 PM" (the viewer's) — two true lines in two clocks.

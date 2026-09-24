@@ -291,6 +291,10 @@ export function SupervisorSurface() {
             <BrowserGate>
               <Conversation
                 app="supervisor"
+                // The agent sets work up and retires it here (ADR-667 D1):
+                // the roster and the runs re-read when its turn settles, or
+                // the cockpit beside it shows work that no longer exists.
+                onTurnSettled={() => { void loadRoster(); void refreshRuns(); }}
                 suggestions={suggestions}
                 emptyState={
                   <div className="space-y-1 text-center">

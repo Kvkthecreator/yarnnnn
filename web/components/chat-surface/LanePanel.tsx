@@ -505,6 +505,10 @@ interface LanePanelProps extends LaneMountSlots {
   startRunId?: string | null;
   /** The started run's turn has settled, however it ended. */
   onRunTurnSettled?: () => void;
+  /** ADR-667 — ANY turn in this lane has settled, however it ended. For a
+   *  mount whose own view reads what the turn may have changed (the
+   *  Supervisor's roster, after its agent set work up or retired it). */
+  onTurnSettled?: () => void;
 }
 
 export function LanePanel({
@@ -533,6 +537,7 @@ export function LanePanel({
   onCiteConsumed,
   startRunId = null,
   onRunTurnSettled,
+  onTurnSettled,
 }: LanePanelProps) {
   // ADR-562 D5 — who the member reads as working. Falls back to the engine
   // label, so a mount with no colleague renders byte-identically to pre-562.
@@ -1202,6 +1207,7 @@ export function LanePanel({
         // ADR-612 D4 — the seeded turn has settled, however it settled.
         if (opts.seed) onSeededTurn?.(false);
         if (opts.runId) onRunTurnSettled?.();
+        onTurnSettled?.();
         if (stopped) {
           // Stopped: drop a text-less placeholder, then resync once the server
           // has persisted the partial (it does so on disconnect — give it a beat).
@@ -1212,7 +1218,7 @@ export function LanePanel({
         }
       }
     },
-    [laneId, sending, onArtifactWrite, onSeededTurn, onLaneRenamed, onRunTurnSettled, resyncMessages, scrollToBottom],
+    [laneId, sending, onArtifactWrite, onSeededTurn, onLaneRenamed, onRunTurnSettled, onTurnSettled, resyncMessages, scrollToBottom],
   );
 
   // ADR-666 D4 — perform the run Run now opened, once, when its opening

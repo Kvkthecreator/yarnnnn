@@ -32,13 +32,15 @@ import { cn } from '@/lib/utils';
 type LanesEnv = Awaited<ReturnType<typeof api.lanes.list>>;
 
 export function Conversation({
-  laneId: givenLaneId, app, startRunId, onRunTurnSettled, suggestions, emptyState, className,
+  laneId: givenLaneId, app, startRunId, onRunTurnSettled, onTurnSettled, suggestions, emptyState, className,
 }: {
   /** A given lane; absent → the app's own conversation, found or created. */
   laneId?: string | null;
   app: string;
   startRunId?: string | null;
   onRunTurnSettled?: () => void;
+  /** Any turn here settled — the mount re-reads what the turn may have changed. */
+  onTurnSettled?: () => void;
   suggestions?: string[];
   emptyState?: ReactNode;
   className?: string;
@@ -109,6 +111,7 @@ export function Conversation({
         agentFaces={resident ? { [resident]: { name: speakerLabel } } : undefined}
         startRunId={startRunId}
         onRunTurnSettled={onRunTurnSettled}
+        onTurnSettled={onTurnSettled}
         suggestions={suggestions}
         emptyState={emptyState}
       />

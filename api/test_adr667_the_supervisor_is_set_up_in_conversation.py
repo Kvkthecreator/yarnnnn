@@ -226,6 +226,12 @@ print("D1/D4/D6. the pane")
 _surface = code_only_ts(read("web/components/supervisor/SupervisorSurface.tsx"))
 check("the pane mounts the Supervisor's own conversation inside the browser gate",
       re.search(r"<BrowserGate>\s*<Conversation\s+app=\"supervisor\"", _surface) is not None)
+# ⭐ DRIVEN 2026-09-24: work retired in the conversation stayed on the roster
+# beside it until a reload. The roster re-reads when the agent's turn settles.
+_lp = read("web/components/chat-surface/LanePanel.tsx")
+check("the cockpit re-reads the roster when the conversation's turn settles",
+      re.search(r"onTurnSettled=\{\(\) => \{ void loadRoster\(\); void refreshRuns\(\); \}\}", _surface) is not None
+      and re.search(r"\} finally \{.*?onTurnSettled\?\.\(\);", _lp, re.S) is not None)
 for gone in ("StartPicker", "NewStandingWorkModal", "StartMark", "WorkConversation"):
     check(f"deleted: {gone}", not (WEB / f"components/supervisor/{gone}.tsx").exists()
           and gone not in _surface)
