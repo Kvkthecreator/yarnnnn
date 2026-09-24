@@ -671,11 +671,37 @@ export interface StandingSource {
   reads?: string | null;
 }
 
-export interface StandingLastRun {
-  status: string;
-  error_reason?: string | null;
-  at?: string | null;
+/** ADR-666 D2 — one RUN: one occurrence of work (a standing derive, a browser
+ *  run of declared work, or a chat turn's browser acts). THE served shape of a
+ *  run (`api/routes/runs.py::RunOut`) — the roster, the detail, the cockpit
+ *  and the tray all read this. */
+export interface Run {
+  id: string;
+  topic?: string | null;
+  lane_id?: string | null;
+  kind: 'derive' | 'browser' | string;
+  trigger: 'scheduled' | 'manual' | 'chat' | string;
+  state: 'queued' | 'running' | 'waiting' | 'done' | 'failed' | 'stopped' | string;
+  /** Why it waits — today only `{kind: 'member'}`: due, waiting for its member. */
+  waiting_on?: { kind: string } | null;
+  /** On done: wrote · no_change · skipped. On failed: the reason. */
+  outcome?: string | null;
+  /** The acts, each the ADR-662 D3 receipt plus when it landed. */
+  steps: Array<{ name?: string; text?: string; ok?: boolean; record?: ActRecord | null; at?: string }>;
+  revision_id?: string | null;
+  record_path?: string | null;
+  cost_usd?: number | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  /** Who it runs as, and their name. */
+  user_id: string;
+  member_name?: string | null;
+  /** May this viewer stop it — its own member, or the workspace owner. */
+  can_stop: boolean;
 }
+
+export const LIVE_RUN_STATES = ['queued', 'running', 'waiting'] as const;
+export const isLiveRun = (r: Run) => (LIVE_RUN_STATES as readonly string[]).includes(r.state);
 
 export interface StandingSummary {
   topic: string; // the folder path relative to /workspace/
@@ -699,31 +725,39 @@ export interface StandingSummary {
   last_run_at?: string | null;
   next_run_at?: string | null;
   /** Parseable-but-cannot-run (served loudly): missing_target |
-   *  invalid_target | unsupported_format | sources_invalid | app_invalid. */
+   *  invalid_target | unsupported_format | sources_invalid | app_invalid |
+   *  source_cycle | browser_invalid. */
   problem?: string | null;
-  /** The newest ledger row for this declaration (the write step preferred). */
-  last_run?: StandingLastRun | null;
+  /** ADR-666 — the newest ENDED run, and the run going or waiting now. */
+  last_run?: Run | null;
+  live_run?: Run | null;
+  /** ADR-666 D1 — present for browser work: whose browser, which sites. */
+  browser?: { member: string; member_name?: string | null; sites: string[] } | null;
 }
 
-/** One ledger row of a declaration (ADR-658 D6): the step, its outcome, when. */
-export interface StandingRun {
-  step: 'sweep' | 'write' | string;
-  status: string;
-  error_reason?: string | null;
-  at?: string | null;
-  cost_usd?: number | null;
-  /** ADR-659 D2 — what a successful update WROTE, derived server-side from the
-   *  kept file's revision chain: the revision, and the files it was made from. */
-  revision_id?: string | null;
-  derived_from?: string[];
-}
-
-/** The detail (ADR-658 D6): the summary, the instructions as text, the runs. */
+/** The detail (ADR-658 D6): the summary, the instructions as text, the runs
+ *  (ADR-666 — each carrying what it wrote). Browser work also names its
+ *  conversation, where a run is started and watched. */
 export interface StandingDetailData {
   summary: StandingSummary;
   contract_path: string;
   contract?: string | null;
-  runs: StandingRun[];
+  runs: Run[];
+  lane_id?: string | null;
+}
+
+/** What Run now answers. Browser work (ADR-666 D4) is not run by the server:
+ *  it answers the run and the conversation the member's page performs it in. */
+export interface StandingRunNowResult {
+  success: boolean;
+  no_change?: boolean;
+  skipped?: string;
+  error_reason?: string;
+  detail?: string;
+  run_id?: string;
+  browser?: boolean;
+  already?: boolean;
+  lane_id?: string | null;
 }
 
 /** A pre-shaped start (ADR-658 D7): a verb bound to a connection the member
@@ -750,6 +784,9 @@ export interface StandingCreateRequest {
   app?: string | null;
   sources?: Array<{ id: string; url?: string; connector?: string; selector?: string; path?: string }>;
   shape?: Record<string, unknown> | null;
+  /** ADR-666 D1 — browser work on these sites, in the signed-in member's own
+   *  browser. The server stamps who; the client never names a member. */
+  browser_sites?: string[] | null;
 }
 
 /** A topic is a meaning-folder path — encode each segment, keep the '/'
@@ -987,9 +1024,20 @@ export const api = {
     regenerateStream: (
       laneId: string,
       handlers: LaneStreamHandlers,
-      opts?: { signal?: AbortSignal },
+      opts?: {
+        signal?: AbortSignal;
+        /** ADR-666 D4 — the declared browser run this turn performs: Run now
+         *  wrote its opening message; this page runs the turn for it. */
+        runId?: string;
+      },
     ): Promise<void> =>
-      streamLaneTurn(laneId, `/api/lanes/${laneId}/regenerate`, null, handlers, opts?.signal),
+      streamLaneTurn(
+        laneId,
+        `/api/lanes/${laneId}/regenerate`,
+        opts?.runId ? { run_id: opts.runId } : null,
+        handlers,
+        opts?.signal,
+      ),
     /** Phase-A hygiene: rename / pin. */
     patch: (laneId: string, data: { name?: string; pinned?: boolean }) =>
       request<{ id: string; name: string; pinned: boolean }>(`/api/lanes/${laneId}`, {
@@ -1084,6 +1132,7 @@ export const api = {
         sources?: Array<{ id: string; url?: string; connector?: string; selector?: string; path?: string }>;
         shape?: Record<string, unknown> | null;
         target?: string;
+        browser_sites?: string[];
       },
     ) =>
       request<StandingSummary>(`/api/standing/${encodeTopic(topic)}`, {
@@ -1097,12 +1146,30 @@ export const api = {
         `/api/standing/${encodeTopic(topic)}`,
         { method: "DELETE" },
       ),
-    /** Run now — the manual fire (takes the same claim as the scheduler, ADR-618 D2). */
+    /** Run now — the manual fire (takes the same claim as the scheduler, ADR-618 D2).
+     *  For browser work it answers the run and its conversation (ADR-666 D4). */
     run: (topic: string) =>
-      request<{ success: boolean; no_change?: boolean; error_reason?: string; detail?: string }>(
+      request<StandingRunNowResult>(
         `/api/standing/${encodeTopic(topic)}/run`,
         { method: "POST" },
       ),
+  },
+
+  // ADR-666 — the run: one row per occurrence of work, every member reads
+  // every run, live. ONE reader (`GET /api/runs`); the cockpit partitions it.
+  runs: {
+    list: (opts?: { live?: boolean; topic?: string; limit?: number }) => {
+      const q = new URLSearchParams();
+      if (opts?.live !== undefined) q.set("live", String(opts.live));
+      if (opts?.topic) q.set("topic", opts.topic);
+      if (opts?.limit) q.set("limit", String(opts.limit));
+      const qs = q.toString();
+      return request<Run[]>(`/api/runs${qs ? `?${qs}` : ""}`);
+    },
+    get: (id: string) => request<Run>(`/api/runs/${encodeURIComponent(id)}`),
+    /** Stop: a running run ends its turn at the next act; a waiting one is dismissed. */
+    stop: (id: string) =>
+      request<Run>(`/api/runs/${encodeURIComponent(id)}/stop`, { method: "POST" }),
   },
 
   // ADR-440 — the Studio (the first authoring app). Templates are kernel
@@ -1748,14 +1815,13 @@ export const api = {
   // envelope as `agents` and rendered by components/agents/AgentsSurface.tsx.
 
 
-  // ADR-656 → ADR-658 — the Supervisor app's read door for its COMPOSED bands
-  // (needs-you · note). The `work` band is the standing roster and reads
-  // `standing.list` — the ONE reader — beside this.
+  // ADR-656 → ADR-658 → ADR-666 D8 — the Supervisor app's read door for its
+  // ONE composed band: the mentions half of needs-you. The roster reads
+  // `standing.list`, the runs `runs.list` — each the ONE reader of its ledger.
   supervisor: {
     state: () =>
       request<{
         needs_you: Array<{ lane_id: string; title: string; excerpt: string; at?: string | null }>;
-        note: { path: string; content: string } | null;
       }>("/api/supervisor/state"),
   },
 

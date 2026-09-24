@@ -74,6 +74,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from routes import images, memory, documents, admin, webhooks, subscription, account, integrations, domains, system, workspace, proposals, programs, alpha_trader, budget, mcp, authored, sources, emissions, member_state, lanes, shares, studio, standing_work, mentions, attached_connectors, supervisor
 from routes import agent_connectors
+from routes import runs as runs_routes  # ADR-666 — the run
 from routes import publish  # ADR-628 phase (a) — the member-clicked outbound door
 
 app = FastAPI(
@@ -244,6 +245,7 @@ app.include_router(mentions.router, prefix="/api", tags=["mentions"])
 app.include_router(lanes.router, prefix="/api", tags=["lanes"])  # ADR-411 chat lanes
 app.include_router(agent_connectors.router, prefix="/api", tags=["agent-connectors"])
 app.include_router(standing_work.router, prefix="/api", tags=["standing"])  # ADR-639 standing work: the kept file
+app.include_router(runs_routes.router, prefix="/api", tags=["runs"])  # ADR-666 the run: work that acts, seen while it happens
 app.include_router(studio.router, prefix="/api", tags=["studio"])  # ADR-440 the Studio
 app.include_router(images.router, prefix="/api", tags=["images"])  # ADR-474 IMAGES compose
 app.include_router(publish.router, prefix="/api", tags=["publish"])  # ADR-628 outbound

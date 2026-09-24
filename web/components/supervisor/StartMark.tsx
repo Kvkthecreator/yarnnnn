@@ -26,7 +26,7 @@
  * than a fabricated mark (`lib/connectors/marks.tsx` header).
  */
 
-import { FolderOpen, Link2 } from 'lucide-react';
+import { FolderOpen, Globe, Link2 } from 'lucide-react';
 import { ConnectorAvatar } from '@/components/connectors/ConnectorAvatar';
 import { connectorMeta } from '@/lib/connectors/registry';
 import type { StandingStart } from '@/lib/api/client';
@@ -45,7 +45,7 @@ export function StartMark({ start, className }: { start: StandingStart; classNam
       />
     );
   }
-  const Glyph = start.kind === 'path' ? FolderOpen : Link2;
+  const Glyph = start.kind === 'path' ? FolderOpen : start.kind === 'browser' ? Globe : Link2;
   return (
     <span
       aria-hidden

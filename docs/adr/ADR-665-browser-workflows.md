@@ -1,9 +1,15 @@
 # ADR-665 — Browser workflows: work that lives in files and runs in the member's browser
 
-> **Status**: **Proposed** (2026-09-23, draft for operator review — NOT ratified; nothing built). The operator
-> set the direction — *"a dedicated surface, app (much like a supervisor agent and app 2.0) wherein, file system
-> native with browser use can really open up potentially infinite amount of workflows and automations"* — and
-> agreed option B (§3) as the starting point. This draft makes that a decision to ratify.
+> **Status**: **SUPERSEDED by [ADR-666](ADR-666-the-run.md)** (2026-09-24), never built. Its idea survives —
+> work that lives in files and happens in the member's browser — but not its shape: a `WORKFLOW.md` procedure on
+> a schedule with no contract is the recurrence ADR-603 D5 retired, so browser work is ordinary standing work
+> with `CONTRACT.md` load-bearing and a `browser` key (ADR-666 D1); `runs.md` became one record file per run
+> (D3) and a `runs` row (D2). Option B (§3, unattended) is NOT ruled — ADR-666 §8 carries it with its facts.
+>
+> Original status: **Proposed** (2026-09-23, draft for operator review). The operator set the direction — *"a
+> dedicated surface, app (much like a supervisor agent and app 2.0) wherein, file system native with browser use
+> can really open up potentially infinite amount of workflows and automations"* — and agreed option B (§3) as the
+> starting point.
 > **Date**: 2026-09-23
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Trigger** (a declared cadence may start browser work) +

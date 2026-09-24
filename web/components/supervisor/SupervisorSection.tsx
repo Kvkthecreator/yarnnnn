@@ -11,22 +11,26 @@
  * it: one whose shape is DECLARED rather than mirrored.
  *
  * ⚠️ THE VOCABULARY IS DERIVED FROM WHAT A MEMBER ASKS, not from what the
- * system has lying around (ADR-658 §2). The member's question is *"what work do
- * I have, and is it being done?"* — so:
+ * system has lying around (ADR-658 §2). A member supervising asks, in order,
+ * *what is happening, what needs me, what do I have, what just happened* — so
+ * the cockpit reads by RUN STATE (ADR-666 D8):
  *
- *   work       what standing work do I have, and is it running?   (ADR-658 — the app's reason)
- *   needs-you  what is waiting on me?                             (kept — the ADR-637 attention cursor)
- *   note       what did we decide?                                (kept — a rendered .md)
+ *   running    what is happening now        runs: queued · running
+ *   needs-you  what is waiting on me        runs due, recent failures, mentions
+ *   work       what standing work I have    the roster (ADR-658)
+ *   recent     what just happened           runs: done · failed · stopped
  *
- *   threads — DELETED (ADR-658 §2). A list of chat conversations answered
- *             nothing a member asks, and it read `chat_sessions`, so a
- *             first-time member opened to an empty band.
- *   files   — NOT carried. The supervisor owns no folder of work.
- *   recent  — NOT carried. "What moved" is the timeline's job (Notifications).
+ *   note    — DELETED (ADR-666 D8): `DECISIONS.md` had no writer and no
+ *             workspace held one; the band rendered its empty forever.
+ *   threads — DELETED (ADR-658 §2): a list of conversations answered nothing.
+ *
+ * `running` and `recent` read the run ledger through ONE store (`useRuns`);
+ * they are not the timeline — the timeline is every act, these are the work.
  *
  * ⭐ `work` satisfies the growth rule rather than bypassing it: no existing
  * kind shows the work that runs on its own, and nothing else in the product
- * lets a member create it by direct manipulation.
+ * lets a member create it by direct manipulation. `running` / `recent` satisfy
+ * it the same way: nothing else shows a run while it happens.
  *
  * ⚠️ NO LAYOUT PROPS, EVER. A section declares `kind` and `title`. The moment
  * one takes `columns` or `align` this is a page builder — the feature race the
@@ -35,9 +39,9 @@
 
 import { useTranslations } from 'next-intl';
 import { AlertTriangle, MessageSquare, Plus } from 'lucide-react';
-import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
+import { RunView } from '@/components/runs/RunView';
 import { StandingRow } from '@/components/standing/StandingRow';
-import type { StandingStart, StandingSummary } from '@/lib/api/client';
+import { isLiveRun, type Run, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 
@@ -48,14 +52,50 @@ export interface SupervisorNeed {
   at?: string | null;
 }
 
-export interface SupervisorNote {
-  path: string;
-  content: string;
-}
-
 export interface SupervisorStateData {
   needs_you: SupervisorNeed[];
-  note: SupervisorNote | null;
+}
+
+/**
+ * The run bands' material and verbs (ADR-666 D8) — the ledger read from its
+ * ONE store (`useRuns`). The verbs start (through the detail's one door),
+ * open, and — inside `RunView` — stop.
+ */
+export interface RunsBand {
+  /** null = not read yet (or unreadable — `failed` says which). */
+  runs: Run[] | null;
+  failed: boolean;
+  viewerId: string | null;
+  onOpen: (run: Run) => void;
+  onRunIt: (run: Run) => void;
+  onOpenFile: (path: string) => void;
+  onChanged: () => void;
+}
+
+/** How long a failed run of declared work stays in needs-you. */
+const FAILURE_WINDOW_MS = 3 * 24 * 3600 * 1000;
+/** How many ended runs `recent` shows. */
+const RECENT_CAP = 8;
+
+/**
+ * Which runs need the member — derived, never stored (DP29):
+ *   - every run WAITING (due browser work; RunView says whose),
+ *   - the newest ended run of a piece of declared work, when it FAILED within
+ *     the window — the newest only, so a failure a later run fixed is gone.
+ */
+export function runsNeedingYou(runs: Run[]): Run[] {
+  const waiting = runs.filter((r) => r.state === 'waiting');
+  const newestEnded = new Map<string, Run>();
+  for (const r of runs) {
+    if (!r.topic || isLiveRun(r)) continue;
+    if (!newestEnded.has(r.topic)) newestEnded.set(r.topic, r);
+  }
+  const now = Date.now();
+  const failures = Array.from(newestEnded.values()).filter(
+    (r) => r.state === 'failed'
+      && now - new Date(r.ended_at ?? r.started_at ?? 0).getTime() < FAILURE_WINDOW_MS,
+  );
+  return [...waiting, ...failures];
 }
 
 /**
@@ -70,6 +110,7 @@ export interface WorkBand {
   starts: StandingStart[];
   busy: string | null;
   notes: Record<string, string>;
+  viewerId: string | null;
   onRunNow: (row: StandingSummary) => void;
   onTogglePause: (row: StandingSummary) => void;
   onOpen: (row: StandingSummary) => void;
@@ -78,7 +119,7 @@ export interface WorkBand {
 }
 
 /** The kinds this client can draw. */
-export const SUPERVISOR_SECTION_KINDS = ['work', 'needs-you', 'note'] as const;
+export const SUPERVISOR_SECTION_KINDS = ['running', 'needs-you', 'work', 'recent'] as const;
 export type SupervisorSectionKind = (typeof SUPERVISOR_SECTION_KINDS)[number];
 
 export interface SupervisorSectionDecl {
@@ -213,6 +254,7 @@ function WorkSection({ work }: { work: WorkBand }) {
             row={row}
             busy={work.busy === row.topic}
             note={work.notes[row.topic]}
+            viewerId={work.viewerId}
             onRunNow={work.onRunNow}
             onTogglePause={work.onTogglePause}
             onOpen={work.onOpen}
@@ -223,72 +265,111 @@ function WorkSection({ work }: { work: WorkBand }) {
   );
 }
 
-/** `needs-you` — *what is waiting on me?* */
-function NeedsYouSection({
-  rows, onOpenLane,
-}: { rows: SupervisorNeed[] | null; onOpenLane: (id: string) => void }) {
+function RunList({ runs, band }: { runs: Run[]; band: RunsBand }) {
+  return (
+    <ul className="space-y-2">
+      {runs.map((r) => (
+        <li key={r.id}>
+          <RunView
+            run={r}
+            viewerId={band.viewerId}
+            compact
+            onOpen={band.onOpen}
+            onRunIt={band.onRunIt}
+            onOpenFile={band.onOpenFile}
+            onChanged={band.onChanged}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** `running` — *what is happening now?* (ADR-666 D8) */
+function RunningSection({ band }: { band: RunsBand }) {
   const t = useTranslations('supervisor.section');
-  if (rows === null) {
+  if (band.runs === null) {
+    return <SectionEmpty>{band.failed ? t('runsUnreadable') : t('loading')}</SectionEmpty>;
+  }
+  const going = band.runs.filter((r) => r.state === 'queued' || r.state === 'running');
+  // ⭐ The RESTING state, not an empty one — "nothing is running" is a
+  // complete sentence a member can stop reading at (APP-BUILDER-UX §4.1).
+  if (going.length === 0) return <SectionEmpty>{t('runningEmpty')}</SectionEmpty>;
+  return <RunList runs={going} band={band} />;
+}
+
+/** `needs-you` — *what is waiting on me?* Runs due and failed (ADR-666 D8),
+ *  and mentions (the ADR-637 attention cursor). */
+function NeedsYouSection({
+  rows, band, onOpenLane,
+}: { rows: SupervisorNeed[] | null; band: RunsBand; onOpenLane: (id: string) => void }) {
+  const t = useTranslations('supervisor.section');
+  const needing = band.runs ? runsNeedingYou(band.runs) : [];
+  if (rows === null && band.runs === null) {
     return <SectionEmpty>{t('loading')}</SectionEmpty>;
   }
-  if (rows.length === 0) {
+  if (needing.length === 0 && (rows ?? []).length === 0) {
     // ⭐ Not an empty state — the RESTING state. "Nothing is waiting on you" is
     // a complete, reassuring sentence; "No items" says the same thing and reads
     // like a failure (APP-BUILDER-UX §4.1).
     return <SectionEmpty>{t('needsYouEmpty')}</SectionEmpty>;
   }
   return (
-    <div className="rounded-md border border-border/60">
-      {rows.map((r) => (
-        <Row
-          key={`${r.lane_id}-${r.at}`}
-          accent
-          icon={<MessageSquare className="h-3.5 w-3.5" />}
-          title={r.title}
-          sub={r.excerpt}
-          at={r.at}
-          onOpen={() => onOpenLane(r.lane_id)}
-        />
-      ))}
+    <div className="space-y-2">
+      {needing.length > 0 && <RunList runs={needing} band={band} />}
+      {(rows ?? []).length > 0 && (
+        <div className="rounded-md border border-border/60">
+          {(rows ?? []).map((r) => (
+            <Row
+              key={`${r.lane_id}-${r.at}`}
+              accent
+              icon={<MessageSquare className="h-3.5 w-3.5" />}
+              title={r.title}
+              sub={r.excerpt}
+              at={r.at}
+              onOpen={() => onOpenLane(r.lane_id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/** `note` — *what did we decide?* */
-function NoteSection({ note, loading }: { note: SupervisorNote | null; loading: boolean }) {
+/** `recent` — *what just happened?* Ended runs, newest first, less the ones
+ *  already raised in needs-you (one run, one place on the screen). */
+function RecentSection({ band }: { band: RunsBand }) {
   const t = useTranslations('supervisor.section');
-  if (loading) {
-    return <SectionEmpty>{t('loading')}</SectionEmpty>;
+  if (band.runs === null) {
+    return <SectionEmpty>{band.failed ? t('runsUnreadable') : t('loading')}</SectionEmpty>;
   }
-  if (!note) {
-    return <SectionEmpty>{t('noteEmpty')}</SectionEmpty>;
-  }
-  return (
-    <div className="rounded-md border border-border/60 px-4 py-3">
-      {/* `linkifySubstrate` stays FALSE — chat bubbles only, never file content. */}
-      <MarkdownRenderer content={note.content} />
-    </div>
-  );
+  const raised = new Set(runsNeedingYou(band.runs).map((r) => r.id));
+  const ended = band.runs.filter((r) => !isLiveRun(r) && !raised.has(r.id)).slice(0, RECENT_CAP);
+  if (ended.length === 0) return <SectionEmpty>{t('recentEmpty')}</SectionEmpty>;
+  return <RunList runs={ended} band={band} />;
 }
 
 export function SupervisorSection({
-  section, data, work, onOpenLane,
+  section, data, work, runs, onOpenLane,
 }: {
   section: SupervisorSectionDecl;
-  /** null = the composed bands' read is still out; each band says so itself. */
+  /** null = the composed band's read is still out; each band says so itself. */
   data: SupervisorStateData | null;
   work: WorkBand;
+  runs: RunsBand;
   onOpenLane: (id: string) => void;
 }) {
   const kind = (section?.kind || '').trim();
   const body = (() => {
     switch (kind) {
+      case 'running':
+        return <RunningSection band={runs} />;
+      case 'needs-you':
+        return <NeedsYouSection rows={data ? data.needs_you : null} band={runs} onOpenLane={onOpenLane} />;
       case 'work':
         return <WorkSection work={work} />;
-      case 'needs-you':
-        return <NeedsYouSection rows={data ? data.needs_you : null} onOpenLane={onOpenLane} />;
-      case 'note':
-        return <NoteSection note={data?.note ?? null} loading={data === null} />;
+      case 'recent':
+        return <RecentSection band={runs} />;
       default:
         return <SectionMiss kind={kind} />;
     }

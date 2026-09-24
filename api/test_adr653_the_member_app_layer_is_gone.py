@@ -268,11 +268,13 @@ check("the declared pin agrees with the derivation",
 _sec = _strip_comments_ts(_read(_WEB, "components/supervisor/SupervisorSection.tsx"))
 check("the section dispatch exists", bool(_sec))
 check("dispatch is by KIND", "switch (kind)" in _sec)
-# ADR-658 D5: the vocabulary is work · needs-you · note; `threads` is DELETED
-# (a list of chat conversations answered nothing a member asks).
-for _kind in ("work", "needs-you", "note"):
+# ADR-666 D8: the vocabulary is running · needs-you · work · recent (read by
+# RUN STATE); `threads` is DELETED (ADR-658 §2) and `note` is DELETED (ADR-666
+# D8 — no writer, no workspace held one).
+for _kind in ("running", "needs-you", "work", "recent"):
     check(f"the client draws {_kind!r}", f"case '{_kind}':" in _sec)
 check("the client no longer draws `threads` (ADR-658 §2)", "case 'threads':" not in _sec)
+check("the client no longer draws `note` (ADR-666 D8)", "case 'note':" not in _sec)
 
 # ⚠️ An unknown kind renders the HONEST MISS, never a blank. Silence is the
 # failure mode: a blank band reads as "this app has nothing" and a member
@@ -283,13 +285,17 @@ check("an unknown kind renders the honest miss",
       "<SectionMiss" in _default and "return null" not in _default)
 
 # ⭐ THE GROWTH RULE, asserted rather than trusted: the vocabulary is what this
-# app needs, NOT ADR-653's folder-shaped first cut carried over. `files` and
-# `recent` are deliberately absent — the supervisor owns no folder of work, and
-# "what moved" is the timeline's job (duplicating it is the "glorified
-# redirect" ADR-435 deleted the last composition for being).
-for _notcarried in ("case 'files':", "case 'recent':"):
-    check(f"the folder-shaped kind {_notcarried[5:-1]} is NOT carried over",
-          _notcarried not in _sec)
+# app needs, NOT ADR-653's folder-shaped first cut carried over. `files` is
+# deliberately absent — the supervisor owns no folder of work. `recent` returned
+# with ADR-666 D8 as recent RUNS, and only as that: "what moved" is still the
+# timeline's job (duplicating it is the "glorified redirect" ADR-435 deleted the
+# last composition for being), so the band must read the run ledger and never
+# the timeline.
+check("the folder-shaped kind 'files' is NOT carried over", "case 'files':" not in _sec)
+_recent = _sec[_sec.index("function RecentSection"):] if "function RecentSection" in _sec else ""
+_recent = _recent[: _recent.index("\nfunction ", 1)] if "\nfunction " in _recent[1:] else _recent
+check("`recent` is recent RUNS (ADR-666 D8) — the run ledger, never the timeline",
+      "RunList" in _recent and "band.runs" in _recent and "timeline" not in _recent.lower())
 
 _surf = _strip_comments_ts(_read(_WEB, "components/supervisor/SupervisorSurface.tsx"))
 check("the surface renders DECLARED sections", "SECTIONS.map" in _surf)

@@ -102,6 +102,9 @@ export function NewStandingWorkModal({
   // HAS (`getRoots`, filesystem-literal): offered, never asked for from memory.
   const [folders, setFolders] = useState<Array<{ path: string; label: string }>>([]);
   const [contract, setContract] = useState('');
+  // ADR-666 D1 — browser work names the sites it may use; whose browser is the
+  // server's to stamp (the signed-in member), never this form's.
+  const [sitesText, setSitesText] = useState('');
   const [pickingFolder, setPickingFolder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +135,7 @@ export function NewStandingWorkModal({
     setError(null);
     setBusy(false);
     const s = start;
+    setSitesText('');
     setFolder(s?.suggested_folder ?? '');
     setTarget(s?.suggested_target ?? 'brief.md');
     const cron = s?.suggested_schedule ?? PRESETS[0].cron;
@@ -159,7 +163,10 @@ export function NewStandingWorkModal({
     } else {
       setSources([]);
     }
-    setContract(s?.contract_seed ?? '');
+    // The browser start's seed is worded in the member's language; the other
+    // starts carry the server's own.
+    setContract(s?.kind === 'browser' ? t('newWork.browserContractSeed') : (s?.contract_seed ?? ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, start]);
 
   // ⚠️ ESCAPE CLOSES — the house idiom on ~20 modals (FindConnectorModal,
@@ -181,6 +188,8 @@ export function NewStandingWorkModal({
 
   if (!open) return null;
 
+  const browser = start?.kind === 'browser';
+  const sites = sitesText.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
   const schedule = preset === 'custom' ? customCron.trim() : preset;
   const ext = target.includes('.') ? target.split('.').pop()!.toLowerCase() : '';
   const formatOk = FORMATS.includes(ext);
@@ -189,7 +198,8 @@ export function NewStandingWorkModal({
   // maps EXACTLY ONE source to the leaf; prose takes 1..12.
   const structured = isStructured(ext);
   const maxSources = structured ? 1 : MAX_SOURCES_PROSE;
-  const sourceOk = sources.length >= 1 && sources.length <= maxSources;
+  // Browser work's reach is its sites, not a fetch: sources are optional there.
+  const sourceOk = browser ? sites.length >= 1 : sources.length >= 1 && sources.length <= maxSources;
   const canCreate = Boolean(folderSlug && target.trim() && formatOk && schedule && sourceOk && contract.trim()) && !busy;
 
   /** What is still missing, named in the order the fields appear — so a member
@@ -203,9 +213,11 @@ export function NewStandingWorkModal({
         ? t('newWork.blockedFormat')
         : !schedule
           ? t('newWork.blockedSchedule')
-          : sources.length === 0
+          : browser && sites.length === 0
+            ? t('newWork.blockedSites')
+          : !browser && sources.length === 0
             ? t('newWork.blockedSource')
-            : sources.length > maxSources
+            : !browser && sources.length > maxSources
               ? t('newWork.blockedTooMany', { max: maxSources })
             : !contract.trim()
               ? t('newWork.blockedInstructions')
@@ -221,12 +233,13 @@ export function NewStandingWorkModal({
         target: target.trim(),
         schedule,
         contract: contract.trim(),
-        sources: sources.map((x) => ({
+        sources: browser ? [] : sources.map((x) => ({
           id: x.id,
           ...(x.connector ? { connector: x.connector, selector: x.selector ?? undefined } : {}),
           ...(x.path ? { path: x.path } : {}),
           ...(x.url ? { url: x.url } : {}),
         })),
+        ...(browser ? { browser_sites: sites } : {}),
       });
       onCreated(created);
     } catch (e) {
@@ -239,6 +252,14 @@ export function NewStandingWorkModal({
   const whenLabel = timezone && timezone !== 'UTC'
     ? t('newWork.whenLabelWithZone', { timezone })
     : t('newWork.whenLabel');
+  // Worded here, never inline (the ADR-660 meter reads a JSX ternary as copy).
+  const headTitle = !start
+    ? t('newWork.title')
+    : browser
+      ? t('startPicker.browserTitle')
+      : start.title;
+  const subtitle = browser ? t('newWork.browserScheduleHint') : t('newWork.subtitle');
+  const contractLabel = browser ? t('newWork.browserContractLabel') : t('newWork.instructionsLabel');
 
   return createPortal(
     <>
@@ -268,9 +289,9 @@ export function NewStandingWorkModal({
           <div className="flex items-start gap-3 border-b border-border px-5 py-4">
             {start ? <StartMark start={start} className="mt-0.5" /> : null}
             <div className="min-w-0">
-              <h2 className="text-base font-semibold">{start ? start.title : t('newWork.title')}</h2>
+              <h2 className="text-base font-semibold">{headTitle}</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                {t('newWork.subtitle')}
+                {subtitle}
               </p>
             </div>
           </div>
@@ -341,6 +362,18 @@ export function NewStandingWorkModal({
               )}
             </div>
 
+            {browser ? (
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground">{t('newWork.sitesLabel')}</label>
+                <input
+                  value={sitesText}
+                  onChange={(e) => setSitesText(e.target.value)}
+                  placeholder={t('newWork.sitesPlaceholder')}
+                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-foreground/30"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">{t('newWork.sitesHint')}</p>
+              </div>
+            ) : (
             <div>
               <div className="flex items-baseline justify-between gap-3">
                 <label className="block text-xs font-medium text-muted-foreground">{t('newWork.sourceLabel')}</label>
@@ -377,9 +410,10 @@ export function NewStandingWorkModal({
                 <p className="mt-1.5 text-[11px] text-muted-foreground">{t('newWork.oneSourceOnly')}</p>
               )}
             </div>
+            )}
 
             <div>
-              <label className="block text-xs font-medium text-muted-foreground">{t('newWork.instructionsLabel')}</label>
+              <label className="block text-xs font-medium text-muted-foreground">{contractLabel}</label>
               <textarea
                 value={contract}
                 onChange={(e) => setContract(e.target.value)}

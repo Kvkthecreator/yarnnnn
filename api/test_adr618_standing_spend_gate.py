@@ -104,7 +104,8 @@ _st_tree = ast.parse(_SRC)
 _st_fn = next(
     (n for n in ast.walk(_st_tree)
      if isinstance(n, (ast.AsyncFunctionDef, ast.FunctionDef))
-     and n.name == "run_standing_sweep"),
+     # ADR-666 — the run's body; `run_standing_sweep` wraps it in its row.
+     and n.name == "_sweep"),
     None,
 )
 _st_calls = {

@@ -15,9 +15,10 @@
  * (the mirror opens the kept file in Files).
  *
  * DP29: everything here is derived at read time from the served roster;
- * nothing is stored. `runStatusLine` is the three-way refusal renderer lifted
- * from the deleted Strings pane — an honest refusal reads as what it is, never
- * as "failed".
+ * nothing is stored. How the last run went is worded by `useRunWords`
+ * (ADR-666) — the one wording of a run, shared with the cockpit and the tray.
+ * A row whose work is going or due right now says so (`live_run`), and
+ * browser work wears whose browser it runs in (ADR-666 D1).
  *
  * ⭐ ADR-660 — the words live in the catalog. The helpers the sibling
  * Supervisor files share (`describeSchedule`, `scheduleLine`, `minderLine`,
@@ -28,8 +29,9 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { CalendarClock, FolderOpen, Loader2, Pause, Play, Zap } from 'lucide-react';
-import type { StandingLastRun, StandingSummary } from '@/lib/api/client';
+import { CalendarClock, FolderOpen, Globe, Loader2, Pause, Play, Zap } from 'lucide-react';
+import type { StandingSummary } from '@/lib/api/client';
+import { useRunWords } from '@/components/runs/useRunWords';
 import { formatLedgerTime } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +44,7 @@ const KNOWN_PROBLEMS: readonly string[] = [
   'sources_invalid',
   'app_invalid',
   'source_cycle',
+  'browser_invalid',
 ];
 
 /** A served sentence composed mid-line loses its capital ("reads the latest 50 messages…").
@@ -63,17 +66,24 @@ export function lowerFirst(s: string): string {
  * outrank the last run. A paused row that also cannot run reads as "needs
  * fixing", because resuming it would not make it work.
  *
- * ⚠️ FOUR STATES, NOT FIVE. `attention` is the only one that takes a semantic
+ * ⭐ A RUN GOING OR DUE OUTRANKS THE CADENCE (ADR-666). `working` — a run of
+ * this work is happening now; `due` — browser work came due and waits for its
+ * member. Both are facts about NOW, read off `live_run`, and a member scanning
+ * the cockpit needs them before the schedule.
+ *
+ * ⚠️ `attention` is the only state that takes a semantic
  * hue (amber), and it is reserved for what a member must ACT on — a
  * declaration that cannot run. A failed RUN is not `attention`: runs fail for
  * reasons that clear themselves (a source was unreachable), and a row that
  * shouts on every transient failure is the noise failure APP-BUILDER-UX §4.2
  * names. That reads `resting` and says what happened in its own line.
  */
-export type StandingState = 'attention' | 'paused' | 'running' | 'resting';
+export type StandingState = 'attention' | 'working' | 'due' | 'paused' | 'running' | 'resting';
 
 export function standingState(row: StandingSummary): StandingState {
   if (row.problem != null) return 'attention';
+  if (row.live_run && row.live_run.state !== 'waiting') return 'working';
+  if (row.live_run?.state === 'waiting') return 'due';
   if (row.paused) return 'paused';
   if (row.schedule) return 'running';
   return 'resting';
@@ -99,25 +109,6 @@ export function useStandingWords() {
     KNOWN_PROBLEMS.includes(problem)
       ? t(`problem.${problem}`)
       : t('row.cannotRun', { problem });
-
-  const runStatusLine = (e: StandingLastRun): string => {
-    if (e.status === 'skipped' && e.error_reason === 'no_change') return t('lastRun.noChange');
-    if (e.status === 'skipped' && e.error_reason === 'sources_unchanged') return t('lastRun.sourcesUnchanged');
-    if (e.status === 'skipped' && e.error_reason === 'router_disabled') return t('lastRun.routerDisabled');
-    if (e.status === 'skipped') {
-      return e.error_reason
-        ? t('lastRun.skippedWithReason', { reason: e.error_reason })
-        : t('lastRun.skipped');
-    }
-    if (e.status === 'success') return t('lastRun.success');
-    if (e.error_reason === 'shape_violation') return t('lastRun.shapeViolation');
-    if (e.error_reason === 'no_sources_fetched') return t('lastRun.noSourcesFetched');
-    if (e.error_reason === 'balance_exhausted') return t('lastRun.balanceExhausted');
-    if (e.error_reason === 'output_truncated') return t('lastRun.outputTruncated');
-    return e.error_reason
-      ? t('lastRun.failedWithReason', { reason: e.error_reason })
-      : t('lastRun.failed');
-  };
 
   /** The cadence in words where the cron is one of the shapes a member sets
    *  from the door; the raw string otherwise (never a wrong translation). */
@@ -169,7 +160,19 @@ export function useStandingWords() {
     return '';
   };
 
-  return { problemCopy, runStatusLine, describeSchedule, scheduleLine, minderLine };
+  /** Whose work it is: the derived minder, or — for browser work — whose
+   *  browser it runs in (ADR-666 D1). */
+  const ownerLine = (row: StandingSummary, viewerId?: string | null): string => {
+    if (row.browser) {
+      return row.browser.member === viewerId
+        ? t('row.inYourBrowser', { topic: row.topic })
+        : t('row.inBrowser', { topic: row.topic, name: row.browser.member_name || row.topic });
+    }
+    const minder = minderLine(row);
+    return minder ? t('row.withTopic', { topic: row.topic, minder }) : row.topic;
+  };
+
+  return { problemCopy, describeSchedule, scheduleLine, minderLine, ownerLine };
 }
 
 /**
@@ -186,12 +189,16 @@ export function StandingStateBadge({ row, className }: { row: StandingSummary; c
   const tone: Record<StandingState, string> = {
     // Amber is the attention hue the product already reserves (surface-icons.tsx).
     attention: 'text-amber-700 dark:text-amber-400',
+    working: 'text-foreground',
+    due: 'text-foreground',
     paused: 'text-muted-foreground',
     running: 'text-muted-foreground',
     resting: 'text-muted-foreground',
   };
   const dot: Record<StandingState, string> = {
     attention: 'bg-amber-500',
+    working: 'bg-emerald-500 animate-pulse',
+    due: 'bg-amber-500',
     paused: 'bg-muted-foreground/40',
     running: 'bg-emerald-500',
     resting: 'bg-muted-foreground/40',
@@ -205,20 +212,40 @@ export function StandingStateBadge({ row, className }: { row: StandingSummary; c
 }
 
 export function StandingRow({
-  row, busy, note, onRunNow, onTogglePause, onOpen, onOpenFile,
+  row, busy, note, viewerId, onRunNow, onTogglePause, onOpen, onOpenFile,
 }: {
   row: StandingSummary;
   busy?: boolean;
   note?: string | null;
+  /** The viewer — browser work reads "in your browser" to its own member. */
+  viewerId?: string | null;
   onRunNow: (row: StandingSummary) => void;
   onTogglePause: (row: StandingSummary) => void;
   onOpen?: (row: StandingSummary) => void;
   onOpenFile?: (row: StandingSummary) => void;
 }) {
   const t = useTranslations('supervisor');
-  const { problemCopy, runStatusLine, scheduleLine, minderLine } = useStandingWords();
+  const { problemCopy, scheduleLine, ownerLine } = useStandingWords();
+  const { outcomeLine } = useRunWords();
   const open = onOpen ?? onOpenFile;
-  const minder = minderLine(row);
+  const live = row.live_run ?? null;
+  // Worded here, never inline: a multi-line ternary in JSX reads to the
+  // ADR-660 meter as literal copy even when every branch is a `t()` call.
+  const liveLine = !live
+    ? null
+    : live.state === 'waiting'
+      ? (live.user_id === viewerId
+          ? t('row.dueYou')
+          : t('row.dueOther', { name: live.member_name || row.topic }))
+      : t('row.working');
+  const lastLine = row.last_run
+    ? (row.last_run.ended_at || row.last_run.started_at
+        ? t('lastRun.withTime', {
+            line: outcomeLine(row.last_run),
+            when: formatLedgerTime((row.last_run.ended_at || row.last_run.started_at)!),
+          })
+        : outcomeLine(row.last_run))
+    : null;
   return (
     <li
       className={cn(
@@ -248,7 +275,7 @@ export function StandingRow({
             <StandingStateBadge row={row} />
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {minder ? t('row.withTopic', { topic: row.topic, minder }) : row.topic}
+            {ownerLine(row, viewerId)}
           </p>
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
@@ -269,6 +296,11 @@ export function StandingRow({
             )}
             {row.sources.length > 0 && (
               <span>{t('row.sources', { count: row.sources.length })}</span>
+            )}
+            {row.browser && (
+              <span className="inline-flex items-center gap-1" title={row.browser.sites.join(', ')}>
+                <Globe className="h-3 w-3 shrink-0" /> {t('row.sites', { count: row.browser.sites.length })}
+              </span>
             )}
           </p>
           {/* A connector source reads what the CONNECTION reads, and the
@@ -323,17 +355,9 @@ export function StandingRow({
         </p>
       )}
 
-      {(note || row.last_run) && (
-        <p className={cn('mt-3 text-xs', note ? 'text-foreground' : 'text-muted-foreground')}>
-          {note
-            ?? (row.last_run
-              ? (row.last_run.at
-                  ? t('lastRun.withTime', {
-                      line: runStatusLine(row.last_run),
-                      when: formatLedgerTime(row.last_run.at),
-                    })
-                  : runStatusLine(row.last_run))
-              : null)}
+      {(note || liveLine || lastLine) && (
+        <p className={cn('mt-3 text-xs', note || liveLine ? 'text-foreground' : 'text-muted-foreground')}>
+          {note ?? liveLine ?? lastLine}
         </p>
       )}
     </li>

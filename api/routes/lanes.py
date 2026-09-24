@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
@@ -285,6 +285,9 @@ class LaneRegenerateRequest(BaseModel):
     # ADR-662 D6 — a regenerated turn holds the same client tools as a sent one.
     client_tools: Optional[list[str]] = None
     executor: Optional[str] = None
+    # ADR-666 D4 — the run this turn performs: Run now on browser work wrote
+    # its opening message, and the member's page runs the turn for it here.
+    run_id: Optional[str] = None
 
 
 class ToolResultRequest(BaseModel):
@@ -1279,6 +1282,29 @@ async def create_lane(req: CreateLaneRequest, auth: UserClient) -> dict:
     return _lane_row_to_dict(created, list_participants(created["id"]))
 
 
+def find_bound_lane(auth: UserClient, *, app: str, artifact_path: str) -> Optional[str]:
+    """This member's active lane bound to `artifact_path` under `app` — the
+    `(app, path)` rule PaneHousing and the Text app hold (an unstamped lane on
+    the path matches only when no stamped one does). None when there is none.
+    Member-keyed: a conversation is the member's own (ADR-411)."""
+    try:
+        rows = (
+            auth.client.table("chat_sessions").select("id, context_metadata")
+            .eq("user_id", auth.user_id).eq("session_type", "lane").eq("status", "active")
+            .eq("context_metadata->lane->>artifact_path", artifact_path)
+            .order("updated_at", desc=True).limit(10).execute()
+        ).data or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[LANE] bound-lane read failed for %s: %s", artifact_path, e)
+        return None
+    apps = [((r.get("context_metadata") or {}).get("lane") or {}).get("app") for r in rows]
+    for want in (app, None):
+        for r, a in zip(rows, apps):
+            if (a or None) == want:
+                return str(r["id"])
+    return None
+
+
 def _mark_visited(auth: UserClient, lane_id: str, rows: list[dict]) -> None:
     """VISITING a conversation is reading it (ADR-637).
 
@@ -1337,6 +1363,11 @@ async def lane_messages(lane_id: str, auth: UserClient) -> dict:
         .execute()
     )
     _mark_visited(auth, lane_id, res.data or [])
+    # ADR-666 D5 — a reply's browser steps live on its run; one query brings
+    # them back under `metadata.receipts`, the key the transcript reads.
+    from services.runs import hydrate_receipts
+
+    hydrate_receipts(auth.client, res.data or [])
     return {
         "messages": [
             {
@@ -1910,6 +1941,9 @@ def _turn_stream_response(
     # ADR-662 D6 — the client tools this turn holds, already resolved against
     # the host's version (`client_tools.offered`). Empty off the desktop app.
     client_tools: tuple = (),
+    # ADR-666 D4 — the declared run this turn performs, and its declaration.
+    run: Optional[dict] = None,
+    run_decl: Any = None,
 ) -> StreamingResponse:
     """The one streaming turn core — serves POST messages AND regenerate.
 
@@ -1943,7 +1977,9 @@ def _turn_stream_response(
                                          /lanes/{id}/tool-results/{call_id}
       - {"tool_receipt": {"name", "text", "ok"}}
                                        — what that act changed, in words
-                                         (ADR-662 D3); persisted as `receipts`
+                                         (ADR-662 D3); a STEP of the turn's run
+                                         (ADR-666 D5) — the reply row carries
+                                         `run_id`, never the receipts
       - {"done": true, "rounds", "tools_called", "artifacts", "lane_name"?}
                                        — terminal (lane_name when auto-named)
       - {"error": {"code", "message"}} — a fatal turn error. `message` is the
@@ -2204,9 +2240,17 @@ def _turn_stream_response(
         accumulated: list[str] = []
         tools_called: list[str] = []
         artifacts: list[str] = []
-        # ADR-662 D3 — the plain-words record of what the member's desktop
-        # app did, riding the turn's ONE assistant row (the ADR-399 shape).
-        receipts: list[dict] = []
+        # ADR-666 D5 — a turn holding browser hands belongs to a run: the one
+        # it was started for, or one opened at its first act. Its receipts are
+        # the run's steps; the reply row carries only `run_id`.
+        from services.runs import TurnRun
+
+        turn_run = (
+            TurnRun(user_id=auth.user_id, workspace_id=_acting_workspace(auth),
+                    lane_id=lane_id, run=run, decl=run_decl)
+            if client_tools else None
+        )
+        ledger_ids: list[str] = []
         rounds = 0
         errored: Optional[str] = None
         persisted = False
@@ -2229,8 +2273,8 @@ def _turn_stream_response(
                 "tools_called": tools_called,
                 "artifacts": artifacts,
             }
-            if receipts:
-                extra["receipts"] = receipts
+            if turn_run is not None and turn_run.run_id:
+                extra["run_id"] = turn_run.run_id
             if stopped:
                 extra["stopped"] = True
             # WHO spoke, and WHY they were the one. Before this, `responder`
@@ -2297,6 +2341,7 @@ def _turn_stream_response(
                 # (think / make / derive) is derivable at read time.
                 session_id=lane_id,
                 client_tools=client_tools,
+                browser_sites=tuple(((run_decl.browser or {}).get("sites") or []) if run_decl is not None else ()),
             )):
                 if _item is None:
                     # SSE's own keepalive: a comment frame every reader skips.
@@ -2356,9 +2401,15 @@ def _turn_stream_response(
                     artifacts.append(payload["path"])
                     yield sse({"artifact": payload})
                 elif kind == "client_tool":
+                    if turn_run is not None:
+                        turn_run.on_act(payload.get("nonce"))
                     yield sse({"client_tool": payload})
                 elif kind == "receipt":
-                    receipts.append(payload)
+                    if turn_run is not None:
+                        # A refused act (outside a run's sites) never reached a
+                        # client, so it is the first act that opens the run.
+                        turn_run.on_act(None)
+                        turn_run.on_receipt(payload)
                     yield sse({"tool_receipt": payload})
                 elif kind == "error":
                     # ⭐ THE STRUCTURE THE RUNNER ALREADY BUILT SURVIVES THE WIRE.
@@ -2395,12 +2446,16 @@ def _turn_stream_response(
                     # the terminal result is authoritative for both ledgers
                     tools_called = payload.get("tools_called") or tools_called
                     artifacts = payload.get("artifacts") or artifacts
+                    ledger_ids = payload.get("ledger_ids") or ledger_ids
         except (asyncio.CancelledError, GeneratorExit):
             # STOP: the member aborted / the client disconnected. Persist the
             # partial so the reloaded transcript matches what they saw, then
             # let the cancellation proceed.
             logger.info("[LANE stream] turn stopped by member (lane=%s)", lane_id[:8])
             persist_reply(stopped=True)
+            if turn_run is not None:
+                turn_run.finish(stopped=True, errored=False, artifacts=artifacts,
+                                ledger_ids=ledger_ids)
             raise
         except Exception as exc:  # provider/transport failure mid-stream
             # `exception()` not `warning()`: this is a catch-all, so it swallows
@@ -2421,6 +2476,9 @@ def _turn_stream_response(
             }})
 
         persist_reply(stopped=False)
+        if turn_run is not None:
+            turn_run.finish(stopped=False, errored=bool(errored), artifacts=artifacts,
+                            ledger_ids=ledger_ids)
 
         done: dict = {
             "done": True,
@@ -2569,7 +2627,7 @@ async def regenerate_lane_turn(
 
     rows_res = (
         auth.client.table("session_messages")
-        .select("id, role, content, sequence_number")
+        .select("id, role, content, sequence_number, metadata")
         .eq("session_id", lane_id)
         # ADR-495 D2 — regenerate reruns the last user turn THIS participant can
         # see. Unclamped, a member joined at "from now" on a quiet conversation
@@ -2587,6 +2645,12 @@ async def regenerate_lane_turn(
         raise HTTPException(status_code=409, detail="Nothing to regenerate yet")
 
     seq = int(last_user["sequence_number"])
+    client_tools = _client_tools_for(
+        x_yarnnn_client, req.client_tools if req else None, req.executor if req else None,
+    )
+    run, run_decl = (None, None)
+    if req and req.run_id:
+        run, run_decl = _run_for_turn(auth, lane_id, req.run_id, last_user, client_tools)
     _delete_transcript_tail(auth, lane_id, seq + 1)
     return _turn_stream_response(
         auth,
@@ -2596,10 +2660,45 @@ async def regenerate_lane_turn(
         # History must end BEFORE the user message we re-run — it is passed
         # as the turn's user_message, not repeated from history.
         history_before_sequence=seq,
-        client_tools=_client_tools_for(
-            x_yarnnn_client, req.client_tools if req else None, req.executor if req else None,
-        ),
+        client_tools=client_tools,
+        run=run,
+        run_decl=run_decl,
     )
+
+
+def _run_for_turn(auth: UserClient, lane_id: str, run_id: str, last_user: dict,
+                  client_tools: tuple) -> tuple:
+    """ADR-666 D4 — the declared browser run a regenerate performs: it must be
+    this member's, in this conversation, not yet begun, and opened by the
+    message being answered; and this page must hold the browser. Returns
+    `(run, decl)` or refuses."""
+    from services.runs import get_run
+    from services.standing_work import discover_standing
+    from services.supabase import get_service_client
+    from services.workspace_context import acting_workspace_owner
+
+    run = get_run(get_service_client(), run_id)
+    opened_by = ((last_user.get("metadata") or {}).get("run_id"))
+    if (not run or str(run.get("lane_id")) != lane_id or str(run.get("user_id")) != auth.user_id
+            or opened_by != run_id):
+        raise HTTPException(status_code=404, detail="No such run in this conversation")
+    if run.get("state") not in ("queued", "waiting"):
+        raise HTTPException(status_code=409, detail="This run has already started")
+    if not client_tools:
+        raise HTTPException(
+            status_code=409,
+            detail=("This work runs in your browser: open yarnnn in Chrome with the yarnnn "
+                    "extension on, then run it."),
+        )
+    owner = acting_workspace_owner(auth.client, auth.user_id, getattr(auth, "workspace_id", None))
+    decl = next(
+        (d for d in discover_standing(auth.client, workspace_id=run.get("workspace_id")).get(owner, [])
+         if d.topic == run.get("topic") and d.browser is not None),
+        None,
+    )
+    if decl is None:
+        raise HTTPException(status_code=409, detail="This work is no longer declared")
+    return run, decl
 
 
 # The member-agent CRUD (`POST/PATCH /lane-agents`, the "make your own" door)

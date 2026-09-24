@@ -45,6 +45,13 @@ FOCUS_STORIES: dict[str, dict] = {
         # tenant since ADR-639 deleted the strings surface.
         "declares": "components/text/TextEditor.tsx",
     },
+    "components/supervisor/WorkConversation.tsx": {
+        # FOCUS-SILENCE (ADR-666 D4): browser work's conversation is about the
+        # WORK, not an object in view. What a run acts on is its declaration's
+        # sites and contract, carried in the run's opening message — a focus
+        # line would name the Supervisor pane, which is not the subject.
+        "silence": "a run's subject is its declaration, carried in its opening message",
+    },
     "components/chat-surface/ChatSurface.tsx": {
         # FOCUS-SILENCE: /chat is the workbench BESIDE the desks, not a desk —
         # it has no object of its own to declare. It READS every declaration

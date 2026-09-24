@@ -181,8 +181,9 @@ check("a missing skill degrades craft, never correctness (job + contract still t
 # the RUN uses it — read off the parsed CALLS, never the prose
 _sw_src = _read("api/services/standing_work.py")
 _sw_tree = ast.parse(_sw_src)
+# ADR-666 — `run_standing_sweep` wraps the run in its row; the body is `_sweep`.
 _run_fn = next(n for n in ast.walk(_sw_tree)
-               if isinstance(n, ast.AsyncFunctionDef) and n.name == "run_standing_sweep")
+               if isinstance(n, ast.AsyncFunctionDef) and n.name == "_sweep")
 _run_calls = _calls(_run_fn)
 check("the run composes its system prompt with build_standing_frame",
       "build_standing_frame" in _run_calls)

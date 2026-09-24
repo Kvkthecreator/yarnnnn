@@ -85,7 +85,11 @@ export function StartPicker({
                 // Worded here rather than inline: a multi-line ternary inside
                 // JSX reads to the ADR-660 meter as literal copy even when
                 // every branch is a `t()` call.
-                const sub = s.kind === 'connector'
+                // ADR-666 D1 — the browser start is worded here, in the
+                // member's language: its kind is fixed, so its words are too.
+                const sub = s.kind === 'browser'
+                  ? tp('browserBody')
+                  : s.kind === 'connector'
                   ? t('startConnector', {
                       name: s.name,
                       reads: s.reads ? lowerFirst(s.reads) : t('startConnectorFallback'),
@@ -93,6 +97,7 @@ export function StartPicker({
                   : s.reads
                     ? lowerFirst(s.reads)
                     : t('startPage');
+                const title = s.kind === 'browser' ? tp('browserTitle') : s.title;
                 return (
                 <li key={`${s.kind}-${s.connector ?? s.title}`}>
                   <button
@@ -102,7 +107,7 @@ export function StartPicker({
                   >
                     <StartMark start={s} />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-medium text-foreground">{s.title}</span>
+                      <span className="block text-[13px] font-medium text-foreground">{title}</span>
                       <span className="block truncate text-[12px] text-muted-foreground">{sub}</span>
                     </span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-muted-foreground" />

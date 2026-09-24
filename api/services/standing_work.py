@@ -41,8 +41,23 @@ One folder holds ONE declaration, split on the ADR-564 D2 bright line:
                         shape:                   # structured formats only —
                           columns: [date, mrr]   # csv: required column set
                           # keys: [mrr, churn]   # json: required top-level keys
+                        browser:                 # OPTIONAL — ADR-666 D1: the
+                          member: <uuid>         # work happens in this member's
+                          sites: [example.com]   # browser, on these sites only
     CONTRACT.md     — what this file means and must stay true to (prose,
-                      member/lane-authored, NEVER machine-parsed)
+                      member/lane-authored, NEVER machine-parsed). For browser
+                      work it also says how: one prose file, no second one.
+
+BROWSER WORK (ADR-666) is standing work whose run happens in a member's
+browser — a LANE TURN, the only place browser hands exist (ADR-662 D9). The
+drain never performs it: when it comes due, `runs.raise_due` opens a run
+WAITING on its member, and the member's Run now starts the turn in the work's
+own conversation. Its sources, when it has any, are workspace paths the run
+reads first; its scope is `sites`.
+
+EVERY RUN IS A ROW (ADR-666 D2): `run_standing_sweep` opens one in `runs` and
+finishes it with what the run wrote and what it cost (the ids of the ledger
+rows below, summed). `execution_events` is the COST ledger only.
 
 `DECLARATION_KEYS` IS the parser's whitelist. It used to live in a thin rule
 module nothing read, and drifted from the one instance (it said `subject`;
@@ -117,6 +132,7 @@ no module-level ``services.*`` imports (cycle-free).
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional, Union
@@ -167,8 +183,13 @@ KEEPING_SKILL = "keeping-a-file-current"
 #: authority attaches to declarations and gates, never to agents). No key here
 #: names an agent, ever; the gate asserts it against the live register.
 DECLARATION_KEYS = frozenset(
-    {"target", "app", "schedule", "sources", "shape", "paused", "paused_until"}
+    {"target", "app", "schedule", "sources", "shape", "paused", "paused_until", "browser"}
 )
+
+#: ADR-666 D1 — how many sites one piece of browser work may name.
+_MAX_BROWSER_SITES = 12
+_SITE_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 #: Which app a target's TYPE belongs to when the declaration names none —
 #: the ADR-602 D7 rule (the app follows the artifact) one layer up. Prose is
@@ -208,9 +229,13 @@ class StandingDecl:
     #: gather filters on it: an owner of two workspaces must never have one's
     #: run read the other's same-named file. None only on the N=1 fallback.
     workspace_id: Optional[str] = None
+    #: ADR-666 D1 — `{member, sites}` when the work happens in a member's
+    #: browser; None for the kept file the drain derives.
+    browser: Optional[dict] = None
     #: A declaration that parses but cannot run — the LOUD half of D3. None
     #: when healthy. Values: missing_target | invalid_target |
-    #: unsupported_format | sources_invalid | app_invalid | source_cycle.
+    #: unsupported_format | sources_invalid | app_invalid | source_cycle |
+    #: browser_invalid.
     problem: Optional[str] = None
 
     @property
@@ -319,6 +344,56 @@ def normalize_source_path(raw: Any) -> Optional[tuple[str, bool]]:
     if not rel or any(seg in ("", ".", "..") for seg in parts):
         return None
     return rel, is_folder
+
+
+def normalize_site(raw: Any) -> Optional[str]:
+    """A site as a declaration names it: a bare host, lowercase, no `www.`.
+    `https://www.Example.com/path` → `example.com`. None when it is not one.
+    Pure."""
+    s = str(raw or "").strip().lower()
+    s = re.sub(r"^[a-z][a-z0-9+.-]*://", "", s)
+    s = re.split(r"[/?#]", s, maxsplit=1)[0].rsplit("@", 1)[-1].split(":", 1)[0]
+    if s.startswith("www."):
+        s = s[4:]
+    return s if _SITE_RE.match(s) else None
+
+
+def url_host(url: str) -> Optional[str]:
+    """The site a URL is on, in `normalize_site`'s spelling. Pure."""
+    if not str(url or "").lower().startswith(("http://", "https://")):
+        return None
+    return normalize_site(url)
+
+
+def site_allowed(url: str, sites: Any) -> bool:
+    """ADR-666 D1 — may a run scoped to `sites` open `url`? The site itself or
+    any subdomain of it. Only http(s). Pure."""
+    host = url_host(url)
+    return bool(host) and any(host == s or host.endswith("." + s) for s in (sites or ()))
+
+
+def _parse_browser(raw: Any) -> tuple[Optional[dict], bool]:
+    """The `browser` block → `({member, sites}, invalid)`. Absent is
+    `(None, False)`; anything malformed is invalid, loudly (`browser_invalid`).
+    Pure."""
+    if raw is None:
+        return None, False
+    if not isinstance(raw, dict):
+        return None, True
+    member = str(raw.get("member") or "").strip().lower()
+    sites_raw = raw.get("sites")
+    if not _UUID_RE.match(member) or not isinstance(sites_raw, list) or not sites_raw:
+        return {"member": member, "sites": []}, True
+    sites: list[str] = []
+    for item in sites_raw:
+        site = normalize_site(item)
+        if site is None:
+            return {"member": member, "sites": sites}, True
+        if site not in sites:
+            sites.append(site)
+    if len(sites) > _MAX_BROWSER_SITES:
+        return {"member": member, "sites": sites}, True
+    return {"member": member, "sites": sites}, False
 
 
 def _derive_app(fmt: Optional[str]) -> Optional[str]:
@@ -466,6 +541,7 @@ def parse_standing_yaml(
 
     options = {k: v for k, v in parsed.items() if k not in DECLARATION_KEYS}
     explicit_app = str(parsed.get("app") or "").strip() or None
+    browser, browser_invalid = _parse_browser(parsed.get("browser"))
 
     decl = StandingDecl(
         topic=topic,
@@ -480,19 +556,48 @@ def parse_standing_yaml(
         declaration_path=declaration_path,
         user_id=user_id,
         workspace_id=workspace_id,
+        browser=browser,
     )
-    # Explicit wins; absent derives from the target's type (ADR-639 D3).
-    decl.app = explicit_app or _derive_app(decl.format)
+    # Explicit wins; absent derives from the target's type (ADR-639 D3). Browser
+    # work always has someone to do it: a type with no app runs under Text.
+    decl.app = explicit_app or _derive_app(decl.format) or ("text" if browser else None)
+    machinery_rel = frozenset({f"{topic}/{CONTRACT_LEAF}", f"{topic}/{DECLARATION_LEAF}"})
     decl.problem = (
         _classify_target(target)
-        or _classify_sources(
-            sources, decl.format, target_rel=decl.target_rel,
-            machinery_rel=frozenset({f"{topic}/{CONTRACT_LEAF}",
-                                     f"{topic}/{DECLARATION_LEAF}"}),
+        or ("browser_invalid" if browser_invalid else None)
+        or (
+            _classify_browser_sources(sources, target_rel=decl.target_rel,
+                                      machinery_rel=machinery_rel)
+            if browser is not None else
+            _classify_sources(sources, decl.format, target_rel=decl.target_rel,
+                              machinery_rel=machinery_rel)
         )
         or _classify_app(explicit_app, decl.format)
     )
     return decl
+
+
+def _classify_browser_sources(
+    sources: list[dict], *, target_rel: str, machinery_rel: frozenset,
+) -> Optional[str]:
+    """ADR-666 D1 — browser work's sources are what the run reads first, from
+    the workspace: optional, path-only. Its reach is `sites`, not a fetch."""
+    if not sources:
+        return None
+    if not all(isinstance(s, dict) and s.get("id") and _is_path_source(s) for s in sources):
+        return "sources_invalid"
+    if len(sources) > _MAX_SOURCES_PROSE:
+        return "sources_invalid"
+    for s in sources:
+        norm = normalize_source_path(s.get("path"))
+        if norm is None:
+            return "sources_invalid"
+        rel, is_folder = norm
+        if not is_folder and rel == target_rel:
+            return "source_cycle"
+        if not is_folder and rel in machinery_rel:
+            return "sources_invalid"
+    return None
 
 
 def _strip_tier_frontmatter(content: str) -> str:
@@ -1168,6 +1273,37 @@ Return the full revised file and NOTHING else — or the exact token
 NO_CHANGE. No preamble, no code fence around the whole thing."""
 
 
+#: ADR-666 D4 — the opening message of a browser run, written into the work's
+#: own conversation by Run now. It is the MEMBER's turn (the run is theirs), so
+#: it reads as their ask; the contract is quoted whole because it is the
+#: load-bearing half. A prompt under the prompt-change protocol.
+BROWSER_RUN_ASK = (
+    "Run the standing work in '{topic}' now, in my browser.\n\n"
+    "Open only these sites: {sites}.\n"
+    "When you finish, '{target}' must be true to the contract below — write it "
+    "with your file tools. If a sign-in stands in your way, stop and tell me "
+    "which site needs me to sign in. End with one sentence saying what changed."
+    "{material}\n\n"
+    "THE CONTRACT ({contract_path}):\n\n{contract}"
+)
+
+
+def browser_run_ask(decl: StandingDecl, contract: Optional[str]) -> str:
+    """The opening message of one browser run of `decl`. Pure."""
+    paths = [f"/workspace/{rel}{'/' if is_folder else ''}" for rel, is_folder in decl.path_sources()]
+    material = (
+        "\nRead these first: " + ", ".join(paths) + "." if paths else ""
+    )
+    return BROWSER_RUN_ASK.format(
+        topic=decl.topic,
+        sites=", ".join((decl.browser or {}).get("sites") or []),
+        target=decl.target_path,
+        material=material,
+        contract_path=decl.contract_path,
+        contract=(contract or "").strip() or "(no contract written yet — ask me what it should say)",
+    )
+
+
 def build_standing_job(decl: StandingDecl) -> str:
     """The run's job section — pure. The frame composes it under the
     executor's character (character first, job second — the lane order)."""
@@ -1206,12 +1342,66 @@ def _read_file(client, user_id: str, path: str) -> Optional[str]:
 async def run_standing_sweep(
     client, user_id: str, decl: StandingDecl, *, force: bool = False,
 ) -> dict:
-    """One run of one declaration. Returns {success, slug, target_path?,
-    no_change?, skipped?, error_reason?, detail?}. The drain loop records the
-    run either way.
+    """One run of one declaration, as a RUN (ADR-666 D2). Returns {success,
+    slug, run_id?, target_path?, revision_id?, no_change?, skipped?,
+    error_reason?, detail?}. The drain loop records the tick either way.
 
     `force` is the member's Run now (ADR-659 D6): they asked, so the pace rule
-    does not apply, and the ledger says `manual` rather than `scheduled`."""
+    does not apply, and the ledger says `manual` rather than `scheduled`.
+
+    Browser work never runs here (ADR-666 D4): it is due-RAISED — a run waiting
+    on its member — and performed in the member's own conversation."""
+    from services import runs
+
+    if decl.browser is not None:
+        return runs.raise_due(decl)
+
+    run_id = runs.open_run(
+        user_id=user_id, workspace_id=decl.workspace_id, kind="derive",
+        trigger="manual" if force else "scheduled", topic=decl.topic,
+    )
+    ledger_ids: list[str] = []
+    steps: list[dict] = []
+    result: dict = {"success": False, "slug": decl.slug, "error_reason": "run_raised"}
+    try:
+        result = await _sweep(client, user_id, decl, force=force, ledger_ids=ledger_ids,
+                              steps=steps)
+    finally:
+        if result.get("success"):
+            outcome = ("skipped" if result.get("skipped")
+                       else "no_change" if result.get("no_change") else "wrote")
+            state = "done"
+        else:
+            outcome = str(result.get("error_reason") or "failed")
+            state = "failed"
+        runs.finish_run(run_id, state=state, outcome=outcome,
+                        revision_id=result.get("revision_id"), ledger_ids=ledger_ids,
+                        steps=steps)
+    if run_id:
+        result["run_id"] = run_id
+    return result
+
+
+def _step(act: str, subject: str, text: str, *, ok: bool = True, changed: bool = False) -> dict:
+    """One step of a derive run, in the receipt shape every run's steps share
+    (ADR-662 D3 → ADR-666 D2): the model-facing `text` and the `record` a
+    member's catalog words."""
+    return {"name": "standing", "text": text, "ok": ok,
+            "record": {"act": act, "subject": subject, "changed": changed}}
+
+
+def _short(path: str) -> str:
+    return path[len(_WORKSPACE_PREFIX):] if path.startswith(_WORKSPACE_PREFIX) else path
+
+
+async def _sweep(
+    client, user_id: str, decl: StandingDecl, *, force: bool, ledger_ids: list,
+    steps: list,
+) -> dict:
+    """The run's body — fetch → pace → map/derive → validate → write → meter.
+    Every ledger row it writes adds its id to `ledger_ids`, which is how the
+    run knows exactly what it cost; every source it read and the write it made
+    land in `steps` (ADR-666 — what a run was MADE FROM, on the run itself)."""
     from services import telemetry as _telemetry
 
     started = datetime.now(timezone.utc)
@@ -1225,7 +1415,10 @@ async def run_standing_sweep(
         # Resolved through the module at CALL time so a gate can spy on it.
         kwargs.setdefault("trigger_type", _trigger)
         kwargs.setdefault("workspace_id", decl.workspace_id)
-        return _telemetry.record_execution_event(*args, **kwargs)
+        event_id = _telemetry.record_execution_event(*args, **kwargs)
+        if event_id:
+            ledger_ids.append(str(event_id))
+        return event_id
 
     # A declaration in a problem state never runs — the pane already says so.
     if decl.problem is not None or decl.format is None:
@@ -1353,6 +1546,8 @@ async def run_standing_sweep(
         except Exception as e:  # noqa: BLE001 — per-source isolation
             errors.append(f"{s.get('id')}: {e!r}")
 
+    steps.extend(_step("read", _short(p), f"Read {p}.") for p in raw_paths)
+    steps.extend(_step("failed", e.split(":", 1)[0], f"Could not read {e}.", ok=False) for e in errors)
     sweep_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
     sweep_ok = bool(bodies)
     record_execution_event(
@@ -1542,6 +1737,8 @@ async def run_standing_sweep(
         derived_from=raw_paths,
     )
 
+    steps.append(_step("wrote", decl.target, f"Wrote {path}.", changed=True))
+
     # ── 4. embed (retrieval — a maintained file nobody can recall is dead) ─
     try:
         from services.primitives.workspace import _embed_workspace_file
@@ -1642,4 +1839,9 @@ __all__ = [
     "build_standing_job",
     "run_standing_sweep",
     "drain_due_standing_work",
+    "normalize_site",
+    "url_host",
+    "site_allowed",
+    "BROWSER_RUN_ASK",
+    "browser_run_ask",
 ]

@@ -1,5 +1,8 @@
 # ADR-659 — Standing work reads the workspace: the source is a path, the run is paced, the claim is its own
 
+> **D2 superseded by [ADR-666](ADR-666-the-run.md) D2** (2026-09-24): what a run wrote is stored on its row in
+> `runs` (`revision_id`), and what it read is its steps; the 180-second time-window join is deleted.
+>
 > **Status**: **Accepted + Implemented** (2026-09-20, operator: *"aligned in full … delegate implementation
 > details"*). D1–D7 shipped; §9 has the receipts and the one thing not yet driven (the door's click-pass).
 > **Date**: 2026-09-20

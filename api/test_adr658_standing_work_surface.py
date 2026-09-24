@@ -286,13 +286,18 @@ db.tables["platform_connections"] = [
     {"user_id": U, "platform": "wordpress", "status": "active", "settings": {}, "landscape": {}},
     {"user_id": U, "platform": "github", "status": "revoked", "settings": {}, "landscape": {}},
 ]
-db.tables["execution_events"] = [
-    {"user_id": U, "slug": "standing-sweep:team-brief", "status": "success", "error_reason": None,
-     "created_at": "2026-09-18T09:00:00+00:00", "cost_usd": 0.0},
-    {"user_id": U, "slug": "standing-write:team-brief", "status": "success", "error_reason": None,
-     "created_at": "2026-09-18T09:00:05+00:00", "cost_usd": 0.02},
-    {"user_id": U, "slug": "standing-write:other/topic", "status": "failed", "error_reason": "shape_violation",
-     "created_at": "2026-09-18T09:00:06+00:00", "cost_usd": 0.01},
+# ADR-666 D2 — a run is a row in `runs`; the detail reads runs, never the
+# cost ledger. Two of this topic's, one of another's.
+db.tables["runs"] = [
+    {"id": "run-old", "workspace_id": WS, "user_id": U, "topic": "team-brief", "kind": "derive",
+     "trigger": "scheduled", "state": "done", "outcome": "no_change", "steps": [],
+     "started_at": "2026-09-17T09:00:00+00:00", "ended_at": "2026-09-17T09:00:04+00:00"},
+    {"id": "run-new", "workspace_id": WS, "user_id": U, "topic": "team-brief", "kind": "derive",
+     "trigger": "scheduled", "state": "done", "outcome": "wrote", "revision_id": "rev-new", "steps": [],
+     "cost_usd": 0.02, "started_at": "2026-09-18T09:00:00+00:00", "ended_at": "2026-09-18T09:00:05+00:00"},
+    {"id": "run-other", "workspace_id": WS, "user_id": U, "topic": "other/topic", "kind": "derive",
+     "trigger": "scheduled", "state": "failed", "outcome": "shape_violation", "steps": [],
+     "started_at": "2026-09-18T09:00:06+00:00", "ended_at": "2026-09-18T09:00:06+00:00"},
 ]
 
 # ── patches: the scope resolvers, the access decider, the clock ──────────────
@@ -452,8 +457,10 @@ print("D6. the detail: the instructions, the runs for exactly this topic, the sw
 # ═══════════════════════════════════════════════════════════════════════════
 detail = run(R.get_standing("team-brief", auth))
 check("the detail serves the instructions text", (detail.contract or "").strip() == _good["contract"])
-check("the detail's runs are THIS topic's ledger rows, newest first, other topics excluded",
-      [r.step for r in detail.runs] == ["write", "sweep"] and all(r.error_reason != "shape_violation" for r in detail.runs))
+check("the detail's runs are THIS topic's runs, newest first, other topics excluded (ADR-666 D2)",
+      [r.id for r in detail.runs] == ["run-new", "run-old"], str([r.id for r in detail.runs]))
+check("…and a run carries what it wrote — stored, never joined by time",
+      detail.runs[0].revision_id == "rev-new" and detail.runs[0].outcome == "wrote")
 check("the detail names the contract path", detail.contract_path == contract_path)
 
 _before = db.live_file(decl_path)[0]["content"]
@@ -620,8 +627,6 @@ check("supervisor_state has no _threads and no THREAD_CAP",
       not hasattr(_ss, "_threads") and not hasattr(_ss, "THREAD_CAP"))
 check("the module's docstring no longer lists threads as a band",
       "threads    →" not in (_ss.__doc__ or ""))
-write_revision(db, user_id=U, path=_ss.DECISIONS_PATH, content="# Decided\n\n- ship it\n", authored_by="operator",
-               message="a decision", workspace_id=WS)
 import services.mentions as _mentions  # noqa: E402
 _orig_lm = _mentions.list_mentions
 _mentions.list_mentions = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("mentions down"))
@@ -629,16 +634,18 @@ try:
     _state = _ss.supervisor_state(db, U, WS)
 finally:
     _mentions.list_mentions = _orig_lm
-check("the payload is exactly {needs_you, note}", set(_state.keys()) == {"needs_you", "note"})
-check("a dead mentions read degrades to an EMPTY band, and the note band still renders",
-      _state["needs_you"] == [] and (_state["note"] or {}).get("content", "").startswith("# Decided"))
+# ADR-666 D8 — `note` is deleted (no writer, 0 rows); the runs have their own reader.
+check("the payload is exactly {needs_you}", set(_state.keys()) == {"needs_you"})
+check("a dead mentions read degrades to an EMPTY band, never a failed pane",
+      _state["needs_you"] == [])
 
 # ═══════════════════════════════════════════════════════════════════════════
-print("FE. the surface: work · needs-you · note, one row two mounts, the door, the copy")
+print("FE. the surface: running · needs-you · work · recent (ADR-666 D8), one row two mounts, the door, the copy")
 # ═══════════════════════════════════════════════════════════════════════════
 _sec = _code_only_ts(_read("web/components/supervisor/SupervisorSection.tsx"))
-for _kind in ("work", "needs-you", "note"):
+for _kind in ("running", "needs-you", "work", "recent"):
     check(f"the client draws {_kind!r}", f"case '{_kind}':" in _sec)
+check("the client no longer draws `note` (ADR-666 D8)", "case 'note':" not in _sec and "NoteSection" not in _sec)
 check("the client no longer draws `threads`", "case 'threads':" not in _sec and "ThreadsSection" not in _sec)
 _default = _sec[_sec.index("default:"):] if "default:" in _sec else ""
 _default = _default[: _default.index("}")] if "}" in _default else _default
@@ -663,8 +670,8 @@ check("with nothing connected, the empty state points at Reach", "Reach" in _sec
 
 _surf = _code_only_ts(_read("web/components/supervisor/SupervisorSurface.tsx"))
 _order = re.findall(r"kind:\s*'([a-z-]+)'", _surf)
-check("the declared sections are work · needs-you · note, in that order",
-      _order == ["work", "needs-you", "note"], str(_order))
+check("the declared sections are running · needs-you · work · recent, in that order (ADR-666 D8)",
+      _order == ["running", "needs-you", "work", "recent"], str(_order))
 check("the surface renders DECLARED sections", "SECTIONS.map" in _surf)
 check("the work band reads the ONE roster route (api.standing.list), not a second composition",
       "api.standing.list(" in _surf or "api.standing.list(" in _sec)
@@ -767,8 +774,8 @@ check("the door holds a LIST of sources, never three exclusive fields",
       "StandingSource[]" in _door and "sourceKind" not in _door)
 check("a connector start seeds EVERY slice the member chose, not the first",
       "s.selectors.slice(" in _door and "selectors[0]" not in _door)
-check("the door posts every source it holds",
-      re.search(r"sources:\s*sources\.map\(", _door) is not None)
+check("the door posts every source it holds (browser work posts its sites instead — ADR-666 D1)",
+      re.search(r"sources:\s*(browser\s*\?\s*\[\]\s*:\s*)?sources\.map\(", _door) is not None)
 # ⭐ Driven 2026-09-21: the slice `<select>` falls back to `free[0]` for
 # display while STATE kept the previous connection's selector, so switching
 # Slack → Notion and pressing Add re-added a Slack channel. What is shown

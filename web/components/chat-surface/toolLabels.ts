@@ -107,7 +107,7 @@ const TOOL_VERBS: Record<string, boolean> = {
 
 /** "WriteFile" → "write file", "list_integrations" → "list integrations". */
 /** The acts the host reports (`src-tauri/src/hands/mod.rs`, `record.act`). */
-const RECEIPT_ACTS = new Set(['opened', 'read', 'pressed', 'filled', 'back', 'failed', 'refused']);
+const RECEIPT_ACTS = new Set(['opened', 'read', 'pressed', 'filled', 'back', 'failed', 'refused', 'outside', 'stopped', 'wrote']);
 
 function humanize(name: string): string {
   return name

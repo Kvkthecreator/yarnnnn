@@ -193,8 +193,11 @@ check(
     "whether a turn had the browser would be unanswerable afterwards",
 )
 check(
-    "receipts ride the turn's one assistant row",
-    'extra["receipts"] = receipts' in lanes_src and "receipts.append(payload)" in lanes_src,
+    # ADR-666 D5 — a receipt's one home is the turn's RUN; the reply row carries
+    # `run_id` and the transcript read brings the steps back.
+    "receipts are the turn's run's steps, and the reply row points at the run",
+    "turn_run.on_receipt(payload)" in lanes_src and 'extra["run_id"] = turn_run.run_id' in lanes_src
+    and "hydrate_receipts(auth.client" in lanes_src and 'extra["receipts"]' not in lanes_src,
     "the record of what happened in the member's browser would be lost on reload",
 )
 
@@ -222,7 +225,7 @@ check(
 )
 check(
     "both turn doors resolve the tools through the one resolver, with the header",
-    len(re.findall(r"client_tools=_client_tools_for\(\s*x_yarnnn_client,", lanes_src)) == 2,
+    len(re.findall(r"client_tools\s*=\s*_client_tools_for\(\s*x_yarnnn_client,", lanes_src)) == 2,
     "a door that skips the resolver offers tools no executor was checked for",
 )
 check("a page declaring the extension holds the browser tools", len(ct.offered(None, ["browser"], "extension/0.1.0")) == 5)

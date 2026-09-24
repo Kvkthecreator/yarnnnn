@@ -15,24 +15,40 @@
  * would break the work) · edit the instructions (as the FILE they are, through
  * the ordinary file door — never a second one) · Retire (the declaration goes
  * to Trash; the kept file and its instructions stay, with their history).
+ *
+ * ⭐ ADR-666 — THE RUNS ARE RUNS. Each one is a row from `runs` rendered by the
+ * one `RunView`, merged with the live ledger (`useRuns`) so a run going now
+ * shows its steps as they land, for every member. What a run read and wrote
+ * are its steps — the "made from" line ADR-659 D2 derived by a time window is
+ * now on the run itself.
+ *
+ * ⭐ BROWSER WORK (ADR-666 D1/D4) shows where it works (its sites) instead of
+ * sources, and holds its conversation: Run now opens the run there and this
+ * page performs it, in the member's own browser, while they watch. Only the
+ * member whose browser it is may run it. `?supervisor.start=1` (the cockpit's
+ * and the tray's "Run it") starts it here — ONE door starts a browser run.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, CalendarClock, FolderOpen, Loader2, Pause, Play, Trash2, Zap } from 'lucide-react';
+import { ArrowLeft, CalendarClock, FolderOpen, Globe, Loader2, Pause, Play, Trash2, Zap } from 'lucide-react';
 import {
   api,
+  type Run,
   type StandingDetailData,
-  type StandingRun,
   type StandingSource,
   type StandingStart,
 } from '@/lib/api/client';
+import { RunView } from '@/components/runs/RunView';
+import { WorkConversation } from '@/components/supervisor/WorkConversation';
+import { useRuns } from '@/lib/runs/useRuns';
+import { browserHands } from '@/lib/shell/hands';
 import { AddSource, MAX_SOURCES_PROSE, SourceRow, isStructured } from '@/components/supervisor/SourceList';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { Working } from '@/components/shared/Working';
 import { useStandingWords } from '@/components/standing/StandingRow';
 import { useFeedback } from '@/contexts/FeedbackContext';
-import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { formatLedgerTime } from '@/lib/formatting';
 
 /** ADR-660 — the presets hold catalog KEYS, not words: this table is evaluated
@@ -44,26 +60,6 @@ const PRESETS: Array<{ labelKey: string; cron: string }> = [
   { labelKey: 'preset.hourly', cron: '0 * * * *' },
 ];
 
-/** One run's line, worded. The whole sentence is one ICU message so the
- *  step and its outcome are not joined in English word order. */
-function useRunLine() {
-  const t = useTranslations('supervisor.runLine');
-  return (r: StandingRun): string => {
-    const what = r.step === 'write' ? t('write') : t('read');
-    if (r.status === 'success') return t('done', { what });
-    if (r.status === 'skipped' && r.error_reason === 'no_change') return t('noChange', { what });
-    if (r.status === 'skipped' && r.error_reason === 'sources_unchanged') return t('sourcesUnchanged', { what });
-    if (r.status === 'skipped') {
-      return r.error_reason ? t('skippedWithReason', { what, reason: r.error_reason }) : t('skipped', { what });
-    }
-    if (r.error_reason === 'shape_violation') return t('shapeViolation', { what });
-    if (r.error_reason === 'no_sources_fetched') return t('noSourcesFetched', { what });
-    if (r.error_reason === 'balance_exhausted') return t('balanceExhausted', { what });
-    if (r.error_reason === 'output_truncated') return t('outputTruncated', { what });
-    return r.error_reason ? t('failedWithReason', { what, reason: r.error_reason }) : t('failed', { what });
-  };
-}
-
 export function StandingDetail({
   topic, onBack, onChanged,
 }: {
@@ -73,10 +69,16 @@ export function StandingDetail({
 }) {
   const t = useTranslations('supervisor');
   const { runAction } = useFeedback();
-  const { navigateToSurface } = useSurfacePreferences();
-  const { problemCopy, describeSchedule, minderLine, scheduleLine } = useStandingWords();
-  const runLine = useRunLine();
+  const { navigateToSurface, userId } = useSurfacePreferences();
+  const param = useSurfaceParam('supervisor');
+  const { problemCopy, describeSchedule, ownerLine, scheduleLine } = useStandingWords();
+  const { runs: ledger } = useRuns();
   const [detail, setDetail] = useState<StandingDetailData | null>(null);
+  // ADR-666 D4 — the browser run this page is performing, and its conversation.
+  const [activeRun, setActiveRun] = useState<string | null>(null);
+  const [laneId, setLaneId] = useState<string | null>(null);
+  const [editingSites, setEditingSites] = useState(false);
+  const [sitesDraft, setSitesDraft] = useState('');
   const [missing, setMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -96,6 +98,7 @@ export function StandingDetail({
     try {
       const d = await api.standing.get(topic);
       setDetail(d);
+      setLaneId((cur) => cur ?? d.lane_id ?? null);
       setMissing(false);
     } catch {
       setMissing(true);
@@ -103,6 +106,31 @@ export function StandingDetail({
   }, [topic]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // The live ledger moved for THIS work (a run started, a step landed, a run
+  // ended) — the summary's last run and state follow. Keyed on what changed,
+  // so an unrelated run elsewhere in the workspace costs nothing.
+  const liveKey = (ledger ?? [])
+    .filter((r) => r.topic === topic)
+    .map((r) => `${r.id}:${r.state}:${r.steps.length}`)
+    .join('|');
+  useEffect(() => {
+    if (liveKey) void load();
+  }, [liveKey, load]);
+
+  // `?supervisor.start=1` — the cockpit's and the tray's "Run it" land here,
+  // so there is ONE door that starts a browser run. Consumed once: the param
+  // is an act, not a state. Declared above the early returns (hooks never
+  // follow a conditional return); the door itself is `startBrowserRun`.
+  const startRef = useRef<(() => Promise<void>) | null>(null);
+  const startParam = param.get('start');
+  const isBrowserWork = Boolean(detail?.summary.browser);
+  useEffect(() => {
+    if (startParam !== '1' || !isBrowserWork) return;
+    param.set({ start: null });
+    void startRef.current?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startParam, isBrowserWork]);
 
   // Read independently of the detail itself: an unreadable roster leaves the
   // sources editable by path or page, never a broken pane.
@@ -142,7 +170,8 @@ export function StandingDetail({
 
   const s = detail.summary;
   const kept = s.target_path ?? `/workspace/${s.topic}/${s.target}`;
-  const minder = minderLine(s);
+  const browser = s.browser ?? null;
+  const mineToRun = !browser || browser.member === userId;
   const currentCron = Array.isArray(s.schedule) ? s.schedule[0] ?? '' : String(s.schedule ?? '');
   // The server's rule, mirrored (`_classify_sources`): a structured target maps
   // exactly ONE source to the leaf; prose takes up to 12.
@@ -160,6 +189,10 @@ export function StandingDetail({
 
   const runNow = async () => {
     if (busy) return;
+    if (browser) {
+      await startBrowserRun();
+      return;
+    }
     setBusy(true);
     try {
       const res = await runAction(() => api.standing.run(s.topic), { pending: t('action.runningPending', { topic: s.topic }) });
@@ -172,6 +205,56 @@ export function StandingDetail({
       );
     } catch (e) {
       setNote(t('action.runFailed', { reason: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setBusy(false);
+      void load();
+      onChanged();
+    }
+  };
+
+  /** ADR-666 D4 — the ONE door that starts a browser run: this page must hold
+   *  the browser (the extension, on), and it must be this member's. */
+  async function startBrowserRun() {
+    if (busy || !browser) return;
+    if (!mineToRun) {
+      setNote(t('detail.notYours', { name: browser.member_name || s.topic }));
+      return;
+    }
+    const hands = await browserHands();
+    if (!hands.on) {
+      setNote(t('detail.needsExtension'));
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api.standing.run(s.topic);
+      if (res.browser && res.run_id && res.lane_id) {
+        setLaneId(res.lane_id);
+        setActiveRun(res.run_id);
+        setNote(res.already ? t('detail.alreadyRunning') : t('detail.runStarted'));
+      }
+    } catch (e) {
+      setNote(t('action.runFailed', { reason: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setBusy(false);
+      void load();
+      onChanged();
+    }
+  }
+  startRef.current = startBrowserRun;
+
+  const saveSites = async () => {
+    const sites = sitesDraft.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+    if (busy || sites.length === 0) return;
+    setBusy(true);
+    try {
+      await runAction(() => api.standing.update(s.topic, { browser_sites: sites }), {
+        success: t('detail.sitesChanged'),
+        error: t('detail.couldNotChangeSites'),
+      });
+      setEditingSites(false);
+    } catch {
+      /* refused by name; the reload restores the true state */
     } finally {
       setBusy(false);
       void load();
@@ -273,6 +356,22 @@ export function StandingDetail({
     }
   };
 
+  // Worded here, never inline: a multi-line ternary in JSX reads to the ADR-660
+  // meter as literal copy even when every branch is a `t()` call.
+  const browserNote = !browser
+    ? ''
+    : mineToRun
+      ? t('detail.browserYours')
+      : t('detail.browserOf', { name: browser.member_name || s.topic });
+
+  // The runs: this work's history (the detail's read) with the live ledger's
+  // copy of any run it also holds — newer, since realtime keeps it current.
+  const liveById = new Map((ledger ?? []).filter((r) => r.topic === s.topic).map((r) => [r.id, r]));
+  const runs: Run[] = [
+    ...Array.from(liveById.values()).filter((r) => !detail.runs.some((d) => d.id === r.id)),
+    ...detail.runs.map((r) => liveById.get(r.id) ?? r),
+  ].sort((a, b) => String(b.started_at ?? '').localeCompare(String(a.started_at ?? '')));
+
   return (
     <div className="flex-1 space-y-5 px-5 py-4">
       <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
@@ -292,7 +391,7 @@ export function StandingDetail({
               <span className="truncate">{s.target || t('detail.noFileNamed')}</span>
             </button>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {minder ? t('row.withTopic', { topic: s.topic, minder }) : s.topic}
+              {ownerLine(s, userId)}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -356,69 +455,118 @@ export function StandingDetail({
                 says what is true instead of a time to plan around. */}
             <dd className="mt-0.5 text-foreground">{nextLine}</dd>
           </div>
-          <div className="sm:col-span-2">
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-muted-foreground">{t('detail.sourcesLabel')}</dt>
-              {!editingSources && (
-                <button
-                  type="button"
-                  onClick={() => { setDraft(s.sources); setEditingSources(true); }}
-                  className="text-[11px] text-muted-foreground underline hover:text-foreground"
-                >
-                  {t('detail.change')}
-                </button>
-              )}
-            </div>
-            <dd className="mt-1 text-foreground">
-              {/* ⭐ EDITABLE (am.5). The sources were rendered read-only, so a
-                  member who mis-picked one channel — or wanted a second one —
-                  had no repair short of retiring the work and building it
-                  again. `sources` has always been PATCHable and the server
-                  refuses an invalid set BY NAME. */}
-              {editingSources ? (
-                <div className="space-y-2">
-                  {draft.length > 0 && (
-                    <ul className="space-y-1.5">
-                      {draft.map((src) => (
-                        <SourceRow
-                          key={src.id}
-                          source={src}
-                          starts={starts}
-                          onRemove={() => setDraft((xs) => xs.filter((x) => x.id !== src.id))}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                  <AddSource
-                    starts={starts}
-                    existing={draft}
-                    folders={folders}
-                    disabled={draft.length >= maxSources}
-                    onAdd={(x) => setDraft((xs) => [...xs, x])}
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setEditingSources(false)} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">{t('detail.cancel')}</button>
-                    <button
-                      type="button"
-                      onClick={() => void saveSources()}
-                      disabled={busy || draft.length === 0 || draft.length > maxSources}
-                      className="rounded-md bg-foreground px-2.5 py-1 text-xs text-background disabled:opacity-40"
-                    >
-                      {t('detail.save')}
-                    </button>
+          {browser ? (
+            <div className="sm:col-span-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted-foreground">{t('detail.sitesLabel')}</dt>
+                {!editingSites && (
+                  <button
+                    type="button"
+                    onClick={() => { setSitesDraft(browser.sites.join(', ')); setEditingSites(true); }}
+                    className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                  >
+                    {t('detail.change')}
+                  </button>
+                )}
+              </div>
+              <dd className="mt-1 text-foreground">
+                {editingSites ? (
+                  <div className="space-y-2">
+                    <input
+                      value={sitesDraft}
+                      onChange={(e) => setSitesDraft(e.target.value)}
+                      placeholder={t('newWork.sitesPlaceholder')}
+                      className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setEditingSites(false)} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">{t('detail.cancel')}</button>
+                      <button
+                        type="button"
+                        onClick={() => void saveSites()}
+                        disabled={busy || !sitesDraft.trim()}
+                        className="rounded-md bg-foreground px-2.5 py-1 text-xs text-background disabled:opacity-40"
+                      >
+                        {t('detail.save')}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : s.sources.length === 0 ? (
-                t('detail.noSources')
-              ) : (
-                <ul className="space-y-1.5">
-                  {s.sources.map((src) => (
-                    <SourceRow key={src.id} source={src} starts={starts} />
-                  ))}
-                </ul>
-              )}
-            </dd>
-          </div>
+                ) : (
+                  <ul className="flex flex-wrap gap-1.5">
+                    {browser.sites.map((site) => (
+                      <li key={site} className="inline-flex items-center gap-1 rounded-md border border-border/70 px-2 py-0.5 text-[11px]">
+                        <Globe className="h-3 w-3 text-muted-foreground" /> {site}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-[11px] text-muted-foreground">{browserNote}</p>
+              </dd>
+            </div>
+          ) : (
+          <div className="sm:col-span-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted-foreground">{t('detail.sourcesLabel')}</dt>
+                {!editingSources && (
+                  <button
+                    type="button"
+                    onClick={() => { setDraft(s.sources); setEditingSources(true); }}
+                    className="text-[11px] text-muted-foreground underline hover:text-foreground"
+                  >
+                    {t('detail.change')}
+                  </button>
+                )}
+              </div>
+              <dd className="mt-1 text-foreground">
+                {/* ⭐ EDITABLE (am.5). The sources were rendered read-only, so a
+                    member who mis-picked one channel — or wanted a second one —
+                    had no repair short of retiring the work and building it
+                    again. `sources` has always been PATCHable and the server
+                    refuses an invalid set BY NAME. */}
+                {editingSources ? (
+                  <div className="space-y-2">
+                    {draft.length > 0 && (
+                      <ul className="space-y-1.5">
+                        {draft.map((src) => (
+                          <SourceRow
+                            key={src.id}
+                            source={src}
+                            starts={starts}
+                            onRemove={() => setDraft((xs) => xs.filter((x) => x.id !== src.id))}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                    <AddSource
+                      starts={starts}
+                      existing={draft}
+                      folders={folders}
+                      disabled={draft.length >= maxSources}
+                      onAdd={(x) => setDraft((xs) => [...xs, x])}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button type="button" onClick={() => setEditingSources(false)} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">{t('detail.cancel')}</button>
+                      <button
+                        type="button"
+                        onClick={() => void saveSources()}
+                        disabled={busy || draft.length === 0 || draft.length > maxSources}
+                        className="rounded-md bg-foreground px-2.5 py-1 text-xs text-background disabled:opacity-40"
+                      >
+                        {t('detail.save')}
+                      </button>
+                    </div>
+                  </div>
+                ) : s.sources.length === 0 ? (
+                  t('detail.noSources')
+                ) : (
+                  <ul className="space-y-1.5">
+                    {s.sources.map((src) => (
+                      <SourceRow key={src.id} source={src} starts={starts} />
+                    ))}
+                  </ul>
+                )}
+              </dd>
+            </div>
+          )}
         </dl>
 
         {s.problem != null && (
@@ -466,35 +614,39 @@ export function StandingDetail({
         )}
       </section>
 
+      {browser && laneId && (
+        <section className="space-y-2">
+          <div>
+            <h3 className="text-[13px] font-medium text-foreground/80">{t('detail.conversation')}</h3>
+            <p className="text-[11px] text-muted-foreground">{t('detail.conversationHint')}</p>
+          </div>
+          <WorkConversation
+            laneId={laneId}
+            app={s.app || 'text'}
+            startRunId={activeRun}
+            onRunTurnSettled={() => { setActiveRun(null); void load(); onChanged(); }}
+          />
+        </section>
+      )}
+
       <section className="space-y-2">
         <h3 className="text-[13px] font-medium text-foreground/80">{t('detail.runs')}</h3>
-        {detail.runs.length === 0 ? (
+        {runs.length === 0 ? (
           <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-            {t('detail.runsEmpty')}
+            {browser ? t('detail.runsEmptyBrowser') : t('detail.runsEmpty')}
           </div>
         ) : (
-          <ul className="rounded-md border border-border/60">
-            {detail.runs.map((r, i) => (
-              <li key={`${r.at}-${i}`} className="flex items-center justify-between gap-3 border-b border-border/60 px-3 py-2 text-xs last:border-b-0">
-                <span className="min-w-0 text-foreground">
-                  {runLine(r)}
-                  {/* ADR-659 D2 — what this update was MADE FROM, read off the
-                      kept file's own revision. The ledger row alone could only
-                      say that a run happened, never what it produced. */}
-                  {r.derived_from && r.derived_from.length > 0 && (
-                    <span className="block truncate text-muted-foreground">
-                      {r.derived_from.length > 3
-                        ? t('detail.derivedFromMore', {
-                            paths: r.derived_from.slice(0, 3).map((p) => p.replace(/^\/workspace\//, '')).join(', '),
-                            count: r.derived_from.length - 3,
-                          })
-                        : t('detail.derivedFrom', {
-                            paths: r.derived_from.map((p) => p.replace(/^\/workspace\//, '')).join(', '),
-                          })}
-                    </span>
-                  )}
-                </span>
-                <span className="shrink-0 text-muted-foreground">{r.at ? formatLedgerTime(r.at) : ''}</span>
+          <ul className="space-y-2">
+            {runs.map((r) => (
+              <li key={r.id}>
+                <RunView
+                  run={r}
+                  viewerId={userId}
+                  compact
+                  onRunIt={browser ? () => void startBrowserRun() : undefined}
+                  onOpenFile={(path) => navigateToSurface('files', { path })}
+                  onChanged={() => void load()}
+                />
               </li>
             ))}
           </ul>

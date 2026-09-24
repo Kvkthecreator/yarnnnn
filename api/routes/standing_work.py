@@ -16,7 +16,15 @@
     DELETE /standing/{topic}         — retire (ADR-658 §6.2): archive the
                                        declaration ONLY; the kept file and its
                                        instructions stay, history intact
-    POST   /standing/{topic}/run     — Run now (the manual fire, ADR-618 D2)
+    POST   /standing/{topic}/run     — Run now (the manual fire, ADR-618 D2);
+                                       for browser work (ADR-666 D4) it opens
+                                       the run in the work's own conversation
+                                       and the member's page performs it
+
+A RUN IS A ROW (ADR-666 D2). Every run this lane makes is in `runs`; the
+roster's last run, the detail's runs and what each one wrote and cost are read
+from there — served as `routes.runs.RunOut`, the one shape of a run.
+`execution_events` is the cost ledger and nothing here reads it.
 
 Rendered by two mounts of one row (ADR-340 D8): the Notifications "Standing
 work" pane (the mirror) and the Supervisor app's `work` band (the composition,
@@ -45,6 +53,7 @@ import yaml as _yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from routes.runs import RunOut, run_out, serve_runs
 from services.supabase import UserClient
 
 logger = logging.getLogger(__name__)
@@ -54,12 +63,12 @@ router = APIRouter()
 _MAX_TOPIC_DEPTH = 6
 _SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,62}$")
 
-#: Ledger slugs this lane stamped before ADR-639 renamed it. Read for the
-#: roster's "last run" so history stays legible; never written again.
-_LEGACY_LEDGER_PREFIXES = ("string-write:", "string-sweep:")
-
-#: How many ledger rows the detail shows (ADR-658 D6). A bound read.
+#: How many runs the detail shows (ADR-658 D6). A bound read.
 _DETAIL_RUNS = 20
+
+#: A browser run queued this long ago whose turn never began was abandoned
+#: (the member closed the page before it started) — Run now starts afresh.
+_QUEUED_ABANDONED_S = 600
 
 
 def _validate_topic(topic: str) -> str:
@@ -107,13 +116,12 @@ class StandingSource(BaseModel):
     path: Optional[str] = None
 
 
-class LastRun(BaseModel):
-    """The newest ledger row for this declaration — what the pane says about
-    the last run, read from `execution_events` at request time."""
+class StandingBrowser(BaseModel):
+    """ADR-666 D1 — whose browser does this work, on which sites."""
 
-    status: str
-    error_reason: Optional[str] = None
-    at: Optional[str] = None
+    member: str
+    member_name: Optional[str] = None
+    sites: list[str] = []
 
 
 class StandingMinder(BaseModel):
@@ -135,6 +143,8 @@ class UpdateStandingRequest(BaseModel):
     sources: Optional[list[dict]] = None
     shape: Optional[dict] = None
     target: Optional[str] = None
+    #: ADR-666 D1 — browser work's sites. Its member never changes here.
+    browser_sites: Optional[list[str]] = None
 
 
 class CreateStandingRequest(BaseModel):
@@ -149,6 +159,9 @@ class CreateStandingRequest(BaseModel):
     app: Optional[str] = None
     sources: list[dict] = []
     shape: Optional[dict] = None
+    #: ADR-666 D1 — present = browser work on these sites, in the SIGNED-IN
+    #: member's browser (the door stamps who; a client never names a member).
+    browser_sites: Optional[list[str]] = None
 
 
 class StandingSummary(BaseModel):
@@ -175,38 +188,26 @@ class StandingSummary(BaseModel):
     last_run_at: Optional[str] = None
     next_run_at: Optional[str] = None
     #: Parseable-but-cannot-run (missing_target | invalid_target |
-    #: unsupported_format | sources_invalid | app_invalid | source_cycle) — served, never
-    #: swallowed (ADR-569 D3).
+    #: unsupported_format | sources_invalid | app_invalid | source_cycle |
+    #: browser_invalid) — served, never swallowed (ADR-569 D3).
     problem: Optional[str] = None
-    last_run: Optional[LastRun] = None
-
-
-class StandingRun(BaseModel):
-    """One ledger row of this declaration (ADR-658 D6) — the step (`sweep`
-    fetches, `write` revises), its outcome, when."""
-
-    step: str
-    status: str
-    error_reason: Optional[str] = None
-    at: Optional[str] = None
-    cost_usd: Optional[float] = None
-    #: ADR-659 D2 — what this run WROTE: the `system:standing` revision of the
-    #: kept file a successful write produced, and what it was made from.
-    #: DERIVED at read time from the revision chain; the cost ledger stores no
-    #: pointer. None on every row that wrote nothing.
-    revision_id: Optional[str] = None
-    derived_from: list[str] = []
+    #: ADR-666 — the newest ENDED run, and the run going or waiting now.
+    last_run: Optional[RunOut] = None
+    live_run: Optional[RunOut] = None
+    #: ADR-666 D1 — present for browser work.
+    browser: Optional[StandingBrowser] = None
 
 
 class StandingDetail(BaseModel):
     """The detail (ADR-658 D6): the summary, the instructions as text, the
-    recent runs. Bounded to the declaration's own facts — the strings pane's
-    parties/consumers/head-facts chrome (ADR-639 D4) is not rebuilt here."""
+    recent runs (ADR-666 — from `runs`, each carrying what it wrote). Browser
+    work also serves its conversation, where a run is started and watched."""
 
     summary: StandingSummary
     contract_path: str
     contract: Optional[str] = None
-    runs: list[StandingRun] = []
+    runs: list[RunOut] = []
+    lane_id: Optional[str] = None
 
 
 class StandingStart(BaseModel):
@@ -214,7 +215,7 @@ class StandingStart(BaseModel):
     member already holds, DERIVED from the capture bindings — or the HTTP
     start, always offered. The door opens pre-filled from one."""
 
-    kind: str  # "connector" | "path" | "url"
+    kind: str  # "connector" | "browser" | "path" | "url"
     connector: Optional[str] = None
     name: str
     #: The binding's own statement of what a slice reads (connector starts).
@@ -285,6 +286,7 @@ def compose_standing_yaml(
     app: Optional[str] = None,
     shape: Optional[dict] = None,
     fire_on_activation: bool = False,
+    browser: Optional[dict] = None,
 ) -> str:
     """Compose the ``_standing.yaml`` body — PURE machine config (ADR-569 D2:
     judgment prose lives in CONTRACT.md, which no machine writer touches).
@@ -297,6 +299,9 @@ def compose_standing_yaml(
     if app:
         payload["app"] = app
     payload["schedule"] = schedule
+    if browser:
+        payload["browser"] = {"member": browser.get("member"),
+                              "sites": list(browser.get("sites") or [])}
     if fire_on_activation:
         payload["fire_on_activation"] = True
     payload["paused"] = paused
@@ -374,132 +379,23 @@ def _index_rows(client, user_id: str) -> dict[str, dict]:
     return {r["slug"]: r for r in rows}
 
 
-def _ledger_slugs(topic: str) -> list[str]:
-    return (
-        [f"standing-write:{topic}", f"standing-sweep:{topic}"]
-        + [f"{p}{topic}" for p in _LEGACY_LEDGER_PREFIXES]
-    )
+def _runs_by_topic(auth, topics: list[str]) -> dict[str, tuple[Optional[dict], Optional[dict]]]:
+    """ADR-666 — per topic, `(newest ended run, live run)`, in one read. Never
+    raises: an unreadable ledger is a roster without runs, not a broken one."""
+    from services.runs import ENDED_STATES, list_runs
 
-
-def _last_runs(client, user_id: str, topics: list[str]) -> dict[str, LastRun]:
-    """The newest ledger row per topic — one query, the write step preferred
-    over the sweep step when both exist (the write is the outcome). Reads the
-    pre-ADR-639 slugs too, so a declaration renamed by migration keeps its
-    history on the roster."""
-    if not topics:
+    ws = _acting_workspace(auth)
+    if not ws or not topics:
         return {}
-    slugs: list[str] = []
-    for t in topics:
-        slugs += _ledger_slugs(t)
-    try:
-        events = (
-            client.table("execution_events")
-            .select("slug, status, created_at, error_reason")
-            .eq("user_id", user_id)
-            .in_("slug", slugs)
-            .order("created_at", desc=True)
-            .limit(4 * len(topics) + 20)
-            .execute()
-        ).data or []
-    except Exception as e:  # noqa: BLE001 — the roster never fails on its ledger read
-        logger.warning("[STANDING] last-run read failed: %s", e)
-        return {}
-    out: dict[str, LastRun] = {}
-    for e in events:
-        slug = e.get("slug") or ""
-        topic = slug.split(":", 1)[1] if ":" in slug else ""
-        if not topic or topic in out:
-            continue
-        out[topic] = LastRun(
-            status=e.get("status") or "unknown",
-            error_reason=e.get("error_reason"),
-            at=e.get("created_at"),
-        )
-    return out
-
-
-#: A successful write row is recorded moments AFTER the revision it wrote
-#: (the embed sits between them). The join's window, generous on one side only.
-_RUN_REVISION_WINDOW_S = 180
-
-
-def _written_revisions(client, user_id: str, target_path: Optional[str]) -> list[dict]:
-    """The kept file's `system:standing` revisions, newest first — each IS one
-    successful run's product. Never raises."""
-    if not target_path:
-        return []
-    try:
-        from services.authored_substrate import list_revisions
-
-        revs = list_revisions(client, user_id=user_id, path=target_path, limit=40)
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[STANDING] revisions read failed for %s: %s", target_path, e)
-        return []
-    return [r for r in revs
-            if str(r.get("authored_by") or "") in ("system:standing", "system:strings")]
-
-
-def _join_revision(run_at: Optional[str], revisions: list[dict]) -> Optional[dict]:
-    """The revision a successful write row produced (ADR-659 D2): the newest
-    standing revision at or just before the row. Pure."""
-    from datetime import datetime as _dt
-
-    def _ts(v):
-        try:
-            return _dt.fromisoformat(str(v).replace("Z", "+00:00"))
-        except (TypeError, ValueError):
-            return None
-
-    at = _ts(run_at)
-    if at is None:
-        return None
-    for rev in revisions:  # newest first
-        made = _ts(rev.get("created_at"))
-        if made is None:
-            continue
-        gap = (at - made).total_seconds()
-        if -5 <= gap <= _RUN_REVISION_WINDOW_S:
-            return rev
-    return None
-
-
-def _recent_runs(client, user_id: str, topic: str, limit: int = _DETAIL_RUNS,
-                 *, target_path: Optional[str] = None) -> list[StandingRun]:
-    """The detail's ledger read (ADR-658 D6): this topic's rows, newest first,
-    each successful write joined to the revision it produced (ADR-659 D2).
-    Never fails the detail — an unreadable ledger is an empty list."""
-    try:
-        events = (
-            client.table("execution_events")
-            .select("slug, status, created_at, error_reason, cost_usd")
-            .eq("user_id", user_id)
-            .in_("slug", _ledger_slugs(topic))
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        ).data or []
-    except Exception as e:  # noqa: BLE001
-        logger.warning("[STANDING] runs read failed for %s: %s", topic, e)
-        return []
-    revisions = _written_revisions(client, user_id, target_path)
-    out: list[StandingRun] = []
-    for e in events:
-        slug = str(e.get("slug") or "")
-        head = slug.split(":", 1)[0]
-        step = "write" if head.endswith("write") else "sweep"
-        cost = e.get("cost_usd")
-        wrote = (_join_revision(e.get("created_at"), revisions)
-                 if step == "write" and e.get("status") == "success" else None)
-        out.append(StandingRun(
-            step=step,
-            status=e.get("status") or "unknown",
-            error_reason=e.get("error_reason"),
-            at=e.get("created_at"),
-            cost_usd=(float(cost) if cost is not None else None),
-            revision_id=(wrote or {}).get("id"),
-            derived_from=[str(p) for p in ((wrote or {}).get("derived_from") or [])],
-        ))
-    return out
+    rows = list_runs(auth.client, ws, topics=topics, limit=6 * len(topics) + 20)
+    out: dict[str, list] = {}
+    for r in rows:  # newest first
+        pair = out.setdefault(r.get("topic") or "", [None, None])
+        if r.get("state") in ENDED_STATES:
+            pair[0] = pair[0] or r
+        else:
+            pair[1] = pair[1] or r
+    return {t: (p[0], p[1]) for t, p in out.items()}
 
 
 def _connector_reads(platform: Optional[str]) -> Optional[str]:
@@ -534,9 +430,26 @@ def _minder(app: Optional[str]) -> Optional[StandingMinder]:
         return None
 
 
-def _summarize(client, user_id: str, decl, index_row: Optional[dict],
-               last_run: Optional[LastRun],
-               tz: Optional[str] = None) -> StandingSummary:
+def _browser_out(decl, names: dict[str, str]) -> Optional[StandingBrowser]:
+    if decl.browser is None:
+        return None
+    member = str(decl.browser.get("member") or "")
+    return StandingBrowser(member=member, member_name=names.get(member),
+                           sites=list(decl.browser.get("sites") or []))
+
+
+def _member_names(decls) -> dict[str, str]:
+    from services.principal_display import resolve_member_names
+    from services.supabase import get_service_client
+
+    ids = [str(d.browser.get("member") or "") for d in decls if d.browser]
+    return resolve_member_names(get_service_client(), ids) if ids else {}
+
+
+def _summarize(auth, client, user_id: str, decl, index_row: Optional[dict],
+               runs_pair: tuple[Optional[dict], Optional[dict]],
+               tz: Optional[str] = None,
+               names: Optional[dict[str, str]] = None) -> StandingSummary:
     from services.standing_work import _read_file
 
     # The workspace clock the cadence is read in. Resolved by the caller for a
@@ -576,14 +489,16 @@ def _summarize(client, user_id: str, decl, index_row: Optional[dict],
         last_run_at=(index_row or {}).get("last_run_at"),
         next_run_at=(index_row or {}).get("next_run_at"),
         problem=decl.problem,
-        last_run=last_run,
+        last_run=run_out(auth, runs_pair[0]),
+        live_run=run_out(auth, runs_pair[1]),
+        browser=_browser_out(decl, names if names is not None else _member_names([decl])),
     )
 
 
-def _summary_for(client, user_id: str, decl) -> StandingSummary:
+def _summary_for(auth, user_id: str, decl) -> StandingSummary:
     return _summarize(
-        client, user_id, decl, _index_rows(client, user_id).get(decl.slug),
-        _last_runs(client, user_id, [decl.topic]).get(decl.topic),
+        auth, auth.client, user_id, decl, _index_rows(auth.client, user_id).get(decl.slug),
+        _runs_by_topic(auth, [decl.topic]).get(decl.topic, (None, None)),
     )
 
 
@@ -607,6 +522,12 @@ def _refuse(problem: str, status_code: int = 422) -> HTTPException:
         "app_invalid": "That app does not exist.",
         "missing_contract": "Write what the file must stay true to.",
         "already_declared": "This folder already has standing work. Open it instead.",
+        "browser_invalid": "Name at least one website, as a plain address like example.com.",
+        "browser_not_yours": "This work runs in another member's browser — they start it.",
+        "browser_needs_page": (
+            "This work runs in your browser: open yarnnn in Chrome with the yarnnn "
+            "extension on, then run it."
+        ),
     }
     return HTTPException(
         status_code=status_code,
@@ -704,6 +625,26 @@ _WORKSPACE_START = StandingStart(
 )
 
 
+#: ADR-666 D1 — browser work: always offered, like the workspace start. The
+#: browser is the member's own reach (ADR-664 D3: absent, it is still named);
+#: whether this page can perform it is the extension's to answer, at Run now.
+_BROWSER_START = StandingStart(
+    kind="browser",
+    connector=None,
+    name="Your browser",
+    reads="Websites you name, in your own browser, with your sign-ins.",
+    selectors=[],
+    title="Do something on websites",
+    suggested_folder="web-work",
+    suggested_target="results.md",
+    suggested_schedule="0 9 * * 1",
+    contract_seed=(
+        "Open each site, find what's needed, and keep the file up to date. Say "
+        "which site needs me to sign in if one does."
+    ),
+)
+
+
 def standing_starts(client, user_id: str) -> list[StandingStart]:
     """The pre-shaped starts for this workspace (ADR-658 D7), DERIVED:
     connections that are active AND hold a capture binding, each carrying the
@@ -735,8 +676,9 @@ def standing_starts(client, user_id: str) -> list[StandingStart]:
             suggested_schedule=shape["schedule"],
             contract_seed=shape["contract"],
         ))
-    # Always offered, connection or none (ADR-659 D7): the workspace is the one
-    # source every member already has.
+    # Always offered, connection or none (ADR-659 D7 · ADR-666 D1): the
+    # member's browser and the workspace are reach every member already has.
+    out.append(_BROWSER_START)
     out.append(_WORKSPACE_START)
     out.append(_URL_START)
     return out
@@ -758,12 +700,14 @@ async def list_standing(auth: UserClient) -> list[StandingSummary]:
         key=lambda d: d.topic,
     )
     by_slug = _index_rows(auth.client, actor)
-    last = _last_runs(auth.client, actor, [d.topic for d in decls])
+    runs = _runs_by_topic(auth, [d.topic for d in decls])
+    names = _member_names(decls)
     # One clock for the whole roster — it is the WORKSPACE's, not per-row.
     from services.schedule_utils import get_workspace_timezone
     tz = get_workspace_timezone(auth.client, actor)
     return [
-        _summarize(auth.client, actor, d, by_slug.get(d.slug), last.get(d.topic), tz)
+        _summarize(auth, auth.client, actor, d, by_slug.get(d.slug),
+                   runs.get(d.topic, (None, None)), tz, names)
         for d in decls
     ]
 
@@ -804,6 +748,11 @@ async def create_standing(request: CreateStandingRequest, auth: UserClient) -> S
     sources = [s for s in (request.sources or []) if isinstance(s, dict)]
     app = (str(request.app).strip() if request.app else None) or None
     shape = request.shape if isinstance(request.shape, dict) and request.shape else None
+    # ADR-666 D1 — browser work is the SIGNED-IN member's: the door stamps who.
+    browser = (
+        {"member": auth.user_id, "sites": list(request.browser_sites)}
+        if request.browser_sites is not None else None
+    )
     content = compose_standing_yaml(
         target=(request.target or "").strip(),
         app=app,
@@ -812,8 +761,10 @@ async def create_standing(request: CreateStandingRequest, auth: UserClient) -> S
         sources=sources,
         shape=shape,
         # The first run fires on the next tick, not at the first cron boundary
-        # (ADR-658 D7): the member sees the file change within minutes.
-        fire_on_activation=True,
+        # (ADR-658 D7): the member sees the file change within minutes. Browser
+        # work is never fired by a tick — its member runs it (ADR-666 D4).
+        fire_on_activation=browser is None,
+        browser=browser,
     )
     decl = _parse_or_none(content, topic, actor)
     if decl is None:  # cannot happen for content we just composed — fail loud
@@ -844,12 +795,14 @@ async def create_standing(request: CreateStandingRequest, auth: UserClient) -> S
         content=content,
         authored_by="operator",
         author_identity_uuid=auth.user_id,
-        message=f"declare standing work in '{topic}': keep '{decl.target}' current",
+        message=(f"declare browser work in '{topic}': keep '{decl.target}' true"
+                 if browser else
+                 f"declare standing work in '{topic}': keep '{decl.target}' current"),
         workspace_id=ws,
         lifecycle="active",
     )
     await _materialize(auth.client, actor)
-    return _summary_for(auth.client, actor, decl)
+    return _summary_for(auth, actor, decl)
 
 
 @router.get("/standing/{topic:path}")
@@ -865,11 +818,15 @@ async def get_standing(topic: str, auth: UserClient) -> StandingDetail:
     decl = _parse_or_none(content, topic, actor)
     if decl is None:
         raise HTTPException(status_code=422, detail="declaration unparseable — repair it first")
+    from services.runs import list_runs
+
+    ws = _acting_workspace(auth)
     return StandingDetail(
-        summary=_summary_for(auth.client, actor, decl),
+        summary=_summary_for(auth, actor, decl),
         contract_path=decl.contract_path,
         contract=_read_file(auth.client, actor, decl.contract_path),
-        runs=_recent_runs(auth.client, actor, topic, target_path=decl.target_path),
+        runs=serve_runs(auth, list_runs(auth.client, ws, topic=topic, limit=_DETAIL_RUNS) if ws else []),
+        lane_id=(_find_work_lane(auth, decl) if decl.browser is not None else None),
     )
 
 
@@ -906,6 +863,11 @@ async def update_standing(topic: str, request: UpdateStandingRequest, auth: User
     if request.target is not None:
         parsed["target"] = str(request.target).strip()
         edited = True
+    if request.browser_sites is not None:
+        if not isinstance(parsed.get("browser"), dict):
+            raise _refuse("browser_invalid")
+        parsed["browser"] = {**parsed["browser"], "sites": list(request.browser_sites)}
+        edited = True
 
     # fire_on_activation is consume-on-first-update (the radar lesson: a
     # re-emitted create-time flag kept a never-run declaration permanently
@@ -917,6 +879,7 @@ async def update_standing(topic: str, request: UpdateStandingRequest, auth: User
         paused=bool(parsed.get("paused", False)),
         sources=[s for s in (parsed.get("sources") or []) if isinstance(s, dict)],
         shape=parsed.get("shape") if isinstance(parsed.get("shape"), dict) else None,
+        browser=parsed.get("browser") if isinstance(parsed.get("browser"), dict) else None,
     )
     decl = _parse_or_none(new_content, topic, actor)
     if decl is None:  # cannot happen for content we just composed — fail loud
@@ -944,7 +907,7 @@ async def update_standing(topic: str, request: UpdateStandingRequest, auth: User
         workspace_id=getattr(auth, "workspace_id", None),
     )
     await _materialize(auth.client, actor)
-    return _summary_for(auth.client, actor, decl)
+    return _summary_for(auth, actor, decl)
 
 
 @router.delete("/standing/{topic:path}")
@@ -1005,6 +968,8 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
         raise HTTPException(status_code=422, detail="declaration unparseable — repair it first")
     if decl.problem is not None:
         raise HTTPException(status_code=422, detail=f"the declaration cannot run: {decl.problem}")
+    if decl.browser is not None:
+        return _start_browser_run(auth, actor, decl)
 
     # The manual fire takes the SAME LOCK the scheduled drain takes (ADR-618 D2,
     # ADR-659 D1). Without it, Run-now racing a tick executes the declaration
@@ -1031,6 +996,73 @@ async def run_standing_now(topic: str, auth: UserClient) -> dict:
                        last_run_at=datetime.now(_tz.utc))
         except Exception as e:  # noqa: BLE001
             logger.warning("[STANDING] manual-run record failed for %s: %s", topic, e)
+
+
+def _find_work_lane(auth, decl) -> Optional[str]:
+    """The work's own conversation (ADR-666 D4): the member's active lane bound
+    to the kept file under its app — the ADR-653 R3 binding, keyed `(app, path)`
+    the way every app keys a file's conversation. A conversation is the
+    MEMBER's (ADR-411), so the lookup lives with the lanes, member-keyed."""
+    from routes.lanes import find_bound_lane
+
+    return find_bound_lane(auth, app=decl.app, artifact_path=decl.target_path)
+
+
+async def _work_lane(auth, decl) -> str:
+    """Find or create the work's conversation. Created through the ONE lane
+    door (`routes.lanes.create_lane`), so the resident and the engine resolve
+    exactly as they do for any app's conversation about a file."""
+    found = _find_work_lane(auth, decl)
+    if found:
+        return found
+    from routes.lanes import CreateLaneRequest, create_lane
+
+    created = await create_lane(
+        CreateLaneRequest(app=decl.app, artifact_path=decl.target_path, name=decl.topic), auth,
+    )
+    return str(created["id"])
+
+
+async def _start_browser_run(auth, actor: str, decl) -> dict:
+    """Run now on browser work (ADR-666 D4). Only its own member may — it is
+    their browser. The run's opening message is written into the work's
+    conversation as THEIR ask; their page then streams the turn and performs
+    the acts (`POST /lanes/{id}/regenerate` with the run). A run already going
+    is returned, never doubled."""
+    from datetime import datetime, timezone as _tz
+
+    from services import runs
+    from services.narrative import write_narrative_entry
+    from services.standing_work import _read_file, browser_run_ask
+
+    if decl.browser.get("member") != auth.user_id:
+        raise _refuse("browser_not_yours", status_code=403)
+
+    live = runs.live_for_topic(auth.client, decl.workspace_id or _acting_workspace(auth), decl.topic)
+    if live and live.get("state") in ("queued", "running"):
+        try:
+            age = (datetime.now(_tz.utc) - datetime.fromisoformat(
+                str(live.get("updated_at")).replace("Z", "+00:00"))).total_seconds()
+        except (TypeError, ValueError):
+            age = 0
+        if live.get("state") == "running" or age < _QUEUED_ABANDONED_S:
+            return {"success": True, "browser": True, "already": True,
+                    "run_id": live["id"], "lane_id": live.get("lane_id")}
+        runs.finish_run(live["id"], state="failed", outcome="not_started")
+
+    lane_id = await _work_lane(auth, decl)
+    run_id = runs.start_browser_run(decl, lane_id=lane_id)
+    if not run_id:
+        raise HTTPException(status_code=500, detail="The run could not be recorded — try again.")
+    write_narrative_entry(
+        auth.client, lane_id,
+        role="user",
+        summary=browser_run_ask(decl, _read_file(auth.client, actor, decl.contract_path)),
+        pulse="addressed",
+        authored_by=f"member:{auth.user_id}",
+        extra_metadata={"author_principal_id": auth.user_id, "run_id": run_id},
+    )
+    return {"success": True, "browser": True, "run_id": run_id, "lane_id": lane_id}
 
 
 def _strip_frontmatter(content: str) -> str:

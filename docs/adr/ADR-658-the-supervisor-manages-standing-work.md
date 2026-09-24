@@ -1,5 +1,9 @@
 # ADR-658 — The Supervisor manages standing work: the app is the door a member can reach
 
+> **Amended by [ADR-666](ADR-666-the-run.md)** (2026-09-24): the cockpit reads by RUN STATE — `running · needs-you ·
+> work · recent` (D8) — and `note` is deleted; the detail's runs are rows of `runs`, not cost-ledger rows; browser
+> work is standing work with a `browser` key, run in its own conversation inside the detail.
+>
 > **Status**: **Accepted + Implemented** (2026-09-19; Proposed 2026-09-18) — supersedes **ADR-656** (the Supervisor app,
 > Phases 1–2). **Amendment 1** (2026-09-19, below the decisions): the audit of this ADR's own claims, the
 > operator's registry framing ruled, and three additions — D6 the detail, D7 the pre-shaped starts, the

@@ -72,6 +72,7 @@ import { isKernelSurfaceSlug } from '@/types/surface';
 import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
 import { AttentionCenter } from '../AttentionCenter';
+import { RunTray } from '@/components/runs/RunTray';
 import { useShellChrome } from '../ShellChromeContext';
 import type { Surface } from '@/lib/compositor/types';
 import { cn } from '@/lib/utils';
@@ -493,6 +494,9 @@ export function TopBarSurface() {
           ambient workspace context already lives (ADR-412 D6). The top bar
           keeps only the load-bearing items: Dock, bell, avatar. */}
       <div className="flex shrink-0 items-center gap-2">
+        {/* ADR-666 D9 — the run tray: present only while work is running or
+            due on the viewer. */}
+        <RunTray />
         <AttentionCenter />
         <UserMenu email={userEmail} />
       </div>

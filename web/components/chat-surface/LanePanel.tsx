@@ -289,6 +289,9 @@ interface LaneMessage {
   role: 'user' | 'assistant';
   content: string;
   created_at?: string;
+  /** ADR-666 — the run this row opened (a Run now's opening message) or
+   *  belongs to (a reply whose browser steps live on that run). */
+  runId?: string;
   tools_called?: string[];
   /** The stepped thread this turn drew while it worked — one entry per tool
    *  round, in order, each with the subject the server named (`tool_step`).
@@ -492,6 +495,16 @@ interface LanePanelProps extends LaneMountSlots {
   /** Called once the cited paths have been bound, so the surface can clear the
    *  deep-link param (an open act, not durable window state). */
   onCiteConsumed?: () => void;
+  /**
+   * ADR-666 D4 — a declared browser run to perform NOW. Run now wrote the
+   * run's opening message into this conversation; once the transcript has
+   * loaded and that message is its last row, this page runs the turn for it
+   * (`regenerate` with the run) — the same streamed turn, the same browser
+   * hands, every step shown here as it lands. Fires once per run id.
+   */
+  startRunId?: string | null;
+  /** The started run's turn has settled, however it ended. */
+  onRunTurnSettled?: () => void;
 }
 
 export function LanePanel({
@@ -518,6 +531,8 @@ export function LanePanel({
   visionCapable = true,
   citePaths,
   onCiteConsumed,
+  startRunId = null,
+  onRunTurnSettled,
 }: LanePanelProps) {
   // ADR-562 D5 — who the member reads as working. Falls back to the engine
   // label, so a mount with no colleague renders byte-identically to pre-562.
@@ -714,6 +729,7 @@ export function LanePanel({
         typeof m.metadata?.agent_slug === 'string'
           ? (m.metadata.agent_slug as string)
           : undefined,
+      runId: typeof m.metadata?.run_id === 'string' ? (m.metadata.run_id as string) : undefined,
     }));
 
   useEffect(() => {
@@ -936,6 +952,8 @@ export function LanePanel({
         attachments?: Array<{ path: string; kind: 'image' | 'file'; name?: string }>;
         /** ADR-579 D7 — the gesture target riding this send. */
         seed?: SeedTarget;
+        /** ADR-666 D4 — the declared run a regenerate performs. */
+        runId?: string;
       } = {},
     ) => {
       if (sending) return;
@@ -1170,6 +1188,7 @@ export function LanePanel({
         } else {
           await api.lanes.regenerateStream(laneId, handlers, {
             signal: controller.signal,
+            runId: opts.runId,
           });
         }
       } catch {
@@ -1182,6 +1201,7 @@ export function LanePanel({
         setSending(false);
         // ADR-612 D4 — the seeded turn has settled, however it settled.
         if (opts.seed) onSeededTurn?.(false);
+        if (opts.runId) onRunTurnSettled?.();
         if (stopped) {
           // Stopped: drop a text-less placeholder, then resync once the server
           // has persisted the partial (it does so on disconnect — give it a beat).
@@ -1192,8 +1212,21 @@ export function LanePanel({
         }
       }
     },
-    [laneId, sending, onArtifactWrite, onSeededTurn, onLaneRenamed, resyncMessages, scrollToBottom],
+    [laneId, sending, onArtifactWrite, onSeededTurn, onLaneRenamed, onRunTurnSettled, resyncMessages, scrollToBottom],
   );
+
+  // ADR-666 D4 — perform the run Run now opened, once, when its opening
+  // message is the transcript's last row. A reload after the turn began finds
+  // a reply after it and does nothing; the server refuses a run that already
+  // started (409), so a second tab cannot double it either.
+  const startedRunRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!startRunId || loading || sending || startedRunRef.current.has(startRunId)) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== 'user' || last.runId !== startRunId) return;
+    startedRunRef.current.add(startRunId);
+    void runStream('regenerate', { runId: startRunId });
+  }, [startRunId, loading, sending, messages, runStream]);
 
   const send = useCallback(async () => {
     const content = input.trim();

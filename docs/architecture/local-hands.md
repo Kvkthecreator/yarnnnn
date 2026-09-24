@@ -1,8 +1,8 @@
 # Local hands — the agent works in the member's browser
 
 > **Status**: Canonical — describes the live system.
-> **Ruled by**: [ADR-662](../adr/ADR-662-local-hands-the-member-keeps-the-machine.md) (proposed; amendment 2 D15, the member's own Chrome) · [ADR-664](../adr/ADR-664-the-members-browser-is-reach.md) (the browser is reach — how the agent and Reach state it) · [ADR-665](../adr/ADR-665-browser-workflows.md) (proposed: workflows that run in the browser) · [ADR-663](../adr/ADR-663-the-desktop-app-is-the-website-the-host-is-versioned.md) D4 (only the executor asks for consent).
-> **Gates**: `api/test_adr662_local_hands.py` · `api/test_adr664_the_browser_is_reach.py` · **Instruments**: `extension/e2e/run.mjs` (the extension in a real Chrome) · `extension/e2e/bridge.mjs` (the extension ↔ the real native-messaging bridge).
+> **Ruled by**: [ADR-662](../adr/ADR-662-local-hands-the-member-keeps-the-machine.md) (proposed; amendment 2 D15, the member's own Chrome) · [ADR-664](../adr/ADR-664-the-members-browser-is-reach.md) (the browser is reach — how the agent and Reach state it) · [ADR-666](../adr/ADR-666-the-run.md) (the run; browser work is standing work) · [ADR-663](../adr/ADR-663-the-desktop-app-is-the-website-the-host-is-versioned.md) D4 (only the executor asks for consent).
+> **Gates**: `api/test_adr662_local_hands.py` · `api/test_adr664_the_browser_is_reach.py` · `api/test_adr666_the_run.py` · **Instruments**: `extension/e2e/run.mjs` (the extension in a real Chrome) · `extension/e2e/bridge.mjs` (the extension ↔ the real native-messaging bridge).
 
 In a conversation, the member's agent can open web pages, read them, fill fields and press buttons — sending
 and posting included — while the member keeps using their computer. It works in **a tab of its own**, and every
@@ -39,8 +39,18 @@ own sessions — was built, met a sign-in wall on its first test, and was delete
    `POST /api/lanes/{id}/tool-results/{call_id}` with the nonce. Only that turn's nonce, from the same member,
    is accepted.
 5. The stream carries `{"tool_receipt": {name, text, ok, record}}`. `text` is the model's sentence; `record`
-   (`{act, subject, changed}`) is worded in the member's language (`chat.receipts`) and persisted on the reply
-   as `metadata.receipts`.
+   (`{act, subject, changed}`) is worded in the member's language (`chat.receipts`). Each receipt is a STEP of
+   the turn's **run** (ADR-666 D5): the first act opens one (`runs`, `trigger: chat`), every member of the
+   workspace sees it live, and the reply row carries `run_id` — `GET /lanes/{id}/messages` brings the steps
+   back. The conversation stays private; the run is shared.
+
+**Browser work (ADR-666).** A declaration with `browser: {member, sites}` is standing work done here: Run now
+writes the run's opening message into the work's own conversation (the Text app's lane for the kept file) and
+the member's page performs it — `POST /lanes/{id}/regenerate` with `run_id`. Its `BrowserOpen` on any site not
+listed is refused in `lane_runner` before it reaches the extension (a link followed off-list is not — the step
+names the site). The run's **Stop** (`POST /runs/{id}/stop`) reaches the turn through `client_tools.stop_run`:
+the act in flight answers "stopped" and the turn ends. When browser work comes due, the drain opens a run
+WAITING on its member and never performs it.
 
 ## 3. The acts
 

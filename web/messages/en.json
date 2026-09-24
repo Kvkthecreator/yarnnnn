@@ -596,7 +596,13 @@
       "failed": "A browser step failed",
       "failedUnchanged": "A browser step failed",
       "refused": "The browser is off in this app",
-      "refusedUnchanged": "The browser is off in this app"
+      "refusedUnchanged": "The browser is off in this app",
+      "outside": "Didn't open {subject} — not one of this work's sites",
+      "outsideUnchanged": "Didn't open {subject} — not one of this work's sites",
+      "stopped": "Stopped",
+      "stoppedUnchanged": "Stopped",
+      "wrote": "Wrote {subject}",
+      "wroteUnchanged": "{subject} was already current"
     }
   },
   "feedback": {
@@ -1663,14 +1669,15 @@
   "supervisor": {
     "surface": {
       "title": "Supervisor",
-      "claim": "The work that runs on its own, and what needs you.",
+      "claim": "The work that runs on its own, what it is doing now, and what needs you.",
       "minder": "Supervisor looks after this.",
       "loading": "Loading…",
       "unreadable": "Couldn't read your work just now.",
       "sectionWork": "Standing work",
       "sectionNeedsYou": "Waiting on you",
-      "sectionNote": "What we decided",
-      "newWork": "New standing work"
+      "newWork": "New standing work",
+      "sectionRunning": "Running now",
+      "sectionRecent": "Recently"
     },
     "section": {
       "loading": "Loading…",
@@ -1678,8 +1685,8 @@
       "missNameless": "nameless",
       "workUnreadable": "Couldn't read your standing work just now.",
       "workEmptyTitle": "Nothing runs yet",
-      "workEmptyWithStarts": "Set up work that keeps a file current on a schedule.",
-      "workEmptyNoStarts": "Connect Slack, Notion or GitHub first, or start from a web page.",
+      "workEmptyWithStarts": "Set up work that keeps a file current, or that happens on websites in your browser.",
+      "workEmptyNoStarts": "Start from a web page, your browser, or your workspace — or connect Slack, Notion or GitHub.",
       "startConnector": "{name} · reads {reads}",
       "startConnectorFallback": "what you chose",
       "startPage": "Name a page. Its summary stays current.",
@@ -1688,7 +1695,9 @@
       "workIntro": "Open one to see its runs and instructions.",
       "newStandingWork": "New standing work",
       "needsYouEmpty": "Nothing is waiting on you.",
-      "noteEmpty": "Nothing written down yet."
+      "runningEmpty": "Nothing is running.",
+      "recentEmpty": "Nothing has run yet.",
+      "runsUnreadable": "Couldn't read the runs just now."
     },
     "row": {
       "openTitle": "Open",
@@ -1707,7 +1716,13 @@
       "withTopic": "{topic} · {minder}",
       "cannotRun": "Cannot run: {problem}",
       "pauseTitle": "Stop it running on its schedule",
-      "resumeTitle": "Let it run on its schedule again"
+      "resumeTitle": "Let it run on its schedule again",
+      "inBrowser": "{topic} · in {name}'s browser",
+      "inYourBrowser": "{topic} · in your browser",
+      "sites": "{count, plural, one {# site} other {# sites}}",
+      "working": "Working now…",
+      "dueYou": "Due — run it when you're ready",
+      "dueOther": "Due — waiting for {name}"
     },
     "problem": {
       "missing_target": "The instructions don't say which file to keep current.",
@@ -1715,7 +1730,8 @@
       "unsupported_format": "Only md, csv, json and txt files can be kept current.",
       "sources_invalid": "A csv or json file takes exactly one source, and a file rather than a folder.",
       "app_invalid": "The instructions name an app that can't keep a file current.",
-      "source_cycle": "This is kept from a file that is kept from it. Neither will run."
+      "source_cycle": "This is kept from a file that is kept from it. Neither will run.",
+      "browser_invalid": "Name at least one website, as a plain address like example.com."
     },
     "lastRun": {
       "noChange": "Ran. Nothing changed",
@@ -1730,7 +1746,10 @@
       "outputTruncated": "Not updated. The file has grown too long to keep current in one run",
       "failed": "Run failed",
       "failedWithReason": "Run failed — {reason}",
-      "withTime": "{line} · {when}"
+      "withTime": "{line} · {when}",
+      "stopped": "Stopped before it finished",
+      "notStarted": "Never started — the page closed first",
+      "turnFailed": "The run stopped unexpectedly"
     },
     "schedule": {
       "none": "no schedule",
@@ -1804,8 +1823,6 @@
       "editMessage": "edit the instructions for {topic}",
       "runs": "Runs",
       "runsEmpty": "Nothing has run yet. The first run starts within a few minutes.",
-      "derivedFrom": "from {paths}",
-      "derivedFromMore": "from {paths} and {count, plural, one {# more} other {# more}}",
       "retireConfirmTitle": "Stop keeping {target} current?",
       "retireConfirmBody": "The file and its history stay. You can set it up again later.",
       "keepRunning": "Keep it running",
@@ -1815,22 +1832,20 @@
       "couldNotRetire": "Could not retire this",
       "blocked": "Not until it's fixed",
       "sourcesChanged": "Sources changed.",
-      "couldNotChangeSources": "Couldn't change the sources."
-    },
-    "runLine": {
-      "write": "Update",
-      "read": "Read sources",
-      "done": "{what} — done",
-      "noChange": "{what} — nothing changed",
-      "sourcesUnchanged": "{what} — not needed, nothing new to read",
-      "skipped": "{what} — skipped",
-      "skippedWithReason": "{what} — skipped ({reason})",
-      "shapeViolation": "{what} — refused, the data didn't fit the file's shape",
-      "noSourcesFetched": "{what} — no source could be read",
-      "balanceExhausted": "{what} — did not run, the balance is used up",
-      "outputTruncated": "{what} — refused, the file has grown too long to keep current in one run",
-      "failed": "{what} — failed",
-      "failedWithReason": "{what} — failed ({reason})"
+      "couldNotChangeSources": "Couldn't change the sources.",
+      "sitesLabel": "Where it works",
+      "browserOf": "In {name}'s browser — only they can run it.",
+      "browserYours": "In your browser. Keep yarnnn open in Chrome with the yarnnn extension on while it runs.",
+      "sitesChanged": "Sites changed.",
+      "couldNotChangeSites": "Couldn't change the sites.",
+      "conversation": "The work's conversation",
+      "conversationHint": "Each run happens here. Watch it, stop it, or tell it what to do differently.",
+      "runsEmptyBrowser": "Nothing has run yet. Run it when you're ready.",
+      "needsExtension": "This work runs in your browser: open yarnnn in Chrome with the yarnnn extension on, then run it.",
+      "runStarted": "Running in your browser — watch it below.",
+      "alreadyRunning": "It's already running.",
+      "conversationUnreadable": "Couldn't open the work's conversation just now.",
+      "notYours": "Only {name} can run it — it runs in their browser."
     },
     "preset": {
       "weekdays9": "Every weekday at 09:00",
@@ -1884,7 +1899,14 @@
       "blockedSource": "Add at least one source.",
       "blockedTooMany": "{max, plural, one {# source} other {# sources}} at most.",
       "sourceCount": "{count} of {max}",
-      "oneSourceOnly": "A csv, json or txt file reads exactly one source."
+      "oneSourceOnly": "A csv, json or txt file reads exactly one source.",
+      "sitesLabel": "Websites it may use",
+      "sitesHint": "Plain addresses, like example.com. Separate them with commas.",
+      "sitesPlaceholder": "example.com, shop.example.org",
+      "browserContractLabel": "What must be true when it finishes — and how to get there",
+      "browserContractSeed": "Open each site, find what's needed, and keep the file up to date. Say which site needs me to sign in if one does.",
+      "browserScheduleHint": "When it comes due, it waits for you to run it — it never acts while you're away.",
+      "blockedSites": "Name at least one website it may use."
     },
     "notifications": {
       "standingIntro": "Files kept current on a schedule. Set one up in Supervisor, or ask an agent in chat.",
@@ -2124,7 +2146,9 @@
       "attention": "Needs fixing",
       "paused": "Paused",
       "running": "Running",
-      "resting": "Resting"
+      "resting": "Resting",
+      "working": "Working now",
+      "due": "Due"
     },
     "minderBand": {
       "resting": "Supervisor looks after this.",
@@ -2136,7 +2160,9 @@
     "startPicker": {
       "title": "What should it keep current?",
       "subtitle": "You name the file on the next step.",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "browserTitle": "Do something on websites",
+      "browserBody": "Your agent works on the sites you name, in your own browser, with your sign-ins."
     },
     "sources": {
       "add": "Add a source",
@@ -3441,6 +3467,37 @@
       "browserTitle": "Prefer the browser?",
       "browserBody": "yarnnn works the same in any browser, with nothing to install. The app and the browser open the same workspace, so you can switch whenever you like.",
       "browserCta": "Start in the browser"
+    }
+  },
+  "runs": {
+    "state": {
+      "queued": "Starting",
+      "running": "Running",
+      "waiting": "Due",
+      "done": "Done",
+      "failed": "Failed",
+      "stopped": "Stopped"
+    },
+    "inConversation": "In a conversation",
+    "byMember": "{name}",
+    "inBrowserOf": "in {name}'s browser",
+    "someone": "a member",
+    "dueYou": "Due — run it when you're ready.",
+    "dueOther": "Due — waiting for {name} to run it.",
+    "runIt": "Run it",
+    "stop": "Stop",
+    "skip": "Skip this one",
+    "couldNotStop": "Couldn't stop the run.",
+    "stopped": "Stopped.",
+    "noSteps": "No steps yet.",
+    "moreSteps": "{count, plural, one {# more step} other {# more steps}}",
+    "record": "Run record",
+    "cost": "Cost {cost}",
+    "tray": {
+      "label": "{count, plural, one {# run going} other {# runs going}}",
+      "labelWaiting": "{count, plural, one {# run due} other {# runs due}}",
+      "title": "Runs",
+      "openSupervisor": "Open the Supervisor"
     }
   }
 }

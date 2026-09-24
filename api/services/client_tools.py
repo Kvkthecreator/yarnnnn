@@ -91,10 +91,22 @@ def offered(
 class _Turn:
     user_id: str
     acts: dict[str, asyncio.Future] = field(default_factory=dict)
+    #: ADR-666 D6 — stopped from outside the turn (the run's Stop). The act in
+    #: flight answers "stopped" and the loop ends the turn.
+    stopped: bool = False
 
 
 #: nonce → the turn it belongs to. See the module note on the single worker.
 _TURNS: dict[str, _Turn] = {}
+#: run id → the nonce of the turn performing it (ADR-666). Same process caveat.
+_RUNS: dict[str, str] = {}
+
+#: What an act answers when its run was stopped.
+STOPPED_RESULT = {
+    "success": False,
+    "error": "stopped",
+    "receipt": "Stopped — the run was stopped before this step finished.",
+}
 
 
 def open_turn(user_id: str) -> str:
@@ -107,10 +119,37 @@ def open_turn(user_id: str) -> str:
 def close_turn(nonce: str) -> None:
     """End a turn: every act still waiting fails closed."""
     turn = _TURNS.pop(nonce, None)
+    for run_id in [r for r, n in _RUNS.items() if n == nonce]:
+        _RUNS.pop(run_id, None)
     if turn:
         for fut in turn.acts.values():
             if not fut.done():
                 fut.cancel()
+
+
+def bind_run(nonce: str, run_id: str) -> None:
+    """ADR-666 — this turn performs that run, so the run's Stop can reach it."""
+    if nonce in _TURNS:
+        _RUNS[run_id] = nonce
+
+
+def stop_run(run_id: str) -> bool:
+    """ADR-666 D6 — stop the turn performing a run: the act in flight answers
+    `STOPPED_RESULT` now, and `stopped` tells the loop to end the turn. False
+    when no turn in this process performs it (it already ended)."""
+    turn = _TURNS.get(_RUNS.get(run_id, ""))
+    if turn is None:
+        return False
+    turn.stopped = True
+    for fut in turn.acts.values():
+        if not fut.done():
+            fut.set_result(dict(STOPPED_RESULT))
+    return True
+
+
+def stopped(nonce: Optional[str]) -> bool:
+    turn = _TURNS.get(nonce or "")
+    return bool(turn and turn.stopped)
 
 
 def expect(nonce: str, call_id: str) -> asyncio.Future:
@@ -189,6 +228,11 @@ REPEAT_NOTE = (
 STUCK_SENTENCE = (
     "I stopped: my last few steps in the browser failed, and repeating them would not "
     "have helped. The page is as the last successful step left it."
+)
+
+#: What the member reads when the run was stopped from outside the turn.
+STOPPED_SENTENCE = (
+    "I stopped: the run was stopped. The page is as the last finished step left it."
 )
 
 #: What the member reads when the turn reaches HANDS_MAX_ROUNDS.

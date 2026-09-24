@@ -1,9 +1,9 @@
-"""The Supervisor app's read door (ADR-656 §7 → ADR-658 D5).
+"""The Supervisor app's read door (ADR-656 §7 → ADR-658 D5 → ADR-666 D8).
 
 ONE route. The surfaces payload says the app EXISTS and how to reach it; this
-says what it SHOWS when opened — the composed bands, read per request. The
-`work` band is the standing roster and has its own ONE reader
-(`GET /api/standing`); the surface mounts both.
+says what it SHOWS when opened — the composed band (mentions), read per
+request. The roster has its own ONE reader (`GET /api/standing`) and the runs
+theirs (`GET /api/runs`); the surface mounts all three.
 
 ⚠️ NO WRITE DOOR HERE, and none should be added. What the supervisor knows is
 either derived (mentions) or an ordinary workspace file authored
@@ -27,7 +27,7 @@ router = APIRouter()
 
 @router.get("/state")
 async def get_supervisor_state(auth: UserClient) -> dict:
-    """What the Supervisor pane composes here: needs-you · note.
+    """What the Supervisor pane composes here: the mentions half of needs-you.
 
     ⚠️ Fails CLOSED on an unresolvable workspace rather than falling back to
     the owner's. ADR-501's probe is the reason: omitting the explicit binding

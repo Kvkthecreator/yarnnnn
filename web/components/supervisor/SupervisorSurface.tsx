@@ -18,9 +18,15 @@
  * deleted the last composition for being.
  *
  * ⚠️ ONE READER PER LEDGER. The roster is `api.standing.list` (the same route
- * the Notifications mirror reads); the composed bands are `api.supervisor.state`.
- * The three reads are independent and each degrades to its own empty — one
- * unreadable band never blanks the surface.
+ * the Notifications mirror reads); the runs are `useRuns` (the one client store
+ * of `GET /api/runs`, live — the tray reads the same store); the mentions are
+ * `api.supervisor.state`. The reads are independent and each degrades to its
+ * own empty — one unreadable band never blanks the surface.
+ *
+ * ⭐ ADR-666 D8 — THE COCKPIT READS BY RUN STATE: running · needs-you · work ·
+ * recent. Starting browser work goes through the detail's one door
+ * (`?supervisor.start=1`), because a browser run happens in the work's own
+ * conversation, which lives there.
  *
  * THE THREE BANDS (APP-BUILDER-UX §2.2, the part that survived the re-scope):
  *   1. what this is      — the name and the one-line claim
@@ -31,12 +37,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Plus } from 'lucide-react';
-import { api, type StandingStart, type StandingSummary } from '@/lib/api/client';
+import { api, type Run, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import {
   SupervisorSection,
+  type RunsBand,
   type SupervisorStateData,
   type WorkBand,
 } from '@/components/supervisor/SupervisorSection';
+import { useRuns } from '@/lib/runs/useRuns';
 import { MinderBand } from '@/components/supervisor/MinderBand';
 import { StartPicker } from '@/components/supervisor/StartPicker';
 import { NewStandingWorkModal } from '@/components/supervisor/NewStandingWorkModal';
@@ -53,16 +61,17 @@ import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePr
  * surface and a bespoke one. A kind this client cannot draw renders the honest
  * amber miss rather than a blank.
  *
- * ⭐ Ordered by what a member manages first: the work itself, then what is
- * waiting on them, then the decisions note — reference, not a call to act.
+ * ⭐ Ordered by what a member supervising asks first (ADR-666 D8): what is
+ * happening, what needs them, what they have, what just happened.
  */
 /** ADR-660 — the declaration holds catalog KEYS: this table is evaluated at
  *  import, before any member's language is known. The title is worded at
  *  render, so the DECLARED shape is unchanged. */
 const SECTIONS: Array<{ kind: string; titleKey: string }> = [
-  { kind: 'work', titleKey: 'sectionWork' },
+  { kind: 'running', titleKey: 'sectionRunning' },
   { kind: 'needs-you', titleKey: 'sectionNeedsYou' },
-  { kind: 'note', titleKey: 'sectionNote' },
+  { kind: 'work', titleKey: 'sectionWork' },
+  { kind: 'recent', titleKey: 'sectionRecent' },
 ];
 
 export function SupervisorSurface() {
@@ -82,8 +91,9 @@ export function SupervisorSurface() {
   // work band's empty state, so they vanished the moment a member had one
   // piece of work — leaving a blank form as the sole path.
   const [pickerOpen, setPickerOpen] = useState(false);
-  const { navigateToSurface } = useSurfacePreferences();
+  const { navigateToSurface, userId } = useSurfacePreferences();
   const { runAction } = useFeedback();
+  const { runs, failed: runsFailed, refresh: refreshRuns } = useRuns();
   const param = useSurfaceParam('supervisor');
   // The detail (ADR-658 D6) is a deep-linkable pane param, like every other
   // surface's: `?supervisor.work=<topic>`.
@@ -114,7 +124,6 @@ export function SupervisorSurface() {
         // Defensive: a read path never trusts the served shape (house style).
         setData({
           needs_you: Array.isArray(result?.needs_you) ? result.needs_you : [],
-          note: result?.note ?? null,
         });
       },
       () => { if (!cancelled) setFailed(true); },
@@ -147,6 +156,12 @@ export function SupervisorSurface() {
 
   const runNow = useCallback(async (row: StandingSummary) => {
     if (busy) return;
+    // ADR-666 D4 — browser work runs in its own conversation, which lives in
+    // its detail: the detail is the ONE door that starts it.
+    if (row.browser) {
+      param.set({ work: row.topic, start: row.browser.member === userId ? '1' : null });
+      return;
+    }
     setBusy(row.topic);
     try {
       const res = await runAction(() => api.standing.run(row.topic), {
@@ -173,7 +188,7 @@ export function SupervisorSurface() {
       setBusy(null);
       void loadRoster();
     }
-  }, [busy, loadRoster, runAction, t]);
+  }, [busy, loadRoster, param, runAction, t, userId]);
 
   const togglePause = useCallback(async (row: StandingSummary) => {
     if (busy) return;
@@ -197,6 +212,7 @@ export function SupervisorSurface() {
     starts,
     busy,
     notes,
+    viewerId: userId ?? null,
     onRunNow: runNow,
     onTogglePause: togglePause,
     onOpen: (row) => param.set({ work: row.topic }),
@@ -215,6 +231,19 @@ export function SupervisorSurface() {
     },
   };
 
+  const runsBand: RunsBand = {
+    runs,
+    failed: runsFailed,
+    viewerId: userId ?? null,
+    onOpen: (run: Run) => { if (run.topic) param.set({ work: run.topic }); },
+    onRunIt: (run: Run) => { if (run.topic) param.set({ work: run.topic, start: '1' }); },
+    onOpenFile: (path: string) => navigateToSurface('files', { path }),
+    onChanged: () => { void refreshRuns(); void loadRoster(); },
+  };
+  // Band 2's working state follows the LEDGER, not only this page's own
+  // click: a run going anywhere in the workspace is named.
+  const workingTopic = busy ?? (runs ?? []).find((r) => r.state === 'running' && r.topic)?.topic ?? null;
+
   if (failed && rosterFailed) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -232,7 +261,7 @@ export function SupervisorSurface() {
   if (!openTopic && !data && !failed && rows === null && !rosterFailed) return <Working label={t('surface.loading')} fill />;
 
   // null = the composed bands' read is still out (or failed); each band says so.
-  const state: SupervisorStateData | null = data ?? (failed ? { needs_you: [], note: null } : null);
+  const state: SupervisorStateData | null = data ?? (failed ? { needs_you: [] } : null);
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -265,7 +294,7 @@ export function SupervisorSurface() {
           the roster this surface already holds — no fourth read. */}
       <MinderBand
         rows={rows}
-        busyTopic={busy}
+        busyTopic={workingTopic}
         onOpen={(topic) => param.set({ work: topic })}
       />
 
@@ -285,6 +314,7 @@ export function SupervisorSurface() {
               section={{ kind: section.kind, title: t(`surface.${section.titleKey}`) }}
               data={state}
               work={work}
+              runs={runsBand}
               onOpenLane={openLane}
             />
           ))}

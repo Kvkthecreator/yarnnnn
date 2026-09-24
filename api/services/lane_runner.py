@@ -2100,6 +2100,18 @@ async def run_lane_turn(
     }
 
 
+def _outside_scope(name: str, args: Any, sites: tuple) -> Optional[str]:
+    """ADR-666 D1 — the host a BrowserOpen names when a declared run's scope
+    does not include it, else None. Only `BrowserOpen` names a destination; a
+    link followed from an allowed page is not checked here (ADR-666 §3)."""
+    if not sites or name != "BrowserOpen" or not isinstance(args, dict):
+        return None
+    from services.standing_work import site_allowed, url_host
+
+    url = str(args.get("url") or "")
+    return None if site_allowed(url, sites) else (url_host(url) or url or "that page")
+
+
 async def run_lane_turn_stream(
     auth: Any,
     *,
@@ -2132,6 +2144,9 @@ async def run_lane_turn_stream(
     # ADR-662 D6 — the tools the member's desktop app performs this turn
     # (`client_tools.offered`); empty for every turn not from a shell that asked.
     client_tools: tuple = (),
+    # ADR-666 D1 — a declared browser run's scope: BrowserOpen on any other
+    # site is refused here, before the act reaches the member's machine.
+    browser_sites: tuple = (),
 ):
     """Streaming sibling of ``run_lane_turn`` (ADR-412 D2 lane streaming).
 
@@ -2167,7 +2182,9 @@ async def run_lane_turn_stream(
       - ``("receipt", {name, text, ok})`` — what a client act CHANGED, read
                                             back by the app (ADR-662 D3)
       - ``("done", {result dict})``       — terminal; the same shape
-                                            ``run_lane_turn`` returns
+                                            ``run_lane_turn`` returns, plus
+                                            ``ledger_ids`` — this turn's cost
+                                            rows, which a run sums (ADR-666)
       - ``("error", {error, message})``   — a fatal precondition
 
     The two invariants ``run_lane_turn`` holds are held here byte-identically:
@@ -2265,6 +2282,10 @@ async def run_lane_turn_stream(
     nonce = client_tools_mod.open_turn(auth.user_id) if client_tools else None
     watch = client_tools_mod.StuckWatch()
     stuck = False
+    # ADR-666 D6 — the run was stopped from outside the turn (its Stop).
+    halted = False
+    # ADR-666 D2 — this turn's cost rows, by id, so its run sums them exactly.
+    ledger_ids: list[str] = []
     # ADR-662 D8 — a browser job is dozens of acts; its bound is its own.
     max_rounds = client_tools_mod.HANDS_MAX_ROUNDS if client_tools else _LANE_MAX_ROUNDS
 
@@ -2307,7 +2328,7 @@ async def run_lane_turn_stream(
             try:
                 from services.supabase import get_service_client
                 from services.telemetry import record_execution_event
-                record_execution_event(
+                _event_id = record_execution_event(
                     get_service_client(),
                     user_id=auth.user_id,
                     slug=ledger_slug,
@@ -2322,6 +2343,8 @@ async def run_lane_turn_stream(
                     session_id=session_id,  # W0 — the falsifier join key
                     **routed.usage,
                 )
+                if _event_id:
+                    ledger_ids.append(str(_event_id))
             except Exception as exc:
                 logger.warning("[LANE stream] cost ledger record failed: %s", exc)
 
@@ -2411,12 +2434,31 @@ async def run_lane_turn_stream(
                             args = json.loads(args or "{}")
                         except ValueError:
                             args = {}
-                    fut = client_tools_mod.expect(nonce, tc["id"])
-                    yield ("client_tool", {
-                        "call_id": tc["id"], "name": name,
-                        "arguments": args or {}, "nonce": nonce,
-                    })
-                    result = await client_tools_mod.wait(nonce, tc["id"], fut)
+                    _outside = _outside_scope(name, args, browser_sites)
+                    if client_tools_mod.stopped(nonce):
+                        # ADR-666 D6 — stopped between acts: nothing more goes out.
+                        halted = True
+                        result = dict(client_tools_mod.STOPPED_RESULT)
+                    elif _outside:
+                        # ADR-666 D1 — refused HERE, before the member's machine
+                        # is asked. The receipt says so, in the step list.
+                        result = {
+                            "success": False, "error": "site_not_in_scope",
+                            "receipt": (
+                                f"Did not open {_outside}: this work may open only "
+                                f"{', '.join(browser_sites)}."
+                            ),
+                            "record": {"act": "outside", "subject": _outside, "changed": False},
+                        }
+                    else:
+                        fut = client_tools_mod.expect(nonce, tc["id"])
+                        yield ("client_tool", {
+                            "call_id": tc["id"], "name": name,
+                            "arguments": args or {}, "nonce": nonce,
+                        })
+                        result = await client_tools_mod.wait(nonce, tc["id"], fut)
+                        if client_tools_mod.stopped(nonce):
+                            halted = True
                     ok = bool(result.get("success"))
                     if result.get("receipt"):
                         yield ("receipt", {
@@ -2426,7 +2468,7 @@ async def run_lane_turn_stream(
                         # catalog. `text` is the model's sentence.
                         "record": result.get("record") if isinstance(result.get("record"), dict) else None,
                     })
-                    verdict = watch.note(name, args, ok)
+                    verdict = None if halted else watch.note(name, args, ok)
                     if verdict == "warn":
                         result = {**result, "note": client_tools_mod.REPEAT_NOTE}
                     elif verdict == "stop":
@@ -2472,6 +2514,10 @@ async def run_lane_turn_stream(
                 if vision_msg is not None:
                     pending_vision.append(vision_msg)
             messages.extend(pending_vision)
+            if halted:
+                # ADR-666 D6 — the run's Stop reached this turn.
+                final_text = client_tools_mod.STOPPED_SENTENCE
+                break
             if stuck:
                 # ADR-662 D8 — stop when stuck: a run of failed acts ends the
                 # turn in a sentence, instead of spending the round budget
@@ -2505,6 +2551,7 @@ async def run_lane_turn_stream(
         "rounds": rounds,
         "tools_called": tools_called,
         "artifacts": artifacts,
+        "ledger_ids": ledger_ids,
         "tokens_in": total_in,
         "tokens_out": total_out,
         "ledger_model": ledger_model,

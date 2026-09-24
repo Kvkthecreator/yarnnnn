@@ -596,7 +596,13 @@
       "failed": "브라우저 단계가 실패했어요",
       "failedUnchanged": "브라우저 단계가 실패했어요",
       "refused": "이 앱에서 브라우저가 꺼져 있어요",
-      "refusedUnchanged": "이 앱에서 브라우저가 꺼져 있어요"
+      "refusedUnchanged": "이 앱에서 브라우저가 꺼져 있어요",
+      "outside": "{subject}은(는) 이 작업의 사이트가 아니라서 열지 않았어요",
+      "outsideUnchanged": "{subject}은(는) 이 작업의 사이트가 아니라서 열지 않았어요",
+      "stopped": "중지했어요",
+      "stoppedUnchanged": "중지했어요",
+      "wrote": "{subject} 작성했어요",
+      "wroteUnchanged": "{subject}은(는) 이미 최신이에요"
     }
   },
   "feedback": {
@@ -1663,14 +1669,15 @@
   "supervisor": {
     "surface": {
       "title": "Supervisor",
-      "claim": "스스로 돌아가는 일과, 당신이 필요한 일이에요.",
+      "claim": "스스로 돌아가는 작업, 지금 하고 있는 일, 그리고 나를 기다리는 일.",
       "minder": "Supervisor가 이 일을 맡고 있어요.",
       "loading": "불러오는 중…",
       "unreadable": "지금은 작업을 읽어올 수 없었어요.",
       "sectionWork": "정기 작업",
       "sectionNeedsYou": "당신을 기다리는 일",
-      "sectionNote": "우리가 정한 것",
-      "newWork": "새 상시 작업"
+      "newWork": "새 상시 작업",
+      "sectionRunning": "지금 실행 중",
+      "sectionRecent": "최근"
     },
     "section": {
       "loading": "불러오는 중…",
@@ -1678,8 +1685,8 @@
       "missNameless": "이름 없는",
       "workUnreadable": "지금은 정기 작업을 읽어올 수 없었어요.",
       "workEmptyTitle": "아직 실행 중인 작업이 없어요",
-      "workEmptyWithStarts": "일정에 맞춰 파일을 최신 상태로 유지하는 작업을 만들어 보세요.",
-      "workEmptyNoStarts": "먼저 Slack, Notion, GitHub를 연결하거나 웹 페이지로 시작해 보세요.",
+      "workEmptyWithStarts": "파일을 최신으로 유지하는 작업이나, 내 브라우저에서 웹사이트로 하는 작업을 설정하세요.",
+      "workEmptyNoStarts": "웹 페이지, 내 브라우저, 워크스페이스에서 시작하거나 Slack, Notion, GitHub를 연결하세요.",
       "startConnector": "{name} · {reads} 읽어요",
       "startConnectorFallback": "당신이 고른 것을",
       "startPage": "페이지를 하나 지정하세요. 그 요약이 최신으로 유지돼요.",
@@ -1688,7 +1695,9 @@
       "workIntro": "항목을 열면 실행 기록과 안내를 볼 수 있어요.",
       "newStandingWork": "새 정기 작업",
       "needsYouEmpty": "당신을 기다리는 일은 없어요.",
-      "noteEmpty": "아직 적어둔 것이 없어요."
+      "runningEmpty": "실행 중인 작업이 없어요.",
+      "recentEmpty": "아직 실행된 작업이 없어요.",
+      "runsUnreadable": "지금은 실행 기록을 읽을 수 없어요."
     },
     "row": {
       "openTitle": "열기",
@@ -1707,7 +1716,13 @@
       "withTopic": "{topic} · {minder}",
       "cannotRun": "실행할 수 없어요: {problem}",
       "pauseTitle": "예약된 실행을 중지해요",
-      "resumeTitle": "예약된 실행을 다시 시작해요"
+      "resumeTitle": "예약된 실행을 다시 시작해요",
+      "inBrowser": "{topic} · {name} 님의 브라우저에서",
+      "inYourBrowser": "{topic} · 내 브라우저에서",
+      "sites": "사이트 {count}개",
+      "working": "작업 중…",
+      "dueYou": "실행할 때예요 — 준비되면 실행하세요",
+      "dueOther": "실행할 때예요 — {name} 님을 기다리는 중"
     },
     "problem": {
       "missing_target": "어떤 파일을 최신 상태로 유지할지 안내에 없어요.",
@@ -1715,7 +1730,8 @@
       "unsupported_format": "md, csv, json, txt 파일만 최신으로 유지할 수 있어요.",
       "sources_invalid": "csv나 json 파일은 폴더가 아닌 파일 하나만 소스로 쓸 수 있어요.",
       "app_invalid": "지시문이 파일을 최신으로 유지할 수 없는 앱을 지정했어요.",
-      "source_cycle": "서로를 참조하고 있어요. 둘 다 실행되지 않아요."
+      "source_cycle": "서로를 참조하고 있어요. 둘 다 실행되지 않아요.",
+      "browser_invalid": "example.com처럼 웹사이트 주소를 하나 이상 적어 주세요."
     },
     "lastRun": {
       "noChange": "실행됨. 바뀐 것 없음",
@@ -1730,7 +1746,10 @@
       "outputTruncated": "업데이트 안 됨. 파일이 한 번에 최신으로 유지하기에는 너무 길어짐",
       "failed": "실행 실패",
       "failedWithReason": "실행 실패 — {reason}",
-      "withTime": "{line} · {when}"
+      "withTime": "{line} · {when}",
+      "stopped": "끝나기 전에 중지됐어요",
+      "notStarted": "시작되지 않았어요 — 페이지가 먼저 닫혔어요",
+      "turnFailed": "실행이 예기치 않게 멈췄어요"
     },
     "schedule": {
       "none": "일정 없음",
@@ -1804,8 +1823,6 @@
       "editMessage": "{topic}의 지시문 편집",
       "runs": "실행 기록",
       "runsEmpty": "아직 실행된 적이 없어요. 첫 실행은 몇 분 안에 시작돼요.",
-      "derivedFrom": "출처 {paths}",
-      "derivedFromMore": "출처 {paths} 외 {count, plural, other {#개}}",
       "retireConfirmTitle": "{target}을(를) 최신으로 유지하는 일을 멈출까요?",
       "retireConfirmBody": "파일과 기록은 그대로 남아요. 나중에 다시 만들 수 있어요.",
       "keepRunning": "계속 두기",
@@ -1815,22 +1832,20 @@
       "couldNotRetire": "종료할 수 없었어요",
       "blocked": "수정 전까지 실행되지 않아요",
       "sourcesChanged": "소스를 변경했어요.",
-      "couldNotChangeSources": "소스를 변경하지 못했어요."
-    },
-    "runLine": {
-      "write": "업데이트",
-      "read": "출처 읽기",
-      "done": "{what} — 완료",
-      "noChange": "{what} — 바뀐 것 없음",
-      "sourcesUnchanged": "{what} — 필요 없음, 새로 읽을 것 없음",
-      "skipped": "{what} — 건너뜀",
-      "skippedWithReason": "{what} — 건너뜀 ({reason})",
-      "shapeViolation": "{what} — 거절됨, 데이터가 파일 형식에 맞지 않음",
-      "noSourcesFetched": "{what} — 읽을 수 있는 출처 없음",
-      "balanceExhausted": "{what} — 실행 안 됨, 잔액을 다 씀",
-      "outputTruncated": "{what} — 거절됨, 파일이 한 번에 최신으로 유지하기에는 너무 길어짐",
-      "failed": "{what} — 실패",
-      "failedWithReason": "{what} — 실패 ({reason})"
+      "couldNotChangeSources": "소스를 변경하지 못했어요.",
+      "sitesLabel": "작업하는 곳",
+      "browserOf": "{name} 님의 브라우저에서 — 그분만 실행할 수 있어요.",
+      "browserYours": "내 브라우저에서. 실행하는 동안 Chrome에서 yarnnn을 열고 yarnnn 확장 프로그램을 켜 두세요.",
+      "sitesChanged": "사이트를 바꿨어요.",
+      "couldNotChangeSites": "사이트를 바꾸지 못했어요.",
+      "conversation": "작업 대화",
+      "conversationHint": "실행은 모두 여기서 이뤄져요. 지켜보고, 멈추고, 다르게 하라고 말할 수 있어요.",
+      "runsEmptyBrowser": "아직 실행되지 않았어요. 준비되면 실행하세요.",
+      "needsExtension": "이 작업은 내 브라우저에서 실행돼요. Chrome에서 yarnnn을 열고 yarnnn 확장 프로그램을 켠 뒤 실행하세요.",
+      "runStarted": "내 브라우저에서 실행 중이에요 — 아래에서 지켜보세요.",
+      "alreadyRunning": "이미 실행 중이에요.",
+      "conversationUnreadable": "지금은 작업 대화를 열 수 없어요.",
+      "notYours": "{name} 님만 실행할 수 있어요 — 그분의 브라우저에서 실행돼요."
     },
     "preset": {
       "weekdays9": "평일 매일 09:00",
@@ -1884,7 +1899,14 @@
       "blockedSource": "소스를 하나 이상 추가해 주세요.",
       "blockedTooMany": "최대 {max}개까지 추가할 수 있어요.",
       "sourceCount": "{max}개 중 {count}개",
-      "oneSourceOnly": "csv, json, txt 파일은 소스를 하나만 읽어요."
+      "oneSourceOnly": "csv, json, txt 파일은 소스를 하나만 읽어요.",
+      "sitesLabel": "사용할 수 있는 웹사이트",
+      "sitesHint": "example.com처럼 주소만 쓰고, 쉼표로 구분하세요.",
+      "sitesPlaceholder": "example.com, shop.example.org",
+      "browserContractLabel": "끝났을 때 무엇이 사실이어야 하는지, 그리고 어떻게 할지",
+      "browserContractSeed": "각 사이트를 열어 필요한 내용을 찾고 파일을 최신으로 유지하세요. 로그인이 필요한 사이트가 있으면 알려 주세요.",
+      "browserScheduleHint": "실행할 때가 되면 내가 실행하기를 기다려요 — 내가 없을 때는 아무것도 하지 않아요.",
+      "blockedSites": "사용할 웹사이트를 하나 이상 적어 주세요."
     },
     "notifications": {
       "standingIntro": "일정에 맞춰 최신으로 유지되는 파일이에요. Supervisor에서 설정하거나, 채팅에서 에이전트에게 부탁하세요.",
@@ -2124,7 +2146,9 @@
       "attention": "수정 필요",
       "paused": "일시중지됨",
       "running": "실행 중",
-      "resting": "대기 중"
+      "resting": "대기 중",
+      "working": "작업 중",
+      "due": "실행할 때"
     },
     "minderBand": {
       "resting": "Supervisor가 이 일을 맡고 있어요.",
@@ -2136,7 +2160,9 @@
     "startPicker": {
       "title": "무엇을 최신 상태로 유지할까요?",
       "subtitle": "파일 이름은 다음 단계에서 정해요.",
-      "cancel": "취소"
+      "cancel": "취소",
+      "browserTitle": "웹사이트에서 할 일",
+      "browserBody": "에이전트가 지정한 사이트에서, 내 브라우저와 내 로그인으로 작업해요."
     },
     "sources": {
       "add": "소스 추가",
@@ -3441,6 +3467,37 @@
       "browserTitle": "브라우저가 더 편한가요?",
       "browserBody": "yarnnn은 어떤 브라우저에서도 똑같이 쓸 수 있어요. 설치할 것도 없어요. 앱과 브라우저는 같은 워크스페이스를 여니까 언제든 오가면 돼요.",
       "browserCta": "브라우저에서 시작하기"
+    }
+  },
+  "runs": {
+    "state": {
+      "queued": "시작하는 중",
+      "running": "실행 중",
+      "waiting": "실행할 때",
+      "done": "완료",
+      "failed": "실패",
+      "stopped": "중지됨"
+    },
+    "inConversation": "대화에서",
+    "byMember": "{name}",
+    "inBrowserOf": "{name} 님의 브라우저에서",
+    "someone": "멤버",
+    "dueYou": "실행할 때예요 — 준비되면 실행하세요.",
+    "dueOther": "실행할 때예요 — {name} 님이 실행하기를 기다리는 중.",
+    "runIt": "실행",
+    "stop": "중지",
+    "skip": "이번은 건너뛰기",
+    "couldNotStop": "실행을 멈추지 못했어요.",
+    "stopped": "중지했어요.",
+    "noSteps": "아직 단계가 없어요.",
+    "moreSteps": "단계 {count}개 더",
+    "record": "실행 기록",
+    "cost": "비용 {cost}",
+    "tray": {
+      "label": "실행 중 {count}개",
+      "labelWaiting": "실행할 때 {count}개",
+      "title": "실행",
+      "openSupervisor": "Supervisor 열기"
     }
   }
 }

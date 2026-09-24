@@ -293,8 +293,10 @@ check("a structured target refuses a FOLDER",
       == "sources_invalid")
 check("a structured target takes one FILE",
       _decl("target: m.csv\nschedule: '0 9 * * *'\nsources:\n  - id: f\n    path: data/raw.csv\n").problem is None)
+# ADR-666 D1 added `browser` — a key for WHO does the work, not a source shape.
 check("no new declaration KEY was needed — `path` lives inside `sources`",
-      st.DECLARATION_KEYS == frozenset({"target", "app", "schedule", "sources", "shape", "paused", "paused_until"}))
+      st.DECLARATION_KEYS == frozenset({"target", "app", "schedule", "sources", "shape", "paused",
+                                        "paused_until", "browser"}))
 
 db = FakeDB()
 db.put("/workspace/inbound/uploads/a.md", "alpha body", at=T0)
@@ -538,33 +540,10 @@ check("the pace rule adds no trigger — the run's only callers are the drain an
       and "run_standing_sweep(" in _routes_src)
 
 # ═════════════════════════════════════════════════════════════════════════════
-print("D2. a run shows what it wrote")
+# D2 ("a run shows what it wrote") is SUPERSEDED by ADR-666 D2: what a run wrote
+# is stored on its row in `runs`, and the 180-second time-window join this
+# section tested is deleted. `test_adr666_the_run.py` holds the pointer.
 # ═════════════════════════════════════════════════════════════════════════════
-
-_revs = [
-    {"id": "rev-new", "authored_by": "system:standing", "created_at": "2026-09-20T09:00:03+00:00",
-     "derived_from": ["/workspace/research/digest.md"]},
-    {"id": "rev-member", "authored_by": "operator", "created_at": "2026-09-19T12:00:00+00:00", "derived_from": []},
-    {"id": "rev-old", "authored_by": "system:standing", "created_at": "2026-09-19T09:00:02+00:00", "derived_from": []},
-]
-db = FakeDB()
-db.tables["execution_events"] = [
-    {"user_id": U, "slug": "standing-write:reports", "status": "success", "created_at": "2026-09-20T09:00:05+00:00"},
-    {"user_id": U, "slug": "standing-write:reports", "status": "skipped", "error_reason": "sources_unchanged",
-     "created_at": "2026-09-19T21:00:00+00:00"},
-    {"user_id": U, "slug": "standing-write:reports", "status": "success", "created_at": "2026-09-19T09:00:04+00:00"},
-    {"user_id": U, "slug": "standing-write:reports", "status": "failed", "error_reason": "shape_violation",
-     "created_at": "2026-09-18T09:00:00+00:00"},
-]
-with patch.object(_asub, "list_revisions", return_value=_revs):
-    _runs = R._recent_runs(db, U, "reports", target_path="/workspace/reports/summary.md")
-check("each SUCCESSFUL write carries the revision it produced",
-      [r.revision_id for r in _runs] == ["rev-new", None, "rev-old", None], str([r.revision_id for r in _runs]))
-check("…and what it was made from", _runs[0].derived_from == ["/workspace/research/digest.md"])
-check("a member's own revision is never claimed as a run's",
-      "rev-member" not in [r.revision_id for r in _runs])
-check("derived, never stored — no pointer column is written to the cost ledger",
-      "revision_id" not in _read("services/telemetry.py"))
 
 # ═════════════════════════════════════════════════════════════════════════════
 print("D4/D5 at the DOOR, and D7")
@@ -619,8 +598,9 @@ check("a source the DECLARER cannot read is refused `source_unreadable`",
       str(_err))
 
 _starts = R.standing_starts(db, U)
+# ADR-666 D1 — the member's browser is always offered too, first among the three.
 check("the workspace start is ALWAYS offered — connection or none",
-      [s.kind for s in _starts] == ["path", "url"], str([s.kind for s in _starts]))
+      [s.kind for s in _starts] == ["browser", "path", "url"], str([s.kind for s in _starts]))
 
 _skill = _read("services/skills/declaring-standing-work/SKILL.md")
 check("the declaring skill teaches the path source", "path:" in _skill and "folder" in _skill.lower())

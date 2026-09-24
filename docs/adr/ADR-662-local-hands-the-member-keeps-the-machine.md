@@ -193,7 +193,9 @@ same words. An act whose effect cannot be read back runs only if the host can de
 unverified; one it cannot describe **does not run** (ADR-661 §6.2).
 
 The lines ride the turn's ONE narrative entry (the ADR-399 shape — a turn's tool calls already persist inside
-its entry), attributed `member:{user_id} via {model}`. For example:
+its entry), attributed `member:{user_id} via {model}`. **Amended by ADR-666 D5 (2026-09-24)**: a receipt's one
+home is the turn's RUN (`runs.steps`), readable by every member of the workspace; the reply row carries only
+`run_id`, and the transcript read brings the steps back. For example:
 *"In Outlook: opened Dana's email · typed a reply (84 words) · pressed Send."*
 
 **Screenshots are never persisted.** The commons is shared; a member's screen is not. They are transient turn

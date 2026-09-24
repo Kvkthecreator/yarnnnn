@@ -15,6 +15,20 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.24.1] - A browser run's opening message, and the two sentences a stopped or out-of-scope act answers
+
+### Changed
+- services/standing_work.py: `BROWSER_RUN_ASK` / `browser_run_ask` — NEW. The opening message Run now writes into browser work's conversation, as the member's own ask: open only these sites; leave the kept file true to the contract (quoted whole — it is the load-bearing half); stop and name the site if a sign-in stands in the way; end with one sentence saying what changed.
+- services/client_tools.py: `STOPPED_RESULT` (what an act answers when its run was stopped) and `STOPPED_SENTENCE` (what the member reads when the turn ends for it) — NEW, the siblings of `STUCK_SENTENCE`.
+- services/lane_runner.py: a `BrowserOpen` outside a declared run's sites answers "Did not open {site}: this work may open only {sites}." without reaching the member's machine — NEW.
+- Expected behavior: a run of browser work opens only its sites, keeps its file to its contract, reports a sign-in wall instead of guessing at it, and ends in one sentence; a stopped run ends its turn at the act in flight.
+
+### Why
+Not a correction of an observed failure — a new capability's words (ADR-666 D1/D4/D6). Recorded here because each string is model-facing. The opening message is a MEMBER turn rather than frame prose deliberately (ADR-306: adding is the last resort): the frame is unchanged, and the run's instructions live in the declaration's own `CONTRACT.md`, which the message quotes.
+
+### Gate
+`test_adr666_the_run.py` 57/57, driven through the real lane loop (the scope and the stop), falsified 5 ways · `test_adr662_local_hands.py` 52/52 · `test_adr632_the_seat_retires.py` · `test_adr630_skills.py`.
+
 ## [2026.09.23.7] - The browser is reach, stated once; the three "you cannot" sentences stop contradicting it
 
 ### Changed
