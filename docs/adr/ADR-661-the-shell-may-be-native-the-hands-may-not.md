@@ -553,6 +553,41 @@ Operator: *"we can always update the developer id and warning signs later as we'
 
 Mechanism: `scripts/publish-desktop-release.sh` (one roster of stable asset names, shared by the Mac and the Windows path; a stable copy every release overwrites plus a kept `X.Y.Z/` copy; checks the public URL serves the uploaded bytes) · `scripts/release-shell.sh --unsigned` (refuses a seal that does not verify) · `DESKTOP_ASSET_NAMES` + `DESKTOP_DOWNLOADS` in `web/lib/shell/desktop-app.ts`. Gate §7p +9 arms, each proven RED. GitHub Releases was the first home and was replaced before anything published: release files there are downloadable only while the repo is public, and our own storage keeps distribution on infrastructure we already run. Signing, when it lands, removes the page's steps and nothing else.
 
+## 7r. The app holds a session of its own (2026-09-25)
+
+Operator: *"i notice every time i quit i need to re-login, but claude desktop or others it's the case."*
+
+**The defect was §7i's hand-off, not the cookie.** Three hypotheses were tested before the right one, and two were
+wrong. (1) *The auth-helpers' 1,000-year `Max-Age` is rejected* — no: CFNetwork clamps it to 400 days, persistent.
+(2) *WebKit loses the cookie at quit* — no: a WKWebView harness kept the newest value across `NSApp.terminate`,
+`exit(0)` at once and after delays. (3) What the app's cookie file showed instead: no auth cookie at all, and on
+production every hand-off session (`7dcf45fe`, `e290d7f7`, `a0e6da98`) had its first token used 3 s after sign-in
+(the app redeeming the browser's token) and ended with its newest token revoked with no successor; the one
+session never handed off rotated hourly for seven hours and lived.
+
+§7i handed the app the browser's OWN refresh token and argued it safe because "Supabase rotates refresh tokens on
+use, so a replayed URL is already spent". It missed that the browser keeps using its copy. Two holders of one
+session take turns rotating it, and **whichever falls two refreshes behind meets `Invalid Refresh Token: Already
+Used` and is signed out.** A browser tab refreshes hourly while the app is quit, so the app lost every time it was
+reopened. Driven against production auth with the rig account, same sequence both ways: old design — the member
+reopens the app → `Already Used`; new design → still signed in.
+
+**D7 — the app gets a session of its own.** `/auth/desktop` asks `POST /api/desktop/handoff` for a ONE-TIME
+sign-in code (`admin.generate_link`, type magiclink — it returns the hashed token and sends no email) and hands the
+app `yarnnn://auth/session?token_hash=…`; `DeepLinkBridge` redeems it with `verifyOtp`. The app's session has its
+own refresh-token chain, as every desktop client keeps its own device session: signing out in one no longer signs
+out the other. ⚠️ The endpoint mints a sign-in for an account, so the caller is verified BY SUPABASE
+(`auth.get_user`), never by `decode_jwt_payload` as `get_user_client` does — a forged JWT naming another email got
+401 when driven. The code is single-use (a second redemption refused, driven) and short-lived. Supabase keeps one
+pending link per user, so two hand-offs in the same instant for one account invalidate the first (observed; it
+also voids a sign-in email the member requested moments before). Web + API only: every installed host loads the
+website, so no installer changes.
+
+**Superseded**: §7i's refresh-token hand-off and §7k's `refreshSession` (its lesson about reading guard clauses
+stands). Gate arms, each proven RED in place: the bridge redeems a code and holds no refresh token · the page hands
+a minted code, never its own token · the code is minted only for a Supabase-verified caller · the route is
+registered.
+
 ## 8. The order — built so the hands fit later
 
 Steps 1–3 are **true of the web product today** and worth doing whether or not the shell ships — each fixes something real in the web build (the auth gate closes a known defect class, the locale chain removes a silent-English failure, and the Suspense boundaries remove a client-render bailout on first paint).

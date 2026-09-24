@@ -371,20 +371,44 @@ check(
 )
 
 bridge_src = strip_comments(read("web/components/shell/DeepLinkBridge.tsx"))
-# `refreshSession`, NOT `setSession`. setSession requires BOTH tokens and
-# throws AuthSessionMissingError on a falsy access_token BEFORE it ever looks
-# at the refresh token — a hand-off carries only a refresh token, so setSession
-# failed with "Auth session missing!" on every attempt (observed in a real
-# hand-off, reported with a screenshot).
+# §7r — the app gets a session of its OWN. Handing it the browser's refresh
+# token made two holders of one session: whichever fell two refreshes behind
+# met "Invalid Refresh Token: Already Used" and was signed out — the app, every
+# time it was reopened after a browser tab had refreshed a few times. Driven
+# against production auth with the rig account, both designs, same sequence.
 check(
-    "the bridge mints a session from the handed-over refresh token",
-    "refreshSession" in bridge_src and "refresh_token" in bridge_src,
-    "setSession needs both tokens; a hand-off carries only the refresh token",
+    "the bridge redeems a one-time code for a session of the app's own",
+    re.search(r"verifyOtp\(\{\s*token_hash:\s*tokenHash,\s*type:\s*'magiclink'\s*\}\)", bridge_src) is not None
+    and "refreshSession" not in bridge_src and "refresh_token" not in bridge_src,
+    "the app shares the browser's refresh-token chain again, and is signed out whenever it falls behind",
 )
 check(
     "the bridge does not call setSession with a half-session",
     "setSession" not in bridge_src,
     "setSession throws AuthSessionMissingError on an empty access_token",
+)
+_handoff_page = strip_comments(read("web/app/auth/desktop/page.tsx"))
+check(
+    "the browser hands over a minted code, never its own token",
+    "api.desktop" in _handoff_page and "handoff()" in _handoff_page
+    and "yarnnn://auth/session?token_hash=" in _handoff_page
+    and "refresh_token" not in _handoff_page and "access_token" not in _handoff_page,
+    "the browser's own credential crosses into the app",
+)
+_desk_route = read("api/routes/desktop.py")
+_desk_code = "\n".join(l for l in _desk_route.splitlines() if not l.lstrip().startswith("#"))
+_desk_code = re.sub(r'""".*?"""', "", _desk_code, flags=re.S)
+check(
+    "the code is minted only for a caller SUPABASE verified",
+    "service.auth.get_user(jwt)" in _desk_code
+    and "decode_jwt_payload" not in _desk_code
+    and re.search(r'generate_link\(\{"type":\s*"magiclink",\s*"email":\s*user\.email\}\)', _desk_code) is not None,
+    "a forged JWT could name another member's email and be handed a sign-in for them",
+)
+check(
+    "the hand-off route is registered",
+    'app.include_router(desktop.router, prefix="/api/desktop"' in read("api/main.py"),
+    "the browser's POST /api/desktop/handoff 404s and no one can open the app",
 )
 
 # ------------------------------- §7l the hand-off page survives sign-in

@@ -76,6 +76,7 @@ from routes import images, memory, documents, admin, webhooks, subscription, acc
 from routes import agent_connectors
 from routes import runs as runs_routes  # ADR-666 — the run
 from routes import publish  # ADR-628 phase (a) — the member-clicked outbound door
+from routes import desktop  # ADR-661 §7r — the desktop app's own session
 
 app = FastAPI(
     title="YARNNN API",
@@ -284,3 +285,4 @@ app.include_router(emissions.router, prefix="/api/emissions", tags=["emissions"]
 
 # ADR-310 D4: MCP OAuth login callback (binds Supabase user to pending auth code)
 app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])
+app.include_router(desktop.router, prefix="/api/desktop", tags=["desktop"])  # ADR-661 §7r — sign-in hand-off

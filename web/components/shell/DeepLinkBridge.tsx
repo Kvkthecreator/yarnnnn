@@ -7,10 +7,11 @@
  * The host registers `yarnnn://` and forwards an incoming URL as a `deep-link`
  * event (`src-tauri/src/main.rs`). Two shapes:
  *
- * - `yarnnn://auth/session?refresh_token=…` — the website finished signing the
- *   member in and is handing the session over. Redeemed with `refreshSession`
- *   (§7k: `setSession` needs both tokens). A failure lands on `/auth/login`
- *   with the reason in words (§7h).
+ * - `yarnnn://auth/session?token_hash=…` — the website finished signing the
+ *   member in and minted a ONE-TIME code for the app (§7r). Redeemed with
+ *   `verifyOtp` for a session of the app's own — never the browser's refresh
+ *   token, which made two holders of one session and signed both out. A
+ *   failure lands on `/auth/login` with the reason in words (§7h).
  * - anything else — in-app navigation (`yarnnn://files?path=…` → `/files?…`).
  *
  * Mounted unconditionally at the ROOT (a member finishing sign-in is on
@@ -40,25 +41,21 @@ export function DeepLinkBridge() {
       }
       if (url.protocol.replace(':', '') !== SHELL_SCHEME) return;
 
-      // `yarnnn://auth/session?refresh_token=…` — the browser finished the
-      // sign-in and is handing the session over (ADR-661 §7i). This is the
-      // ONLY auth deep link: the app never talks to a provider.
+      // `yarnnn://auth/session?token_hash=…` — the browser finished the
+      // sign-in and minted a one-time code for this app (ADR-661 §7r). This is
+      // the ONLY auth deep link: the app never talks to a provider.
       if (url.host === 'auth' && url.pathname.replace(/\/+$/, '') === '/session') {
-        const refreshToken = url.searchParams.get('refresh_token');
-        if (!refreshToken) {
-          router.replace('/auth/login?error=handoff&message=No+session+was+handed+over');
+        const tokenHash = url.searchParams.get('token_hash');
+        if (!tokenHash) {
+          router.replace('/auth/login?error=handoff&message=No+sign-in+was+handed+over');
           return;
         }
-        // `refreshSession`, NOT `setSession`. `setSession` requires BOTH
-        // tokens — it throws `AuthSessionMissingError` on a falsy
-        // `access_token` before it ever looks at the refresh token, so passing
-        // an empty string failed with "Auth session missing!" (observed in a
-        // real hand-off). `refreshSession({ refresh_token })` takes the
-        // refresh token alone and mints a fresh session from it, which is
-        // exactly what a hand-off carries: the browser holds the live session,
-        // and the app is being given the means to establish its own.
+        // `verifyOtp` redeems the code for a NEW session — its own
+        // refresh-token chain, so the browser refreshing its session can never
+        // revoke this one. The session lands in the website's cookie like any
+        // other sign-in.
         void createClient()
-          .auth.refreshSession({ refresh_token: refreshToken })
+          .auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' })
           .then(({ error }) => {
             if (error) {
               router.replace(

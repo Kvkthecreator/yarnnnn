@@ -20,28 +20,30 @@
  * web is now the ONLY code that talks to a provider; the shell's client only
  * ever calls `refreshSession`. Every auth bug has one place to live.
  *
- * WHAT CROSSES THE BOUNDARY, and why it is a refresh token rather than an
- * invented credential: `refreshSession({ refresh_token })` is the primitive
- * supabase-js provides for exactly this hand-off, so nothing bespoke is minted
- * and nothing routes around the one credential path (ADR-645 D2 — no second
- * store, no mirrored token; this is the SAME member's own session moving to
- * the device they are sitting at, which is what the refresh token is for).
+ * WHAT CROSSES THE BOUNDARY (ADR-661 §7r): a ONE-TIME sign-in code minted
+ * for this member by the API (`POST /api/desktop/handoff`), which the app
+ * redeems with `verifyOtp` for a session of its OWN. Never this browser's
+ * refresh token: that made two holders of one session, and Supabase revokes a
+ * whole session when a spent refresh token is presented again — so the first
+ * time this browser refreshed after the hand-off (this very tab, left open,
+ * does it within the hour) it signed the app out too. Measured on production:
+ * every hand-off session ended with its newest token revoked and no successor;
+ * the one session never handed off rotated hourly and lived.
  *
- * ⚠️ The token rides a URL. That is a real exposure and it is bounded three
- * ways: the scheme hands it to a LOCAL app rather than over a network, macOS
- * routes it only to the registered bundle, and it is consumed once — the app
- * exchanges it for a session immediately, and Supabase rotates refresh tokens
- * on use, so a replayed URL is already spent.
+ * ⚠️ The code rides a URL, bounded three ways: the scheme hands it to a LOCAL
+ * app rather than over a network, the OS routes it only to the registered
+ * app, and it is single-use and short-lived.
  */
 
 import { useEffect, useState } from 'react';
 import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { Wordmark } from '@/components/shared/Wordmark';
 import { Working } from '@/components/shared/Working';
 
-type Phase = 'checking' | 'handing-off' | 'done' | 'signed-out';
+type Phase = 'checking' | 'handing-off' | 'done' | 'signed-out' | 'failed';
 
 function DesktopHandoffBody() {
   const router = useRouter();
@@ -54,7 +56,7 @@ function DesktopHandoffBody() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!active) return;
 
-      if (!session?.refresh_token) {
+      if (!session) {
         // Not signed in yet. Send them through the ordinary web sign-in and
         // come straight back here — the app is still waiting.
         setPhase('signed-out');
@@ -63,15 +65,19 @@ function DesktopHandoffBody() {
       }
 
       setPhase('handing-off');
-      // The app is listening for this scheme. `location.href` rather than a
-      // link click: the member has already consented by opening the app, and
-      // a second "do you want to open yarnnn?" step is friction with no
-      // decision in it. The browser still asks its own confirmation the first
-      // time, which is the OS's to ask, not ours.
-      window.location.href = `yarnnn://auth/session?refresh_token=${encodeURIComponent(
-        session.refresh_token,
-      )}`;
-      setPhase('done');
+      api.desktop
+        .handoff()
+        .then(({ token_hash }) => {
+          if (!active) return;
+          // The app is listening for this scheme. `location.href` rather than
+          // a link click: the member has already consented by opening the
+          // app, and a second "do you want to open yarnnn?" step is friction
+          // with no decision in it. The browser still asks its own
+          // confirmation the first time, which is the OS's to ask, not ours.
+          window.location.href = `yarnnn://auth/session?token_hash=${encodeURIComponent(token_hash)}`;
+          setPhase('done');
+        })
+        .catch(() => active && setPhase('failed'));
     });
 
     return () => {
@@ -83,7 +89,11 @@ function DesktopHandoffBody() {
     <div className="min-h-screen flex items-center justify-center bg-background px-6">
       <div className="text-center max-w-sm">
         <h1 className="mb-6"><Wordmark className="text-2xl" /></h1>
-        {phase === 'done' ? (
+        {phase === 'failed' ? (
+          <p className="text-sm text-muted-foreground">
+            Couldn&rsquo;t sign the app in just now. Reload this page to try again.
+          </p>
+        ) : phase === 'done' ? (
           <>
             <p className="text-base">You&rsquo;re signed in.</p>
             <p className="mt-2 text-sm text-muted-foreground">

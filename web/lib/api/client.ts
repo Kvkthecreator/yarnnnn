@@ -1799,6 +1799,12 @@ export const api = {
   // ADR-656 → ADR-658 → ADR-666 D8 — the Supervisor app's read door for its
   // ONE composed band: the mentions half of needs-you. The roster reads
   // `standing.list`, the runs `runs.list` — each the ONE reader of its ledger.
+  // ADR-661 §7r — a one-time code the desktop app redeems for a session of its
+  // own. Asked by the browser on /auth/desktop; never the browser's own token.
+  desktop: {
+    handoff: () => request<{ token_hash: string }>("/api/desktop/handoff", { method: "POST" }),
+  },
+
   supervisor: {
     state: () =>
       request<{

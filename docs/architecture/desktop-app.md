@@ -103,12 +103,13 @@ completes only in the context that began it, and a native window has none of a m
 passkeys or Google session (Google also blocks sign-in inside embedded windows).
 
 1. `DesktopSignIn` → `openExternal("https://www.yarnnn.com/auth/desktop")` opens the member's browser.
-2. `/auth/desktop` signs the member in with the website's ordinary flow, then navigates to
-   `yarnnn://auth/session?refresh_token=…`.
+2. `/auth/desktop` signs the member in with the website's ordinary flow, asks `POST /api/desktop/handoff`
+   (`api/routes/desktop.py`) for a ONE-TIME sign-in code, and navigates to `yarnnn://auth/session?token_hash=…`.
 3. The OS hands that URL to the running app — natively on macOS; on Windows through the single-instance plugin,
    which forwards a second launch to the first.
-4. The host emits a `deep-link` event; `DeepLinkBridge` calls `refreshSession({ refresh_token })`. The session
-   lands in the website's own cookie, exactly as a browser sign-in would, and the app routes to `/desktop`.
+4. The host emits a `deep-link` event; `DeepLinkBridge` redeems the code with `verifyOtp`. The app gets a session
+   of its OWN — never the browser's refresh token, which made two holders of one session and signed out whichever
+   fell behind (ADR-661 §7r). It lands in the website's cookie, and the app routes to `/desktop`.
 
 A failure comes back to `/auth/login?error=…&message=…` and is shown in words (ADR-661 §7h). There is no
 `yarnnn://auth/callback`: nothing in the app starts an auth flow.
