@@ -278,7 +278,7 @@ site, where every declaration on that site, every member and — exported — ev
 | F9 — the timeout receipt names the browser, not the desktop app | `services/client_tools.py` (`no_answer`) | gated; arm proven RED by restoring the old words |
 | D4 — `url` on every step | `extension/background.js` (`back` says where it went; a refusal carries the tab's address), `lane_runner` receipt frame, `runs.render_record`, `routes/runs.RunOut` | **driven** — `extension/e2e/run.mjs` *each act says where the tab was when it ended*; gated through the real lane loop |
 | D8 — the scope holds at the executor | `lane_runner` (`sites` on the frame), `web/lib/shell/hands.ts`, `extension/policy.js::withinScope`, `background.js::gate`, extension **0.1.2** | **driven** — e2e in Chrome for Testing 29/29 with four new arms; falsified in place (`withinScope` stubbed → two arms RED); gated |
-| D7 — the `runs` verb | `mcp_scopes.VERB_SCOPES`, `mcp_composition.compose_runs` (+ `_portable_run`, `_portable_step`), `mcp_server/server.py` (roster, tool, output schema); every published copy of the roster: `docs/features/mcp/{tool-contracts,README,CONNECTING}.md`, `SERVICE-MODEL.md`, `docs/gitbook/{api-reference/mcp-tools,integrations/mcp-connector}.md`, `web/lib/openapi.ts`, the developers hub and both catalogs; the read tier's consent sentence | gated — ADR-563 16/16, ADR-543 7/7, the gitbook roster arms; **not driven** against a live MCP host (the local venv cannot import `mcp`) |
+| D7 — the `runs` verb | `mcp_scopes.VERB_SCOPES`, `mcp_composition.compose_runs` (+ `_portable_run`, `_portable_step`), `mcp_server/server.py` (roster, tool, output schema); every published copy of the roster: `docs/features/mcp/{tool-contracts,README,CONNECTING}.md`, `SERVICE-MODEL.md`, `docs/gitbook/{api-reference/mcp-tools,integrations/mcp-connector}.md`, `web/lib/openapi.ts`, the developers hub and both catalogs; the read tier's consent sentence | gated — ADR-563 16/16, ADR-543 7/7, the gitbook roster arms; **driven** on the live MCP server 2026-09-25 08:11Z from claude.ai: `whoami` lists `runs` and words the read tier with it; `runs(limit=3)` returned three of the operator's own browser runs (x.com, medium.com) in the portable shape, `url` on every step |
 | ADR-666 §3, `local-hands.md`, SCHEMA-NOTES, the handoff | the owed extension-side check is closed; the step's `url` recorded | — |
 
 ## 8. What waits on the ruling (Accepted →)
@@ -316,5 +316,6 @@ glossary entry exist; and §8 against the Status line.
 run's sites goes through; an open outside them is refused as `outside`, naming the site, with no consent
 question; an act on a tab that has left the run's sites is refused where the tab is, with its address; a chat turn
 is not scoped; each act says where the tab was when it ended. **Not driven**: a real run on production in a Chrome
-holding 0.1.2 (the operator's own Chrome, the same trace ADR-662's ratification used), and the `runs` verb against
-a live MCP host — both owed in `docs/SESSION-HANDOFF.md`.
+holding 0.1.2 (the operator's own Chrome, the same trace ADR-662's ratification used) — owed in
+`docs/SESSION-HANDOFF.md`. **Driven since**: the `runs` verb on the live MCP server (§7), which also showed D4's
+`url` on every step of the operator's own production runs of 08:04–08:09Z that day.

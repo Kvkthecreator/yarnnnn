@@ -16,10 +16,14 @@ Set up in conversation since ADR-667; the band now names whose browser (closed).
   step). Its gate reads the Status line and holds the matching state.
 - **Drive extension 0.1.2 on production** in a Chrome holding it (the operator's own): a declared run whose page
   follows a link off its `sites` must read an `outside` step with the tab's address. Chrome for Testing e2e is
-  29/29; the production trace is owed. And the `runs` MCP verb against a live host (the local venv cannot import
-  `mcp`, Python 3.9).
+  29/29; the production trace is owed. (The `runs` MCP verb was driven on the live host 2026-09-25 08:11Z.)
 - **The desktop relay drops a run's `sites`** (host ≤0.4.3 does not declare the argument): one line in
   `src-tauri/src/hands/mod.rs::browser_act` with the next host cut — no Rust toolchain on the writing machine.
+- **A deploy leaves an in-flight browser run `running` forever.** The turn's pending acts live in the API process
+  (ADR-662 D6); a restart ends the turn and nothing ever calls `finish_run`. Two rows today: `34512742` (x.com,
+  08:09Z, cut by the ADR-669 deploy) and `33564e12` (02:37Z, cut by the ADR-668 deploys). The member can press
+  Stop on each in the run tray. Owed: on API startup, close every `running` browser run — a single-instance
+  restart means no turn can be alive — as `failed` with a named outcome (`turn_lost`), so the tray tells the truth.
 - **A roster row lags its run** (driven 2026-09-24, pre-existing): a row read while its first run was going kept
   "Working now…" after the run finished — Recently (the run ledger, realtime) already said Done. Rows re-read with
   the roster, not with the runs; re-read the roster when a topic run ends (`SupervisorSurface`, `useRuns`).

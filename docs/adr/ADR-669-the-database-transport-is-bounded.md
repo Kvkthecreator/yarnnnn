@@ -131,5 +131,16 @@ Proven before landing, read-only against production: a client built with the opt
 
 ## 7. Verified on Render (2026-09-25)
 
-Filled in by the deploying session after the three services went live — see the ledger row and the commit that
-closes this section.
+`3d9fc0d` deployed on push (08:07:59Z): the API `dep-dar2no0ae00c73e1m7ag` live 08:09:47Z (instance `mml9z`; the old
+`tlzhb` shut down 08:10:46Z), the scheduler `dep-dar2nogae00c73e1m8gg` live 08:08:59Z, the MCP server
+`dep-dar2no0ae00c73e1m890` live 08:09:49Z (instance `tb6ss`).
+
+| Service | Receipt |
+|---|---|
+| `yarnnn-api` | every Supabase call on `mml9z` logs `HTTP/1.1 200 OK` (the previous instance's lines read `HTTP/2`); the shell's polls, the runs reads and the mentions scan all answered; root TTFB 0.22–0.30 s from Seoul |
+| `yarnnn-unified-scheduler` | the 08:09:39Z tick on `t2z7c` — every workspace's skills and agents manifests, discovery, the drain — all `HTTP/1.1 200 OK`; `[SCHED] tick complete` 08:09:40Z |
+| `yarnnn-mcp-server` | `tb6ss`: the reconnecting client's token and workspace lookups over `HTTP/1.1 200 OK`; `whoami` answered (binding `chosen`, the read tier's sentence naming `runs`); `runs(limit=3)` answered three of the operator's browser runs with their steps |
+
+⚠️ A deploy restarts the API, and the API holds an in-flight browser turn's pending acts in memory (ADR-662 D6):
+the operator's chat run `34512742` (x.com, started 08:09:12Z) was in flight when `tlzhb` shut down. That hazard
+predates this ADR (the handoff's item 6 records the first instance, `13af65c`) and is unchanged by it.
