@@ -107,15 +107,19 @@ words. The model never writes script: an act is `page.js` plus one call with JSO
 - **Windows** is owed: its native messaging is a registry key and a named pipe. Until then the Windows app says
   it cannot reach Chrome.
 
-## 5. Trying it before it is published
+## 5. Installing it before the listing is approved
 
-1. `chrome://extensions` → turn on *Developer mode* → *Load unpacked* → choose the repo's `extension/` folder.
-2. Open yarnnn in that Chrome — or the desktop app (host 0.4.0+), with Chrome running. Settings → Your browser
-   says *On — the yarnnn extension … in Chrome*.
-3. Ask for something on a website in a conversation. The first time on each site, the extension asks.
+ADR-662 is Accepted (2026-09-25), so a member may install the extension. Until the Chrome Web Store approves the
+listing, Settings → Your browser offers the manual install (ADR-664 Amendment 2):
 
-Publishing waits on ADR-662's ratification: ADR-661's tripwire refuses a `storeUrl` while ADR-662 is Proposed. (A
-desktop download carries no hands of its own — the host only relays — so it is not held back.)
+1. *Download the extension* — `www.yarnnn.com/download/chrome-extension`, the zip `scripts/package-extension.sh
+   manual` publishes (it keeps the manifest's `key`, so the id is the one the website addresses).
+2. Unzip it; in Chrome open `chrome://extensions`, turn on *Developer mode*, *Load unpacked* → the unzipped folder.
+3. Back in yarnnn — in Chrome, or the desktop app (host 0.4.0+) with Chrome running — the row says *On*.
+
+A developer can still load the repo's `extension/` folder directly. After changing `extension/`, re-run
+`scripts/package-extension.sh manual` so the download matches. When the listing is approved, set
+`CHROME_EXTENSION.storeUrl`: every surface switches to *Add to Chrome*, and the public site names the browser.
 
 ## 6. Changing it
 

@@ -1,6 +1,13 @@
 # ADR-662 — Local hands: the agent works in an app while the member keeps the machine
 
-> **Status**: **Proposed** (2026-09-23 — NOT ratified). The implementation ADR that ADR-661 §5.4 and §8 step 6
+> **Status**: **Accepted** (2026-09-25, operator — on offering the extension while the Web Store reviews it: *"i
+> simply want it to be accomodative and useable"*, then choosing "Accept + manual install"). The evidence standard
+> §7 step 6 set was met on 2026-09-23 and recorded in `docs/SESSION-HANDOFF.md`: the WEB trace (the operator's own
+> Chrome, extension loaded unpacked, a real turn posting on X, 6 receipts) and the DESKTOP trace (host 0.4.1, the
+> same post relayed app → bridge → extension, 7 receipts). Acceptance retires ADR-661's §6.4 tripwire: a member may
+> now install the extension — by hand from Settings → Your browser until the listing is approved (ADR-664
+> Amendment 2), from the Chrome Web Store after. Windows native messaging (the desktop app's relay on Windows) is
+> still owed; Chrome on Windows works from the website. Was: **Proposed** (2026-09-23 — NOT ratified). The implementation ADR that ADR-661 §5.4 and §8 step 6
 > require, carrying §6's four conditions at birth. **Amendment 1 (2026-09-23, operator: *"aligned in full"*)**:
 > the browser pane comes first (**D14**) — BUILT (host 0.3.0). **Amendment 2 (2026-09-23, operator: *"most user
 > convenient, and long standing future proof … aligned in full"*)**: the member's OWN Chrome, through a yarnnn

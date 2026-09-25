@@ -162,9 +162,32 @@ for rel, key in (("web/components/marketing/LandingPageBody.tsx", "browserLine")
 for lang in ("en", "ko"):
     _cat = _json.loads(read(f"web/messages/{lang}.json"))
     check(f"{lang}: the browser's words exist, and the desktop pane holds none",
-          all(k in _cat["extension"] for k in ("add", "notYet"))
+          all(k in _cat["extension"] for k in ("add", "install")) and "notYet" not in _cat["extension"]
+          and all(_cat["settings"]["browser"].get("manual", {}).get(k)
+                  for k in ("intro", "download", "unzip", "openExtensions", "loadUnpacked", "after"))
+          and "<url></url>" in _cat["settings"]["browser"]["manual"]["openExtensions"]
           and "browser" in _cat["settings"] and "browser" not in _cat["settings"]["desktop"]
           and all(_cat["marketing"]["faq"]["q"]["browser"].get(k) for k in ("q", "a")))
+
+# Amendment 2 — ADR-662 Accepted: a member may install it before the listing.
+print("\nAmendment 2 — installable by hand while the Web Store reviews it")
+_adr662 = next((API.parent / "docs" / "adr").glob("ADR-662-*.md")).read_text(encoding="utf-8")[:1500]
+check("ADR-662 is Accepted — a member may receive the extension",
+      re.search(r"\*\*Status\*\*:\s*\*\*Accepted", _adr662) is not None)
+check("without a listing, the install action leads to the manual install, never a dead end",
+      re.search(r"if \(!CHROME_EXTENSION\.storeUrl\) \{\s*return \(\s*<Link href=\{INSTALL_BY_HAND\}", _add) is not None
+      and 'INSTALL_BY_HAND = "/settings?settings.pane=browser"' in _add and "notYet" not in _add)
+_bs = read("web/components/settings/BrowserSetting.tsx")
+check("the pane offers the zip and its steps while there is no listing",
+      "{!connected && !hostTooOld && !EXTENSION_PUBLISHED && <InstallByHand />}" in _bs
+      and "href={EXTENSION_DOWNLOAD_PATH}" in _bs and 'window.addEventListener("focus", read)' in _bs)
+_dl = read("web/lib/shell/desktop-app.ts")
+check("the zip has one home and our own address",
+      re.search(r'EXTENSION_DOWNLOAD =\s*"https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/desktop-releases/yarnnn-chrome-extension\.zip"', _dl) is not None
+      and re.search(r"NextResponse\.redirect\(EXTENSION_DOWNLOAD, 302\)", read("web/app/download/chrome-extension/route.ts")) is not None)
+_pkg = read("scripts/package-extension.sh")
+check("the manual zip keeps the manifest's key (the id the website addresses)",
+      'if mode == "store":\n    m.pop("key", None)' in _pkg and "the manual zip needs the manifest's key" in _pkg)
 
 print(f"\n  {PASS} passed, {FAIL} failed\n")
 if FAIL:

@@ -94,7 +94,15 @@
       "declined": "Still off — you can turn it on here any time; Chrome asks you to confirm.",
       "subtitle": "Your agent can work in your own Chrome — from yarnnn on the web, or from the desktop app.",
       "extensionMissing": "Add the yarnnn extension to Chrome and your agent can work in your own Chrome — with your sign-ins, in its own tabs, asking once per site.",
-      "desktopKeepOpen": "In the desktop app, keep Chrome open."
+      "desktopKeepOpen": "In the desktop app, keep Chrome open.",
+      "manual": {
+        "intro": "The Chrome Web Store is still reviewing it. Until then, install it by hand — it takes a minute.",
+        "download": "Download the extension",
+        "unzip": "Unzip the file you downloaded.",
+        "openExtensions": "In Chrome, open <url></url> and turn on Developer mode (top right).",
+        "loadUnpacked": "Click Load unpacked and choose the folder you unzipped.",
+        "after": "Come back here and it connects. Once it’s on the Chrome Web Store, you can switch to that version."
+      }
     }
   },
   "auth": {
@@ -3489,6 +3497,6 @@
   },
   "extension": {
     "add": "Add to Chrome",
-    "notYet": "The extension is on its way to the Chrome Web Store."
+    "install": "Install"
   }
 }

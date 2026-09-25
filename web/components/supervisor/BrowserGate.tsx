@@ -12,8 +12,8 @@
  * on nothing (the unattended kind, which needs no browser).
  *
  * ⚠️ THE SWITCH IS `storeUrl`, not the app stage — held in the one install
- * action (`AddToChrome`), which names the extension without a link it cannot
- * honestly offer until the Web Store listing exists.
+ * action (`AddToChrome`): the store listing once it exists, and until then
+ * Settings → Your browser, where the manual install is.
  *
  * "Continue without it" is a per-viewer convenience, remembered in this
  * browser only; storage that throws (private window) just forgets it.
@@ -90,7 +90,6 @@ export function BrowserGate({ children }: { children: ReactNode }) {
           <span className="text-xs text-muted-foreground">{t('updateApp')}</span>
         ) : (
           <AddToChrome
-            fallback
             className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90"
           />
         )}

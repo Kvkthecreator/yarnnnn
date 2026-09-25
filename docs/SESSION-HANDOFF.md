@@ -185,9 +185,11 @@ thing: `src-tauri/Cargo.toml` (0.2.0), tag `desktop-vX.Y.Z` per handed-out build
    with the bridge attached (reproduced with a transient socket client; Rust test proven RED). **DESKTOP TRACE (2026-09-23 10:54Z,
    host 0.4.1)**: from the operator's own app chat, "access x twitter and post" → `client_tools` offered (5)
    → relay → bridge → extension → posted as @yarnnn___; 7 receipts on the reply. Owed, in order: (b) Windows native messaging (a registry key + a named pipe; today the
-   Windows app refuses in words); (c) ratify ADR-662 (retires ADR-661's tripwire, which now watches only
-   the extension's listing), then publish the extension (Chrome Web Store account + review) and set
-   `CHROME_EXTENSION.storeUrl`; (d) **ADR-665 (browser workflows) awaits the operator's ruling** — its
+   Windows app refuses in words); (c) ADR-662 RATIFIED 2026-09-25 (tripwire retired); members install by hand
+   from Settings → Your browser (the zip, ADR-664 am.2). When the Web Store approves: set
+   `CHROME_EXTENSION.storeUrl` AND add words telling hand-installed members to remove the unpacked copy first
+   (Chrome won't install the store copy over it, and it never self-updates); re-run `scripts/package-extension.sh
+   manual` after any `extension/` change until then; (d) **ADR-665 (browser workflows) awaits the operator's ruling** — its
    three open questions (§6) decide the first build.
 7. ⚠️ **A long-running desktop app keeps the website it loaded** (found 2026-09-23, receipt: Render
    `[LANE] client=desktop/0.4.0 executor=None requested=None` at 07:23Z). The app opened at 06:08Z; the

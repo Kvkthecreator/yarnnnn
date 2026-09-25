@@ -1,6 +1,7 @@
 # ADR-664 — The member's browser is reach
 
 > **Amended** — [Amendment 1](#amendment-1-2026-09-24--the-browser-is-not-a-desktop-feature) (2026-09-24): the browser
+> **Amended** — Amendment 2 (2026-09-25): installable by hand while the Web Store reviews it (D10).
 > has its own Settings pane, one install action, and the public site names it once it can be installed.
 >
 > **Status**: **Accepted** (2026-09-23, operator: *"yes this should be first class. proceed"*). Implemented with
@@ -99,3 +100,33 @@ Setting the store link turns on the install buttons and the public words togethe
 promises what only developer mode can install.
 
 Gate: this ADR's gate, 15 new arms; 8 proven RED in place.
+
+## Amendment 2 (2026-09-25) — installable by hand while the Web Store reviews it
+
+Operator, on Settings → Your browser reading *"The extension is on its way to the Chrome Web Store"* with nothing to
+do: *"this current posture … makes it seem like its not available. is that intentional? … we do have the manual
+unpacking style zip already as well. and lastly, i simply want it to be accomodative and useable"* — then choosing to
+ratify ADR-662 and offer the manual install. It was intentional: ADR-661's tripwire refused a member receiving the
+extension while ADR-662 was Proposed, and D8's "not yet" line was that refusal in words. ADR-662 is now **Accepted**
+(its driven traces, web and desktop, were on record since 2026-09-23), which retires the tripwire.
+
+**D10 — Until the listing, the member installs it by hand, from one place.** Settings → Your browser, not connected
+and no listing: *Download the extension* (our `/download/chrome-extension` → the zip in the `desktop-releases`
+bucket, `EXTENSION_DOWNLOAD` in `lib/shell/desktop-app.ts`, migration 265) and the three steps Chrome needs — unzip,
+`chrome://extensions` + Developer mode (a copy button: a web page cannot link there), Load unpacked. Coming back to
+the window re-checks, so the row says *on* without a reload. In the desktop app the download opens in the browser.
+The zip is built and published by `scripts/package-extension.sh manual`, which KEEPS the manifest's `key` — the
+store upload strips it — so the hand-loaded extension has the id the website and the desktop app address
+(`apafdkhjahbjdmlfmpdgmjfbanmchoae`, derived from the published zip's key and checked).
+
+**D8 revised.** `AddToChrome` has no "not yet" line any more (`extension.notYet` deleted): with no listing it is
+**Install**, leading to that pane; with one, **Add to Chrome**. Reach and the Supervisor's browser step render it.
+
+**D9 stands.** The public site still names the browser only once `EXTENSION_PUBLISHED`: a member signed in to
+yarnnn is shown the manual path; a stranger is never sent to developer mode.
+
+⚠️ **Owed when the listing is approved**: a hand-loaded copy does not update itself, and Chrome will not install
+the store copy over an unpacked one with the same id. Setting `storeUrl` must come with words for members who
+installed by hand (remove it, then Add to Chrome).
+
+Gate: this ADR's gate 25 → 30 (catalog arm revised; 5 new arms), each proven RED in place.

@@ -59,6 +59,16 @@ export const DESKTOP_DOWNLOADS: Record<DesktopPlatform, string | null> = {
   windows: "https://noxgqcwynkzqabljjyon.supabase.co/storage/v1/object/public/desktop-releases/yarnnn-windows-x64-setup.exe",
 };
 
+/** The Chrome extension's manual-install zip (ADR-664 Amendment 2) — the one way
+ *  in until the Chrome Web Store listing is approved. `scripts/package-extension.sh
+ *  manual` builds it from `extension/` KEEPING the manifest's `key` (so it has the
+ *  id the website addresses) and publishes it here. Members reach it through our
+ *  own `EXTENSION_DOWNLOAD_PATH`, never this URL, for the reason the desktop
+ *  downloads do: the file can move. */
+export const EXTENSION_DOWNLOAD =
+  "https://noxgqcwynkzqabljjyon.supabase.co/storage/v1/object/public/desktop-releases/yarnnn-chrome-extension.zip";
+export const EXTENSION_DOWNLOAD_PATH = "/download/chrome-extension";
+
 /** The host updater's manifest (ADR-663 D6) — `latest.json` in the same bucket,
  *  written LAST by the publish script, after the files it names. The host asks
  *  our own `/download/latest.json` (compiled into `tauri.conf.json` →
