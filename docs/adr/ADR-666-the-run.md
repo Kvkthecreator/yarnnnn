@@ -3,6 +3,10 @@
 > **Amended by [ADR-667](ADR-667-the-supervisor-is-set-up-in-conversation.md)** (2026-09-24): D1's member stamp holds
 > at the kernel (`browser_member_unknown`); a taken-up run keeps `trigger: scheduled` (D4); needs-you lists a waiting
 > run only for its own member, and the band names whose browser (D8).
+> **Amended by [ADR-668](ADR-668-a-website-is-a-platform-the-browser-is-its-transport.md)** (2026-09-25): §3's
+> owed extension-side scope is built — the run's `sites` ride the act and the extension refuses where the tab IS
+> (D8 there); a step carries `url` (D4 there); a run is readable over MCP by the `runs` verb (D7 there). **Proposed
+> there, awaiting the ruling**: D1's *"and how to get there"* leaves `CONTRACT.md` for a site skill (D3 there).
 >
 > **Status**: **Accepted** (2026-09-24; operator: *"yes, aligned in full … ensure singular streamlined discipline
 > with code and docs, scoping in deletion and clean-up of code where warranted"*). Implemented with this
@@ -82,7 +86,7 @@ Everything else is the declaration ADR-639 already runs: the kept file, the sche
 | `state` | `queued` · `running` · `waiting` · `done` · `failed` · `stopped` |
 | `waiting_on` | why it waits — today only `{"kind": "member"}`: due, and waiting for its member to run it |
 | `outcome` | on `done`: `wrote` · `no_change` · `skipped`; on `failed`: the reason |
-| `steps` | the acts, each the receipt ADR-662 D3 made — `{name, text, ok, record}` — plus `at` |
+| `steps` | the acts, each the receipt ADR-662 D3 made — `{name, text, ok, record}` — plus `at`, and `url` — where the tab was when the act ended (ADR-668 D4) |
 | `revision_id` | what it wrote to the kept file — stored, never joined by time |
 | `record_path` | its record file (D3) |
 
@@ -160,8 +164,9 @@ and on open the live runs in `RunView`, linking to the Supervisor. It is absent 
   the analysis above).
 - Queue consequential acts for approval — attended acts are immediate (ADR-662 D5; the queue is for absence,
   ADR-307 D3).
-- Scope a site after the page is open. A link the agent follows off the list is not refused — the step names the
-  site, so it is visible. The extension-side check is owed with the next extension release.
+- ~~Scope a site after the page is open.~~ **Closed by ADR-668 D8** (2026-09-25, extension 0.1.2): the run's
+  `sites` ride the act, and the extension refuses where the tab IS — a link followed off the list is refused
+  as `outside`, with the tab's address. The server still refuses what `BrowserOpen` names.
 - Add a way to show the agent's tab from yarnnn ("show me the tab") — also an extension release.
 
 ## 4. Why a run is not a task
@@ -223,8 +228,8 @@ how often a run stalls, and how often a sign-in stops it.
 | `web/components/supervisor/*` | the cockpit by run state; the detail's runs, sites and conversation (`WorkConversation`); the browser door and start |
 | `web/components/chat-surface/LanePanel.tsx` | `startRunId` — performs a started run through regenerate |
 
-**Owed** (`docs/SESSION-HANDOFF.md`): the extension-side site check and "show me the tab" (an extension
-release); a real browser run driven end to end in a Chrome holding the published extension; §8.
+**Owed** (`docs/SESSION-HANDOFF.md`): "show me the tab" (an extension release; the extension-side site check
+landed with ADR-668 D8); a real browser run driven end to end in a Chrome holding the published extension; §8.
 
 ## 10. Driven on production (2026-09-24)
 

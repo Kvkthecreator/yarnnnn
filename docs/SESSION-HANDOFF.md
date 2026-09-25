@@ -9,17 +9,25 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 ## The Supervisor — what stays OPEN (ADR-666 · ADR-667, 2026-09-24)
 
 Set up in conversation since ADR-667; the band now names whose browser (closed). Still owed:
-- **The operator**: ratify ADR-662 (one run in your own Chrome — ADR-666 §10 used Chrome for Testing), then set
-  `CHROME_EXTENSION.storeUrl` (`web/lib/shell/hands.ts`) once the Web Store review clears. Until then the
-  Supervisor's install step names the extension with no link.
+- **The operator**: set `CHROME_EXTENSION.storeUrl` (`web/lib/shell/hands.ts`) once the Web Store review clears,
+  with words for hand-installed members (ADR-664 am.2); ADR-662 was ratified 2026-09-25.
+- **The operator — ADR-668's ruling** (Proposed 2026-09-25: a website is a platform; the browser is its transport).
+  On Accepted, §8 there lists what is built next (the site skill, the offer, the derived roster, `args` on the
+  step). Its gate reads the Status line and holds the matching state.
+- **Drive extension 0.1.2 on production** in a Chrome holding it (the operator's own): a declared run whose page
+  follows a link off its `sites` must read an `outside` step with the tab's address. Chrome for Testing e2e is
+  29/29; the production trace is owed. And the `runs` MCP verb against a live host (the local venv cannot import
+  `mcp`, Python 3.9).
+- **The desktop relay drops a run's `sites`** (host ≤0.4.3 does not declare the argument): one line in
+  `src-tauri/src/hands/mod.rs::browser_act` with the next host cut — no Rust toolchain on the writing machine.
 - **A roster row lags its run** (driven 2026-09-24, pre-existing): a row read while its first run was going kept
   "Working now…" after the run finished — Recently (the run ledger, realtime) already said Done. Rows re-read with
   the roster, not with the runs; re-read the roster when a topic run ends (`SupervisorSurface`, `useRuns`).
 - **A row's two clocks**: "Every Monday at 09:00" is the workspace's (UTC) beside "next …, 6:00 PM" in the viewer's.
 - **A second member SEEING another's run** (not live — the stream was always the member's own). RLS was probed,
   never driven with two members. Rig pair per the operator packet; one browser context per principal.
-- **The extension release** (after the Web Store listing): the site check inside the extension (a link followed
-  off the sites is not refused today — the step names it) and "show me the tab".
+- **The extension release** (after the Web Store listing): "show me the tab". (The site check inside the extension
+  landed with ADR-668 D8, extension 0.1.2.)
 - **ADR-666 §8 — unattended browser work** (ADR-665's option B): not ruled. Needs the extension's own connection
   and the pending act in shared state instead of `client_tools._TURNS`. Measure first: how often runs stall, and
   how often a sign-in stops one.

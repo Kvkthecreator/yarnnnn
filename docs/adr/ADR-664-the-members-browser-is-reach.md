@@ -53,7 +53,9 @@ once they add the yarnnn extension to Chrome — so the answer to "post on X" is
 
 **D4 — The tools section claims no reach.** It says what the tools are and that reach is stated below.
 
-**D5 — `list_integrations` names websites.** Its result carries `websites`: a website needs no connection; the
+**D5 — `list_integrations` names websites.** *Proposed amendment — [ADR-668](ADR-668-a-website-is-a-platform-the-browser-is-its-transport.md)
+D5: `websites` and the reach section name the sites the workspace works on, derived from its declarations and site
+skills, beside "any".* Its result carries `websites`: a website needs no connection; the
 Browser tools act there when held, and the extension provides them when not. Its description no longer says
 "you cannot".
 

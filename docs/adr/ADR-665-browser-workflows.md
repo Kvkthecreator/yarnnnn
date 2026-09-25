@@ -6,6 +6,11 @@
 > with `CONTRACT.md` load-bearing and a `browser` key (ADR-666 D1); `runs.md` became one record file per run
 > (D3) and a `runs` row (D2). Option B (§3, unattended) is NOT ruled — ADR-666 §8 carries it with its facts.
 >
+> **Correction ([ADR-668](ADR-668-a-website-is-a-platform-the-browser-is-its-transport.md) D6, 2026-09-25)**: §3's
+> *"the extension already names them per act"* was **false when written** — no act is classed consequential;
+> `record.act` is opened · read · pressed · filled · back · failed · refused (`extension/background.js`). The act
+> aperture is named there as ADR-666 §8's precondition, declared per site and floored at the executor.
+>
 > Original status: **Proposed** (2026-09-23, draft for operator review). The operator set the direction — *"a
 > dedicated surface, app (much like a supervisor agent and app 2.0) wherein, file system native with browser use
 > can really open up potentially infinite amount of workflows and automations"* — and agreed option B (§3) as the

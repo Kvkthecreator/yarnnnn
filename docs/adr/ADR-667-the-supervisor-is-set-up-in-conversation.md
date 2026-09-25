@@ -49,7 +49,9 @@ artifact), found or created by the pane. A member says what keeps happening; the
 door is **deleted**. The pre-shaped starts (ADR-658 D7, `GET /api/standing/starts`, unchanged) become the
 conversation's opening suggestions.
 
-**Setup by doing.** For work on websites the agent does the task once, now, in the member's browser — an
+**Setup by doing.** *([ADR-668](ADR-668-a-website-is-a-platform-the-browser-is-its-transport.md) D3, proposed:
+the second half — after the trial, also offer to remember how the site works, a site skill written from the
+run's steps.)* For work on websites the agent does the task once, now, in the member's browser — an
 ordinary chat run (ADR-666 D5), receipted and visible to the workspace — and then offers to keep doing it,
 declaring what it just did: the sites it used, the file it kept, the contract written from the steps. A run done
 in chat is the thing a member declares (ADR-666 D5, ADR-231's graduation) — now the path, not a possibility.

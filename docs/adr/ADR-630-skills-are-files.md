@@ -47,6 +47,8 @@
 > craft by alphabetical accident (§3b's promise: narrowing the open surface
 > hides work that has no other door).
 
+> **Proposed amendment (2026-09-25) — [ADR-668](ADR-668-a-website-is-a-platform-the-browser-is-its-transport.md) D2.** A third scoping key beside `apps` and `needs`: **`metadata.sites`** names the hosts a skill is for — a **site skill**, `skills/sites/{host}/SKILL.md`, the workspace's craft for one website (where things are, what buttons mean, what is consequential there), offered when a turn's declared `sites` or the page's host meets one. Silence means not a site skill. Waits on the ruling; nothing parses the key until then.
+>
 > **Amended 2026-09-03 by [ADR-635](ADR-635-the-connector-directory-is-consumed-and-reach-attaches-under-the-members-grant.md) D7.** Two additions to D3's scoping. **`metadata.needs`** names the connector CATEGORIES a skill reads through — the ecosystem's `~~category` placeholder (the knowledge-work plugins' `CONNECTORS.md`) as a declaration: offered when the member holds an **attached connector** of one of them, withheld-and-counted otherwise, silence = no need. A public skill written for "a project tracker" drops into `skills/` unchanged. **The strip is named**: `parse_skill` always dropped host-specific frontmatter (`allowed-tools`, `model`, `tools`, `argument-hint`…) silently; it now returns them as `stripped` and logs them, so an import says what it lost. Prose was never permission (ADR-464 §3); now the discard is visible.
 
 > **Amended 2026-09-04 — D6's "unmeasured prose" is now MEASURED, and the answer splits the set.**
