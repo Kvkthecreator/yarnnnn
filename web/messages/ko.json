@@ -89,8 +89,8 @@
     "browser": {
       "title": "에이전트가 내 브라우저를 쓰게 하기",
       "update": "에이전트가 내 브라우저를 쓰게 하려면 데스크톱 앱을 업데이트하세요.",
-      "extensionConnected": "켜짐 — Chrome의 yarnnn 확장 프로그램 {version}. 에이전트는 로그인된 상태 그대로 자기 탭에서 일하고, 사이트마다 한 번씩 물어봐요. 사이트 관리는 Chrome 도구 모음의 yarnnn 버튼에서 해요.",
-      "extensionOff": "꺼짐 — yarnnn 확장 프로그램 {version}은 연결돼 있지만, 켜기 전에는 에이전트가 Chrome을 쓰지 않아요. 켜면 Chrome에서 확인을 물어봐요.",
+      "extensionConnected": "에이전트는 로그인된 상태 그대로 Chrome의 자기 탭에서 일하고, 사이트마다 한 번씩 물어봐요. 사이트 관리는 Chrome 도구 모음의 yarnnn 버튼에서 해요.",
+      "extensionOff": "켜기 전에는 에이전트가 Chrome을 쓰지 않아요. 켜면 Chrome에서 확인을 물어봐요.",
       "declined": "아직 꺼져 있어요 — 언제든 여기서 켤 수 있고, Chrome에서 확인을 물어봐요.",
       "subtitle": "웹의 yarnnn에서도, 데스크톱 앱에서도 에이전트가 내 Chrome에서 일할 수 있어요.",
       "extensionMissing": "Chrome에 yarnnn 확장 프로그램을 추가하면 에이전트가 내 Chrome에서 일할 수 있어요 — 로그인된 상태 그대로, 자기 탭에서, 사이트마다 한 번씩 물어보면서요.",
@@ -102,7 +102,15 @@
         "openExtensions": "Chrome에서 <url></url>를 열고 오른쪽 위의 개발자 모드를 켜요.",
         "loadUnpacked": "‘압축해제된 확장 프로그램을 로드합니다’를 누르고 그 폴더를 선택해요(.zip 파일이 아니라 폴더예요).",
         "after": "이 화면으로 돌아오면 연결돼요. Chrome 웹 스토어에 올라가면 그 버전으로 바꿔 쓸 수 있어요."
-      }
+      },
+      "status": {
+        "on": "연결됨",
+        "off": "설치됨 · 꺼짐",
+        "missing": "설치 안 됨",
+        "notConnected": "연결 안 됨",
+        "update": "업데이트 필요"
+      },
+      "version": "확장 프로그램 {version}"
     }
   },
   "auth": {

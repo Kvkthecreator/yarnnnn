@@ -24,6 +24,8 @@ import { isNativeShell, openExternal, webOrigin } from "@/lib/shell/external-nav
 import { AddToChrome, EXTENSION_PUBLISHED } from "@/components/shared/AddToChrome";
 import { EXTENSION_DOWNLOAD_PATH } from "@/lib/shell/desktop-app";
 
+type StatusKey = "status.on" | "status.off" | "status.missing" | "status.notConnected" | "status.update";
+
 export function BrowserSetting() {
   const t = useTranslations("settings.browser");
   const [hands, setHands] = useState<BrowserHands | null>(null);
@@ -48,13 +50,23 @@ export function BrowserSetting() {
   const hostTooOld = hands.executor === null && "hostTooOld" in hands && hands.hostTooOld;
   const connected = hands.executor !== null && hands.connected;
   const version = "version" in hands && hands.version ? hands.version : "";
+  // The state first, in two words and a colour; the sentence under it explains.
+  // Not connected in the desktop app most often means Chrome is closed (the app
+  // reaches the extension through it), so it is not called "not installed".
+  const status: { key: StatusKey; dot: string } = hostTooOld
+    ? { key: "status.update", dot: "bg-amber-500" }
+    : !connected
+      ? { key: isNativeShell() ? "status.notConnected" : "status.missing", dot: "bg-muted-foreground/40" }
+      : hands.on
+        ? { key: "status.on", dot: "bg-emerald-500" }
+        : { key: "status.off", dot: "bg-amber-500" };
   const body = hostTooOld
     ? t("update")
     : !connected
       ? t("extensionMissing")
       : hands.on
-        ? t("extensionConnected", { version })
-        : t("extensionOff", { version });
+        ? t("extensionConnected")
+        : t("extensionOff");
 
   const toggle = async () => {
     setBusy(true);
@@ -73,7 +85,16 @@ export function BrowserSetting() {
           <Globe className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0">
             <p className="text-sm font-medium">{t("title")}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
+            <p role="status" className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                <span className={`h-2 w-2 rounded-full ${status.dot}`} aria-hidden />
+                {t(status.key)}
+              </span>
+              {connected && version && (
+                <span className="text-muted-foreground">{t("version", { version })}</span>
+              )}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{body}</p>
             {/* The desktop app relays to the extension over native messaging,
                 so Chrome must be running — true only there. */}
             {!connected && !hostTooOld && isNativeShell() && (

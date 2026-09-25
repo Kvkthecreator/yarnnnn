@@ -181,6 +181,10 @@ _bs = read("web/components/settings/BrowserSetting.tsx")
 check("the pane offers the zip and its steps while there is no listing",
       "{!connected && !hostTooOld && !EXTENSION_PUBLISHED && <InstallByHand />}" in _bs
       and "href={EXTENSION_DOWNLOAD_PATH}" in _bs and 'window.addEventListener("focus", read)' in _bs)
+check("the pane leads with its state — connected, installed but off, or not — before any sentence",
+      re.search(r'<p role="status"[^>]*>\s*<span[^>]*>\s*<span className=\{`h-2 w-2 rounded-full \$\{status\.dot\}`\}', _bs) is not None
+      and re.search(r'hostTooOld\s*\?\s*\{ key: "status\.update"[^}]*\}\s*:\s*!connected\s*\?\s*\{ key: isNativeShell\(\) \? "status\.notConnected" : "status\.missing"[^}]*\}\s*:\s*hands\.on\s*\?\s*\{ key: "status\.on", dot: "bg-emerald-500" \}\s*:\s*\{ key: "status\.off"', _bs) is not None
+      and _bs.find('role="status"') < _bs.find("{body}"))
 _dl = read("web/lib/shell/desktop-app.ts")
 check("the zip has one home and our own address",
       re.search(r'EXTENSION_DOWNLOAD =\s*"https://[a-z0-9]+\.supabase\.co/storage/v1/object/public/desktop-releases/yarnnn-chrome-extension\.zip"', _dl) is not None

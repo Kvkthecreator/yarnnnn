@@ -89,8 +89,8 @@
     "browser": {
       "title": "Let your agent use your browser",
       "update": "Update the desktop app to let your agent use your browser.",
-      "extensionConnected": "On — the yarnnn extension {version} in Chrome. Your agent works in its own tabs there, with your sign-ins, and asks once per site. Sites are managed from the yarnnn button in Chrome's toolbar.",
-      "extensionOff": "Off — the yarnnn extension {version} is connected, and your agent won't use Chrome until you turn it on. Turning it on asks you in Chrome.",
+      "extensionConnected": "Your agent works in its own Chrome tabs, with your sign-ins, and asks once per site. Manage sites from the yarnnn button in Chrome's toolbar.",
+      "extensionOff": "Your agent won't use Chrome until you turn this on. Chrome asks you to confirm.",
       "declined": "Still off — you can turn it on here any time; Chrome asks you to confirm.",
       "subtitle": "Your agent can work in your own Chrome — from yarnnn on the web, or from the desktop app.",
       "extensionMissing": "Add the yarnnn extension to Chrome and your agent can work in your own Chrome — with your sign-ins, in its own tabs, asking once per site.",
@@ -102,7 +102,15 @@
         "openExtensions": "In Chrome, open <url></url> and turn on Developer mode (top right).",
         "loadUnpacked": "Click Load unpacked and choose that folder (the folder, not the .zip).",
         "after": "Come back here and it connects. Once it’s on the Chrome Web Store, you can switch to that version."
-      }
+      },
+      "status": {
+        "on": "Connected",
+        "off": "Installed · off",
+        "missing": "Not installed",
+        "notConnected": "Not connected",
+        "update": "Update needed"
+      },
+      "version": "Extension {version}"
     }
   },
   "auth": {
