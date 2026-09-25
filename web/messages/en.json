@@ -98,9 +98,9 @@
       "manual": {
         "intro": "The Chrome Web Store is still reviewing it. Until then, install it by hand — it takes a minute.",
         "download": "Download the extension",
-        "unzip": "Unzip the file you downloaded.",
+        "unzip": "Double-click the downloaded file to unzip it — you get a folder named yarnnn-chrome-extension.",
         "openExtensions": "In Chrome, open <url></url> and turn on Developer mode (top right).",
-        "loadUnpacked": "Click Load unpacked and choose the folder you unzipped.",
+        "loadUnpacked": "Click Load unpacked and choose that folder (the folder, not the .zip).",
         "after": "Come back here and it connects. Once it’s on the Chrome Web Store, you can switch to that version."
       }
     }
