@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import Iterator, Optional, Tuple
 from dataclasses import dataclass
 
+import httpx
 from supabase import create_client, Client
 from supabase.lib.client_options import SyncClientOptions as ClientOptions
 from fastapi import Depends, HTTPException, Header
@@ -457,6 +458,14 @@ _TRANSIENT_TRANSPORT_MARKERS = (
     "errno 11",
     "server disconnected",
     "connection aborted",
+    # ADR-669 — the bounded transport turns a stalled socket into one of these
+    # after DB_CALL_TIMEOUT_S; the very next call on a fresh socket answers.
+    # Named by httpx class, never the bare word "timeout": a PostgREST
+    # "statement timeout" is the database's ANSWER, not a dropped socket.
+    "readtimeout",
+    "writetimeout",
+    "pooltimeout",
+    "connecttimeout",
 )
 
 
@@ -479,8 +488,12 @@ def _retry_once_on_transport(operation, *, what: str):
 
     ONE retry, not a loop: a real outage must stay fast and loud, and this sits on
     the authenticated hot path where every added second is every request's second.
-    The retry is the mitigation; the cure is not sharing one pool across threads,
-    which is a client-lifecycle change with its own ADR.
+
+    The cure landed with ADR-669 (2026-09-25): every client runs on the bounded
+    HTTP/1.1 transport `client_options()` builds — one socket per in-flight
+    request, DB_CALL_TIMEOUT_S per call — so a dead socket costs the one request
+    holding it fifteen seconds, never every request two minutes. This retry is
+    what turns those fifteen seconds into an answer.
     """
     try:
         return operation()
@@ -649,15 +662,20 @@ def resolve_principal_id(auth: "AuthenticatedClient") -> Optional[str]:
 def close_supabase_client(client: Client) -> None:
     """Release every httpx connection pool a ``create_client()`` opened.
 
-    A Supabase ``Client`` eagerly constructs TWO httpx pools — postgrest (lazy,
-    on first ``.table()``/``.rpc()``) and the gotrue auth client (eager, in
-    ``__init__``) — and exposes NO unified ``close()``. Each must be released
-    individually or the pools (TLS connections + buffers + HTTP/2 hpack state)
+    A Supabase ``Client`` built without ADR-669's options constructs TWO httpx
+    pools — postgrest (lazy, on first ``.table()``/``.rpc()``) and the gotrue
+    auth client (eager, in ``__init__``) — and exposes NO unified ``close()``.
+    Each must be released individually or the pools (TLS connections + buffers)
     accumulate over the process lifetime. That accumulation OOM-killed
     ``yarnnn-api`` on 2026-06-01 (postgrest leak, partially fixed) and again on
     2026-06-04 (the auth pool was still leaking + ``build_working_memory``
     leaked 23 clients/request). See
     ``docs/infrastructure/memory-and-client-lifecycle.md``.
+
+    A client built with ``client_options()`` (every client in the services,
+    ADR-669) hands ONE httpx client to postgrest, storage and auth, so the
+    first close below releases everything; the second is idempotent and keeps
+    this teardown correct for a client built any other way.
 
     This is the Singular teardown — every per-request / per-thread ``create_client``
     call site closes through here, never a hand-rolled ``.session.close()``.
@@ -683,14 +701,66 @@ def get_supabase_url() -> str:
     return url
 
 
+# ---------------------------------------------------------------------------
+# The database transport — ADR-669
+# ---------------------------------------------------------------------------
+
+#: Per-call bounds for every request this codebase makes to Supabase — PostgREST,
+#: storage and auth alike. The stack's own default was 120 s over ONE HTTP/2
+#: connection shared by every request, so one stalled socket froze the whole
+#: single-worker API for exactly that long (2026-09-25 07:45:08→07:47:08Z: no
+#: log line for 120.2 s, CPU at zero, 34 requests abandoned by their clients as
+#: 499). Fifteen seconds bounds the worst case, and `_retry_once_on_transport`
+#: then answers on a fresh socket. No honest query takes this long — the
+#: slowest read on record, the 23 s mentions scan of 2026-09-19, is its own
+#: defect, and a bound that hides it would be the wrong bound.
+DB_CONNECT_TIMEOUT_S = 5.0
+DB_CALL_TIMEOUT_S = 15.0
+
+#: HTTP/1.1: one socket per in-flight request, so a dead socket takes down the
+#: request holding it and nothing else. HTTP/2 multiplexed every request over
+#: one connection — the reason a stall was total, and the reason the shared
+#: pool threw `[Errno 11]` under thread concurrency (the 2026-09-15 note on
+#: `_retry_once_on_transport`). The limits size the service client's pool,
+#: which every request in the process shares.
+DB_POOL_LIMITS = httpx.Limits(max_connections=20, max_keepalive_connections=10)
+
+
+def bounded_http_client(call_timeout_s: float = DB_CALL_TIMEOUT_S) -> httpx.Client:
+    """The ONE transport a Supabase client here runs on. `call_timeout_s` is a
+    parameter for the gate that drives a stall; production never passes it."""
+    return httpx.Client(
+        http2=False,
+        timeout=httpx.Timeout(call_timeout_s, connect=DB_CONNECT_TIMEOUT_S),
+        limits=DB_POOL_LIMITS,
+        follow_redirects=True,
+    )
+
+
+def client_options() -> ClientOptions:
+    """The ONE way a Supabase client is configured here (ADR-669 D1). Every
+    ``create_client`` in the API, the scheduler and the MCP server passes this:
+    no auth auto-refresh timer and no persisted session (the memory discipline
+    of memory-and-client-lifecycle.md), and the bounded HTTP/1.1 transport
+    above. The supabase client hands this ONE httpx client to postgrest,
+    storage and auth, so ``close_supabase_client`` releases it in one close."""
+    return ClientOptions(
+        auto_refresh_token=False,
+        persist_session=False,
+        httpx_client=bounded_http_client(),
+    )
+
+
 @lru_cache()
 def get_service_client() -> Client:
-    """Get Supabase client with service key (bypasses RLS)."""
+    """Get Supabase client with service key (bypasses RLS). ONE per process,
+    on the bounded transport (ADR-669) — its pool is what every request in the
+    process shares."""
     url = get_supabase_url()
     key = os.environ.get("SUPABASE_SERVICE_KEY")
     if not key:
         raise ValueError("SUPABASE_SERVICE_KEY must be set")
-    return create_client(url, key)
+    return create_client(url, key, client_options())
 
 
 def get_user_client(
@@ -712,12 +782,12 @@ def get_user_client(
     ``docs/infrastructure/memory-and-client-lifecycle.md``.
 
     Two guards:
-      1. ``auto_refresh_token=False`` + ``persist_session=False`` — we never run
-         the sign-in flow here (the JWT is decoded locally and applied directly
-         to postgrest), so the gotrue auto-refresh ``threading.Timer`` is pure
-         overhead. Disabling it removes any chance of an orphaned refresh timer.
-      2. ``finally: close_supabase_client(client)`` — releases BOTH per-request
-         pools (the 2026-06-01 fix closed only postgrest; the auth pool kept
+      1. ``client_options()`` (ADR-669) — no gotrue auto-refresh ``threading.Timer``
+         and no persisted session (we never run the sign-in flow here: the JWT
+         is decoded locally and applied directly to postgrest), on the bounded
+         HTTP/1.1 transport every client in this codebase shares the shape of.
+      2. ``finally: close_supabase_client(client)`` — releases the per-request
+         pool (the 2026-06-01 fix closed only postgrest; the auth pool kept
          leaking, which is why the OOM recurred). This is the load-bearing fix.
     """
     if not authorization or not authorization.startswith("Bearer "):
@@ -741,8 +811,7 @@ def get_user_client(
     if not key:
         raise ValueError("SUPABASE_ANON_KEY must be set")
 
-    options = ClientOptions(auto_refresh_token=False, persist_session=False)
-    client = create_client(url, key, options)
+    client = create_client(url, key, client_options())
     # Set the auth token for RLS
     client.postgrest.auth(token)
 

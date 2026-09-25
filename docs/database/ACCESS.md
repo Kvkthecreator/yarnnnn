@@ -153,6 +153,9 @@ ANON_KEY    = os.environ["SUPABASE_ANON_KEY"]
 URL         = os.environ["SUPABASE_URL"]
 
 # Step 1: Generate magic link (requires service key — admin endpoint)
+# A one-off probe may build a bare client. Anything that RUNS IN A SERVICE
+# passes services.supabase.client_options() — the bounded HTTP/1.1 transport
+# (ADR-669); a bare client is one HTTP/2 socket with a 120 s timeout.
 admin_client = create_client(URL, SERVICE_KEY)
 link_resp = admin_client.auth.admin.generate_link({
     "type": "magiclink",

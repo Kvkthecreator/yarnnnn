@@ -78,16 +78,17 @@ async def run_unified_scheduler():
       3. Mirror kernel skills; drain the capture lane; drain the strings lane.
       4. Hourly: write scheduler_heartbeat activity_log entries per active user.
     """
-    from supabase import create_client
+    # ADR-669 — the one client builder, on the bounded HTTP/1.1 transport the
+    # API runs on. This process decrypts tokens and reads every workspace each
+    # tick; its own `create_client(url, key)` ran on the stack's 120 s HTTP/2
+    # default, so one stalled socket held a whole tick.
+    from services.supabase import get_service_client
 
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-
-    if not supabase_url or not supabase_key:
-        logger.error("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+    try:
+        supabase = get_service_client()
+    except ValueError as exc:
+        logger.error(str(exc))
         return
-
-    supabase = create_client(supabase_url, supabase_key)
 
     now = datetime.now(timezone.utc)
     is_hourly_tick = now.minute < 5

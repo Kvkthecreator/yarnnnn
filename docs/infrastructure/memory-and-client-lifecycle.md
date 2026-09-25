@@ -306,10 +306,28 @@ cost arrives transitively. Falsified: reverting both deferrals turns the gate re
 
 ---
 
+## The 2026-09-25 stall — the transport (a different class, the same module)
+
+Not memory: **time**. At 07:45:08Z the API emitted no log line for 120.2 s with CPU at zero, then drained a
+backlog; 34 requests were abandoned by their clients (499), the Supervisor's reads among them. One socket had
+stalled — and every request in the process was waiting on it, because `supabase-py` builds ONE HTTP/2 connection
+per client, `get_service_client()` is one client per process, and the PostgREST default read timeout is 120 s.
+The full receipts and the decision are [ADR-669](../adr/ADR-669-the-database-transport-is-bounded.md).
+
+**The fix**: `services/supabase.py::client_options()` is the one builder every `create_client` in the API, the
+scheduler and the MCP server passes. It hands the stack an `httpx.Client` of our own — **HTTP/1.1** (one socket
+per in-flight request, `Limits(max_connections=20, max_keepalive_connections=10)`) with **15 s per call, 5 s to
+connect** — and the memory options this document already required. The one supplied client is what postgrest,
+storage and auth share, so `close_supabase_client`'s first close releases it. The httpx timeout classes are
+transient to `_retry_once_on_transport`, so a cut at the bound is answered on a fresh socket.
+
 ## Discipline rule (going forward)
 
 **Never construct an httpx-pool-owning client per-call without teardown.** This covers Supabase
 `create_client()` **and** `AsyncAnthropic()` (and any future SDK that builds a pool in `__init__`).
+**And never build a Supabase client without `client_options()`** (ADR-669): a bare `create_client(url, key)`
+runs on one HTTP/2 connection with a 120 s timeout — the transport that stalled the whole API on 2026-09-25. The
+gate `test_adr669_the_database_transport_is_bounded.py` scans every deployed tree for one.
 Sanctioned patterns:
 
 1. **Reused singleton** — `get_service_client()` for service-key reads. Default choice for Supabase.
