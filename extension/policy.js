@@ -63,6 +63,18 @@ export function verdictFor(host, { allowed = [], denied = [] } = {}) {
   return { verdict: "ask" };
 }
 
+/**
+ * ADR-668 D8 — is `host` inside a run's scope? `sites` are bare hosts (the
+ * declaration's `sites`), each covering its subdomains; an empty scope is no
+ * scope (a chat turn). Mirrors `standing_work.site_allowed` on the server,
+ * which refuses a BrowserOpen off-list before it reaches here — this is the
+ * check for where the tab IS, which only the executor can see.
+ */
+export function withinScope(host, sites) {
+  if (!Array.isArray(sites) || sites.length === 0) return true;
+  return sites.some((s) => host === s || host.endsWith("." + s));
+}
+
 /** The pages allowed to hand this extension acts (mirrors the manifest's
  *  `externally_connectable`, which Chrome enforces first). */
 export const YARNNN_ORIGINS = ["https://www.yarnnn.com", "https://yarnnn.com", "http://localhost:3000"];

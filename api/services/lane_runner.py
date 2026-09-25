@@ -2111,7 +2111,8 @@ async def run_lane_turn(
 def _outside_scope(name: str, args: Any, sites: tuple) -> Optional[str]:
     """ADR-666 D1 — the host a BrowserOpen names when a declared run's scope
     does not include it, else None. Only `BrowserOpen` names a destination; a
-    link followed from an allowed page is not checked here (ADR-666 §3)."""
+    link followed from an allowed page is checked by the executor, where the
+    tab IS — the same `sites` ride the act's frame (ADR-668 D8)."""
     if not sites or name != "BrowserOpen" or not isinstance(args, dict):
         return None
     from services.standing_work import site_allowed, url_host
@@ -2183,12 +2184,18 @@ async def run_lane_turn_stream(
                                             text may follow. The consumer
                                             separates here instead of welding
                                             the plan to the report.
-      - ``("client_tool", {call_id, name, arguments, nonce})``
-                                          — ADR-662 D6: the member's desktop
-                                            app performs this act and posts its
-                                            result; the loop waits for it here
-      - ``("receipt", {name, text, ok})`` — what a client act CHANGED, read
-                                            back by the app (ADR-662 D3)
+      - ``("client_tool", {call_id, name, arguments, nonce, sites?})``
+                                          — ADR-662 D6: the member's executor
+                                            (the extension) performs this act
+                                            and posts its result; the loop
+                                            waits for it here. ``sites`` is a
+                                            declared run's scope (ADR-668 D8),
+                                            absent on a chat turn.
+      - ``("receipt", {name, text, ok, record, url})``
+                                          — what a client act CHANGED, read
+                                            back by the executor (ADR-662 D3);
+                                            ``url`` is where the tab was when
+                                            the act ended (ADR-668 D4)
       - ``("done", {result dict})``       — terminal; the same shape
                                             ``run_lane_turn`` returns, plus
                                             ``ledger_ids`` — this turn's cost
@@ -2463,6 +2470,10 @@ async def run_lane_turn_stream(
                         yield ("client_tool", {
                             "call_id": tc["id"], "name": name,
                             "arguments": args or {}, "nonce": nonce,
+                            # ADR-668 D8 — a declared run's scope rides with the
+                            # act: the executor refuses where the tab IS, which
+                            # only it can see. Absent on a chat turn.
+                            **({"sites": list(browser_sites)} if browser_sites else {}),
                         })
                         result = await client_tools_mod.wait(nonce, tc["id"], fut)
                         if client_tools_mod.stopped(nonce):
@@ -2475,6 +2486,10 @@ async def run_lane_turn_stream(
                         # {act, subject, changed}, worded by the client's
                         # catalog. `text` is the model's sentence.
                         "record": result.get("record") if isinstance(result.get("record"), dict) else None,
+                        # ADR-668 D4 — where the tab WAS when the act ended, from
+                        # the executor: the step's address, what a run reads back
+                        # by without the page. None when the executor did not say.
+                        "url": result.get("url") if isinstance(result.get("url"), str) and result.get("url") else None,
                     })
                     verdict = None if halted else watch.note(name, args, ok)
                     if verdict == "warn":

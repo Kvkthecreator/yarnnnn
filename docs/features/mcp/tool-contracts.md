@@ -50,6 +50,7 @@ one round) per ADR-368 Correction 1's channel constraint.
 | `delete` | "get rid of this" | write · tombstone | `DeleteFile` (ADR-337 D2) — attributed tombstone; chain retained; restore = revert-as-write |
 | `move` | "rename / put it over there" | write · tombstone | `MoveFile` (ADR-337 D3) — content revision at destination + tombstone at origin; refuses overwrite |
 | `history` | "how did this file change" | read · exact | resolve handle → `ListRevisions` → per-revision `DiffRevisions` + the `derived_from` walk |
+| `runs` | "what did my agent do" / "did that work run" | read · ledger | the run ledger (`runs`, ADR-666 D2) through the caller's client → each run with its portable steps (ADR-668 D4/D7) |
 | `share` | "share this with my team" | write | mint share row → link (host relays; yarnnn sends nothing outbound) |
 
 Each verb returns a reason-ready result in **one round** from the host's
@@ -389,6 +390,34 @@ ADR-448), each cited file's chain is appended with `cited_source: true` +
 distinguishing capability: a plain storage connector cannot show
 who-changed-what-when. An unknown path returns `found: false` — `search`
 first when you only know the topic.
+
+## `runs` — what the agents did (ADR-668 D7)
+
+```python
+runs(
+    limit: int = 10,            # max runs (hard cap 30), newest first
+    topic: str | None = None,   # one piece of standing work (its folder); omit for all
+    live: bool | None = None,   # True: queued · running · waiting; False: ended; omit: both
+) -> dict
+```
+
+Returns `runs` — each `{id, kind, trigger, state, outcome, topic, member,
+started_at, ended_at, wrote, record, cost_usd, steps}` — and `returned`. A
+run is one occurrence of work (ADR-666 D2): a standing declaration's toolless
+run (`kind: derive`) or the acts an agent performed in a member's own browser
+(`kind: browser`, ADR-662/664). `steps` is the executor's receipts in the
+portable shape ADR-668 D4 names — `{at, act, url, subject, changed, ok, text,
+tool}`: what act, where the tab was when it ended, the element's label or the
+page's title, whether anything changed (measured, not claimed). Never the
+model's narration. `member` is a display name; a member id never crosses the
+boundary, and the conversation a run happened in stays private (ADR-666 D6).
+`wrote` is the revision the run made to its kept file — `open` reads it,
+`history` its chain; `record` is a declared browser run's record file.
+
+Reads through the caller's client, scoped to the bound workspace; nothing
+writes the ledger but the kernel. This is the one way a run is read from
+outside a lane — a chat run has no record file, so without this verb only
+yarnnn's own client could see what yarnnn did.
 
 ## `share` — the grant act
 

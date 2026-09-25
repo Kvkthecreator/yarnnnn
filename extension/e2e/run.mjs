@@ -79,7 +79,9 @@ ctx.on("page", async (p) => {
 try {
   const h = await ctx.newPage();
   await h.goto("http://localhost:3000/harness.html");
-  const act = (tool, args = {}) => h.evaluate(([t, a]) => send({ type: "act", tool: t, args: a }), [tool, args]);
+  // `sites` is a declared run's scope (ADR-668 D8); omitted on a chat turn.
+  const act = (tool, args = {}, sites = null) =>
+    h.evaluate(([t, a, s]) => send({ type: "act", tool: t, args: a, ...(s ? { sites: s } : {}) }), [tool, args, sites]);
 
   const hello = await h.evaluate(() => send({ type: "hello" }));
   expect("a yarnnn page reaches the extension", hello?.ok && hello.enabled, hello);
@@ -111,6 +113,28 @@ try {
   const newTab = await act("BrowserClick", { ref: again.elements.find((e) => e.label === "New tab link").ref });
   expect("a new-tab link is followed in the agent's tab", newTab.changed && /Done page/.test(newTab.receipt), newTab);
   expect("the member's own tab never moved", h.url() === "http://localhost:3000/harness.html", h.url());
+
+  // ADR-668 D4 — every act says where the tab was when it ended.
+  const acted = { opened, fill, nothing, grow, sent, back, newTab };
+  expect("each act says where the tab was when it ended",
+    Object.values(acted).every((r) => typeof r.url === "string" && /^https?:/.test(r.url)),
+    Object.fromEntries(Object.entries(acted).map(([k, r]) => [k, r.url])));
+
+  // ADR-668 D8 — a declared run's scope rides with the act and holds where the tab IS.
+  // The agent's tab is on 127.0.0.1 here, a site the member already allowed.
+  const asked0 = consents.length;
+  const inScope = await act("BrowserOpen", { url: "http://127.0.0.1:8765/form.html" }, ["127.0.0.1"]);
+  expect("an open inside the run's sites goes through", inScope.success && inScope.record.act === "opened", inScope);
+  const outScope = await act("BrowserOpen", { url: "http://localhost:8765/form.html" }, ["127.0.0.1"]);
+  expect("an open outside them is refused as `outside`, naming the site, with no consent question",
+    !outScope.success && outScope.record.act === "outside" && outScope.record.subject === "localhost"
+      && /may open only 127\.0\.0\.1/.test(outScope.receipt) && consents.length === asked0, outScope);
+  const drifted = await act("BrowserRead", {}, ["example.org"]);
+  expect("an act on a tab that has left the run's sites is refused where the tab IS, with its address",
+    !drifted.success && drifted.record.act === "outside" && drifted.record.subject === "127.0.0.1"
+      && /has left this work's sites \(example\.org\)/.test(drifted.receipt) && /^http:\/\/127\.0\.0\.1/.test(drifted.url), drifted);
+  const unscoped = await act("BrowserRead");
+  expect("a chat turn carries no scope and is not scoped", unscoped.success && unscoped.record.act === "read", unscoped);
 
   const bank = await act("BrowserOpen", { url: "https://www.paypal.com/" });
   expect("a default-denied site is refused without asking", !bank.success && bank.record.act === "refused" && consents.length === 1, bank);

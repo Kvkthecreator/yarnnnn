@@ -42,7 +42,8 @@ class RunOut(BaseModel):
     state: str
     waiting_on: Optional[dict] = None
     outcome: Optional[str] = None
-    #: The acts, each the ADR-662 D3 receipt `{name, text, ok, record}` + `at`.
+    #: The acts, each the ADR-662 D3 receipt `{name, text, ok, record}` + `at`,
+    #: and `url` — where the tab was when the act ended (ADR-668 D4).
     steps: list[dict] = []
     revision_id: Optional[str] = None
     record_path: Optional[str] = None

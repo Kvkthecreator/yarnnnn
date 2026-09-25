@@ -3404,6 +3404,7 @@
         "list": "Enumerate the files under a folder. Takes a timestamp for the change feed — what moved since you were last here — and pages through large subtrees.",
         "search": "Find files by meaning. Returns ranked matches with excerpts and a confidence signal, so an ambiguous result can be asked about rather than guessed at.",
         "history": "Show how one exact file changed over time — who authored each revision, when, what changed, and a diff against its predecessor. The capability a plain storage connector cannot show.",
+        "runs": "Read what the workspace's agents did — the run ledger, newest first: a standing run, or the acts an agent performed in a member's own browser, each step with where the tab was when it ended, what it acted on, and whether anything changed. The executor's receipts, never the model's account. Read-only and idempotent.",
         "save": "Write a file back as a signed revision. Pass the revision you opened and a concurrent change is refused rather than clobbered; every prior version stays on the chain.",
         "edit": "Change part of a file by anchoring on its exact current text. Only the change travels, so content you never read is never at risk — the right verb for large files.",
         "delete": "Remove a file from the live workspace. Nothing is lost: the chain keeps the content and the file can be restored.",
@@ -3415,7 +3416,7 @@
       "scopesIntroA": "Access is scoped per verb and enforced on every call — a token holding",
       "scopesIntroB": "is refused when it tries to save. The tiers are additive, and a registration that names none gets read-only.",
       "scope": {
-        "read": "Read your files — open, list, search, and view their history.",
+        "read": "Read your files — open, list, search, view their history — and what your agents did (runs).",
         "write": "Create, edit, move, and delete files. Every change is signed and revertible.",
         "share": "Create share links, which can give whoever opens them full member access."
       },

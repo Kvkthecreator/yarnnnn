@@ -1080,6 +1080,109 @@ def _describe_citations(citations: list[dict]) -> str:
     return out
 
 
+async def compose_runs(
+    auth: Any,
+    limit: int = 10,
+    topic: Optional[str] = None,
+    live: Optional[bool] = None,
+) -> dict:
+    """Drive `runs` — what the workspace's agents DID (ADR-668 D7), read off the
+    run ledger ADR-666 D2 made.
+
+    A run is one occurrence of work: a standing declaration's toolless derive,
+    a browser run of declared work, or the browser acts of a chat turn — a row
+    in `runs`, shared with every member of the workspace (ADR-666 D6). This
+    verb is the ONE way a run is read from outside a lane. A connected LLM, or
+    a member's other tools, see what an agent did on a site in a member's
+    browser step by step, with WHERE each step happened — without the page and
+    without yarnnn's own client. The record file (ADR-666 D3) is written for
+    declared browser runs only; a chat run belongs to no folder and has no
+    file, so this is how it is read at all.
+
+    Reads through the caller's client, scoped to the workspace the connection
+    is bound to (the ADR-573 binding — `effective_workspace_id`, the data
+    layer's one rule). Each step is served in the portable shape ADR-668 D4
+    names, `{at, act, url, subject, changed, ok, text}` plus the tool's name:
+    the executor's receipt, never the model's narration. A member id never
+    crosses the boundary — who a run ran as is a display name.
+    """
+    from services.principal_display import resolve_member_names
+    from services.runs import list_runs
+    from services.workspace_context import effective_workspace_id
+
+    ws = effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))
+    if not ws:
+        return {
+            "success": False, "error": "workspace_unresolved",
+            "message": "This connection is not bound to a workspace — call whoami.",
+            "runs": [], "returned": 0,
+        }
+    n = max(1, min(int(limit or 10), 30))
+    rows = list_runs(auth.client, ws, live=live, topic=(topic or None), limit=n)
+    names = resolve_member_names(auth.client, [str(r.get("user_id") or "") for r in rows])
+    runs_out = [_portable_run(r, names.get(str(r.get("user_id") or ""))) for r in rows]
+    which = (
+        f"of '{topic}'" if topic else
+        "still going" if live is True else
+        "ended" if live is False else "of every kind"
+    )
+    return {
+        "success": True,
+        "workspace_id": ws,
+        "runs": runs_out,
+        "returned": len(runs_out),
+        "explanation": (
+            f"{len(runs_out)} run(s) {which}, newest first. A run's steps are the "
+            "executor's own receipts — what changed, read back from the page, with "
+            "where the tab was. What a run WROTE is a revision of its kept file "
+            "(`wrote`): open the file for its content, history for its chain."
+            if runs_out else
+            f"No runs {which} in this workspace yet. A run is recorded when standing "
+            "work runs or an agent acts in a member's browser."
+        ),
+    }
+
+
+def _portable_run(r: dict, member_name: Optional[str]) -> dict:
+    """One run, boundary-safe: no member uuid, no lane id (the conversation
+    stays private — ADR-666 D6), the steps in the portable shape."""
+    cost = r.get("cost_usd")
+    return {
+        "id": str(r.get("id") or ""),
+        "kind": r.get("kind") or "derive",
+        "trigger": r.get("trigger") or "manual",
+        "state": r.get("state") or "done",
+        "outcome": r.get("outcome"),
+        "topic": r.get("topic"),
+        "member": member_name or "a member",
+        "started_at": r.get("started_at"),
+        "ended_at": r.get("ended_at"),
+        "wrote": (str(r["revision_id"]) if r.get("revision_id") else None),
+        "record": r.get("record_path"),
+        "cost_usd": (float(cost) if cost is not None else None),
+        "steps": [_portable_step(s) for s in (r.get("steps") or []) if isinstance(s, dict)],
+    }
+
+
+def _portable_step(s: dict) -> dict:
+    """ADR-668 D4 — the interoperable core of one act, readable by something
+    that is neither yarnnn nor this engine: when, what act, where the tab was,
+    the element's label or the page's title, whether anything changed
+    (measured, not claimed), whether it succeeded, and the executor's
+    sentence. `tool` names the yarnnn tool for disambiguation."""
+    rec = s.get("record") if isinstance(s.get("record"), dict) else {}
+    return {
+        "at": s.get("at"),
+        "act": rec.get("act"),
+        "url": s.get("url") if isinstance(s.get("url"), str) else None,
+        "subject": rec.get("subject"),
+        "changed": bool(rec.get("changed")) if "changed" in rec else None,
+        "ok": bool(s.get("ok", True)),
+        "text": s.get("text"),
+        "tool": s.get("name"),
+    }
+
+
 async def compose_open(
     auth: Any,
     reference: str,

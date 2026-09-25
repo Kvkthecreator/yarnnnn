@@ -21,7 +21,8 @@
  *    the extension's version (`executor`) so the server can decide.
  *  - `performClientTool()` — one act the server handed to this page mid-turn:
  *    the executor performs it, and the result is posted back to the waiting
- *    turn with the turn's nonce.
+ *    turn with the turn's nonce. A declared run's `sites` ride with the act
+ *    (ADR-668 D8), so the executor can refuse where the tab IS.
  *
  *  - `setBrowserHands()` — the Settings switch. OFF applies at once; ON is the
  *    member's to say in a window the EXTENSION draws (ADR-663 D4) — the page
@@ -45,6 +46,8 @@ export type ClientToolFrame = {
   name: string;
   arguments: Record<string, unknown>;
   nonce: string;
+  /** ADR-668 D8 — a declared run's scope (bare hosts); absent on a chat turn. */
+  sites?: string[];
 };
 
 /** What an act changed, for the member's own language (the server persists
@@ -154,11 +157,16 @@ export async function setBrowserHands(enabled: boolean): Promise<boolean> {
 
 async function act(frame: ClientToolFrame): Promise<Record<string, unknown>> {
   const args = frame.arguments ?? {};
+  // ADR-668 D8 — the run's scope goes with the act. The extension refuses an
+  // act outside it where the tab IS; the server refused only what BrowserOpen
+  // named. A host that does not yet forward `sites` (≤0.4.3) drops the key,
+  // and the act is gated as before.
+  const sites = Array.isArray(frame.sites) && frame.sites.length > 0 ? frame.sites : undefined;
   if (isNativeShell()) {
-    return invoke<Record<string, unknown>>("browser_act", { tool: frame.name, args });
+    return invoke<Record<string, unknown>>("browser_act", { tool: frame.name, args, ...(sites ? { sites } : {}) });
   }
   const reply = await toExtension<Record<string, unknown>>(
-    { type: "act", tool: frame.name, args },
+    { type: "act", tool: frame.name, args, ...(sites ? { sites } : {}) },
     ACT_TIMEOUT_MS,
   );
   if (!reply) throw new Error("the yarnnn extension did not answer");

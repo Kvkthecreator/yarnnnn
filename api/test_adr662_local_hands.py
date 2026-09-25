@@ -157,7 +157,7 @@ check(
 )
 check(
     "acts from the app take the extension's one door — same gate, same consent, same tab",
-    "const result = await perform(msg.tool, msg.args);" in BG and BG.count("perform(") == 3,
+    "const result = await perform(msg.tool, msg.args, msg.sites);" in BG and BG.count("perform(") == 3,
     "a second path through the extension could skip the site gate",
 )
 
@@ -444,13 +444,14 @@ check(
     sorted(manifest.get("permissions") or []) == ["nativeMessaging", "scripting", "storage", "tabGroups", "tabs"],
     f"permissions {manifest.get('permissions')}",
 )
-_open = re.search(r"async function open\(url\) \{(.*?)\n\}", bg, re.S)
-_with = re.search(r"async function withTab\(fn\) \{(.*?)\n\}", bg, re.S)
+_open = re.search(r"async function open\(url, sites\) \{(.*?)\n\}", bg, re.S)
+_with = re.search(r"async function withTab\(fn, sites\) \{(.*?)\n\}", bg, re.S)
 check(
+    # ADR-668 D8 — the same gate now takes the run's scope; the order holds.
     "every act passes the site gate first — where the tab IS, not where it was sent",
-    bool(_open) and _open.group(1).lstrip().startswith("const refused = await gate(url);")
-    and bool(_with) and "const refused = await gate(tab.url);" in _with.group(1)
-    and _with.group(1).index("gate(tab.url)") < _with.group(1).index("return fn(tab)"),
+    bool(_open) and _open.group(1).lstrip().startswith("const refused = await gate(url, sites);")
+    and bool(_with) and 'const refused = await gate(tab.url, sites, "here");' in _with.group(1)
+    and _with.group(1).index("gate(tab.url") < _with.group(1).index("return fn(tab)"),
 )
 _set = re.search(r"async function setEnabled\(enabled\) \{(.*?)\n\}", BG, re.S)
 check(

@@ -301,7 +301,8 @@ _TRIGGER_WORDS = {"manual": "run now", "scheduled": "on its schedule", "chat": "
 
 def render_record(run: dict, *, topic: str, target: str, member_name: str) -> str:
     """The record's prose. Plain, dated, one line per step — the receipt's own
-    sentence (`text`), which is what the agent was told happened."""
+    sentence (`text`), which is what the agent was told happened, and where the
+    tab was when the act ended (`url`, ADR-668 D4) when the executor said."""
     started = str(run.get("started_at") or "")[:16].replace("T", " ")
     lines = [
         f"# {topic} — run of {started} UTC",
@@ -319,7 +320,8 @@ def render_record(run: dict, *, topic: str, target: str, member_name: str) -> st
     if steps:
         for i, s in enumerate(steps, 1):
             mark = "" if s.get("ok", True) else " (failed)"
-            lines.append(f"{i}. {str(s.get('text') or s.get('name') or '').strip()}{mark}")
+            addr = f" — {s['url']}" if isinstance(s.get("url"), str) and s.get("url") else ""
+            lines.append(f"{i}. {str(s.get('text') or s.get('name') or '').strip()}{mark}{addr}")
     else:
         lines.append("No steps were taken.")
     return "\n".join(lines) + "\n"

@@ -92,6 +92,17 @@ const INTEROP_VERBS: ReadonlyArray<{
       "appended. Read-only and idempotent.",
   },
   {
+    name: "runs",
+    kind: "read",
+    summary: "Read what the workspace's agents did",
+    description:
+      "Returns the run ledger newest-first: a standing run, or the acts an " +
+      "agent performed in a member's own browser, each step with where the " +
+      "tab was when it ended, what it acted on, and whether anything " +
+      "changed — the executor's receipts, never the model's account. " +
+      "Read-only and idempotent.",
+  },
+  {
     name: "save",
     kind: "write",
     summary: "Write a file back as an attributed revision",

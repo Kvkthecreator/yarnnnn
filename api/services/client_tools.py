@@ -161,14 +161,17 @@ def expect(nonce: str, call_id: str) -> asyncio.Future:
 
 
 async def wait(nonce: str, call_id: str, fut: asyncio.Future) -> dict:
-    """The app's result for one act, or a failure the model can read."""
+    """The executor's result for one act, or a failure the model can read."""
     try:
         return await asyncio.wait_for(fut, ACT_TIMEOUT_S)
     except asyncio.TimeoutError:
+        # The sentence reaches the model and the run's steps: it names the
+        # executor that exists (ADR-662 D15 — the extension in the member's
+        # browser), not the desktop app it once did (audit 2026-09-24 F9).
         return {
             "success": False,
             "error": "no_answer",
-            "receipt": "The desktop app did not answer in time — nothing is known to have changed.",
+            "receipt": "The browser did not answer in time — nothing is known to have changed.",
         }
     finally:
         turn = _TURNS.get(nonce)

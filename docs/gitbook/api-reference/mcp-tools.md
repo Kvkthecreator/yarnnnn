@@ -14,7 +14,7 @@ Every verb requires one of three scopes. They're additive and ordered — `files
 
 | Scope | Verbs it authorizes |
 |---|---|
-| `files:read` | `whoami` · `open` · `list` · `search` · `history` |
+| `files:read` | `whoami` · `open` · `list` · `search` · `history` · `runs` |
 | `files:write` | `save` · `edit` · `delete` · `move` · `request_upload` |
 | `files:share` | `share` |
 
@@ -208,6 +208,27 @@ when, what changed, the revision id, and a diff against its predecessor. If
 the file cites sources (`derived_from`), each cited file's chain is appended.
 An unknown path returns `found: false` — search first when you only know the
 topic. Read-only and idempotent.
+
+---
+
+## `runs`
+
+*Requires `files:read`.*
+
+What the workspace's agents did — the run ledger, newest first. A read.
+
+| Parameter | Type | Required | Default | Meaning |
+|---|---|---|---|---|
+| `limit` | integer | no | 10 | Max runs (up to 30) |
+| `topic` | string | no | | One piece of standing work (its folder); omit for all |
+| `live` | boolean | no | | `true` for runs still going, `false` for ended ones; omit for both |
+
+Returns each run's kind (a standing run, or acts in a member's own browser),
+state, outcome, who it ran as (a name), what it wrote (a revision id — `open`
+the file for its content) and its steps: what act, where the tab was when it
+ended, what it acted on, and whether anything changed — the executor's own
+receipts, never the model's account. The conversation a run happened in stays
+private. Read-only and idempotent.
 
 ---
 

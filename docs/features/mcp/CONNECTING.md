@@ -24,6 +24,7 @@ You connect yarnnn to whichever LLMs you use. Then:
 - **open / list / search** — any LLM you've connected reads the same shared workspace: exact files, the folder tree, or search by meaning.
 - **save** — what one LLM writes lands as an attributed revision every other LLM (and your team) sees. Your thinking stays coherent across rooms.
 - **history** — see how any file changed over time, and which LLM or person contributed each version.
+- **runs** — see what the workspace's agents did: a standing run, or an agent's steps in a member's own browser, each with where it happened.
 - **share** — mint a member/viewer link straight from the conversation.
 
 You sign in once per LLM (a lightweight yarnnn login — same account across all of them). You can also visit [yarnnn.com](https://yarnnn.com) anytime with the same credentials.
@@ -37,7 +38,7 @@ You sign in once per LLM (a lightweight yarnnn login — same account across all
 1. Settings → **Connectors** → **Add custom connector** (or **Add connector → Custom**).
 2. Paste the URL: **`https://mcp.yarnnn.com`**
 3. Authorize → you'll be sent to a yarnnn sign-in (sign in or create your account) → it returns you to Claude.
-4. Done. The `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `share` tools are now available.
+4. Done. The `open` / `list` / `search` / `save` / `edit` / `delete` / `move` / `history` / `runs` / `share` tools are now available.
 
 ### ChatGPT (developer mode connectors)
 
@@ -122,7 +123,7 @@ A refresh that bumps the version but leaves those unchanged did not pull the new
 
 **How to tell whether it worked:** ask your host to list the yarnnn tools it has.
 The current surface is the file-native roster (ADR-543 + ADR-545) plus `whoami`
-(ADR-584) — `whoami · open · list · search · save · edit · delete · move · history · share`.
+(ADR-584) and `runs` (ADR-668) — `whoami · open · list · search · save · edit · delete · move · history · runs · share`.
 The pre-543 memory verbs (`remember`/`recall`/`trace`) are gone WITHOUT aliases: a host on a stale manifest gets tool-not-found on them until it reconnects.
 A roster missing `whoami`, or shorter than the list above, means the cache is
 still stale. (Ask it to *call* `whoami` too: a host can hold a tool it did not

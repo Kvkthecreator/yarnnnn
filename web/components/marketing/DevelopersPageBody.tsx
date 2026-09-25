@@ -49,6 +49,7 @@ const VERBS = [
   { name: "list", kind: "read" },
   { name: "search", kind: "read" },
   { name: "history", kind: "read" },
+  { name: "runs", kind: "read" },
   { name: "save", kind: "write" },
   { name: "edit", kind: "write" },
   { name: "delete", kind: "write" },

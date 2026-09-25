@@ -96,7 +96,7 @@ A connection isn't all-or-nothing. Each verb sits in one of three tiers, and a c
 
 | Tier | What it allows |
 |---|---|
-| `files:read` | Read your files — open, list, search, and view their history. |
+| `files:read` | Read your files — open, list, search, view their history — and what your agents did (runs). |
 | `files:write` | Create, edit, move, and delete files. Every change is signed and revertible. |
 | `files:share` | Create share links, which can give whoever opens them full member access. |
 
@@ -119,6 +119,7 @@ File-native — the same files you see in YARNNN, not a separate memory store.
 | `list` | Shows what exists under a folder, with who last touched each. Also answers **what changed since a moment you name**, so a returning AI picks up where it left off. |
 | `search` | Finds files by meaning. Returns the material plus a confidence signal. |
 | `history` | How a file changed over time — who changed it, when, and what the change was. The one a plain storage connector can't do. |
+| `runs` | What the workspace's agents did — a standing run, or an agent's steps in a member's own browser, each with where it happened. |
 | `save` | Writes a whole file as an attributed revision. |
 | `edit` | Changes part of a file — only the change travels, so a partial read can't destroy the rest. |
 | `delete` / `move` | Remove or rename, with an attributed, restorable tombstone. |

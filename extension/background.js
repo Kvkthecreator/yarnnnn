@@ -1,18 +1,25 @@
 // yarnnn for Chrome — the executor of the browser tools (ADR-662 D15).
 //
 // A yarnnn page (the website in this Chrome) hands an act here with
-// `chrome.runtime.sendMessage(EXTENSION_ID, {type: "act", tool, args})`; this
+// `chrome.runtime.sendMessage(EXTENSION_ID, {type: "act", tool, args, sites})`
+// (`sites` is a declared run's scope, ADR-668 D8 — absent on a chat turn); this
 // worker performs it in the AGENT'S OWN TAB — opened in the background, kept in
 // a tab group named "yarnnn", never the tab the member is using — and answers
-// `{success, receipt, record}` the way every executor does:
+// `{success, receipt, record, url}` the way every executor does:
 //   - `receipt` is the model's sentence: what CHANGED, read back from the page
 //     (ADR-662 D3), "no change observed" when nothing did;
 //   - `record` is `{act, subject, changed}`, worded in the member's language by
-//     the client (`chat.receipts`).
+//     the client (`chat.receipts`);
+//   - `url` is where the agent's tab WAS when the act ended (ADR-668 D4) — the
+//     step's address, so a run reads back without the page.
 //
 // The boundary:
 //   - Only a yarnnn origin can reach this worker (`externally_connectable`,
 //     checked again below).
+//   - A declared run's `sites` are checked where the tab IS, before any
+//     consent question: an act outside them is refused as `outside`, and the
+//     member is never asked to allow a site the work may not use (ADR-668 D8;
+//     the server refuses only the destination a BrowserOpen names).
 //   - The agent acts on a site only after the member allowed it here, once
 //     (`consent.html`, drawn by THIS extension — the page can only ask), and
 //     never on a default-denied category (`policy.js`).
@@ -20,7 +27,7 @@
 //     model's text reaches them only as JSON-encoded arguments.
 //   - No clipboard, no screenshots, nothing outside the agent's tab.
 
-import { YARNNN_ORIGINS, hostOf, verdictFor } from "./policy.js";
+import { YARNNN_ORIGINS, hostOf, verdictFor, withinScope } from "./policy.js";
 
 const VERSION = chrome.runtime.getManifest().version;
 const LOAD_TIMEOUT_MS = 30_000;
@@ -84,9 +91,24 @@ async function setEnabled(enabled) {
   return { ok: true, enabled: yes };
 }
 
-/** Null when the agent may act on `url`; otherwise the refusal to return. */
-async function gate(url) {
+/** Null when the agent may act on `url`; otherwise the refusal to return.
+ *  `sites` is the run's scope (ADR-668 D8), checked FIRST and without asking:
+ *  a site the work may not use is refused whatever the member has allowed.
+ *  `where` is "open" for the destination a BrowserOpen names, "here" for the
+ *  site the tab is already on — the refusal says which, and carries the
+ *  tab's address when it is the tab that has moved. */
+async function gate(url, sites = [], where = "open") {
   const host = hostOf(url);
+  const here = where === "here" ? url : undefined;
+  if (host && !withinScope(host, sites)) {
+    const list = sites.join(", ");
+    return failure(
+      where === "here"
+        ? `Did not act on ${host}: the page has left this work's sites (${list}). Nothing was done there. Tell the member.`
+        : `Did not open ${host}: this work may open only ${list}. Nothing was done there. Tell the member.`,
+      "outside", host, here,
+    );
+  }
   const s = await settings();
   const v = verdictFor(host, s);
   if (v.verdict === "allowed") return null;
@@ -95,7 +117,7 @@ async function gate(url) {
     v.category === "notAWebPage" ? "Only http and https pages can be used." :
     v.verdict === "ask" || v.category === "yours" ? `The member has not allowed ${host}.` :
     `${host} is in a category yarnnn never lets an agent use (${v.category}).`;
-  return failure(`${why} Nothing was done there. Tell the member.`, "refused", host || "");
+  return failure(`${why} Nothing was done there. Tell the member.`, "refused", host || "", here);
 }
 
 // ---------------------------------------------------------------- the agent's tab
@@ -183,14 +205,14 @@ async function run(tabId, routine, args = []) {
   return JSON.parse(result);
 }
 
-function failure(receipt, act, subject) {
-  return { success: false, receipt, record: { act, subject, changed: false } };
+function failure(receipt, act, subject, url) {
+  return { success: false, receipt, record: { act, subject, changed: false }, ...(url ? { url } : {}) };
 }
 
 // ---------------------------------------------------------------- the acts
 
-async function open(url) {
-  const refused = await gate(url);
+async function open(url, sites) {
+  const refused = await gate(url, sites);
   if (refused) return refused;
   let tab = await agentTab();
   if (tab) {
@@ -217,17 +239,18 @@ async function open(url) {
   };
 }
 
-async function withTab(fn) {
+async function withTab(fn, sites) {
   const tab = await agentTab();
   if (!tab) return failure("No page is open yet — use BrowserOpen first.", "failed", "");
   // The page may have moved to another site since it was allowed (a link,
-  // a redirect): the gate is asked of where the tab IS, not where it was sent.
-  const refused = await gate(tab.url);
+  // a redirect): the gate is asked of where the tab IS, not where it was sent
+  // — the run's scope and the member's consent alike.
+  const refused = await gate(tab.url, sites, "here");
   if (refused) return refused;
   return fn(tab);
 }
 
-async function read() {
+async function read(sites) {
   return withTab(async (tab) => {
     const page = await run(tab.id, "read");
     const n = (page.elements || []).length;
@@ -239,10 +262,10 @@ async function read() {
       receipt: `Read “${name}” — ${n} things to act on.`,
       record: { act: "read", subject: name, changed: false },
     };
-  });
+  }, sites);
 }
 
-async function press(ref, fill) {
+async function press(ref, fill, sites) {
   return withTab(async (tab) => {
     const before = await run(tab.id, "state");
     const loaded = settle(tab.id, NAV_GRACE_MS);
@@ -278,10 +301,10 @@ async function press(ref, fill) {
       receipt,
       record: { act: "filled", subject: label, changed: matches },
     };
-  });
+  }, sites);
 }
 
-async function back() {
+async function back(sites) {
   return withTab(async (tab) => {
     const loaded = settle(tab.id, NAV_GRACE_MS);
     // The page's own history.back(), not chrome.tabs.goBack: Chrome skips
@@ -292,15 +315,18 @@ async function back() {
     const { navigated } = await loaded;
     const now = await chrome.tabs.get(tab.id);
     return {
-      success: navigated,
+      success: navigated, url: now.url,
       receipt: navigated ? `Went back to “${now.title}”.` : "There was no earlier page to go back to — no change observed.",
       record: { act: "back", subject: now.title || "", changed: navigated },
     };
-  });
+  }, sites);
 }
 
-/** One act by name — the executor contract every client calls. */
-export async function perform(tool, args = {}) {
+/** One act by name — the executor contract every client calls. `sites` is a
+ *  declared run's scope (ADR-668 D8): bare hosts, lower-cased here; absent or
+ *  empty on a chat turn, which is not scoped. */
+export async function perform(tool, args = {}, sites = []) {
+  sites = Array.isArray(sites) ? sites.map((s) => String(s || "").trim().toLowerCase()).filter(Boolean) : [];
   const s = await settings();
   if (!s.enabled) {
     return failure(
@@ -309,11 +335,11 @@ export async function perform(tool, args = {}) {
     );
   }
   try {
-    if (tool === "BrowserOpen") return await open(String(args.url || "").trim());
-    if (tool === "BrowserRead") return await read();
-    if (tool === "BrowserClick") return await press(Number(args.ref), null);
-    if (tool === "BrowserFill") return await press(Number(args.ref), { text: String(args.text ?? ""), submit: args.submit });
-    if (tool === "BrowserBack") return await back();
+    if (tool === "BrowserOpen") return await open(String(args.url || "").trim(), sites);
+    if (tool === "BrowserRead") return await read(sites);
+    if (tool === "BrowserClick") return await press(Number(args.ref), null, sites);
+    if (tool === "BrowserFill") return await press(Number(args.ref), { text: String(args.text ?? ""), submit: args.submit }, sites);
+    if (tool === "BrowserBack") return await back(sites);
     return failure(`${tool} is not a browser act this extension performs.`, "refused", "");
   } catch (err) {
     return failure(`The browser could not do that: ${err?.message || err}`, "failed", "");
@@ -329,7 +355,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg?.type === "act") {
-    perform(msg.tool, msg.args).then(sendResponse);
+    perform(msg.tool, msg.args, msg.sites).then(sendResponse);
     return true;
   }
   if (msg?.type === "setEnabled") {
@@ -367,7 +393,7 @@ function connectDesktop() {
   port.onMessage.addListener(async (msg) => {
     if (msg?.type === "app") return hello();
     if (msg?.type === "act") {
-      const result = await perform(msg.tool, msg.args);
+      const result = await perform(msg.tool, msg.args, msg.sites);
       port.postMessage({ type: "result", id: msg.id, result });
     }
     if (msg?.type === "set") {

@@ -65,6 +65,11 @@ VERB_SCOPES: Dict[str, str] = {
     "list": SCOPE_READ,
     "search": SCOPE_READ,
     "history": SCOPE_READ,
+    # ADR-668 D7 — the run ledger, read. Every member already sees every run
+    # (ADR-666 D6); a token that may read the files may read what the agents
+    # did to make them. Nothing is written: `services/runs.py` is the one
+    # writer and no verb reaches it.
+    "runs": SCOPE_READ,
     # substrate mutations — each lands an attributed revision
     "save": SCOPE_WRITE,
     "edit": SCOPE_WRITE,
@@ -106,7 +111,7 @@ DEFAULT_SCOPES = [SCOPE_READ]
 # bind write — the whole point of ADR-563 having real tiers is that this text
 # can finally be TRUE for the specific connection instead of a fixed paragraph.
 _GRANT_SENTENCES = {
-    SCOPE_READ: "Read your files — open, list, search, and view their history.",
+    SCOPE_READ: "Read your files — open, list, search, view their history — and what your agents did (runs).",
     SCOPE_WRITE: "Create, edit, move, and delete files. Every change is signed and revertible.",
     SCOPE_SHARE: "Create share links, which can give whoever opens them full member access.",
 }
@@ -116,7 +121,7 @@ _GRANT_SENTENCES = {
 # "read and write your memory", which understated it in both directions
 # (wrong noun, and silent about deletion and about handing out member access).
 _LEGACY_SENTENCES = [
-    "Read your files — open, list, search, and view their history.",
+    "Read your files — open, list, search, view their history — and what your agents did (runs).",
     "Create, edit, move, and delete files. Every change is signed and revertible.",
     "Create share links, which can give whoever opens them full member access.",
 ]

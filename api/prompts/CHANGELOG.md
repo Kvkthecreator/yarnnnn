@@ -15,6 +15,20 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.25.1] - The browser's executor is named truthfully; a run's scope is refused where the tab is; a connected LLM can read what an agent did (ADR-668 §7)
+
+### Changed
+- services/client_tools.py: the `no_answer` receipt reads "The browser did not answer in time — nothing is known to have changed." (was "The desktop app did not answer in time…", stale since ADR-662 D15 made the extension the executor). The sentence reaches the model and the run's steps.
+- extension/background.js (`gate`): two new executor sentences the model reads on a declared run — "Did not open {host}: this work may open only {sites}. Nothing was done there. Tell the member." and "Did not act on {host}: the page has left this work's sites ({sites}). …" — as `outside` steps carrying the tab's address (ADR-668 D8). A chat turn is not scoped; nothing else the model reads changed.
+- mcp_server/server.py (`_INTEROP_VERBS`, the `runs` tool): a new read verb on the interop surface — "read what the workspace's agents DID — the run ledger, newest first … Use it when the user asks what an agent did, whether standing work ran, or what happened on a site on their behalf." The roster line in the connector's instructions is derived from `_INTEROP_VERBS`, so it gains the verb too (ADR-668 D7).
+- Expected behavior: a timed-out act is explained in terms of the executor the member has; a declared run whose page follows a link off its `sites` stops with a step naming the site instead of acting there; a connected LLM asked "what did my agent do" calls `runs` instead of guessing from files.
+
+### Why
+The 2026-09-24 audit (`docs/analysis/the-browser-is-a-transport-the-site-is-the-platform-2026-09-24.md`) F9, F7 and F5, verified against code at HEAD `678f645`: the receipt's sentence named a deleted executor since 2026-09-23 (found on read — no production timeout has been observed, the fix is the sentence's truth); the scope was enforced at one of two doors (ADR-666 §3 recorded the gap and owed it); `runs` composed no verb, so a foreign LLM saw a run only through the record `.md`, which a chat run does not write. Driven: `extension/e2e/run.mjs` in Chrome for Testing 29/29 with the scope falsified in place.
+
+### Gate
+`test_adr668_a_website_is_a_platform.py` (new), `test_adr662_local_hands.py` 52/52, `test_adr666_the_run.py` 73/73, `test_adr563_mcp_scope_enforcement.py` 16/16, `test_adr543_file_native_surface.py` 7/7; ratchets `test_adr632_the_seat_retires.py` §5 and `test_adr630_skills.py` 159/159 unchanged (no frame, posture or skill bytes changed).
+
 ## [2026.09.24.3] - The agent sends a member without the browser to Settings → Your browser, not the desktop app
 
 ### Changed

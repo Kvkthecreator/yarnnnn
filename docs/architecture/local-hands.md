@@ -47,8 +47,10 @@ own sessions — was built, met a sign-in wall on its first test, and was delete
 **Browser work (ADR-666).** A declaration with `browser: {member, sites}` is standing work done here: Run now
 writes the run's opening message into the work's own conversation (the Text app's lane for the kept file) and
 the member's page performs it — `POST /lanes/{id}/regenerate` with `run_id`. Its `BrowserOpen` on any site not
-listed is refused in `lane_runner` before it reaches the extension (a link followed off-list is not — the step
-names the site). The run's **Stop** (`POST /runs/{id}/stop`) reaches the turn through `client_tools.stop_run`:
+listed is refused in `lane_runner` before it reaches the extension, **and** the run's `sites` ride each act's
+frame to the extension, whose gate refuses where the tab IS (`policy.js::withinScope`, ADR-668 D8, extension
+0.1.2) — so a link followed off-list is refused too, as an `outside` step carrying the tab's address, before any
+consent question. A chat turn carries no scope. The run's **Stop** (`POST /runs/{id}/stop`) reaches the turn through `client_tools.stop_run`:
 the act in flight answers "stopped" and the turn ends. When browser work comes due, the drain opens a run
 WAITING on its member and never performs it.
 
@@ -57,7 +59,8 @@ WAITING on its member and never performs it.
 `BrowserOpen` (http/https only) · `BrowserRead` (title, text, every actionable element with a `ref`; a password
 field's value never leaves the page) · `BrowserClick` (a new-tab link is followed in the agent's tab) ·
 `BrowserFill` (text fields and dropdowns; optional submit) · `BrowserBack` (the page's own history — Chrome's
-Back skips gesture-less entries). Each answers `{success, receipt, record}` and reads its effect back: a fill
+Back skips gesture-less entries). Each answers `{success, receipt, record, url}` — `url` is where the tab was
+when the act ended (ADR-668 D4), the step's address — and reads its effect back: a fill
 compares the field's value, a click compares the page's fingerprint, and "no change observed" is said in those
 words. The model never writes script: an act is `page.js` plus one call with JSON-encoded arguments.
 
@@ -99,7 +102,9 @@ words. The model never writes script: an act is `page.js` plus one call with JSO
   two seconds while the app is away, and exits when Chrome lets go.
 - **The app.** Listens on that socket, owner-only (`0600`), one bridge at a time — each connection numbered,
   and a connection that ends clears the link only if it is still its own (host 0.4.1; before it, a closing
-  connection could wipe a newer one and the app said "not connected" with the bridge attached). `browser_act` writes
+  connection could wipe a newer one and the app said "not connected" with the bridge attached). The page also passes
+  a run's `sites` to `browser_act`; a host ≤0.4.3 does not declare the argument and never reads it — forwarding it
+  is one line, owed with the next host cut (ADR-668 D8). `browser_act` writes
   `{type: "act", id, tool, args}` and waits (150 s) for `{type: "result", id, result}`; with no bridge it
   refuses in words. `hands_status` answers `{extension, version}` from the extension's hello.
 - **The extension** treats an act from the app exactly as one from a yarnnn page — the same `perform`: the same

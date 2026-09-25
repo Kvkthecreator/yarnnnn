@@ -42,6 +42,7 @@ What crosses the boundary is **the kernel's own verb contract** (ADR-512 D3), se
 | **"Get rid of this." / "Rename it."** | `delete` / `move` | The tidy verbs — attributed tombstones, chain retained, restore possible. The tree stops being grow-only. |
 | **"What moved since yesterday?"** | `list(since=…)` | The change feed — asynchronous multi-principal coordination in one call. |
 | **"How did this change?"** | `history` | The authored revision chain of one exact file — who, when, what, with diffs and cited sources. |
+| **"What did my agent do?" / "Did that run?"** | `runs` | The run ledger — a standing run, or an agent's acts in a member's own browser, step by step with where each step happened (ADR-668). |
 | **"Share this with my team."** | `share` | Mint a member/viewer link; the host relays it. |
 
 That's the entire MCP surface. No `list_agents`, no `run_task`, no separate "memory" object — the workspace **is** the memory, and files at paths are its only ontology (ADR-543 D1). Exact signatures: [tool-contracts.md](tool-contracts.md).

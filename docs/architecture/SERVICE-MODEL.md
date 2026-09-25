@@ -136,7 +136,7 @@ An agent proposes (`ProposeAction`); the witness dial decides what surfaces befo
 
 ### Interop
 
-A connected LLM acts as the member through `whoami · open · list · search · save · edit · delete · move · request_upload · history · share` — each a server-side composition over the kernel verbs, under the token's scopes and workspace binding ([docs/features/mcp/README.md](../features/mcp/README.md)).
+A connected LLM acts as the member through `whoami · open · list · search · save · edit · delete · move · request_upload · history · runs · share` — each a server-side composition over the kernel verbs, under the token's scopes and workspace binding ([docs/features/mcp/README.md](../features/mcp/README.md)); `runs` reads the run ledger, so a foreign LLM sees what an agent did in a member's browser (ADR-668 D7).
 
 ---
 

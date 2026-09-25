@@ -469,6 +469,14 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
         "resolves a path when only the topic is known.",
     ),
     (
+        "runs",
+        "read what the workspace's agents DID — the run ledger, newest first: "
+        "a standing run, or the acts an agent performed in a member's own "
+        "browser, step by step, each with where the tab was when it ended. "
+        "Use it when the user asks what an agent did, whether standing work "
+        "ran, or what happened on a site on their behalf. Reads only.",
+    ),
+    (
         "share",
         "mint a link for a file (or the workspace) when the user wants someone "
         "else in. 'member' grants full access, including write access to the "
@@ -1007,6 +1015,62 @@ async def history(
     # ADR-372 D4: attach the widget `_meta` only for a widget host (renders the
     # timeline); the full result stays in the text channel for every host.
     return _present("history", result, client_name=client_name)
+
+
+@mcp.tool(
+    # ADR-668 D7 — the run ledger (ADR-666 D2), read. What an agent DID: a
+    # standing run, or acts in a member's own browser, step by step, with
+    # where each step happened. Every member already sees every run (ADR-666
+    # D6); this is the same fact for a connected LLM. Reads only — the ledger
+    # is written by the kernel alone (`services/runs.py`), and no verb reaches
+    # it.
+    annotations=ToolAnnotations(
+        title="Runs",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def runs(
+    ctx: Context,
+    limit: int = 10,
+    topic: Optional[str] = None,
+    live: Optional[bool] = None,
+):
+    """What the workspace's agents DID — the run ledger, newest first.
+
+    A run is one occurrence of work: a standing declaration's run, or the acts
+    an agent performed in a member's own browser (opened, read, filled,
+    pressed…), each step with where the tab was when it ended. Use it when the
+    user asks what an agent did, whether a piece of standing work ran, or what
+    happened on a site on their behalf. What a run wrote is a revision of its
+    kept file — `open` reads the file, `history` its chain; a declared browser
+    run's record file is at its `record` path.
+
+    Args:
+        limit: Max runs (default 10, max 30).
+        topic: Only the runs of one piece of standing work (its folder). Omit
+            for every run.
+        live: True for runs still going (queued · running · waiting), False for
+            ended ones (done · failed · stopped); omit for both.
+    """
+    auth = resolve_request_client(verb="runs")
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
+    result = await mcp_composition.compose_runs(auth=auth, limit=limit, topic=topic, live=live)
+    n = result.get("returned", 0)
+    _emit_mcp_narrative(
+        auth, tool="runs", weight="routine",
+        summary=f"{client_name} read {n} run(s)" + (f" of {topic!r}" if topic else ""),
+        body=f"topic: {topic or '(all)'}\nlive: {live}\nreturned: {n}",
+        client_name=client_name,
+        extra_metadata={"topic": topic, "live": live, "returned": n},
+    )
+    return _present("runs", result, client_name=client_name)
 
 
 @mcp.tool(
@@ -1792,6 +1856,52 @@ _OUTPUT_SCHEMAS = {
             "total_matches": {"type": "integer"},
             "returned": {"type": "integer"},
             "confidence": {"type": "string", "enum": ["high", "ambiguous", "weak", "none"], "description": "ALWAYS present (even on a miss): high=use it; ambiguous=ask which the user means; weak=loose lead only; none=nothing matched (true miss)"},
+            "explanation": {"type": "string"},
+        },
+    },
+    "runs": {
+        "type": "object",
+        "properties": {
+            "workspace_id": {"type": ["string", "null"], "description": "the workspace whose runs these are"},
+            "runs": {
+                "type": "array",
+                "description": "runs, newest first",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "kind": {"type": "string", "enum": ["derive", "browser"], "description": "derive = a standing declaration's toolless run; browser = acts in a member's own browser"},
+                        "trigger": {"type": "string", "enum": ["scheduled", "manual", "chat"]},
+                        "state": {"type": "string", "enum": ["queued", "running", "waiting", "done", "failed", "stopped"]},
+                        "outcome": {"type": ["string", "null"], "description": "on done: wrote · no_change · skipped; on failed: the reason"},
+                        "topic": {"type": ["string", "null"], "description": "the standing work's folder; null for a run started in a conversation"},
+                        "member": {"type": "string", "description": "whose browser or authority it ran as — a display name, never an id"},
+                        "started_at": {"type": ["string", "null"]},
+                        "ended_at": {"type": ["string", "null"]},
+                        "wrote": {"type": ["string", "null"], "description": "the revision id it wrote to its kept file, if any — open the file for content, history for its chain"},
+                        "record": {"type": ["string", "null"], "description": "a declared browser run's record file (workspace path), if any"},
+                        "cost_usd": {"type": ["number", "null"]},
+                        "steps": {
+                            "type": "array",
+                            "description": "the acts, in order — the executor's receipts, never the model's narration (ADR-668 D4)",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "at": {"type": ["string", "null"]},
+                                    "act": {"type": ["string", "null"], "description": "opened · read · pressed · filled · back · wrote · outside · refused · failed · stopped"},
+                                    "url": {"type": ["string", "null"], "description": "where the tab was when the act ended; null when the executor did not say"},
+                                    "subject": {"type": ["string", "null"], "description": "the element's label, or the page's title"},
+                                    "changed": {"type": ["boolean", "null"], "description": "measured, not claimed: did the page or field change"},
+                                    "ok": {"type": "boolean"},
+                                    "text": {"type": ["string", "null"], "description": "the executor's sentence, what the agent was told happened"},
+                                    "tool": {"type": ["string", "null"]},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "returned": {"type": "integer"},
             "explanation": {"type": "string"},
         },
     },
