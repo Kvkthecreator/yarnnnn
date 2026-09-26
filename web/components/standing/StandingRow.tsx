@@ -5,7 +5,11 @@
  * ADR-340 D8 rule, one body two mounts):
  *
  *   - the Notifications "Standing work" pane — the MIRROR (complete, neutral)
- *   - the Supervisor app's `work` band — the COMPOSITION (door, starts, detail)
+ *   - the Supervisor's index rail — the COMPOSITION, as `variant="index"`
+ *     (ADR-670 D6): the index is never the place a thing is read in full, so
+ *     there the row is one line to open — the file, its state, and the one
+ *     fact about now (going, due, or when next). Its verbs live on the opened
+ *     work's side. Same words, same badge, one row.
  *
  * The row answers what a member asks of a piece of standing work: which file
  * it keeps, who looks after it (DERIVED — ADR-658 D2, never a stored field),
@@ -213,17 +217,22 @@ export function StandingStateBadge({ row, className }: { row: StandingSummary; c
 }
 
 export function StandingRow({
-  row, busy, note, viewerId, onRunNow, onTogglePause, onOpen, onOpenFile,
+  row, busy, note, viewerId, onRunNow, onTogglePause, onOpen, onOpenFile, variant = 'card', selected = false,
 }: {
   row: StandingSummary;
   busy?: boolean;
   note?: string | null;
   /** The viewer — browser work reads "in your browser" to its own member. */
   viewerId?: string | null;
-  onRunNow: (row: StandingSummary) => void;
-  onTogglePause: (row: StandingSummary) => void;
+  /** The card's verbs. The index row has none (its verbs are the opened work's). */
+  onRunNow?: (row: StandingSummary) => void;
+  onTogglePause?: (row: StandingSummary) => void;
   onOpen?: (row: StandingSummary) => void;
   onOpenFile?: (row: StandingSummary) => void;
+  /** `card` — the whole row (the mirror); `index` — one line to open (ADR-670 D6). */
+  variant?: 'card' | 'index';
+  /** The index row of the work that is open. */
+  selected?: boolean;
 }) {
   const t = useTranslations('supervisor');
   const { problemCopy, scheduleLine, ownerLine } = useStandingWords();
@@ -247,6 +256,40 @@ export function StandingRow({
           })
         : outcomeLine(row.last_run))
     : null;
+  if (variant === 'index') {
+    // The one fact about NOW: going or due, else when next (never for a
+    // blocked or paused row — the badge already says it will not run then),
+    // else how the last run went.
+    const nextLine = row.next_run_at && !row.paused && row.problem == null
+      ? t('row.next', { when: formatLedgerTime(row.next_run_at) })
+      : null;
+    // A run going is the badge's to say ("Working now"); a line saying it again
+    // is one state spoken twice. A due run's line says whose turn it is.
+    const nowLine = (live?.state === 'waiting' ? liveLine : null) ?? nextLine ?? lastLine;
+    return (
+      <li>
+        <button
+          type="button"
+          onClick={() => open?.(row)}
+          aria-current={selected ? 'true' : undefined}
+          title={t('row.openTitle')}
+          className={cn(
+            'w-full px-3 py-2 text-left transition-colors',
+            selected ? 'bg-muted' : 'hover:bg-muted/60',
+          )}
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+              {row.target || t('row.noFileNamed')}
+            </span>
+            <StandingStateBadge row={row} className="shrink-0" />
+          </span>
+          {nowLine && <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{nowLine}</span>}
+        </button>
+      </li>
+    );
+  }
+
   return (
     <li
       className={cn(
@@ -329,7 +372,7 @@ export function StandingRow({
         <div className="flex shrink-0 items-center gap-1.5 opacity-70 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
             type="button"
-            onClick={() => onRunNow(row)}
+            onClick={() => onRunNow?.(row)}
             disabled={busy || row.problem != null}
             title={row.problem != null ? t('row.blockedTitle') : t('row.runNowTitle')}
             className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 disabled:opacity-40"
@@ -339,7 +382,7 @@ export function StandingRow({
           </button>
           <button
             type="button"
-            onClick={() => onTogglePause(row)}
+            onClick={() => onTogglePause?.(row)}
             disabled={busy}
             title={row.paused ? t('row.resumeTitle') : t('row.pauseTitle')}
             aria-label={row.paused ? t('row.resume') : t('row.pause')}

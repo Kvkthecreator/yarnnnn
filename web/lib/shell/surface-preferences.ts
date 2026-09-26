@@ -675,6 +675,10 @@ const SURFACE_PARAM_KEYS: Record<string, readonly string[]> = {
   // re-route delivered `{platform}` here, which Files has never read, and the
   // unconstrained default accepted and persisted it forever.
   files: ['path', 'domain'],
+  // ADR-670 D6 — the Supervisor's drill grammar: the OBJECT (`work`, a topic),
+  // the TRACE (`run`, a run id), and `start` — the act that runs a browser run
+  // (ADR-666 D4). Registered with the grammar, so no other key persists here.
+  supervisor: ['work', 'run', 'start'],
   // ADR-592 — the Researcher's pane (radar) is DELETED; its param row went
   // with it. The 2026-08-13 lesson it carried still stands for every surface
   // below: an unregistered slug takes the unconstrained miss-case, which reads
@@ -775,6 +779,11 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // was refilled, and a TRASHED document kept reopening. Four repros on three
   // paths, 2026-08-16.
   text: ['file'],
+  // ADR-670 D6 — the Supervisor's Trace (`run`) is one occurrence opened full:
+  // a momentary look, never a place to land on the next launch. `start` is an
+  // ACT (it starts a browser run) — replaying it would start the run again.
+  // `work` stays remembered, like `chat.lane`: the index sits beside it.
+  supervisor: ['run', 'start'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */

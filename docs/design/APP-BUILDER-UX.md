@@ -73,6 +73,11 @@ Every app renders the same three bands. **The bands are fixed; only their conten
 
 **Band 3 — the work.** The declared sections. §5 is the vocabulary.
 
+> **Amended 2026-09-26 (ADR-670 D2/D6) — band 3 is composed by the frame.** The work band is PANES' own model: an
+> index rail (what needs you, the list), the object in the canvas, its supervision in the side, folded by the ladder.
+> A declared section lands in the slot its kind names; the section still declares only `kind` and `title`. Bands 1
+> and 2 are unchanged — the fixed strips above the frame.
+
 ### 2.3 Why a fixed frame and not a canvas
 
 Three reasons, in order of weight:

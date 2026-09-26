@@ -9,7 +9,8 @@
  *   - NeedsYouStrip — the one needs-you queue (`useNeedsYou`, D5), capped, each
  *     row opening its OBJECT: a mention opens its conversation (the visit
  *     discharges it, ADR-637), a decision opens its decision in place (the
- *     same modal Notifications → To do opens), a due run opens its work.
+ *     same modal Notifications → To do opens), a due run opens at its Trace
+ *     (`useOpenRun`, ADR-670 D6).
  *     Absent when nothing waits.
  *   - WhoStrip — the agents as FACES, from the roster the lane list already
  *     receives (`LaneData.agents`; no second roster read). A face is the
@@ -22,9 +23,9 @@
 import { useTranslations } from 'next-intl';
 import { AgentFace } from '@/components/agents/AgentFace';
 import { useProposalModal, type ProposalData } from '@/components/queue/ProposalCard';
-import type { Run } from '@/lib/api/client';
 import { dischargeMention, useNeedsYou } from '@/lib/attention/useNeedsYou';
 import { useProposalLabels } from '@/lib/proposal-labels';
+import { useOpenRun } from '@/lib/runs/openRun';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +43,8 @@ export function NeedsYouStrip({ onOpenLane }: { onOpenLane: (laneId: string) => 
   const { actionLabel, queuedByDialLine } = useProposalLabels();
   const { mentions, waitingRuns, proposals, count, refresh } = useNeedsYou();
   const { navigateToSurface } = useSurfacePreferences();
+  // A due run opens at its Trace — the ONE place a run opens (ADR-670 D6).
+  const openRun = useOpenRun();
   const { openProposal, modalElement } = useProposalModal({ onResolved: () => void refresh() });
 
   if (count === 0) return modalElement;
@@ -54,10 +57,6 @@ export function NeedsYouStrip({ onOpenLane }: { onOpenLane: (laneId: string) => 
     ...proposals.map((p) => ({ kind: 'proposal' as const, key: `p-${p.id}`, p })),
   ].slice(0, NEEDS_YOU_CAP);
 
-  const openRun = (run: Run) => {
-    if (run.topic) navigateToSurface('supervisor', { work: run.topic });
-    else if (run.lane_id) onOpenLane(run.lane_id);
-  };
 
   return (
     <div className="shrink-0 border-b border-border pb-1">

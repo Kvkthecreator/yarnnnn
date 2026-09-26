@@ -55,6 +55,7 @@ import { dischargeMention, useNeedsYou, type PendingProposal } from '@/lib/atten
 import { useProposalLabels } from '@/lib/proposal-labels';
 import { formatRelativeTime, formatLedgerTime, formatAbsolute } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useOpenRun } from '@/lib/runs/openRun';
 import { shellStateSuffix } from '@/lib/shell/surface-preferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
@@ -336,18 +337,15 @@ export function AttentionCenter() {
     [navigateToSurface],
   );
 
-  // A run due on the viewer opens where it is run: its work in the Supervisor
-  // (the one door that starts a browser run, ADR-666 D4), else the
-  // conversation it belongs to. Phase 3 of ADR-670 moves this to the run's
-  // own Trace level.
+  // A run due on the viewer opens at its Trace — the ONE place a run opens
+  // (ADR-670 D6, `useOpenRun`).
+  const openRunTrace = useOpenRun();
   const openRun = useCallback(
     (run: Run) => {
       setIsOpen(false);
-      if (run.topic) navigateToSurface('supervisor', { work: run.topic });
-      else if (run.lane_id) navigateToSurface('chat', { lane: run.lane_id });
-      else navigateToSurface('supervisor');
+      openRunTrace(run);
     },
-    [navigateToSurface],
+    [openRunTrace],
   );
 
   // ADR-340 P4 F3: operator-language labels via the shared labeler —

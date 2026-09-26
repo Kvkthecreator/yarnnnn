@@ -41,6 +41,7 @@ import type { MadeHereFile } from '@/components/chat-surface/LanePanel';
 import { RunView } from '@/components/runs/RunView';
 import { knownKind, resolveSurfaceApplication } from '@/lib/file-types';
 import { useRuns } from '@/lib/runs/useRuns';
+import { useOpenRun } from '@/lib/runs/openRun';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 export function ChatSupervision({
@@ -70,8 +71,8 @@ export function ChatSupervision({
     else setOpening(path);
   };
 
-  const openWork = (topic: string, start = false) =>
-    navigateToSurface('supervisor', { work: topic, ...(start ? { start: '1' } : {}) });
+  // A run opens at its Trace — the ONE place a run opens (ADR-670 D6).
+  const openRun = useOpenRun();
 
   if (files.length === 0 && laneRuns.length === 0) {
     return (
@@ -123,8 +124,8 @@ export function ChatSupervision({
                   run={r}
                   viewerId={userId}
                   compact
-                  onOpen={(run) => run.topic && openWork(run.topic)}
-                  onRunIt={(run) => run.topic && openWork(run.topic, true)}
+                  onOpen={(run) => openRun(run)}
+                  onRunIt={(run) => openRun(run, { start: true })}
                   onOpenFile={open}
                   onChanged={() => void refresh()}
                 />

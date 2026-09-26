@@ -332,6 +332,7 @@ const LADDER_CONSUMERS = [
   'web/components/authoring/StudioSurface.tsx',
   'web/components/text/TextEditor.tsx',
   'web/components/chat-surface/ChatSurface.tsx',
+  'web/components/supervisor/SupervisorSurface.tsx', // ADR-670 D6
   'web/components/pane/PaneHousing.tsx',
   'web/components/settings/SettingsPaneShell.tsx',
 ];

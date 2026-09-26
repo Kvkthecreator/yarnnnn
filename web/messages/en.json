@@ -1715,9 +1715,7 @@
       "claim": "The work that runs on its own, what it is doing now, and what needs you.",
       "minder": "Supervisor looks after this.",
       "loading": "Loading…",
-      "unreadable": "Couldn't read your work just now.",
       "sectionWork": "Standing work",
-      "sectionNeedsYou": "Waiting on you",
       "sectionRunning": "Running now",
       "sectionRecent": "Recently"
     },
@@ -1727,8 +1725,6 @@
       "missNameless": "nameless",
       "workUnreadable": "Couldn't read your standing work just now.",
       "workEmptyTitle": "Nothing runs yet",
-      "workIntro": "Open one to see its runs and instructions.",
-      "needsYouEmpty": "Nothing is waiting on you.",
       "runningEmpty": "Nothing is running.",
       "recentEmpty": "Nothing has run yet.",
       "runsUnreadable": "Couldn't read the runs just now.",
@@ -1829,7 +1825,6 @@
       "couldNotPause": "Could not pause this"
     },
     "detail": {
-      "back": "All standing work",
       "gone": "This is no longer here. It may have been retired.",
       "loading": "Loading…",
       "openInFiles": "Open in Files",
@@ -2175,6 +2170,22 @@
       "suggestBrowser": "Every Monday, check the prices on the sites I use and keep a table.",
       "suggestPath": "Keep a digest of what I upload, current every morning.",
       "suggestUrl": "Watch a web page and keep a short brief of what changes."
+    },
+    "frame": {
+      "run": "Run",
+      "tabIndex": "Work",
+      "tabSetup": "Conversation",
+      "tabWork": "Details",
+      "tabRun": "Run",
+      "tabSide": "Activity",
+      "showIndex": "Show the work list",
+      "hideIndex": "Hide the work list",
+      "showSide": "Show activity",
+      "hideSide": "Hide activity"
+    },
+    "trace": {
+      "gone": "This run is no longer listed.",
+      "openConversation": "Open its conversation"
     }
   },
   "studio": {
@@ -2625,7 +2636,8 @@
       "themeReadOnly": "Read-only — the theme lives in its files. Change a value through the chat or a re-import; inline editing lands here.",
       "stripNounSlides": "slide",
       "stripNounSections": "section",
-      "stripNounLayers": "layer"
+      "stripNounLayers": "layer",
+      "chatBusy": "working now"
     }
   },
   "text": {
@@ -2774,7 +2786,8 @@
       "chatEmptyBody": "Ask for a tighter draft, a new structure, or a second opinion. Every change is saved to <b>{file}</b>, and the page updates as it works.",
       "suggestTighten": "Tighten this — same meaning, fewer words",
       "suggestUnclear": "What is unclear to someone reading this cold?",
-      "suggestRestructure": "Restructure so the main point lands first"
+      "suggestRestructure": "Restructure so the main point lands first",
+      "chatBusy": "working now"
     },
     "markdown": {
       "imageNotFound": "Image not found: <path>{src}</path>",

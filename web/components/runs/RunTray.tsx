@@ -14,9 +14,9 @@
  * ledger on the client — so the tray and the cockpit cannot disagree about
  * whether something is still running.
  *
- * "Run it" on a due run opens the work's detail with `start=1` — the ONE door
- * that starts a browser run, because the run happens in the work's own
- * conversation, which lives there.
+ * A run opens at its Trace; "Run it" on a due run opens the ONE door that
+ * starts a browser run, in the work's own conversation. Both go through
+ * `useOpenRun` (ADR-670 D6).
  */
 
 import { useRef, useState } from 'react';
@@ -25,6 +25,7 @@ import { ArrowRight } from 'lucide-react';
 import type { Run } from '@/lib/api/client';
 import { RunView } from '@/components/runs/RunView';
 import { useRuns } from '@/lib/runs/useRuns';
+import { useOpenRun } from '@/lib/runs/openRun';
 import { waitsOnViewer } from '@/lib/attention/useNeedsYou';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -50,9 +51,11 @@ export function RunTray() {
     ? t('label', { count: going.length })
     : t('labelWaiting', { count: dueOnMe.length });
 
-  const openWork = (topic: string, start = false) => {
+  // A run opens at its Trace — the ONE place a run opens (ADR-670 D6).
+  const openRunAt = useOpenRun();
+  const openRun = (run: Run, start = false) => {
     setOpen(false);
-    navigateToSurface('supervisor', { work: topic, ...(start ? { start: '1' } : {}) });
+    openRunAt(run, { start });
   };
 
   return (
@@ -92,8 +95,8 @@ export function RunTray() {
                   run={r}
                   viewerId={userId}
                   compact
-                  onOpen={(run) => run.topic && openWork(run.topic)}
-                  onRunIt={(run) => run.topic && openWork(run.topic, true)}
+                  onOpen={(run) => openRun(run)}
+                  onRunIt={(run) => openRun(run, true)}
                   onChanged={() => void refresh()}
                 />
               </li>

@@ -356,8 +356,10 @@ for _gone in ("_join_revision", "_written_revisions", "_RUN_REVISION_WINDOW_S", 
 # `already`, never `no_change`, and both Run now handlers word it so.
 check("a Run now that finds a run in flight says `already`, never `no_change`",
       '"already": True,\n                "detail": "already running' in _sw_routes
-      and all("res.already" in read(f) for f in ("web/components/supervisor/StandingDetail.tsx",
-                                                  "web/components/supervisor/SupervisorSurface.tsx")))
+      and "res.already" in read("web/components/supervisor/StandingDetail.tsx")
+      # ADR-670 D6 — the roster is the INDEX now and carries no verbs; the one
+      # Run now handler is the opened work's (its side), so there is no second.
+      and not re.search(r"api\.standing\s*\.run\(", read("web/components/supervisor/SupervisorSurface.tsx")))
 check("the detail and the roster serve the one run shape", "list[RunOut]" in _sw_routes
       and "last_run: Optional[RunOut]" in _sw_routes)
 
@@ -382,10 +384,11 @@ check("only a turn performing DECLARED work writes one",
 # ═════════════════════════════════════════════════════════════════════════════
 print("\nD8 the cockpit: `note` is gone")
 # ═════════════════════════════════════════════════════════════════════════════
-import services.supervisor_state as ss  # noqa: E402
-check("the composed payload has no note and no DECISIONS path",
-      not hasattr(ss, "DECISIONS_PATH") and not hasattr(ss, "_note")
-      and set(ss.supervisor_state(None, "u", "ws").keys()) == {"needs_you"})
+# ADR-670 D5 — the composed payload itself is DELETED (`services/supervisor_state.py`
+# and `GET /api/supervisor/state`): what waits on a member has one client reader,
+# `useNeedsYou`. No DECISIONS path can come back through a module that is gone.
+check("the composed payload (and its note) is gone — ADR-670 D5",
+      not (ROOT / "api/services/supervisor_state.py").exists())
 
 # ═════════════════════════════════════════════════════════════════════════════
 print("\nD7/D8/D9 the client: one reader, one view, the cockpit by run state, the tray")
@@ -403,8 +406,10 @@ for _mount in ("web/components/supervisor/SupervisorSection.tsx", "web/component
                "web/components/runs/RunTray.tsx"):
     check(f"a run renders through the one RunView — {_mount.split('/')[-1]}", "<RunView" in read(_mount))
 _surf = read("web/components/supervisor/SupervisorSurface.tsx")
-check("the cockpit declares running · needs-you · work · recent",
-      re.findall(r"kind:\s*'([a-z-]+)'", _surf) == ["running", "needs-you", "work", "recent"])
+# ADR-670 D5/D6 — `needs-you` left the declaration for the ONE needs-you store
+# (`useNeedsYou`), rendered by the shared strip in the Supervisor's index.
+check("the cockpit declares running · work · recent (needs-you is the one store's)",
+      re.findall(r"kind:\s*'([a-z-]+)'", _surf) == ["running", "work", "recent"])
 check("the tray is in the top bar", "<RunTray />" in read("web/components/shell/chrome/TopBarSurface.tsx"))
 _tray = read("web/components/runs/RunTray.tsx")
 check("…and absent when nothing runs or is due on the viewer", "if (shown.length === 0) return null;" in _tray)

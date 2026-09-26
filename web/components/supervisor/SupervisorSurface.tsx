@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * SupervisorSurface — the Supervisor app's pane (ADR-656 §7 → ADR-658).
+ * SupervisorSurface — the Supervisor app's pane (ADR-656 §7 → ADR-658 →
+ * ADR-670 D6).
  *
  * THE FIRST COMPOSED SURFACE IN YARNNN: its shape is DECLARED (the sections
  * below) rather than mirrored from one substrate concern. That is the register
@@ -10,48 +11,66 @@
  *
  * ⭐ WHAT IT IS FOR (ADR-658 §11 → ADR-667): where a member sets up, sees and
  * manages the work that keeps happening. Work is SET UP IN CONVERSATION — the
- * Supervisor's own agent, beside the cockpit (ADR-667 D1) — and the browser is
- * the prerequisite for setting up and running it, never for seeing it
- * (`BrowserGate`, D4). The cockpit reads by run state; a row opens its detail
- * (ADR-658 D6). Files shows files, Reach shows connections, Chat shows one
- * conversation, Notifications shows what already happened — nothing else shows
- * the work itself, which is why this is not the glorified redirect ADR-435
- * deleted the last composition for being.
+ * Supervisor's own agent (ADR-667 D1) — and the browser is the prerequisite for
+ * setting up and running it, never for seeing it (`BrowserGate`, D4). Files
+ * shows files, Reach shows connections, Chat shows one conversation,
+ * Notifications shows what already happened — nothing else shows the work
+ * itself, which is why this is not the glorified redirect ADR-435 deleted the
+ * last composition for being.
  *
- * ⚠️ ONE READER PER LEDGER. The roster is `api.standing.list` (the same route
- * the Notifications mirror reads); the runs are `useRuns` (the one client store
- * of `GET /api/runs`, live — the tray reads the same store); the mentions are
- * `api.supervisor.state`. The reads are independent and each degrades to its
- * own empty — one unreadable band never blanks the surface.
+ * THE THREE BANDS (APP-BUILDER-UX §2.2):
+ *   1. what this is      — the name and the one-line claim (and the frame's doors)
+ *   2. who is minding it — the resident, named (`MinderBand`)
+ *   3. the work          — THE FRAME (ADR-670 D2): index · object · supervision
  *
- * ⭐ ADR-666 D8 — THE COCKPIT READS BY RUN STATE: running · needs-you · work ·
- * recent. Starting browser work goes through the detail's one door
- * (`?supervisor.start=1`), because a browser run happens in the work's own
- * conversation, which lives there.
+ * ⭐ BAND 3 IS PANES' OWN MODEL, and ONE drill grammar (ADR-670 D6):
  *
- * THE THREE BANDS (APP-BUILDER-UX §2.2, the part that survived the re-scope):
- *   1. what this is      — the name and the one-line claim
- *   2. who is minding it — the resident, named
- *   3. the work          — the declared sections, beside the conversation
+ *   | level                        | rail (index)       | canvas (object)            | side (supervision)          |
+ *   | index                        | Needs you + work   | the setup conversation     | running now · recently      |
+ *   | `?supervisor.work=<topic>`   | unchanged          | that work                  | its verbs · sources · runs  |
+ *   | `?supervisor.run=<id>`       | unchanged          | the run in full (Trace)    | unchanged                   |
+ *
+ * `rail` and `side` are chrome through `usePaneSlot`; the canvas never yields;
+ * the ladder folds them (PANES §2) — the side becomes an overlay at two-pane,
+ * and at single-pane the three are tabs of one screen. There is no `lg:`/`md:`
+ * here: the surface measures its own container. Each level's crumb is set with
+ * `useWindowCrumb`, so the locator strip is the spine and there is no back bar.
+ *
+ * ⚠️ ONE READER PER LEDGER, AND ONE RENDERING PER THING. The roster is
+ * `api.standing.list` (the route the Notifications mirror reads); the runs are
+ * `useRuns`; what waits on the member is `useNeedsYou` (ADR-670 D5) through the
+ * strip every index mounts. The reads land independently — one unreadable band
+ * never blanks the surface. A thing shows once per screen: a waiting run is in
+ * Needs you (live, so never in recently), the run open in the canvas is left out
+ * of every list beside it, and an opened work's runs replace the workspace's.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { PanelLeft, PanelRight } from 'lucide-react';
 import { api, type Run, type StandingStart, type StandingSummary } from '@/lib/api/client';
 import {
   SupervisorSection,
+  sectionSlot,
   type RunsBand,
-  type SupervisorStateData,
   type WorkBand,
 } from '@/components/supervisor/SupervisorSection';
 import { useRuns } from '@/lib/runs/useRuns';
+import { useOpenRun } from '@/lib/runs/openRun';
 import { MinderBand } from '@/components/supervisor/MinderBand';
 import { BrowserGate } from '@/components/supervisor/BrowserGate';
 import { Conversation } from '@/components/supervisor/Conversation';
-import { StandingDetail } from '@/components/supervisor/StandingDetail';
-import { Working } from '@/components/shared/Working';
-import { useFeedback } from '@/contexts/FeedbackContext';
+import { RunTrace } from '@/components/supervisor/RunTrace';
+import {
+  StandingDetailCanvas,
+  StandingDetailSide,
+  useStandingDetail,
+} from '@/components/supervisor/StandingDetail';
+import { NeedsYouStrip } from '@/components/chat-surface/ChatIndexStrips';
+import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
+import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
 import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { cn } from '@/lib/utils';
 
 /**
  * The app's declared sections.
@@ -59,37 +78,42 @@ import { useSurfaceParam, useSurfacePreferences } from '@/lib/shell/useSurfacePr
  * ⚠️ DECLARED, not hardcoded rendering: the surface renders whatever this list
  * says, through the dispatch — which is the whole difference between a composed
  * surface and a bespoke one. A kind this client cannot draw renders the honest
- * amber miss rather than a blank.
+ * amber miss rather than a blank. Which slot of the frame a kind lands in is
+ * the kind's own (`sectionSlot`), never a prop of the declaration.
  *
  * ⭐ Ordered by what a member supervising asks first (ADR-666 D8): what is
- * happening, what needs them, what they have, what just happened.
+ * happening, what they have, what just happened. *What needs them* is the one
+ * needs-you strip (ADR-670 D5), not a section of this app's own.
  */
 /** ADR-660 — the declaration holds catalog KEYS: this table is evaluated at
  *  import, before any member's language is known. The title is worded at
  *  render, so the DECLARED shape is unchanged. */
 const SECTIONS: Array<{ kind: string; titleKey: string }> = [
   { kind: 'running', titleKey: 'sectionRunning' },
-  { kind: 'needs-you', titleKey: 'sectionNeedsYou' },
   { kind: 'work', titleKey: 'sectionWork' },
   { kind: 'recent', titleKey: 'sectionRecent' },
 ];
 
+type NarrowPane = 'index' | 'object' | 'side';
+
+/** The single-pane tab bar: CATALOG KEYS, worded at render. The object tab is
+ *  named for what the canvas holds at this level. */
+const OBJECT_TAB_KEY = { index: 'frame.tabSetup', work: 'frame.tabWork', run: 'frame.tabRun' } as const;
+
 export function SupervisorSurface() {
   const t = useTranslations('supervisor');
-  const [data, setData] = useState<SupervisorStateData | null>(null);
-  const [failed, setFailed] = useState(false);
   const [rows, setRows] = useState<StandingSummary[] | null>(null);
   const [rosterFailed, setRosterFailed] = useState(false);
   const [starts, setStarts] = useState<StandingStart[]>([]);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [notes, setNotes] = useState<Record<string, string>>({});
   const { navigateToSurface, userId } = useSurfacePreferences();
-  const { runAction } = useFeedback();
   const { runs, failed: runsFailed, refresh: refreshRuns } = useRuns();
+  const openRun = useOpenRun();
   const param = useSurfaceParam('supervisor');
-  // The detail (ADR-658 D6) is a deep-linkable pane param, like every other
-  // surface's: `?supervisor.work=<topic>`.
+  // The drill grammar's two deeper levels (ADR-670 D6), each one deep-linkable
+  // param: the OBJECT (`?supervisor.work=<topic>`) and the TRACE
+  // (`?supervisor.run=<id>`).
   const openTopic = param.get('work');
+  const runId = param.get('run');
 
   const loadRoster = useCallback(async () => {
     try {
@@ -102,22 +126,10 @@ export function SupervisorSurface() {
     }
   }, []);
 
-  // ⚠️ THREE READS, EACH LANDING ON ITS OWN (driven 2026-09-19). A first cut
-  // awaited them together, so a 23-second mentions read held the roster — and
-  // even an opened detail — behind one spinner. "Every band degrades
-  // independently" has a twin: every band ARRIVES independently.
+  // ⚠️ THE READS LAND EACH ON THEIR OWN (driven 2026-09-19): awaited together,
+  // one slow read held every band behind one spinner.
   useEffect(() => {
     let cancelled = false;
-    api.supervisor.state().then(
-      (result) => {
-        if (cancelled) return;
-        // Defensive: a read path never trusts the served shape (house style).
-        setData({
-          needs_you: Array.isArray(result?.needs_you) ? result.needs_you : [],
-        });
-      },
-      () => { if (!cancelled) setFailed(true); },
-    );
     api.standing.list().then(
       (list) => {
         if (cancelled) return;
@@ -134,85 +146,72 @@ export function SupervisorSurface() {
     };
   }, []);
 
-  // Opening a mention is a navigation, never a mutation.
-  const openLane = useCallback(
-    (laneId: string) => {
-      navigateToSurface('chat', { lane: laneId });
-    },
-    [navigateToSurface],
-  );
+  // The opened work's ONE state, shared by its two halves (canvas and side).
+  const work = useStandingDetail({
+    topic: openTopic,
+    starts,
+    onChanged: () => void loadRoster(),
+    onRetired: () => param.set({ work: null, run: null }),
+  });
 
-  const runNow = useCallback(async (row: StandingSummary) => {
-    if (busy) return;
-    // ADR-666 D4 — browser work runs in its own conversation, which lives in
-    // its detail: the detail is the ONE door that starts it.
-    if (row.browser) {
-      param.set({ work: row.topic, start: row.browser.member === userId ? '1' : null });
-      return;
-    }
-    setBusy(row.topic);
-    try {
-      const res = await runAction(() => api.standing.run(row.topic), {
-        pending: t('action.runningPending', { topic: row.topic }),
-      });
-      const line = res.already
-        ? t('detail.alreadyRunning')
-        : res.no_change
-        ? t('action.ranNoChange')
-        : res.success
-          ? t('action.ranUpdated')
-          : res.error_reason === 'shape_violation'
-            ? t('action.refusedShape', { detail: res.detail ?? t('action.refusedShapeFallback') })
-            : res.error_reason === 'output_truncated'
-              ? t('action.refusedTruncated')
-            : res.error_reason === 'router_disabled'
-              ? t('action.skippedRouterDisabled')
-              : t('action.runFailed', { reason: res.error_reason ?? t('action.runFailedUnknown') });
-      setNotes((n) => ({ ...n, [row.topic]: line }));
-    } catch (e) {
-      setNotes((n) => ({
-        ...n,
-        [row.topic]: t('action.runFailed', { reason: e instanceof Error ? e.message : String(e) }),
-      }));
-    } finally {
-      setBusy(null);
-      void loadRoster();
-    }
-  }, [busy, loadRoster, param, runAction, t, userId]);
+  // ── The frame (ADR-670 D2) — PANES' model, the shell's ladder ────────────
+  const [setPaneNode, wb] = usePaneLadder();
+  const rail = usePaneSlot('supervisor', 'rail', userId, wb, { defaultShown: true });
+  // The side rests shown where it is a COLUMN and withdrawn where it would be
+  // an OVERLAY — an overlay covers the canvas (PANES §5's moving default).
+  const side = usePaneSlot('supervisor', 'side', userId, wb, { defaultShown: !wb.sideIsOverlay });
+  const single = wb.singlePane;
+  const railIsColumn = !single && rail.shown;
+  const sideIsColumn = slotIsColumn(wb, side);
+  const [narrowPane, setNarrowPane] = useState<NarrowPane>('object');
+  // Opening a level shows it: on one screen, choosing a work or a run from the
+  // index or the side lands on the thing chosen.
+  useEffect(() => {
+    setNarrowPane('object');
+  }, [openTopic, runId]);
 
-  const togglePause = useCallback(async (row: StandingSummary) => {
-    if (busy) return;
-    setBusy(row.topic);
-    try {
-      await runAction(() => api.standing.update(row.topic, { paused: !row.paused }), {
-        success: row.paused ? t('action.resumed') : t('action.paused'),
-        error: row.paused ? t('action.couldNotResume') : t('action.couldNotPause'),
-      });
-    } catch {
-      /* reported; the reload below restores the true state */
-    } finally {
-      setBusy(null);
-      void loadRoster();
-    }
-  }, [busy, loadRoster, runAction, t]);
+  // Escape withdraws the side while it is an OVERLAY (it covers the canvas, so
+  // it is modal); a column is not, and Escape must not reach across and close it.
+  useEffect(() => {
+    if (!wb.sideIsOverlay || !side.shown) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') side.toggle();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [wb.sideIsOverlay, side]);
 
-  const work: WorkBand = {
+  // ── The crumb is the spine (ADR-670 D6) ──────────────────────────────────
+  // The root crumb returns to the index (the strip fires the LEAF's act from
+  // its root, and on a phone the leaf is the back-chip); a middle crumb returns
+  // to its own level.
+  const toIndex = () => param.set({ work: null, run: null, start: null });
+  const workLabel = openTopic
+    ? work.detail?.summary.target || rows?.find((r) => r.topic === openTopic)?.target || openTopic
+    : null;
+  useWindowCrumb('supervisor', [
+    ...(workLabel
+      ? [{ label: workLabel, onClick: runId ? () => param.set({ run: null }) : toIndex }]
+      : []),
+    ...(runId ? [{ label: t('frame.run'), onClick: toIndex }] : []),
+  ]);
+
+  const workBand: WorkBand = {
     rows,
     failed: rosterFailed,
-    busy,
-    notes,
     viewerId: userId ?? null,
-    onRunNow: runNow,
-    onTogglePause: togglePause,
-    onOpen: (row) => param.set({ work: row.topic }),
+    runs,
+    openTopic,
+    onOpen: (row) => param.set({ work: row.topic, run: null }),
   };
 
   const runsBand: RunsBand = {
     runs,
     failed: runsFailed,
     viewerId: userId ?? null,
-    onOpen: (run: Run) => { if (run.topic) param.set({ work: run.topic }); },
-    onRunIt: (run: Run) => { if (run.topic) param.set({ work: run.topic, start: '1' }); },
+    exceptRunId: runId,
+    onOpen: (run: Run) => openRun(run),
+    onRunIt: (run: Run) => openRun(run, { start: true }),
     onOpenFile: (path: string) => navigateToSurface('files', { path }),
     onChanged: () => { void refreshRuns(); void loadRoster(); },
   };
@@ -225,75 +224,122 @@ export function SupervisorSurface() {
       : st.kind === 'path' ? t('conversation.suggestPath')
       : t('conversation.suggestUrl'));
 
-  if (failed && rosterFailed) {
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <div className="rounded-md border border-dashed border-border/60 bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
-          {t('surface.unreadable')}
-        </div>
-      </div>
-    );
-  }
-  // ADR-651 — the ONE way to say wait, self-bounding at 6s and 30s. Shown only
-  // while NOTHING has arrived AND no piece of work is opened: the bands load
-  // INDEPENDENTLY (ADR-658 D5), so a slow mentions read never holds the work
-  // band — the app's reason — behind a spinner, and an opened detail reads
-  // only its own route. A band whose read is still out says "Loading…" itself.
-  if (!openTopic && !data && !failed && rows === null && !rosterFailed) return <Working label={t('surface.loading')} fill />;
-
-  // null = the composed bands' read is still out (or failed); each band says so.
-  const state: SupervisorStateData | null = data ?? (failed ? { needs_you: [] } : null);
+  // Worded here, never inline (the ADR-660 meter reads a JSX ternary as copy).
+  const railDoorLabel = rail.shown ? t('frame.hideIndex') : t('frame.showIndex');
+  const sideDoorLabel = side.shown ? t('frame.hideSide') : t('frame.showSide');
+  const level = runId ? 'run' : openTopic ? 'work' : 'index';
+  const tabs: Array<[NarrowPane, string]> = [
+    ['index', t('frame.tabIndex')],
+    ['object', t(OBJECT_TAB_KEY[level])],
+    ['side', t('frame.tabSide')],
+  ];
+  const shows = (pane: NarrowPane) => !single || narrowPane === pane;
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto lg:overflow-hidden">
-      {/* Band 1 — the visible claim, and the door beside it.
-          ⭐ The door was reachable ONLY from inside the work band, so it moved
-          as the band's contents changed and vanished entirely while the roster
-          read was out. The primary verb of a cockpit belongs in a fixed place;
-          it is hidden on an opened detail, where the verbs are that piece of
-          work's own. */}
-      <header className="flex items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Band 1 — the visible claim, and the frame's doors. A hidden slot must
+          have a reachable door (PANES §3): both live here, outside the slots
+          they hide, at every rung where the slot is a column or an overlay —
+          and not at single-pane, where the bottom tab bar is the switcher. */}
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border/60 px-5 py-4">
         <div className="min-w-0">
           <h1 className="text-[15px] font-semibold text-foreground">{t('surface.title')}</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             {t('surface.claim')}
           </p>
         </div>
+        {!single && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={rail.toggle}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title={railDoorLabel}
+              aria-label={railDoorLabel}
+              aria-expanded={rail.shown}
+            >
+              <PanelLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={side.toggle}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title={sideDoorLabel}
+              aria-label={sideDoorLabel}
+              aria-expanded={side.shown}
+            >
+              <PanelRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </header>
 
-      {/* Band 2 — who is minding it, in its three ruled states (§4.1). It was a
-          CONSTANT; a band that cannot change cannot be trusted. Derived from
-          the roster this surface already holds — no fourth read. */}
+      {/* Band 2 — who is minding it, in its three ruled states (§4.1). Derived
+          from the roster and the ledger this surface already holds. */}
       <MinderBand
         rows={rows}
         runs={runs}
         viewerId={userId ?? null}
-        busyTopic={busy}
-        onOpen={(topic) => param.set({ work: topic })}
+        busyTopic={work.runningNow ? openTopic : null}
+        onOpen={(topic) => param.set({ work: topic, run: null })}
         onRunIt={runsBand.onRunIt}
       />
 
-
-      {/* Band 3 — one piece of work opened (D6), or the declared sections
-          beside the Supervisor's conversation (ADR-667 D1). On a narrow
-          screen the conversation comes first: it is where work begins. */}
-      {openTopic ? (
-        <div className="flex-1">
-          <StandingDetail
-            topic={openTopic}
-            onBack={() => param.set({ work: null })}
-            onChanged={() => void loadRoster()}
+      {/* Band 3 — the frame. */}
+      <div ref={setPaneNode} className="relative flex min-h-0 flex-1">
+        {/* RAIL — the index: what needs you (the one strip, ADR-670 D5) and
+            the roster of work. Never the place a thing is read in full. */}
+        {(single ? narrowPane === 'index' : rail.shown) && (
+          <nav
+            style={railIsColumn ? { width: rail.width } : undefined}
+            aria-label={t('frame.tabIndex')}
+            className={cn(
+              'flex min-h-0 flex-col overflow-y-auto',
+              single ? 'min-w-0 flex-1' : 'shrink-0 border-r border-border/60',
+            )}
+          >
+            <NeedsYouStrip onOpenLane={(laneId) => navigateToSurface('chat', { lane: laneId })} />
+            <div className="space-y-5 px-3 py-3">
+              {SECTIONS.filter((s) => sectionSlot(s.kind) === 'rail').map((section) => (
+                <SupervisorSection
+                  key={section.kind}
+                  section={{ kind: section.kind, title: t(`surface.${section.titleKey}`) }}
+                  work={workBand}
+                  runs={runsBand}
+                />
+              ))}
+            </div>
+          </nav>
+        )}
+        {railIsColumn && (
+          <div
+            onPointerDown={rail.startResize}
+            role="separator"
+            aria-orientation="vertical"
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
           />
-        </div>
-      ) : (
-        <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
-          <aside className="px-5 pt-4 lg:order-last lg:flex lg:w-[440px] lg:shrink-0 lg:flex-col lg:border-l lg:border-border/60 lg:p-4">
+        )}
+
+        {/* CANVAS — the object; it never yields. Kept MOUNTED behind the other
+            tabs at single-pane, so a conversation's streaming turn survives a
+            look at the index. */}
+        <div
+          className={cn(
+            'min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-5 py-4',
+            shows('object') ? 'flex' : 'hidden',
+          )}
+        >
+          {runId ? (
+            <RunTrace runId={runId} known={work.runs} />
+          ) : openTopic ? (
+            <StandingDetailCanvas work={work} />
+          ) : (
             <BrowserGate>
               <Conversation
                 app="supervisor"
                 // The agent sets work up and retires it here (ADR-667 D1):
                 // the roster and the runs re-read when its turn settles, or
-                // the cockpit beside it shows work that no longer exists.
+                // the index beside it shows work that no longer exists.
                 onTurnSettled={() => { void loadRoster(); void refreshRuns(); }}
                 suggestions={suggestions}
                 emptyState={
@@ -302,23 +348,77 @@ export function SupervisorSurface() {
                     <p className="text-xs text-muted-foreground">{t('conversation.emptyBody')}</p>
                   </div>
                 }
-                className="h-[520px] lg:h-full"
+                className="min-h-[420px] flex-1"
               />
             </BrowserGate>
-          </aside>
-          <div className="flex-1 space-y-5 px-5 py-4 lg:overflow-y-auto">
-            {SECTIONS.map((section) => (
-              <SupervisorSection
-                key={section.kind}
-                section={{ kind: section.kind, title: t(`surface.${section.titleKey}`) }}
-                data={state}
-                work={work}
-                runs={runsBand}
-                onOpenLane={openLane}
-              />
-            ))}
-          </div>
+          )}
         </div>
+
+        {/* SIDE — the supervision: a COLUMN at the three-column rungs, an
+            OVERLAY at two-pane (a scrim, Escape and the door dismiss it), a
+            full pane behind the bottom tab at single-pane. */}
+        {wb.sideIsOverlay && side.shown && (
+          <div role="presentation" onClick={side.toggle} className="absolute inset-0 z-20 bg-black/20" />
+        )}
+        {sideIsColumn && (
+          <div
+            onPointerDown={side.startResize}
+            role="separator"
+            aria-orientation="vertical"
+            className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
+          />
+        )}
+        {(single ? narrowPane === 'side' : side.shown) && (
+          <aside
+            style={sideIsColumn ? { width: side.width } : undefined}
+            aria-label={t('frame.tabSide')}
+            className={cn(
+              'flex min-h-0 flex-col overflow-y-auto bg-background px-4 py-4',
+              single
+                ? 'min-w-0 flex-1'
+                : wb.sideIsOverlay
+                  ? 'absolute inset-y-0 right-0 z-30 w-[min(24rem,85%)] border-l border-border shadow-xl'
+                  : 'shrink-0 border-l border-border/60',
+            )}
+          >
+            {openTopic ? (
+              <StandingDetailSide work={work} exceptRunId={runId} />
+            ) : (
+              <div className="space-y-5">
+                {SECTIONS.filter((s) => sectionSlot(s.kind) === 'side').map((section) => (
+                  <SupervisorSection
+                    key={section.kind}
+                    section={{ kind: section.kind, title: t(`surface.${section.titleKey}`) }}
+                    work={workBand}
+                    runs={runsBand}
+                  />
+                ))}
+              </div>
+            )}
+          </aside>
+        )}
+      </div>
+
+      {/* Single-pane: one screen, three tabs (PANES §2's last rung). */}
+      {single && (
+        <nav className="flex shrink-0 border-t border-border">
+          {tabs.map(([pane, label]) => (
+            <button
+              key={pane}
+              type="button"
+              aria-current={narrowPane === pane ? 'page' : undefined}
+              onClick={() => setNarrowPane(pane)}
+              className={cn(
+                'min-h-[44px] flex-1 py-2 text-xs font-medium transition-colors',
+                narrowPane === pane
+                  ? 'border-t-2 border-foreground text-foreground'
+                  : 'border-t-2 border-transparent text-muted-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
       )}
     </div>
   );

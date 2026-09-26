@@ -1715,9 +1715,7 @@
       "claim": "스스로 돌아가는 작업, 지금 하고 있는 일, 그리고 나를 기다리는 일.",
       "minder": "Supervisor가 이 일을 맡고 있어요.",
       "loading": "불러오는 중…",
-      "unreadable": "지금은 작업을 읽어올 수 없었어요.",
       "sectionWork": "정기 작업",
-      "sectionNeedsYou": "당신을 기다리는 일",
       "sectionRunning": "지금 실행 중",
       "sectionRecent": "최근"
     },
@@ -1727,8 +1725,6 @@
       "missNameless": "이름 없는",
       "workUnreadable": "지금은 정기 작업을 읽어올 수 없었어요.",
       "workEmptyTitle": "아직 실행 중인 작업이 없어요",
-      "workIntro": "항목을 열면 실행 기록과 안내를 볼 수 있어요.",
-      "needsYouEmpty": "당신을 기다리는 일은 없어요.",
       "runningEmpty": "실행 중인 작업이 없어요.",
       "recentEmpty": "아직 실행된 작업이 없어요.",
       "runsUnreadable": "지금은 실행 기록을 읽을 수 없어요.",
@@ -1829,7 +1825,6 @@
       "couldNotPause": "일시중지할 수 없었어요"
     },
     "detail": {
-      "back": "모든 정기 작업",
       "gone": "여기에 없어요. 이미 종료된 것 같아요.",
       "loading": "불러오는 중…",
       "openInFiles": "파일에서 열기",
@@ -2175,6 +2170,22 @@
       "suggestBrowser": "매주 월요일, 내가 쓰는 사이트의 가격을 확인해서 표로 정리해 줘.",
       "suggestPath": "내가 올린 파일을 매일 아침 요약해 줘.",
       "suggestUrl": "웹 페이지를 지켜보고 바뀐 내용을 짧게 정리해 줘."
+    },
+    "frame": {
+      "run": "실행",
+      "tabIndex": "작업",
+      "tabSetup": "대화",
+      "tabWork": "상세",
+      "tabRun": "실행",
+      "tabSide": "활동",
+      "showIndex": "작업 목록 보기",
+      "hideIndex": "작업 목록 숨기기",
+      "showSide": "활동 보기",
+      "hideSide": "활동 숨기기"
+    },
+    "trace": {
+      "gone": "이 실행은 더 이상 목록에 없어요.",
+      "openConversation": "대화 열기"
     }
   },
   "studio": {
@@ -2625,7 +2636,8 @@
       "themeReadOnly": "읽기 전용이에요 — 테마는 파일 안에 있어요. 값은 채팅이나 다시 가져오기로 바꿀 수 있고, 여기서 직접 고치는 기능은 나중에 들어와요.",
       "stripNounSlides": "슬라이드",
       "stripNounSections": "섹션",
-      "stripNounLayers": "레이어"
+      "stripNounLayers": "레이어",
+      "chatBusy": "지금 작업 중"
     }
   },
   "text": {
@@ -2774,7 +2786,8 @@
       "chatEmptyBody": "더 간결한 초안, 새로운 구성, 또는 다른 관점을 물어보세요. 바뀐 내용은 모두 <b>{file}</b>에 저장되고, 작업하는 동안 화면도 함께 바뀌어요.",
       "suggestTighten": "의미는 그대로, 더 간결하게 다듬어 줘",
       "suggestUnclear": "처음 읽는 사람에게 헷갈릴 만한 부분은 어디야?",
-      "suggestRestructure": "핵심이 먼저 오도록 구성을 바꿔 줘"
+      "suggestRestructure": "핵심이 먼저 오도록 구성을 바꿔 줘",
+      "chatBusy": "지금 작업 중"
     },
     "markdown": {
       "imageNotFound": "이미지를 찾을 수 없어요: <path>{src}</path>",

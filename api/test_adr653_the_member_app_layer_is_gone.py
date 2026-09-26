@@ -271,8 +271,11 @@ check("dispatch is by KIND", "switch (kind)" in _sec)
 # ADR-666 D8: the vocabulary is running · needs-you · work · recent (read by
 # RUN STATE); `threads` is DELETED (ADR-658 §2) and `note` is DELETED (ADR-666
 # D8 — no writer, no workspace held one).
-for _kind in ("running", "needs-you", "work", "recent"):
+# ADR-670 D5 — `needs-you` is DELETED from the vocabulary: what waits on a
+# member has ONE store (`useNeedsYou`) and one strip, mounted in the index.
+for _kind in ("running", "work", "recent"):
     check(f"the client draws {_kind!r}", f"case '{_kind}':" in _sec)
+check("the client no longer draws `needs-you` (ADR-670 D5)", "case 'needs-you':" not in _sec)
 check("the client no longer draws `threads` (ADR-658 §2)", "case 'threads':" not in _sec)
 check("the client no longer draws `note` (ADR-666 D8)", "case 'note':" not in _sec)
 
@@ -298,7 +301,11 @@ check("`recent` is recent RUNS (ADR-666 D8) — the run ledger, never the timeli
       "RunList" in _recent and "band.runs" in _recent and "timeline" not in _recent.lower())
 
 _surf = _strip_comments_ts(_read(_WEB, "components/supervisor/SupervisorSurface.tsx"))
-check("the surface renders DECLARED sections", "SECTIONS.map" in _surf)
+# ADR-670 D6 — band 3 is the frame; the declaration is rendered into the slot
+# each KIND names (`sectionSlot`), both halves from the one list.
+check("the surface renders DECLARED sections",
+      all(re.search(rf"SECTIONS\.filter\(\(s\) => sectionSlot\(s\.kind\) === '{_slot}'\)\.map\(", _surf)
+          for _slot in ("rail", "side")))
 # ADR-660 moved the words to `web/messages/en.json`: band 2 is `MinderBand`,
 # whose resting line is `t('resting')` under `supervisor.minderBand`. Assert the
 # mount, the call and the catalog sentence it resolves to.
@@ -321,7 +328,10 @@ check("opening a mention navigates to chat",
 _sup_ts = _strip_comments_ts(_read(_WEB, "types/surface.ts"))
 check("the slug joined the FE union", "'supervisor'" in _sup_ts)
 _client_ts = _strip_comments_ts(_read(_WEB, "lib/api/client.ts"))
-check("the api client reads the app's state", "/api/supervisor/state" in _client_ts)
+# ADR-670 D5 — the app's own state read is DELETED; its one band (mentions) is
+# the needs-you store's.
+check("the api client no longer reads a Supervisor state (ADR-670 D5)",
+      "/api/supervisor/state" not in _client_ts)
 
 # =============================================================================
 print("\n" + "=" * 70)

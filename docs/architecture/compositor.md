@@ -107,6 +107,14 @@ takes a `windowSlug` prop. Callers never hand-build the prefix.
 > vocabularies would still collide on a flat `?pane=`. The rule outlived its original
 > reason — keep it.
 
+**One drill grammar: Index → Object → Trace (ADR-670 D6).** A surface's deeper
+levels are each one param in its namespace: the object (`?supervisor.work=`,
+`?chat.lane=`, `?agents.agent=`) and the trace, **`?{slug}.run=<id>`** — one run
+opened full, rendered by `RunView` in the canvas (the Supervisor's today). A level
+sets its crumb through `useWindowCrumb`, so the locator strip is the spine and a
+surface draws no back bar of its own. Every caller opens a run through one
+function, `useOpenRun` (`web/lib/runs/openRun.ts`).
+
 **What a param is FOR, and how long it lives.** Two registries in
 `lib/shell/surface-preferences.ts` answer two different questions, and a surface
 that registers in neither gets the wrong default for both:

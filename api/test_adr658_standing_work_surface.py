@@ -630,37 +630,37 @@ check("a foreign key (`assignee: editor`) is parked as inert residue, never read
 # ═══════════════════════════════════════════════════════════════════════════
 print("D5. `threads` is gone; the composed bands degrade closed and independently")
 # ═══════════════════════════════════════════════════════════════════════════
-import services.supervisor_state as _ss  # noqa: E402
-check("supervisor_state has no _threads and no THREAD_CAP",
-      not hasattr(_ss, "_threads") and not hasattr(_ss, "THREAD_CAP"))
-check("the module's docstring no longer lists threads as a band",
-      "threads    →" not in (_ss.__doc__ or ""))
-import services.mentions as _mentions  # noqa: E402
-_orig_lm = _mentions.list_mentions
-_mentions.list_mentions = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("mentions down"))
-try:
-    _state = _ss.supervisor_state(db, U, WS)
-finally:
-    _mentions.list_mentions = _orig_lm
-# ADR-666 D8 — `note` is deleted (no writer, 0 rows); the runs have their own reader.
-check("the payload is exactly {needs_you}", set(_state.keys()) == {"needs_you"})
-check("a dead mentions read degrades to an EMPTY band, never a failed pane",
-      _state["needs_you"] == [])
+# ADR-670 D5 — the composed payload is DELETED with its route: `threads` went
+# (ADR-658 §2), `note` went (ADR-666 D8), and its last band — mentions — is the
+# ONE needs-you store's (`useNeedsYou`), whose sources each degrade to empty on
+# their own (`Promise.allSettled`). Nothing can re-add `threads` to a module
+# that is gone.
+check("the composed payload is gone (ADR-670 D5)",
+      not (REPO / "api/services/supervisor_state.py").exists()
+      and not (REPO / "api/routes/supervisor.py").exists())
+_needs = _code_only_ts(_read("web/lib/attention/useNeedsYou.ts"))
+check("a dead mentions read degrades to an EMPTY list, never a failed pane",
+      "Promise.allSettled([" in _needs
+      and re.search(r"mentions: m\.status === 'fulfilled' \? m\.value\.mentions \?\? \[\] : snapshot\.mentions \?\? \[\]", _needs) is not None)
 
 # ═══════════════════════════════════════════════════════════════════════════
-print("FE. the surface: running · needs-you · work · recent (ADR-666 D8), one row two mounts, the door, the copy")
+print("FE. the surface: running · work · recent (ADR-666 D8 → ADR-670 D6), one row two mounts, the door, the copy")
 # ═══════════════════════════════════════════════════════════════════════════
 _sec = _code_only_ts(_read("web/components/supervisor/SupervisorSection.tsx"))
-for _kind in ("running", "needs-you", "work", "recent"):
+for _kind in ("running", "work", "recent"):
     check(f"the client draws {_kind!r}", f"case '{_kind}':" in _sec)
+check("the client no longer draws `needs-you` — the one store's strip does (ADR-670 D5)",
+      "case 'needs-you':" not in _sec and "NeedsYouSection" not in _sec)
 check("the client no longer draws `note` (ADR-666 D8)", "case 'note':" not in _sec and "NoteSection" not in _sec)
 check("the client no longer draws `threads`", "case 'threads':" not in _sec and "ThreadsSection" not in _sec)
 _default = _sec[_sec.index("default:"):] if "default:" in _sec else ""
 _default = _default[: _default.index("}")] if "}" in _default else _default
 check("an unknown kind still renders the honest miss", "<SectionMiss" in _default and "return null" not in _default)
 _sec_words = _words("web/components/supervisor/SupervisorSection.tsx")
+# The resting sentence moved with needs-you (ADR-670 D5); `running` keeps the
+# promise here: its empty is the RESTING state, a complete reassuring sentence.
 check("the resting copy reassures; `No items` never appears",
-      "Nothing is waiting on you." in _sec_words and "No items" not in _sec_words)
+      "Nothing is running." in _sec_words and "No items" not in _sec_words)
 # ⚠️ ASSERT THE PROMISE, NOT THE SENTENCE. This arm pinned the exact string
 # "Nothing runs on its own yet." and so failed on a copy edit that made the
 # title SHORTER and better (VOICE §2: an empty-state title is ≤ 4 words). A
@@ -676,22 +676,29 @@ check("the empty-state title fits its slot budget (\u2264 4 words)",
 
 _surf = _code_only_ts(_read("web/components/supervisor/SupervisorSurface.tsx"))
 _order = re.findall(r"kind:\s*'([a-z-]+)'", _surf)
-check("the declared sections are running · needs-you · work · recent, in that order (ADR-666 D8)",
-      _order == ["running", "needs-you", "work", "recent"], str(_order))
-check("the surface renders DECLARED sections", "SECTIONS.map" in _surf)
+check("the declared sections are running · work · recent, in that order (ADR-666 D8 → ADR-670 D5)",
+      _order == ["running", "work", "recent"], str(_order))
+check("the surface renders DECLARED sections — into the slot each kind names (ADR-670 D6)",
+      all(re.search(rf"SECTIONS\.filter\(\(s\) => sectionSlot\(s\.kind\) === '{_slot}'\)\.map\(", _surf)
+          for _slot in ("rail", "side")))
 check("the work band reads the ONE roster route (api.standing.list), not a second composition",
       "api.standing.list(" in _surf or "api.standing.list(" in _sec)
 check("the surface reads the starts", "api.standing.starts(" in _surf or "api.standing.starts(" in _sec)
-check("opening a mention still navigates to chat", "navigateToSurface('chat'" in _surf)
+check("opening a mention still navigates to chat",
+      re.search(r"<NeedsYouStrip onOpenLane=\{\(laneId\) => navigateToSurface\('chat', \{ lane: laneId \}\)\}", _surf) is not None)
 # ⚠️ Driven 2026-09-19: the surface showed "Loading… still working" at 6s while
 # the mentions read was slow — the work band, the app's reason, sat behind a
 # spinner it did not need. The bands LOAD independently, not only degrade.
-check("the surface never gates every band on the composed-state read alone",
-      "if (!data && !failed) return <Working" not in _surf and "rows === null" in _surf)
-check("the three reads ARRIVE independently — never awaited together (a 23s mentions read held the roster)",
+# ADR-670 D6: the frame renders at once — no whole-surface wait at all; each
+# band says "Loading…" itself while its own read is out.
+check("the surface never gates every band on one read",
+      re.search(r"return <Working\b", _surf) is None and "rows === null" in _sec)
+check("the reads ARRIVE independently — never awaited together (a 23s read held the roster)",
       "Promise.allSettled" not in _surf and "Promise.all(" not in _surf
-      and all(f"{c}.then(" in _surf.replace("\n", "").replace(" ", "") for c in ("api.supervisor.state()", "api.standing.list()", "api.standing.starts()")))
-check("an opened detail is never held behind the bands' wait", "if (!openTopic && " in _surf)
+      and all(f"{c}.then(" in _surf.replace("\n", "").replace(" ", "") for c in ("api.standing.list()", "api.standing.starts()")))
+check("an opened detail is never held behind the index's wait — its read is its own",
+      "api.standing.get(" in _code_only_ts(_read("web/components/supervisor/StandingDetail.tsx"))
+      and "api.standing.get(" not in _surf)
 check("no diagnostic logging shipped", "[DIAG]" not in _read("web/components/supervisor/SupervisorSurface.tsx") + _read("web/components/supervisor/StandingDetail.tsx"))
 check("a band whose read is still out says so itself",
       _sec.count("t('loading')") >= 2 and "Loading" in _sec_words)
@@ -704,6 +711,10 @@ check("the MIRROR mounts the shared row (the exact import, and a render)",
       _ROW_IMPORT.search(_mirror) is not None and "<StandingRow" in _mirror)
 check("the COMPOSITION mounts the shared row (the exact import, and a render)",
       _ROW_IMPORT.search(_sec) is not None and "<StandingRow" in _sec)
+# ADR-670 D6 — in the composition the row is the INDEX: one line to open, its
+# verbs on the opened work's side. Same row, same words, a second density.
+check("…as the index form (ADR-670 D6)",
+      re.search(r"<StandingRow\s+key=\{row\.topic\}\s+variant=\"index\"", _sec) is not None)
 check("the mirror keeps its three verbs (ADR-639 D4)",
       all(w in _mirror for w in ("api.standing.list", "api.standing.run", "api.standing.update")))
 check("the mirror's empty state names the Supervisor as where standing work is set up", "Supervisor" in _mirror)
@@ -761,7 +772,11 @@ check("the nested tier sits above the confirm tier and below the feedback layer"
       and int(re.search(r"Z_NESTED_DIALOG = (\d+)", _ztiers).group(1)) < 550)
 
 _detail = _code_only_ts(_read("web/components/supervisor/StandingDetail.tsx"))
-check("the detail exists", "export function StandingDetail" in _detail)
+# ADR-670 D6 — split across the frame: the object in the canvas, its
+# supervision in the side, one state between them.
+check("the detail exists — as its two halves and their one state",
+      all(re.search(rf"\bexport function {n}\(", _detail) for n in
+          ("useStandingDetail", "StandingDetailCanvas", "StandingDetailSide")))
 check("the detail reads the detail route", "api.standing.get(" in _detail)
 check("the detail can retire, and its confirm says the file stays",
       "api.standing.retire(" in _detail
@@ -778,8 +793,8 @@ for _verb in ("create", "get", "retire", "starts"):
     check(f"the api client carries standing.{_verb}", re.search(rf"\n\s+{_verb}: \(", _client[_client.index("standing: {"):]) is not None)
 check("the stale `no create route` comment is gone", "no create route" not in _read("web/lib/api/client.ts"))
 check("StandingSummary carries the derived minder", "minder?:" in _client)
-check("the supervisor state type no longer carries threads",
-      "threads: Array" not in _client[_client.index("supervisor: {"):_client.index("supervisor: {") + 1200])
+check("the supervisor state type is gone with its route (ADR-670 D5)",
+      re.search(r"\bsupervisor: \{", _client) is None)
 
 # =============================================================================
 print("\n" + "=" * 70)

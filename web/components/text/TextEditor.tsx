@@ -213,6 +213,11 @@ export function TextEditor({
   // Rail: Properties | Chat, the Docs grammar. The lane stays MOUNTED while
   // Properties is up (CSS-hidden) so a streaming turn survives the switch.
   const [rightTab, setRightTab] = useState<'properties' | 'chat'>('properties');
+  // ADR-670 D7 — a turn in flight in the bound lane while Chat is not the
+  // showing tab: the Chat tab carries the live mark (the run tray's dot —
+  // one idiom for "working now"). Read from the lane's own busy state
+  // (`LanePanel`'s `onBusyChange`), never a second store.
+  const [laneBusy, setLaneBusy] = useState(false);
   const { sideIsOverlay, singlePane, fullLabels } = wb;
   // The side pane rides the ONE pane contract (`lib/shell/pane-layout.ts`) —
   // the same show/hide + width + persistence Studio and Chat use. Text composes
@@ -1042,6 +1047,12 @@ export function TextEditor({
   // silent no-op on a phone: it set `rightTab` while `activePane` still said
   // `canvas`, so "Rewrite the selection" opened a pane nobody could see.
   const railTab = singlePane && activePane !== 'canvas' ? activePane : rightTab;
+  const chatLiveMark = (
+    <span className="ml-1.5 inline-flex align-middle">
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      <span className="sr-only">{t('chatBusy')}</span>
+    </span>
+  );
 
   return (
     <div ref={setWorkbenchNode} className="flex h-full min-h-0 flex-col">
@@ -1525,6 +1536,7 @@ export function TextEditor({
                 )}
               >
                 {t(labelKey)}
+                {tab === 'chat' && laneBusy && railTab !== 'chat' && chatLiveMark}
               </button>
             ))}
           </div>
@@ -1679,6 +1691,7 @@ export function TextEditor({
                 modelLabel={modelLabel}
                 speakerLabel={speakerLabel}
                 artifactWrite="none"
+                onBusyChange={setLaneBusy}
                 onSeedHeld={setSeedHeld}
                 onSeededTurn={(running) => {
                   // ADR-612 D4 — the ONE moment the act becomes real: a turn
@@ -1761,6 +1774,7 @@ export function TextEditor({
               )}
             >
               {t(labelKey)}
+              {pane === 'chat' && laneBusy && activePane !== 'chat' && chatLiveMark}
             </button>
           ))}
         </nav>

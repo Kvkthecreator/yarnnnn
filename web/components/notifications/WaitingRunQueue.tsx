@@ -10,8 +10,9 @@
  * showed only in the run tray and the Supervisor, and To do never listed it.
  *
  * Read from `useNeedsYou` (which reads `useRuns` — no second fetch), rendered
- * by `RunView`, the one rendering of a run. "Run it" opens the work with
- * `start=1`, the one door that starts a browser run (the run tray's door).
+ * by `RunView`, the one rendering of a run. A run opens at its Trace, and
+ * "Run it" opens the one door that starts a browser run — both through
+ * `useOpenRun` (ADR-670 D6).
  */
 
 import { useTranslations } from 'next-intl';
@@ -19,17 +20,16 @@ import { Play } from 'lucide-react';
 import { RunView } from '@/components/runs/RunView';
 import { useNeedsYou } from '@/lib/attention/useNeedsYou';
 import { refreshRuns } from '@/lib/runs/useRuns';
+import { useOpenRun } from '@/lib/runs/openRun';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 export function WaitingRunQueue() {
   const t = useTranslations('supervisor.notifications');
   const { waitingRuns } = useNeedsYou();
-  const { navigateToSurface, userId } = useSurfacePreferences();
+  const { userId } = useSurfacePreferences();
+  const openRun = useOpenRun();
 
   if (waitingRuns.length === 0) return null;
-
-  const openWork = (topic: string, start = false) =>
-    navigateToSurface('supervisor', { work: topic, ...(start ? { start: '1' } : {}) });
 
   return (
     <div className="mb-6">
@@ -44,8 +44,8 @@ export function WaitingRunQueue() {
             run={r}
             viewerId={userId}
             compact
-            onOpen={(run) => run.topic && openWork(run.topic)}
-            onRunIt={(run) => run.topic && openWork(run.topic, true)}
+            onOpen={(run) => openRun(run)}
+            onRunIt={(run) => openRun(run, { start: true })}
             onChanged={() => void refreshRuns()}
           />
         ))}

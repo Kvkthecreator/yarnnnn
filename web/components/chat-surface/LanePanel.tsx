@@ -423,6 +423,12 @@ export interface LaneMountSlots {
    *  ones that land live mid-turn — so the mount never reads the lane twice.
    *  Absent → nothing reported; no other mount changes. */
   onArtifactsChange?: (files: MadeHereFile[]) => void;
+  /** ADR-670 D7 — whether a turn is in flight here, reported UP each time it
+   *  CHANGES (never on every render), so a mount that hides the conversation
+   *  behind a tab can mark that tab while the agent works. It is the panel's
+   *  own `sending` — the lane's busy state, not a second store. Absent →
+   *  nothing reported. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /** One file a conversation made — what `onArtifactsChange` reports. */
@@ -553,6 +559,7 @@ export function LanePanel({
   onRunTurnSettled,
   onTurnSettled,
   onArtifactsChange,
+  onBusyChange,
 }: LanePanelProps) {
   // ADR-562 D5 — who the member reads as working. Falls back to the engine
   // label, so a mount with no colleague renders byte-identically to pre-562.
@@ -593,6 +600,19 @@ export function LanePanel({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  // ADR-670 D7 — the turn's busy state, reported up only when it changes.
+  const onBusyChangeRef = useRef(onBusyChange);
+  onBusyChangeRef.current = onBusyChange;
+  const reportedBusy = useRef(false);
+  useEffect(() => {
+    if (reportedBusy.current === sending) return;
+    reportedBusy.current = sending;
+    onBusyChangeRef.current?.(sending);
+  }, [sending]);
+  // A panel that unmounts mid-turn (the lane switched) leaves no stale mark.
+  useEffect(() => () => {
+    if (reportedBusy.current) onBusyChangeRef.current?.(false);
+  }, []);
   // When the running turn began — the in-flight row shows its elapsed time
   // (ADR-651 D2, the patient form; the SSE idle deadline bounds the wait).
   const [turnStartedAt, setTurnStartedAt] = useState<number | null>(null);

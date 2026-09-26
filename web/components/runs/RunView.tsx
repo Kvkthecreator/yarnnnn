@@ -58,7 +58,8 @@ export function RunView({
   viewerId?: string | null;
   /** Newest steps only, with a "N more" disclosure. */
   compact?: boolean;
-  /** Open the work this run belongs to (the Supervisor's detail). */
+  /** Open this run in full — its Trace (`useOpenRun`, ADR-670 D6). Any run
+   *  opens, with or without a piece of work behind it. */
   onOpen?: (run: Run) => void;
   /** Start a due run — only offered to its own member. */
   onRunIt?: (run: Run) => void;
@@ -109,7 +110,7 @@ export function RunView({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-            {onOpen && run.topic ? (
+            {onOpen ? (
               <button
                 type="button"
                 onClick={() => onOpen(run)}

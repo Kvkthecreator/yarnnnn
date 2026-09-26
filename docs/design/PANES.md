@@ -158,6 +158,7 @@ choice for the **session** only; their next visit forgot it.
 | **Studio** / Docs / IMAGES | slide strip (paged only) | the artifact | Properties · Chat |
 | **Text** | — (markdown has no navigator) | the document | Properties · Chat |
 | **Chat** | needs you · who · lane list | the conversation | supervision: made here · runs (ADR-670 D3) |
+| **Supervisor** | needs you · the roster of work | the setup conversation · a work · a run (Trace) | running · recently · or the opened work's verbs, sources and runs (ADR-670 D6) |
 | ~~Strings~~ | — | — | DELETED (ADR-639): standing work is a Notifications pane, not an app |
 | **Files** (via `SettingsPaneShell`) | explorer tree | the viewer | — |
 

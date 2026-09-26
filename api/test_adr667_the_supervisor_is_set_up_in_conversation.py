@@ -244,10 +244,12 @@ check("the install step offers Add to Chrome only with a store listing",
       re.search(r"<AddToChrome\s+fallback", _gate) is not None and "storeUrl" not in _gate)
 check("…switch-on only when installed and answering",
       "hands.executor !== null && hands.connected && !hands.on" in _gate)
-_sec = code_only_ts(read("web/components/supervisor/SupervisorSection.tsx"))
+# ADR-670 D5 — needs-you is ONE store (`useNeedsYou`), and the Supervisor's
+# index mounts its shared strip; the predicate lives in the store, once.
+_store = code_only_ts(read("web/lib/attention/useNeedsYou.ts"))
 check("needs-you lists a waiting run only for its own member",
-      "r.state === 'waiting' && r.user_id === viewerId" in _sec
-      and "runsNeedingYou(band.runs, band.viewerId)" in _sec)
+      re.search(r"run\.state === 'waiting' &&[^;]*run\.user_id === viewerId", _store, re.S) is not None
+      and re.search(r"<NeedsYouStrip\b", _surface) is not None)
 _band = code_only_ts(read("web/components/supervisor/MinderBand.tsx"))
 check("the band names whose browser a browser run is in",
       re.search(r"running\?\.kind === 'browser'\s*\?\s*t\('workingBrowser'", _band) is not None)

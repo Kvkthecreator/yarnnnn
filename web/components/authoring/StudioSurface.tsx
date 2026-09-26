@@ -760,6 +760,11 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   // state; the lane surfaces on demand (a lane seed / "ask about this" flips to
   // Chat — see the setRightTab('chat') calls below).
   const [rightTab, setRightTab] = useState<'chat' | 'design'>('design');
+  // ADR-670 D7 — a turn in flight in the bound lane while Chat is not the
+  // showing tab: the Chat tab carries the live mark (the run tray's dot —
+  // one idiom for "working now"). Read from the lane's own busy state
+  // (`LanePanel`'s `onBusyChange`), never a second store.
+  const [laneBusy, setLaneBusy] = useState(false);
 
   // (The old F2 "last caret block" implicit-insert anchor is gone with
   // Media ▾ — every insert is now LOCATED: the palette's take handshake
@@ -3773,6 +3778,12 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
   const navActive = activePane === 'nav';
   const canvasActive = activePane === 'canvas';
   const chatActive = activePane === 'chat';
+  const chatLiveMark = (
+    <span className="ml-1.5 inline-flex align-middle">
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      <span className="sr-only">{t('chatBusy')}</span>
+    </span>
+  );
   return (
     <div ref={setWorkbenchNode} className="relative flex h-full min-h-0 flex-col">
       {/* `relative` is LOAD-BEARING: the two-pane rung's side overlay + its
@@ -4466,6 +4477,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 }`}
               >
                 {label}
+                {tab === 'chat' && laneBusy && rightTab !== 'chat' && chatLiveMark}
               </button>
             ))}
           </div>
@@ -4530,6 +4542,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
                 // the very thing we're looking at twice. The authoring trail lives
                 // in the artifact's revision history (trace), not in breadcrumbs.
                 artifactWrite="none"
+                onBusyChange={setLaneBusy}
                 emptyState={
                   <div className="space-y-2 text-center text-xs text-muted-foreground">
                     <p className="text-sm font-medium text-foreground/80">{t('laneEmptyTitle')}</p>
@@ -4668,6 +4681,7 @@ export function StudioSurface({ app = STUDIO_APP }: { app?: AuthoringApp } = {})
               }`}
             >
               {label}
+              {pane === 'chat' && laneBusy && !chatActive && chatLiveMark}
             </button>
           ))}
         </nav>
