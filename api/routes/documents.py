@@ -1330,7 +1330,7 @@ async def export_document(body: ExportRequest, auth: UserClient):
     The member's "Save as .docx/.pptx/.xlsx". The caller names the source and
     the target format; the kernel names the file (`{stem}.{to}`, then `-2`…,
     never over an existing file) and writes it through the ONE office write
-    (`services/export/office.py::write_office_file`) by dispatching WriteFile —
+    (`services/office/create.py::create_office_file`) by dispatching WriteFile —
     the SAME verb an agent uses, so the member's click and an agent's call are
     one act with one attribution and one `derived_from` edge.
 
@@ -1349,7 +1349,7 @@ async def export_document(body: ExportRequest, auth: UserClient):
 
     _assert_may(auth, src, "read")
 
-    from services.export.office import sibling_export_path
+    from services.office.create import sibling_export_path
     from services.primitives.workspace import _scope_filter
 
     parent = src.rpartition("/")[0]

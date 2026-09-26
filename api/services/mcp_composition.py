@@ -1302,34 +1302,54 @@ async def compose_open(
     if binary:
         url = mint_binary_url(auth, binary.get("blob_sha"))
         size = binary.get("byte_size")
+        # ADR-671 — a format yarnnn READS serves its words, not `content: null`.
+        # An office file's words carry the addresses `edit` takes (`at`), so an
+        # external LLM can change a member's Word file without breaking it.
+        from services.file_formats import office_kind
+        from services.primitives.workspace import _projection_words
+
+        words = _projection_words(auth, abs_path)
+        window = words[max(0, offset): max(0, offset) + OPEN_CONTENT_CAP] if words else None
+        more = bool(words) and max(0, offset) + OPEN_CONTENT_CAP < len(words)
+        editable = office_kind(abs_path) is not None
         out = {
             "success": True, "found": True, "binary": True,
             "reference": format_file_reference(rel), "path": abs_path,
-            "content": None,
+            "content": window,
             "content_type": binary["content_type"],
             "byte_size": size,
-            "content_chars": 0,
-            "stored_chars": 0,
-            "truncated": False,
+            "content_chars": len(window or ""),
+            "stored_chars": len(words or ""),
+            "truncated": more,
             "complete_for_write": False,
             "citations": [],
             "last_updated": rows[0].get("updated_at"),
             "explanation": (
                 f"`{rel}` is a binary file ({binary['content_type']}"
                 + (f", {size:,} bytes" if size else "")
-                + ") — its bytes are stored in the workspace, not its text, so "
-                "there is nothing to read as text. This is NOT an empty file. "
+                + "). "
                 + (
-                    "Fetch the bytes from `content_url` below (a short-lived "
-                    "link, ~1 hour); it is the file itself, not a preview. "
-                    if url else
-                    "Its bytes are served through the workspace file surface. "
+                    "`content` is its text as extracted, each element labelled with its address "
+                    "([p12] a paragraph · Sheet!B7 a cell · [s3/5] a slide shape). Change it IN "
+                    "PLACE with `edit`, passing that address as `at` — its formatting, formulas and "
+                    "layout stay as they are. "
+                    if words and editable else
+                    "`content` is its text as extracted; yarnnn reads this format but does not "
+                    "edit it. "
+                    if words else
+                    "Its bytes are stored, not its text — there is nothing to read as text. This "
+                    "is NOT an empty file. "
                 )
-                + "`save` cannot write this file — a text write would destroy "
-                "the bytes, and is refused. You can still move, rename, delete "
-                "and read the history of it."
+                + (
+                    "The file itself is at `content_url` below (a short-lived link, ~1 hour). "
+                    if url else ""
+                )
+                + "`save` cannot write this file — a text write would destroy the bytes, and "
+                "is refused."
             ),
         }
+        if more:
+            out["next_offset"] = max(0, offset) + OPEN_CONTENT_CAP
         if url:
             out["content_url"] = url
         # Attribution rides the read exactly as it does for text (ADR-311 D3) —
@@ -1670,6 +1690,7 @@ async def compose_edit(
     new: str,
     replace_all: bool = False,
     message: Optional[str] = None,
+    at: Optional[str] = None,
 ) -> dict:
     """Drive `edit` — the anchored write (ADR-545 D1, binds ADR-337 EditFile).
 
@@ -1680,6 +1701,10 @@ async def compose_edit(
     head-read CAS closes the apply-window race (ADR-406 D4). Content the
     client never read is never in the payload — the truncated-read data-loss
     class does not exist on this verb.
+
+    `at` (ADR-671) addresses an office file's element as `open` labels it
+    ('p12', 'Budget!B7', 's3/5'): `old` is then optional — without it the
+    whole element is replaced — and the file is edited in place.
     """
     from services.primitives.registry import execute_primitive
 
@@ -1703,14 +1728,17 @@ async def compose_edit(
     if refused:
         return refused
 
-    result = await execute_primitive(auth, "EditFile", {
+    request = {
         "scope": "workspace",
         "path": rel,
         "old_string": old,
         "new_string": new,
         "replace_all": bool(replace_all),
         "message": message or f"edit via interop: {rel}",
-    })
+    }
+    if at:
+        request["anchor"] = {"at": at}
+    result = await execute_primitive(auth, "EditFile", request)
     if not result.get("success"):
         # Reshape the kernel's anchor failures onto host-actionable guidance.
         err = result.get("error")
@@ -1733,7 +1761,7 @@ async def compose_edit(
         "reference": format_file_reference(rel),
         "path": result.get("path") or f"/workspace/{rel}",
         "replacements": result.get("replacements", 1),
-        "explanation": (
+        "explanation": result.get("message") if at else (
             f"Applied {result.get('replacements', 1)} replacement(s) to `{rel}` "
             "as one attributed revision. Only the anchored change was sent — "
             "content you did not read was never at risk."

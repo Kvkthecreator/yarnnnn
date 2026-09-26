@@ -232,7 +232,19 @@ inside the span only; OMIT `old_string` to replace the span WHOLESALE — the
 Anchoring is how you act on the member's actual selection instead of guessing
 its extent from a quoted excerpt (which is a clipped PREFIX, never the whole).
 
-  EditFile(path='decks/q3.html', anchor={'block_id': 'b7'}, new_string='<p data-block="body" data-block-id="b7">Tighter line.</p>')""",
+  EditFile(path='decks/q3.html', anchor={'block_id': 'b7'}, new_string='<p data-block="body" data-block-id="b7">Tighter line.</p>')
+
+OFFICE FILES (.docx / .xlsx / .pptx, ADR-671) are edited IN PLACE — their
+formatting, formulas and layout stay as they are. ReadFile shows each element's
+address: `[p12]` a Word paragraph, `Budget!B7` an Excel cell, `[s3/5]` a slide
+shape (`s3/7/r2c1` a table cell, `s3/notes` the notes). Pass it as `anchor.at`:
+with `old_string` the phrase is replaced inside that element; without it the
+whole element is (new_string='' deletes a paragraph). `anchor={'after': 'p12'}`
+inserts a paragraph; `style` applies one of the document's own paragraph styles.
+Several changes as ONE revision: `edits=[{at, old_string?, new_string}, …]`.
+
+  EditFile(path='deals/q3-budget.xlsx', anchor={'at': 'Budget!B7'}, new_string='1250')
+  EditFile(path='deals/contract.docx', edits=[{'at': 'p12', 'old_string': '30 days', 'new_string': '45 days'}, {'after': 'p12', 'new_string': 'A new clause.'}])""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -246,7 +258,7 @@ its extent from a quoted excerpt (which is a clipped PREFIX, never the whole).
             },
             "new_string": {
                 "type": "string",
-                "description": "Replacement text (must differ from old_string).",
+                "description": "Replacement text (must differ from old_string). Required, except for an office edit given as `edits` or as `style` alone.",
             },
             "replace_all": {
                 "type": "boolean",
@@ -254,12 +266,23 @@ its extent from a quoted excerpt (which is a clipped PREFIX, never the whole).
             },
             "anchor": {
                 "type": "object",
-                "description": "ADR-609 — the member's selection, addressed directly. EITHER {block_id} (HTML artifacts) OR {start, end} source offsets (prose), never both. Confines the edit to that span.",
+                "description": "Confines the edit to one addressed span. {block_id} for an HTML artifact block (Slides) or {start, end} source offsets for a prose selection (Text) — ADR-609; {at} or {after} for an office file's element (ADR-671).",
                 "properties": {
                     "block_id": {"type": "string", "description": "data-block-id of the target element."},
                     "start": {"type": "integer", "description": "Selection start offset (inclusive)."},
                     "end": {"type": "integer", "description": "Selection end offset (exclusive)."},
+                    "at": {"type": "string", "description": "An office file's element address as ReadFile shows it: 'p12', 'Budget!B7', 's3/5'."},
+                    "after": {"type": "string", "description": "Word only: insert new_string as a new paragraph after this one ('p12')."},
                 },
+            },
+            "edits": {
+                "type": "array",
+                "description": "Office files only: several addressed edits landing as ONE revision. Each {at | after, old_string?, new_string?, style?}.",
+                "items": {"type": "object"},
+            },
+            "style": {
+                "type": "string",
+                "description": "Word only: apply one of the document's own paragraph styles (e.g. 'Heading 2') to the anchored paragraph.",
             },
             "scope": {
                 "type": "string",
@@ -275,7 +298,9 @@ its extent from a quoted excerpt (which is a clipped PREFIX, never the whole).
                 "description": "ADR-209 commit-style message describing the change (optional).",
             },
         },
-        "required": ["path", "new_string"],
+        # `new_string` is enforced in the handler for every edit that needs it:
+        # an office batch (`edits`) and a style-only edit carry none (ADR-671).
+        "required": ["path"],
     },
 }
 
@@ -651,35 +676,23 @@ def _readable_binary_answer(
 
     Click-pass 2026-09-23: the agent read four office uploads, was told "text
     tools cannot read this format", and found the words only by listing and
-    searching for the sibling — an answer am.1 made false. The route to revise
-    is named from the registry (`inline_source_ext`), because it differs by
-    target: Markdown rewrites a document, CSV rewrites ONE sheet, and a deck
-    is written only from a Slides deck."""
-    from services.file_formats import inline_source_ext, is_export_target
+    searching for the sibling — an answer am.1 made false. ADR-671: an office
+    file's words carry the addresses its in-place edit takes, so the message
+    names that loop — read, then EditFile at an address — and nothing else. An
+    agent's natural move is to write back what it read; for an office file that
+    move is refused (D1), so the message never offers it."""
+    from services.file_formats import office_kind
 
-    ext = abs_path.rsplit(".", 1)[-1].lower() if "." in abs_path else ""
-    src = inline_source_ext(ext, False) if is_export_target(abs_path) else None
-    if src == "html":
-        # A presentation's only source is the HTML row, and the writer takes
-        # only a Slides deck — so an uploaded deck has no text to rewrite it from.
-        revise = (f" A .{ext} is written only from a Slides deck, so this file cannot be "
-                  "rewritten in place — author the change as a deck or a document.")
-    elif src == "csv":
-        # The sheet writer reads the extractor's own layout back (`## name`
-        # per sheet, tab-separated rows), so what was read can be written whole.
+    kind = office_kind(abs_path)
+    if kind is not None:
         revise = (
-            f" To revise it, WriteFile the WHOLE workbook back to this same path in "
-            "the layout above — a `## name` line per sheet, tab-separated rows. "
-            "Every sheet you include is kept; one you leave out is dropped. Values "
-            "only: formulas are written as their values."
-        )
-    elif src:
-        revise = (
-            f" To revise it, WriteFile the whole new text as {src.upper()} to this same "
-            f"path: a new revision of the .{ext} is written (styling best-effort)."
+            f" Each element is labelled with its address ({kind.address_hint}). "
+            f"Change the {kind.name} IN PLACE with EditFile(path, anchor={{'at': <address>}}, "
+            "old_string?, new_string) — or several changes as edits=[…] in one revision. Its "
+            "formatting, formulas and layout stay as they are; it is never rewritten from this text."
         )
     else:
-        revise = " yarnnn does not write this format; put changes in a new file."
+        revise = " yarnnn reads this format but does not edit it; put changes in a new file."
     return {
         "success": True,
         "found": True,
@@ -1186,7 +1199,8 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
 
     # ADR-395 am.2 §11.11 — an OFFICE path (.docx/.pptx/.xlsx) is WRITTEN, not
     # stored: the content is the SOURCE (Markdown/HTML/CSV, or a Slides deck)
-    # and the kernel writes the format. Before this, text written under a
+    # and the kernel writes the format — as a NEW file only: a path that holds
+    # an office file already is edited in place with EditFile (ADR-671 D1). Before this, text written under a
     # `.docx` name landed verbatim — a file that claimed to be Word and was
     # not. The one legitimate empty content: `content=''` with exactly one
     # `derived_from`, which converts that file's head server-side (the key
@@ -1289,15 +1303,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         # (ADR-431: auth.user_id IS that member on the MCP path), which is what
         # lets display render "KVKtheCreator's Claude (via MCP)". Steward /
         # system / agent writes stamp nothing — no human acted.
-        identity_uuid = (
-            auth.user_id
-            if (
-                resolved_author == "operator"
-                or resolved_author.startswith("member:")
-                or resolved_author.startswith("yarnnn:mcp:")
-            )
-            else None
-        )
+        identity_uuid = _identity_uuid(auth, resolved_author)
 
         from services.authored_substrate import StaleWriteError
 
@@ -1305,9 +1311,9 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
             if mode == "append":
                 return {"success": False, "error": "append_not_supported",
                         "message": f"An office file cannot be appended to. Write the whole source to {path}."}
-            from services.export.office import write_office_file
+            from services.office.create import create_office_file
             try:
-                written = await write_office_file(
+                written = await create_office_file(
                     auth,
                     target_path=f"/workspace/{path}",
                     source_text=None if converts_source else content,
@@ -1724,6 +1730,24 @@ def _apply_edit(
     return content[:lo] + edited + content[hi:], None
 
 
+def _identity_uuid(auth: Any, resolved_author: str) -> Optional[str]:
+    """ADR-410 identity stamp: WHICH human a revision traces to, when one does.
+
+    `operator`/`member:` — the human themself; `yarnnn:mcp:` — the CONNECTING
+    member whose grant the external LLM acts under (ADR-431: auth.user_id IS
+    that member on the MCP path), which is what lets display render
+    "KVKtheCreator's Claude (via MCP)". System and agent writes stamp nothing
+    — no human acted. One home for WriteFile, EditFile and the office edit door.
+    """
+    if (
+        resolved_author == "operator"
+        or resolved_author.startswith("member:")
+        or resolved_author.startswith("yarnnn:mcp:")
+    ):
+        return auth.user_id
+    return None
+
+
 def _resolved_author_and_message(auth: Any, input: dict, default_message: str) -> tuple[str, str]:
     """ADR-288 D2 attribution resolution shared by the ADR-337 verbs —
     identical semantics to handle_write_file."""
@@ -1769,6 +1793,39 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
         from services.authored_substrate import StaleWriteError, read_head_revision_id
 
         path = _normalize_workspace_rel(path)
+
+        # ADR-671 D3 — an office file is edited IN PLACE, at the addresses its
+        # projection shows. None back means the head is text under an office
+        # name (pre-ADR-395 am.2); it edits as the text it is, below.
+        from services.file_formats import office_kind
+        if office_kind(path) is not None:
+            from services.office.edit import edit_office_file
+
+            office_author, office_message = _resolved_author_and_message(
+                auth, input, f"EditFile workspace {path}"
+            )
+            try:
+                office = await edit_office_file(
+                    auth,
+                    path=f"/workspace/{path}",
+                    request=input,
+                    authored_by=office_author,
+                    message=office_message,
+                    author_identity_uuid=_identity_uuid(auth, office_author),
+                )
+            except StaleWriteError as e:
+                who = (e.current_head or {}).get("authored_by", "another writer")
+                return {"success": False, "error": "stale_write",
+                        "message": (f"/workspace/{path} changed while you were editing — {who} wrote "
+                                    "a revision. ReadFile it again and re-apply your edit.")}
+            if office is not None:
+                if office.get("success"):
+                    office.update(scope="workspace", replacements=len(office.get("applied") or []))
+                return office
+
+        if "new_string" not in input:
+            return {"success": False, "error": "missing_new_string",
+                    "message": "new_string is required — the text that replaces old_string."}
         um = UserMemory(auth.client, auth.user_id)
         # ADR-406 D4: EditFile reads before editing — thread the head it
         # read so a concurrent writer surfaces as a conflict, not a clobber.
@@ -1794,15 +1851,7 @@ async def handle_edit_file(auth: Any, input: dict) -> dict:
         )
         # ADR-410 identity stamp — same discipline as WriteFile (2026-08-10):
         # human-traceable species record WHICH human on the revision.
-        identity_uuid = (
-            auth.user_id
-            if (
-                resolved_author == "operator"
-                or resolved_author.startswith("member:")
-                or resolved_author.startswith("yarnnn:mcp:")
-            )
-            else None
-        )
+        identity_uuid = _identity_uuid(auth, resolved_author)
         try:
             ok = await um.write(
                 path, new_content,

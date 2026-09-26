@@ -19,6 +19,7 @@ rows (Defect 1), and the derive-registry verdicts are correct.
 
 import asyncio
 import io
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -531,7 +532,8 @@ def test_am1_d10_docx_extraction_keeps_tables_and_headers():
     text, blocks = asyncio.run(extract_text(buf.getvalue(), "docx"))
 
     assert "Net 30" in text, "the table was dropped — the am.1 D10 data loss is back"
-    assert "Term\tValue" in text, "table rows are not tab-separated"
+    # ADR-671: a table is a Markdown table whose cells carry their addresses.
+    assert re.search(r"\| \[p\d+\] Term \| \[p\d+\] Value \|", text), "the table lost its rows"
     assert "ACME CONFIDENTIAL" in text, "the header was dropped"
     assert "Intro paragraph." in text and "Closing paragraph." in text
     # Document order: the table sits BETWEEN the two paragraphs, and only the
@@ -557,7 +559,8 @@ def test_am1_d10_xlsx_extraction_reads_every_sheet():
     text, sheets = asyncio.run(extract_text(buf.getvalue(), "xlsx"))
 
     assert "## Q3" in text and "## Notes" in text, "a sheet is missing"
-    assert "EMEA\t1200" in text, "rows are not tab-separated"
+    # ADR-671: a sheet is an addressed table — row number, then its cells.
+    assert "| 2 | EMEA | 1200 |" in text, "the row lost its address or its cells"
     assert "renewal risk" in text, "the second sheet was dropped"
     assert sheets == 2
 
@@ -1318,11 +1321,13 @@ def _extract(data: bytes, ft: str) -> str:
 
 @pytest.mark.parametrize("src,to,source,words", [
     ("brief.md", "docx", _MD_SOURCE,
-     ["Quarterly Brief", "Zanzibar revenue", "reference", "Okonkwo", "Tamarind", "Quokka", "Pelican staff\t1,200"]),
+     ["Quarterly Brief", "Zanzibar revenue", "reference", "Okonkwo", "Tamarind", "Quokka", "Pelican staff | [p9] 1,200"]),
     ("deck.html", "docx", _DECK_SOURCE, ["Marmoset", "Wombat", "Heron", "Ibex", "Axolotl", "Capybara"]),
     ("deck.html", "pptx", _DECK_SOURCE, ["Marmoset", "Wombat", "Narwhal", "Heron", "Ibex", "Axolotl", "Capybara"]),
-    ("data.csv", "xlsx", _CSV_SOURCE, ["Pelican\t1200\t007", "Mallard"]),
-    ("data.tsv", "xlsx", "name\tamount\nPelican\t1200\n", ["Pelican\t1200"]),
+    # ADR-671: a sheet reads as an addressed table; a text cell that begins
+    # with `=` reads with Excel's literal-text apostrophe, never as a formula.
+    ("data.csv", "xlsx", _CSV_SOURCE, ["| 2 | Pelican | 1200 | 007 |", "| 3 | Mallard | '=HYPERLINK"]),
+    ("data.tsv", "xlsx", "name\tamount\nPelican\t1200\n", ["| 2 | Pelican | 1200 |"]),
 ])
 def test_am2_p3_every_target_opens_and_its_words_survive_the_round_trip(src, to, source, words):
     """§11.11 — each writer, DRIVEN: the output opens in its own library, and
@@ -1352,7 +1357,7 @@ def test_am2_p3_a_deck_is_one_slide_per_section_title_first():
     first heading is the slide's TITLE placeholder, the title slide's kicker
     and framing line its subtitle; an untitled slide keeps no empty title."""
     from pptx import Presentation
-    from services.export.office import deck_to_pptx
+    from services.office.create import deck_to_pptx
 
     prs = Presentation(io.BytesIO(deck_to_pptx(_DECK_SOURCE, "deck")))
     slides = list(prs.slides)
@@ -1369,7 +1374,7 @@ def test_am2_p3_a_cell_that_says_a_formula_stays_text():
     a STRING cell, not a live formula; plain numbers become numbers, `007`
     stays the identifier it is."""
     import openpyxl
-    from services.export.office import csv_to_xlsx
+    from services.office.create import csv_to_xlsx
 
     ws = openpyxl.load_workbook(io.BytesIO(csv_to_xlsx(_CSV_SOURCE, "d"))).active
     assert ws["B3"].data_type == "s" and ws["B3"].value.startswith("="), \
@@ -1378,7 +1383,7 @@ def test_am2_p3_a_cell_that_says_a_formula_stays_text():
 
 
 def test_am2_p3_a_writer_refuses_past_its_cap_rather_than_truncating():
-    from services.export import office
+    from services.office import create as office
 
     with pytest.raises(office.ExportRefused):
         office.markdown_to_docx("x" * (office.MAX_SOURCE_CHARS + 1), "t")
@@ -1401,7 +1406,7 @@ def test_am2_p3_a_target_not_offered_has_no_writer():
 
 
 def test_am2_p3_save_as_lands_beside_the_source_never_over_a_file():
-    from services.export.office import sibling_export_path
+    from services.office.create import sibling_export_path
 
     src = "/workspace/deals/brief.md"
     assert sibling_export_path(src, "docx", {src}) == "/workspace/deals/brief.docx"
@@ -1445,7 +1450,7 @@ _SERVICE_CLIENT = object()  # the service client, as a sentinel the writer must 
 
 
 def _drive_writefile(write_input, *, rows=None, caller="member:5fa3"):
-    """The REAL handle_write_file → write_office_file → write_revision (recorded)
+    """The REAL handle_write_file → create_office_file → write_revision (recorded)
     → derive_upload_projection → ExtractTextFromBlob (its write recorded too)."""
     from services.primitives import workspace as ws
 
@@ -1566,22 +1571,22 @@ _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 
 
 @pytest.mark.parametrize("ext, mime, says", [
-    ("docx", _DOCX_MIME, "as MD to this same path"),
-    ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "a `## name` line per sheet"),
-    ("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-     "cannot be rewritten in place"),
+    ("docx", _DOCX_MIME, "[p12] is a paragraph"),
+    ("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Sheet!B7"),
+    ("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "[s3/5]"),
 ])
 def test_am2_click_pass_readfile_on_an_office_file_returns_its_words(ext, mime, says):
     """Click-pass 2026-09-23: the in-app agent read four office uploads, was
     told "text tools cannot read this format", and reached the words only by
     listing and searching for the sibling. ReadFile on a binary the registry
     reads now answers with the words, header stripped, and names the route to
-    revise it — which differs by target, so it is asserted per target."""
+    revise it: since ADR-671, EditFile IN PLACE at the address grammar of
+    that format — asserted per target."""
     raw = f"/workspace/inbound/uploads/brief.{ext}"
     out = _read_binary(raw, mime, f"derived_from: {raw}\n\n# brief.{ext}\n\nZanzibar fee\t$800")
     assert out["binary"] is True and out["content"] == "Zanzibar fee\t$800", out
     assert "cannot read" not in out["message"]
-    assert says in out["message"], out["message"]
+    assert says in out["message"] and "IN PLACE with EditFile" in out["message"], out["message"]
 
 
 def test_am2_click_pass_a_binary_without_words_keeps_the_notice():
@@ -1616,29 +1621,22 @@ def _sheets_of(data: bytes) -> dict:
 def test_am2_click_pass_a_workbook_read_is_a_workbook_written():
     """Click-pass 2026-09-23: an agent read a 3-sheet workbook, changed one
     number, wrote the text back — and the CSV writer made ONE sheet of one
-    column. The writer now reads the extractor's own layout, so the round
-    trip keeps every sheet, its name and its numbers."""
-    from services.export.office import csv_to_xlsx
-    _raw, text = _workbook_text()
-    edited = text.replace("4200", "5000").replace("18320", "19120")
-    sheets = _sheets_of(csv_to_xlsx(edited, "q3-budget"))
+    column. ADR-671 retired that round trip (an office file is never rebuilt
+    from its text); the same change now lands IN PLACE at the cell's address,
+    and every sheet, its name and its numbers are the workbook's own."""
+    from services.office import xlsx as office_xlsx
+    raw, text = _workbook_text()
+    assert "| 2 | Marketing | 3000 | 4200 |" in text, text
+    out, _ = office_xlsx.apply(raw, [{"op": "replace", "at": "'Q3 Budget'!C2", "old": "4200", "new": "5000"}])
+    sheets = _sheets_of(out)
     assert list(sheets) == ["Q3 Budget", "Headcount", "예산 요약"], list(sheets)
     assert sheets["Q3 Budget"][1] == ["Marketing", 3000, 5000], sheets["Q3 Budget"]
     assert sheets["Headcount"] == [["Engineering", 6]]
     assert sheets["예산 요약"] == [["인건비", 13100]]
 
 
-def test_am2_click_pass_escaped_tabs_are_still_columns():
-    """The observed slip: the agent re-emitted the rows with LITERAL `\\t`.
-    Read as CSV that is one column of `Line item\\tQ1` strings."""
-    from services.export.office import csv_to_xlsx
-    _raw, text = _workbook_text()
-    sheets = _sheets_of(csv_to_xlsx(text.replace("\t", "\\t"), "q3-budget"))
-    assert sheets["Q3 Budget"][0] == ["Line item", "Q1", "Q3"], sheets["Q3 Budget"]
-
-
 def test_am2_click_pass_a_plain_csv_is_still_one_sheet():
-    from services.export.office import csv_to_xlsx
+    from services.office.create import csv_to_xlsx
     sheets = _sheets_of(csv_to_xlsx("Vendor,Cost\nRender,4200\n", "vendors"))
     assert sheets == {"vendors": [["Vendor", "Cost"], ["Render", 4200]]}, sheets
 

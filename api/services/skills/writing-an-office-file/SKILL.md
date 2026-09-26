@@ -1,29 +1,32 @@
 ---
 name: writing-an-office-file
-description: Hands workspace work to someone outside it as a Word, PowerPoint or Excel file, structuring the source so it survives the conversion and landing the office file as a new file cited to its source. Use when asked for a .docx, .pptx or .xlsx, or for something to send, attach or print.
+description: Changes a member's Word, Excel or PowerPoint file in place at the addresses ReadFile shows, keeping its formatting and formulas — or creates a new office file for a reader outside. Use when asked to update or fill in a .docx, .xlsx or .pptx, or for something to send or attach.
 metadata:
-  target: One new .docx/.pptx/.xlsx beside its source, derived_from that source, which stays the file the work continues in.
+  target: The member's office file changed in place (one revision, only the asked-for elements) — or one new .docx/.pptx/.xlsx beside its source, derived_from it.
 ---
 # Writing an office file
 
-An office file is a copy for a reader outside the workspace. The source stays where the work lives; the office file is what gets sent.
+A member's .docx, .xlsx or .pptx IS the document — its template, styles, formulas and layout are theirs. You change its words and values where they sit; you never rebuild it.
 
-## Steps
+## Changing an existing file
 
-1. **Decide whether a file is wanted at all.** A teammate in the workspace reads the source itself — share that. Write an office file only when the reader is outside, or asked for the format by name.
-2. **Get the source right first, in the workspace.** The conversion keeps structure and words: headings, lists, tables, bold, italics, links, slide titles. It drops styling — fonts, colours, layout, images. If something matters to the reader, it has to be in the structure: a heading, not a large bold line; a real table, not aligned text.
-3. **Match the source to the format.** A document comes from Markdown or HTML. A sheet comes from CSV: one header row, one value per cell, plain numbers (`1200`, not `$1,200`) where the reader will compute. A presentation comes only from a Slides deck — one idea per slide, its title as the slide's heading. There are no speaker notes to carry; put what must be said on the slide or in a separate document.
-4. **Convert the file; do not retype it.** WriteFile to the office path with `content=''` and `derived_from=[the source]` — the kernel reads the source itself, so a long deck never passes through you and cannot be clipped on the way. Pass the source as `content` only for a short file that does not yet exist anywhere.
-5. **Name it beside its source.** `the-acme-deal/proposal.md` becomes `the-acme-deal/proposal.docx`. Do not overwrite an earlier export the member may already have sent. Pick a new name instead.
-6. **Say what came through and what did not.** Tell the member where the new file is, and name anything the format could not carry (an image, a colour-coded status) so they can fix it before sending.
+1. **Read it first.** ReadFile returns its text with an address on every element: `[p12]` a Word paragraph (`[p3 · Heading 2]` names its style), `Budget!B7` an Excel cell (column letter + row number from the table), `[s3/5]` a slide shape, `s3/7/r2c1` a table cell, `s3/notes` the notes. A formula shows beside its value: `=SUM(B2:B19) → 4210`.
+2. **Edit at the address.** `EditFile(path, anchor={'at': 'p12'}, old_string='30 days', new_string='45 days')` replaces a phrase inside that element and keeps its formatting. Omit `old_string` to replace the whole element; `new_string=''` deletes a Word paragraph. `anchor={'after': 'p12'}` adds a paragraph; `style='Heading 2'` uses one of the document's own styles.
+3. **Batch related changes.** Several edits as `edits=[{at, old_string?, new_string}, …]` land as ONE revision — updating a budget's figures is one edit, not twenty.
+4. **Write values the way the sheet holds them.** `1250` or `1,250` is a number, `25%` is 0.25, `=SUM(B2:B4)` is a formula, `'=text` is literal text. Change an input, not a total: its formula recalculates when the file is opened in Excel.
+5. **Re-read before the next round.** An inserted paragraph moves the addresses after it.
+6. **Say what changed.** In Word your edits show as tracked changes under your name; the member accepts them there. Name the cells or paragraphs you touched.
+
+## Creating a new file
+
+For a reader outside the workspace, from work that lives here. WriteFile to a NEW office path with `content=''` and `derived_from=[the source]` — the kernel reads it, so a long source never passes through you. A document comes from Markdown or HTML, a sheet from CSV (plain numbers, one header row), a presentation only from a Slides deck. The conversion keeps structure and words and drops styling, so put emphasis in headings and tables, and tell the member what the format could not carry.
 
 ## Quality bar
 
-- The office file cites its source, and the source is unchanged.
-- Every heading, list and table in the source appears in the file.
-- A sheet's numbers are numbers; nothing in it is a formula it did not ask for.
-- The member knows what the format dropped before they send it.
+- Only the elements asked about changed; every other part of the file is as it was.
+- A sheet's formulas still compute; nothing that was a formula became a number.
+- A new file cites its source and sits beside it, never over an existing file.
 
 ## Anti-patterns
 
-Editing the office file instead of the source, so the next export loses the fix. Re-emitting a whole deck's HTML as `content` to convert it. Styling carried by look alone (big text, colour) that the conversion drops. Promising the result will look like the in-app view.
+Writing an existing office file back from its text — refused, because it would drop the member's formatting and formulas. Overwriting a total instead of the input it sums. Twenty single-cell calls where one `edits` batch belongs. Guessing an address instead of reading it.

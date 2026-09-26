@@ -842,6 +842,13 @@ before this is called verified on real files.
 
 ### 11.8 What stays deferred, and why
 
+> **Superseded in part by [ADR-671](ADR-671-office-files-are-first-class.md)
+> (2026-09-26)**: in-place editing is no longer deferred — an office file is
+> patched at addressed elements (`services/office/`), and a WriteFile over an
+> existing office file is refused rather than rebuilt (ADR-671 D1). The
+> projection is now addressed, and §11.12's "the sheet writer reads the
+> extractor's own layout" round trip is retired with it.
+
 - **Round-trip in-place editing** — an edit lands in the projection; the
   `.docx` is never rewritten. D16 writes a NEW revision from a SOURCE the
   member authored (md/html/csv); it does not rewrite an uploaded office file.

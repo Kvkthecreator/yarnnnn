@@ -45,14 +45,19 @@ Set up in conversation since ADR-667; the band now names whose browser (closed).
   and the pending act in shared state instead of `client_tools._TURNS`. Measure first: how often runs stall, and
   how often a sign-in stops one.
 
-## Office formats not yet driven with APPLICATION-authored files (2026-09-23)
+## Office files: ADR-671 Phase 1 not yet driven on production (2026-09-26)
 
-The production click-pass (ADR-395 am.2 §11.12) drove every format, Save-as, agent read/edit and binary
-revert on GENERATED fixtures. Still owed, on production: upload one real Excel `.xlsx` (formulas, merged
-cells), Word `.docx` (images, header) and PowerPoint `.pptx`, plus one real Hancom `.hwp` and `.hwpx` —
-check each draws (light + dark) and its "what it says" text has no control-code junk; and open one
-Save-as output in real Word / PowerPoint / Excel. Known cosmetic: a deck's metric block exports as
-"42%label▲ 8%" (inline runs joined without spaces). Delete once seen.
+The in-place edit engine (`services/office/`) is gated on files python-docx / openpyxl / python-pptx wrote,
+not on files Office wrote. Owed, on production, with REAL Office-authored files (a budget `.xlsx` with
+formulas, a shared-formula fill-down, merged cells and a chart; a contract `.docx` with a template, header,
+images and a table; a designed `.pptx`) plus one real Hancom `.hwp`/`.hwpx` for the reader:
+1. the in-app agent reads each (addresses present) and changes one value/clause via EditFile — then OPEN THE
+   RESULT IN REAL Word / Excel / PowerPoint: no repair prompt, formulas recalculate, the Word change shows as a
+   tracked change by "{member} via {model}" and accepts cleanly;
+2. the same through a connected Claude over MCP (`open` shows the words, `edit` with `at`);
+3. WriteFile over the existing file answers `office_file_exists`; the Files preview shows no `[p12]` labels.
+Known cosmetic (am.2): a deck's metric block exports as "42%label▲ 8%". Phases 2–5 are ADR-671 §5, not debt.
+Delete once 1–3 are seen.
 
 ## Vercel skip rule not yet observed skipping (2026-09-23)
 

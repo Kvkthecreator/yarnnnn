@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 import { resolveViewerApplication } from '@/lib/file-types';
 import { useSignedBlobUrl, useBlobBytes, BlobLoading, BlobError, BlobMissing } from './blob';
 import { useArtifactProjection } from './projection';
-import { readWorkbook, renderDocx, slidesFromProjection, type SheetGrid } from './office';
+import { readWorkbook, renderDocx, slidesFromProjection, withoutAddresses, type SheetGrid } from './office';
 
 /** The frame-agnostic viewer-app contract (ADR-436 §2). */
 export interface ViewerAppProps {
@@ -546,7 +546,7 @@ export const DownloadTerminal: ViewerApp = ({ file, compact }) => {
   // The verdict is the SERVER's (`documents.readable_state`) — undefined means
   // unknown, and an unknown says nothing rather than guessing.
   const readable = file.readable;
-  const preview = readable === 'read' ? file.projection_preview : null;
+  const preview = readable === 'read' && file.projection_preview ? withoutAddresses(file.projection_preview) : null;
 
   // ADR-395 am.1 D13 — the terminal SAYS "open or download this file" and,
   // before this, offered no way to do either: Download lived only in the Files

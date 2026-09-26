@@ -218,11 +218,20 @@ def main():
     import inspect
     from services.primitives import workspace as wsprim
     wf_src = inspect.getsource(wsprim.handle_write_file)
+    # The species rule lives in ONE helper (ADR-671 folded the inline copies in
+    # WriteFile and EditFile into `_identity_uuid`); drive it, and check the
+    # write path routes through it.
+    _a = types.SimpleNamespace(user_id="u-human")
+    stamps = {who: wsprim._identity_uuid(_a, who) for who in (
+        "operator", "member:u-human", "member:u-human via anthropic/x", "yarnnn:mcp:claude",
+        "system:extract", "agent:writer", "freddie:x")}
     results.append(_check(
         "9 WriteFile stamps author_identity_uuid for operator/member/mcp species only",
         "author_identity_uuid=identity_uuid" in wf_src
-        and 'startswith("yarnnn:mcp:")' in wf_src
-        and 'startswith("member:")' in wf_src))
+        and "_identity_uuid(auth, resolved_author)" in wf_src
+        and all(stamps[w] == "u-human" for w in list(stamps)[:4])
+        and all(stamps[w] is None for w in list(stamps)[4:]),
+        f"got {stamps}"))
 
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} principal-display assertions pass")

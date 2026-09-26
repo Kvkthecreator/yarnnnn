@@ -142,6 +142,36 @@ export interface SlideText {
 }
 
 /**
+ * ADR-671 — the projection labels each element with the address an in-place
+ * edit takes (`[p12]`, `[p3 · Heading 1]`, `[s3/5]`, `[s3/7/r2c1]`,
+ * `[s3/notes]`). The labels are for agents; a member reading the words never
+ * needs them, so every member-facing rendering of a projection drops them.
+ */
+const ADDRESS_LABEL = /\[(?:p\d+|s\d+\/(?:notes|\d+(?:\/r\d+c\d+)?))(?: · [^\]\n]*)?\] ?/g;
+
+export function withoutAddresses(text: string): string {
+  return text.replace(ADDRESS_LABEL, '');
+}
+
+/** A Markdown table block (a slide's table shape) as TSV rows — the shape the
+ *  slide view draws as a table. Returns null when `block` is not a table. */
+function markdownTableToTsv(block: string): string | null {
+  const lines = block.split('\n');
+  if (!lines.every((l) => l.trim().startsWith('|'))) return null;
+  return lines
+    .filter((l) => !/^\|(\s*:?-+:?\s*\|)+\s*$/.test(l.trim()))
+    .map((l) =>
+      l
+        .trim()
+        .replace(/^\||\|$/g, '')
+        .split(/(?<!\\)\|/)
+        .map((cell) => cell.trim().replace(/\\\|/g, '|').replace(/\t/g, ' '))
+        .join('\t'),
+    )
+    .join('\n');
+}
+
+/**
  * The presentation view: the deck's OWN extracted words, laid out per slide.
  *
  * ⭐ No pptx parser is used, deliberately (ADR-395 §11.10). Client-side pptx
@@ -165,7 +195,8 @@ export function slidesFromProjection(text: string | null | undefined): SlideText
     for (const raw of parts[i + 1].split(/\n{2,}/)) {
       // Trim line breaks and spaces, never tabs: a TSV row may open with an
       // empty cell, and its leading tab is that cell.
-      const block = raw.replace(/^[ \r\n]+|[ \r\n]+$/g, '');
+      const trimmed = withoutAddresses(raw).replace(/^[ \r\n]+|[ \r\n]+$/g, '');
+      const block = markdownTableToTsv(trimmed) ?? trimmed;
       if (!block) continue;
       const m = /^Speaker notes:\s*([\s\S]*)$/.exec(block);
       if (m) {

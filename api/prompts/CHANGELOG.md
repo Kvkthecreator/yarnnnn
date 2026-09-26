@@ -15,6 +15,23 @@ Rules, held by `api/test_prompt_changelog_discipline.py`:
 
 ---
 
+## [2026.09.26.1] - An office file is edited in place at the addresses ReadFile shows; it is never rewritten from its text (ADR-671)
+
+### Changed
+- services/primitives/workspace.py (`EDIT_FILE_TOOL`): a new OFFICE FILES paragraph — ReadFile shows each element's address (`[p12]`, `Budget!B7`, `[s3/5]`, `s3/7/r2c1`, `s3/notes`); pass it as `anchor.at` (with `old_string` a phrase inside it, without it the whole element), `anchor.after` inserts a Word paragraph, `style` applies one of the document's own styles, `edits=[…]` lands several as ONE revision. `anchor` gains `at`/`after`; new params `edits`, `style`; `required` is `["path"]` (`new_string` is enforced in the handler, which refuses its absence for every text edit).
+- services/primitives/workspace.py (`_readable_binary_answer`): ReadFile on an office file now names the in-place loop — "Each element is labelled with its address (…). Change the {Word document} IN PLACE with EditFile(path, anchor={'at': <address>}, …) … it is never rewritten from this text." The three rebuild instructions ("WriteFile the WHOLE workbook back…", "WriteFile the whole new text as MD…", "cannot be rewritten in place") are deleted. PDF/HWP read "yarnnn reads this format but does not edit it".
+- services/office/create.py via WriteFile: a WriteFile to a path holding an office file answers `office_file_exists`, naming EditFile and the address grammar.
+- mcp_server/server.py (`edit`): the verb line and docstring gain "A Word, Excel or PowerPoint file is edited in place: pass the element's address from open as `at`"; new param `at`; `old` defaults to "" (still required for a text file — the kernel refuses it missing).
+- services/mcp_composition.py (`compose_open`): a readable binary's `content` is its addressed words (was `null`), with an explanation naming `edit` + `at`.
+- services/skills/writing-an-office-file/SKILL.md: rewritten around changing the member's file in place (read → EditFile at the address → batch → re-read); creating a new file is the second section. The old anti-pattern "Editing the office file instead of the source" is removed — the member's office file IS the source now.
+- Expected behavior: asked to change a figure in a member's budget or a clause in their contract, an agent reads the file, then calls EditFile at the cell or paragraph address (one `edits` batch for several) — the workbook keeps its formulas, sheets and charts, the document its template and styles, and in Word the change shows as a tracked change under the principal's name. It no longer writes the file back from its text.
+
+### Why
+ADR-395 am.2 §11.12 click-pass (2026-09-23, receipt in that section): asked to change one figure in `q3-budget.xlsx`, the in-app agent wrote back the text it had read and the writer rebuilt the workbook — and the fix that shipped made the rebuild *succeed* (the sheet writer read the extractor's layout), which still turns every formula into its value and drops formatting, charts and merged cells: the ReadFile message instructed exactly that loop. Every office writer built a new file (`docx.Document()`, `Presentation()`, `openpyxl.Workbook()`), so no edit of a member's office file kept it intact; MCP `open` on a `.docx` answered `content: null`. Beta feedback (2026-09-26, operator): members bring Office files first, and treat what comes back as the file.
+
+### Gate
+`test_adr671_office_files_are_first_class.py` 36/36, proven RED by 16 in-place falsifications; `test_adr395_model_consumable_projection.py` 117/117 (arms re-pointed from the retired rebuild to the in-place edit); `test_adr609_anchored_edit.py`, `test_adr545_binding_completion.py` 11/11, `test_principal_display.py` 9/9; ratchets `test_adr632_the_seat_retires.py` 73/73 and `test_adr630_skills.py` 159/159.
+
 ## [2026.09.25.1] - The browser's executor is named truthfully; a run's scope is refused where the tab is; a connected LLM can read what an agent did (ADR-668 §7)
 
 ### Changed

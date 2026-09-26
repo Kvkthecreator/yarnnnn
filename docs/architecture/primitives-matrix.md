@@ -51,14 +51,14 @@ Every primitive is **read-only** (reads and narration — `READ_ONLY_PRIMITIVES`
 |---|---|---|:---:|:---:|---|---|
 | `DeleteFile` | file | queueable | ● | ○ | `authored_substrate` (the archive act) | Move a file to TRASH; the revision chain retains everything (ADR-337 D2). |
 | `DuplicateFile` | file | consequential | ○ | ○ | `routes/documents` (the Files menu) | Duplicate a workspace file as an attributed derivation (ADR-514 D1). |
-| `EditFile` | file | queueable | ● | ○ | — | Surgically replace a string within a workspace file (file layer, ADR-337 D1). |
+| `EditFile` | file | queueable | ● | ○ | — | Surgically replace a string within a workspace file (file layer, ADR-337 D1). An OFFICE file (`.docx`/`.xlsx`/`.pptx`) is edited IN PLACE at the addresses ReadFile shows — `anchor.at` / `anchor.after` / `edits` / `style` (ADR-671 D3). |
 | `ListFiles` | file | read-only | ● | ○ | — | List the workspace filesystem as a tree with metadata (file layer, path-based). |
 | `MoveFile` | file | queueable | ● | ○ | `folder_organize` (the fan) · `routes/documents` | Move/rename a workspace file to a new path as one attributed operation (ADR-337 D3). |
 | `QueryKnowledge` | file | read-only | ● | ○ | — | Search accumulated workspace context (ADR-151, ADR-174). |
 | `ReadFile` | file | read-only | ● | ○ | — | Read a file from the workspace filesystem (file layer, path-based). |
 | `Restore` | file · folder | queueable | ● | ○ | the Trash view (`restore_group`) | Put a file or folder BACK from Trash (the inverse of DeleteFile / DeleteFolder). |
 | `SearchFiles` | file | read-only | ● | ○ | — | Search the workspace filesystem for content (file layer). |
-| `WriteFile` | file | queueable | ● | ○ | `routes/documents` (Save as, ADR-395 am.2 §11.11) | Write a file to the workspace filesystem (file layer, path-based). An OFFICE path (`.docx`/`.pptx`/`.xlsx`) is WRITTEN in that format from a source — `content`, or `content=''` + one `derived_from` — via `services/export/office.py`; MCP `save` inherits it. |
+| `WriteFile` | file | queueable | ● | ○ | `routes/documents` (Save as, ADR-395 am.2 §11.11) | Write a file to the workspace filesystem (file layer, path-based). An OFFICE path (`.docx`/`.pptx`/`.xlsx`) is WRITTEN in that format from a source — `content`, or `content=''` + one `derived_from` — via `services/office/create.py`; MCP `save` inherits it. CREATION only: a path already holding an office file is refused (`office_file_exists`) — it is edited in place (ADR-671 D1). |
 | `DeleteFolder` | folder | queueable | ● | ○ | `routes/documents` (the fan) | Move a whole FOLDER to Trash — one attributed revision per file inside it. |
 | `MoveFolder` | folder | queueable | ● | ○ | `routes/documents` (the fan) | Move or RENAME a whole FOLDER — the same act, addressed differently (ADR-337 D3 at folder grain). |
 | `DiffRevisions` | revisions | read-only | ○ | ○ | **none — registered, no live surface** | Compare two revisions of the same workspace file. |

@@ -3550,7 +3550,8 @@ async def restore_binary_revision(
             detail=f"Your grant in this workspace does not permit writing {path}.",
         )
 
-    from services.authored_substrate import StaleWriteError, read_revision, write_revision
+    from services.authored_substrate import StaleWriteError, read_revision
+    from services.documents import land_binary_revision
     from services.storage_backend import get_storage_backend
     from services.supabase import get_service_client
 
@@ -3563,42 +3564,25 @@ async def restore_binary_revision(
             detail="That revision is text — restore it by editing the file.",
         )
 
-    workspace_id = getattr(auth, "workspace_id", None)
-    # The bucket is service-keyed (see `write_office_file`): REACH, never
-    # attribution — the read above ran on the member's client.
-    service = get_service_client()
-    data = get_storage_backend(service).get_blob(rev.blob_sha, workspace_id=workspace_id)
-    kwargs: dict = {}
-    if body.expected_head_version_id is not None:
-        kwargs["expected_parent_version_id"] = body.expected_head_version_id
+    # The bucket is service-keyed: REACH, never attribution — the read above
+    # ran on the member's client. `land_binary_revision` writes the bytes and
+    # re-derives the projection for a format yarnnn reads (ADR-671 §4).
+    data = get_storage_backend(get_service_client()).get_blob(
+        rev.blob_sha, workspace_id=getattr(auth, "workspace_id", None),
+    )
     try:
-        head = write_revision(
-            service,
-            user_id=auth.user_id,
-            workspace_id=workspace_id,
+        landed = await land_binary_revision(
+            auth,
             path=path,
-            content_bytes=data,
+            data=data,
             authored_by="operator",
             author_identity_uuid=auth.user_id,
             message=f"revert to revision {revision_id[:8]}",
-            **kwargs,
+            expected_parent_version_id=body.expected_head_version_id,
         )
     except StaleWriteError as e:
         raise HTTPException(status_code=409, detail={"error": "stale_write", "message": str(e)})
-
-    from services.file_formats import format_of_path
-    fmt = format_of_path(path)
-    if fmt is not None and fmt.projection == "text":
-        from services.documents import derive_upload_projection, extract_text
-        try:
-            ext = path.rsplit(".", 1)[-1].lower()
-            text, _units = await extract_text(data, ext)
-            await derive_upload_projection(
-                auth.client, auth.user_id, path, text,
-                filename=path.rsplit("/", 1)[-1], file_type=ext, workspace_id=workspace_id,
-            )
-        except Exception as exc:  # noqa: BLE001 — the bytes are restored; the index is best-effort
-            logger.warning("[WORKSPACE_API] projection re-derive after restore failed for %s: %s", path, exc)
+    head = landed["revision_id"]
 
     return {"success": True, "path": path, "head_version_id": head}
 

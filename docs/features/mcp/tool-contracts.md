@@ -154,6 +154,14 @@ bytes. `found` is `true` deliberately — the file exists and is addressable; it
 simply not readable *as text*. Attribution and `history` ride the binary answer
 exactly as they do for text.
 
+**A format yarnnn reads serves its words** (ADR-671). For a Word, Excel or
+PowerPoint file (and a PDF or Hancom file), `content` is the extracted text
+instead of `null` — paged like any read, `complete_for_write` still `false`. An
+office file's words carry the address of every element: `[p12]` a paragraph,
+`Budget!B7` a cell (the table's column letter and row number), `[s3/5]` a slide
+shape, `s3/7/r2c1` a table cell, `s3/notes` the notes. Those addresses are what
+`edit` takes as `at`.
+
 **A large file is paged, not lost.** `truncated: true` always carries
 `next_offset`; call again until it is false. This is the same continuation
 `list` has had since ADR-545 D3 — `open` simply never got it, and the cap's
@@ -328,10 +336,12 @@ ticket row, and the ticket is spent by the **attempt**, not the success.
 ```python
 edit(
     reference: str,            # same grammar as open
-    old: str,                  # exact current text (verbatim; unique unless replace_all)
     new: str,                  # replacement
+    old: str = "",             # exact current text (verbatim; unique unless replace_all) —
+                               # required for a text file, optional with `at`
     replace_all: bool = False,
     message: Optional[str],
+    at: Optional[str],         # an office file's element address, as `open` labels it (ADR-671)
 ) -> dict
 ```
 
@@ -342,6 +352,14 @@ the kernel's internal head-read CAS closes the apply-window race (ADR-406 D4).
 Content the client never read is never in the payload — the truncated-read
 data-loss class does not exist on this verb, and concurrent edits to
 different regions of one file don't conflict. Returns `replacements`.
+
+**An office file is edited in place** (ADR-671). With `at` the edit lands on
+that element of the Word, Excel or PowerPoint file itself: with `old` a phrase
+inside it is replaced (keeping its run's formatting), without it the whole
+element is. Every other part of the file — styles, formulas, charts, layout —
+is unchanged, and in Word the change is a tracked change signed with the
+caller's name (*"Kevin's Claude (via MCP)"*). A stale or wrong address is
+refused with the element's current text, never applied to a neighbour.
 
 ## `delete` — the tidy verb (ADR-545 D2, binds `DeleteFile`)
 

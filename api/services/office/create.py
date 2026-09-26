@@ -1,6 +1,8 @@
-"""The outbound writer — workspace material written AS an office file.
+"""Creating an office file — workspace material written AS a NEW office file.
 
-ADR-395 amendment 2, D16 (phase 3). ADR-417 §2b's demand gate fired: "if
+ADR-395 amendment 2, D16 (phase 3); moved into the office kernel by ADR-671,
+which also narrowed it to CREATION: an existing office file is edited in place
+(`services/office/edit.py`) and never rebuilt from a source (ADR-671 D1). ADR-417 §2b's demand gate fired: "if
 downloadable export returns, it returns as an in-API library call, never as a
 standing deployed service". This module is that library call.
 
@@ -18,8 +20,7 @@ Four deterministic writers, each `(source_text, title) -> bytes`:
                      `deck` layout — the first heading block is the slide title,
                      everything else is its body).
   csv_to_xlsx /      A table → a workbook: one sheet, or one per `## name`
-  tsv_to_xlsx        section (the xlsx extractor's own layout, so a read
-                     workbook writes back whole).
+  tsv_to_xlsx        section.
 
 WHICH writer serves WHICH source is not decided here. Each writer is bound to
 its source format in the format registry (`services/file_formats.py`,
@@ -43,10 +44,11 @@ Module scope imports third-party libraries only (python-docx, python-pptx,
 openpyxl, markdown, lxml), because `file_formats` imports this module to bind
 the writers and must stay importable from `content_types` without a cycle. The
 WRITE — reading a source, naming the sibling, landing the revision, deriving
-its projection — is `write_office_file`, whose service imports are local.
+its projection — is `create_office_file`, whose service imports are local.
 
 Canonical reference:
 docs/adr/ADR-395-model-consumable-projection-and-upload-intake-conformance.md §11.11
+docs/adr/ADR-671-office-files-are-first-class.md D1
 """
 
 from __future__ import annotations
@@ -574,9 +576,8 @@ def _sheet_title(name: str, fallback: str = "Sheet1") -> str:
 
 
 def _split_sheets(source: str, title: str) -> list[tuple[str, str]]:
-    """`(sheet name, body)` pairs. A `## name` line opens a sheet — the layout
-    the xlsx EXTRACTOR writes (`documents.extract_text_from_xlsx`), so a
-    workbook an agent read can be written back whole. No heading → one sheet."""
+    """`(sheet name, body)` pairs. A `## name` line opens a sheet, so one source
+    can create a workbook of several sheets. No heading → one sheet."""
     sheets: list[tuple[str, list[str]]] = []
     for line in source.splitlines():
         m = _SHEET_HEADING.match(line)
@@ -590,15 +591,9 @@ def _split_sheets(source: str, title: str) -> list[tuple[str, str]]:
 
 
 def _sheet_rows(body: str, delimiter: str) -> list[list[str]]:
-    """Rows of one sheet. A real tab anywhere makes it TSV (the extractor's
-    rows, whose cells never hold a tab). ⚠️ A body with NO real tab but a
-    literal `\\t` is TSV too: an agent re-emitting the rows it read escaped
-    the tabs, and reading that as one CSV column flattened a workbook into
-    `Line item\\tQ1\\tQ2` strings (click-pass, 2026-09-23)."""
+    """Rows of one sheet. A real tab anywhere makes it TSV."""
     if "\t" in body:
         delimiter = "\t"
-    elif "\\t" in body:
-        body, delimiter = body.replace("\\t", "\t"), "\t"
     return list(csv.reader(io.StringIO(body), delimiter=delimiter))
 
 
@@ -674,7 +669,7 @@ def _looks_like_html(text: str) -> bool:
     return bool(re.match(r"\s*<", text or ""))
 
 
-async def write_office_file(
+async def create_office_file(
     auth: Any,
     *,
     target_path: str,
@@ -685,10 +680,10 @@ async def write_office_file(
     author_identity_uuid: Optional[str] = None,
     expected_parent_version_id: Any = None,
 ) -> dict:
-    """Write `target_path` (an office path) as a NEW attributed revision.
+    """Create `target_path` (an office path) as a NEW office file from a source.
 
-    The ONE write both doors reach: the member's "Save as" (the route) and an
-    agent's WriteFile to an office path (the lane, and MCP `save`, which
+    The ONE creation both doors reach: the member's "Save as" (the route) and
+    an agent's WriteFile to an office path (the lane, and MCP `save`, which
     dispatches WriteFile). Two source forms:
 
       * `source_text` given — the content IS the source: Markdown or HTML for a
@@ -697,16 +692,28 @@ async def write_office_file(
         that file's head and converts it. No bytes cross the model: a 40-slide
         deck is not re-emitted token by token to be exported.
 
-    Either way the format registry decides whether that source may become this
-    target (`file_formats.export_writer`), the revision lands through
-    `write_revision` (binary lane, ADR-427) with `derived_from` recorded, and
-    the output's text projection is derived exactly as an upload's is — so the
-    file an export mints is one yarnnn reads back.
+    ⭐ ADR-671 D1: CREATION ONLY. A path that already holds an office file is
+    refused — building it again from a source would replace the member's
+    formatting, formulas and layout with what the source can express. The
+    existing file is changed in place with EditFile, at the addresses ReadFile
+    shows.
     """
-    from services.authored_substrate import normalize_workspace_ref, write_revision
+    from services.authored_substrate import normalize_workspace_ref
+    from services.documents import land_binary_revision
     from services.file_formats import ext_of, export_writer, inline_source_ext
 
     to = ext_of(target_path)
+    existing = _existing_office_head(auth, target_path)
+    if existing:
+        return {
+            "success": False, "error": "office_file_exists",
+            "message": (
+                f"{target_path} is an existing {existing}. Writing it again from a source would "
+                "replace its formatting, formulas and layout. Change it in place with EditFile "
+                "at the addresses ReadFile shows (anchor={'at': 'p12'} · 'Sheet1!B7' · 's3/5'), "
+                "or write the new version to a new path."
+            ),
+        }
     sources = [s for s in (normalize_workspace_ref(p) for p in (derived_from or [])) if s]
 
     source_path: Optional[str] = None
@@ -724,7 +731,6 @@ async def write_office_file(
         if "error" in loaded:
             return {"success": False, **loaded}
         source_text = loaded["content"]
-        src_ext = ext_of(source_path)
         probe_path = source_path
     else:
         src_ext = inline_source_ext(to, _looks_like_html(source_text))
@@ -740,48 +746,55 @@ async def write_office_file(
     except ExportRefused as refused:
         return {"success": False, "error": "export_refused", "message": str(refused)}
     except Exception as exc:  # noqa: BLE001 — a library fault is a refusal, never a 500
-        logger.exception("[EXPORT] writer failed for %s", target_path)
+        logger.exception("[OFFICE] writer failed for %s", target_path)
         return {"success": False, "error": "export_failed", "message": f"Could not write the .{to} file: {exc}"}
 
-    kwargs: dict = {}
-    if expected_parent_version_id is not None:
-        kwargs["expected_parent_version_id"] = expected_parent_version_id
-    # The bytes ride the SERVICE client: the `workspace-cas` bucket refuses a
-    # member JWT ("new row violates row-level security policy"), the same wall
-    # `documents.upload`, `routes/images.py` and `generate_image` already ride
-    # it for. Authorization happened above on the member's own client (the
-    # source read, the door's decider); the service client is REACH for the
-    # bucket, never attribution — that stays `authored_by` + `user_id`.
-    # Observed 2026-09-23: MCP (a service-keyed caller) passed, the member's
-    # Save-as and the in-app lane 400'd.
-    from services.supabase import get_service_client
-
-    revision_id = write_revision(
-        get_service_client(),
-        user_id=auth.user_id,
+    landed = await land_binary_revision(
+        auth,
         path=target_path,
-        content_bytes=data,
+        data=data,
         authored_by=authored_by,
         author_identity_uuid=author_identity_uuid,
         message=message,
         summary=(f"Written as .{to} from {source_path}" if source_path else f"Written as .{to}"),
-        lifecycle="active",
-        workspace_id=getattr(auth, "workspace_id", None),
         revision_kind="derivation" if sources else "authored",
         derived_from=sources or None,
-        **kwargs,
+        expected_parent_version_id=expected_parent_version_id,
     )
-
-    projection = await _derive_projection(auth, target_path, data, to)
     return {
         "success": True,
         "path": target_path,
-        "revision_id": revision_id,
         "format": to,
         "bytes": len(data),
         "derived_from": sources,
-        **projection,
+        **landed,
     }
+
+
+def _existing_office_head(auth: Any, path: str) -> Optional[str]:
+    """The format's name when `path` already holds an office file, else None.
+
+    A TEXT file under an office name (Markdown stored as `memo.docx` before
+    ADR-395 am.2 §11.11 wrote the format) is not an office file: writing the
+    real format over it loses nothing, so it is not refused.
+    """
+    from services.file_formats import format_of_path
+    from services.primitives.workspace import _scope_filter
+
+    fmt = format_of_path(path)
+    if fmt is None or fmt.office is None:
+        return None
+    rows = (
+        auth.client.table("workspace_files")
+        .select("content_type")
+        .eq(*_scope_filter(auth))
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    ).data or []
+    if rows and (rows[0].get("content_type") or "") == fmt.mime:
+        return fmt.office.name
+    return None
 
 
 def _not_offered(to: str, source_path: Optional[str]) -> str:
@@ -821,29 +834,6 @@ def _read_source(auth: Any, source_path: str) -> dict:
     return {"content": content}
 
 
-async def _derive_projection(auth: Any, raw_path: str, data: bytes, file_type: str) -> dict:
-    """The output's text projection — the SAME derive an upload runs.
-
-    Reads the written bytes back through the phase-1 extractor (not the source
-    text: what is projected is what the file actually says) and lands the
-    co-located `.extracted.md` via ExtractTextFromBlob, attributed
-    `system:extract`. Best-effort: the office file is already landed and is
-    the file that matters; a missing projection is a missing index entry.
-    """
-    from services.documents import derive_upload_projection, extract_text
-
-    try:
-        text, _units = await extract_text(data, file_type)
-        return await derive_upload_projection(
-            auth.client, auth.user_id, raw_path, text,
-            filename=raw_path.rsplit("/", 1)[-1], file_type=file_type,
-            workspace_id=getattr(auth, "workspace_id", None),
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[EXPORT] projection derive failed for %s: %s", raw_path, exc)
-        return {"projection_path": None, "word_count": 0}
-
-
 __all__ = [
     "ExportRefused",
     "MAX_OUTPUT_BYTES",
@@ -854,5 +844,5 @@ __all__ = [
     "markdown_to_docx",
     "sibling_export_path",
     "tsv_to_xlsx",
-    "write_office_file",
+    "create_office_file",
 ]

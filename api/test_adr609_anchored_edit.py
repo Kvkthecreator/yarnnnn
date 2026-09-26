@@ -243,8 +243,9 @@ check("D4 the seed line does not double-mark",
 
 # ── The tool contract stays honest ─────────────────────────────────────────
 check("EditFile no longer requires old_string (the anchored case)",
-      '"required": ["path", "new_string"]' in _ws_src,
-      "the wholesale-span case passes no old_string")
+      '"required": ["path"]' in _ws_src and '"new_string" not in input' in _ws_src,
+      "the wholesale-span case passes no old_string; new_string is enforced in the "
+      "handler since ADR-671 (an office batch and a style-only edit carry none)")
 check("EditFile declares the anchor to the model",
       '"anchor": {' in _ws_src, "an undocumented param is an unused one")
 

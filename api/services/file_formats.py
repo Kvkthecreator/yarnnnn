@@ -10,7 +10,10 @@ system asks about a format is answered by reading a row here:
     the ADR-395 D2 derive-registry, `registry_strategy`);
   * which view kind the client draws it with (`view`);
   * what it can be written AS (`export_as` — ADR-395 am.2 D16, read by the
-    outbound writer).
+    outbound writer);
+  * whether an existing file is edited in place, and everything else about an
+    office format — its name, its address grammar, whether a model's edit is a
+    tracked change (`office`, ADR-671: an office file is patched, never rebuilt).
 
 ── Why one table, and why here ───────────────────────────────────────────────
 
@@ -38,7 +41,7 @@ imports nothing from `services`).
     presentation for tree rows that are never fetched, and they cover formats
     this registry does not declare (`.xls`, `.ppt`, `.doc`); nothing about a
     format's capability rides on them.
-  * Round-trip editing, and any format needing execution to read (am.2 D19).
+  * Any format needing execution to read (am.2 D19).
 
 Canonical reference:
 docs/adr/ADR-395-model-consumable-projection-and-upload-intake-conformance.md §11
@@ -50,15 +53,13 @@ from dataclasses import dataclass, field
 from typing import Awaitable, Callable, Dict, Optional, Tuple
 
 from services.documents import (
-    extract_text_from_docx,
     extract_text_from_hwp,
     extract_text_from_hwpx,
     extract_text_from_pdf,
-    extract_text_from_pptx,
-    extract_text_from_xlsx,
 )
 
-from services.export.office import (
+from services.office import OfficeKind, docx as office_docx, pptx as office_pptx, xlsx as office_xlsx
+from services.office.create import (
     csv_to_xlsx,
     deck_to_pptx,
     html_to_docx,
@@ -81,7 +82,7 @@ class ExportTarget:
     `.html`. None means every file of the format qualifies.
 
     `writer` is the function that writes THIS source format as `to` (phase 3,
-    `services/export/office.py`). It rides the row the way `extractor` does,
+    `services/office/create.py`). It rides the row the way `extractor` does,
     so which source becomes which target is declared in one place, and a
     target with no writer cannot be offered.
     """
@@ -103,6 +104,9 @@ class FileFormat:
                 format whose bytes are utf-8 text (read as-is).
     view        the view kind the client draws (ADR-395 am.2 D15). The client
                 binds kind → component; the server never names a component.
+    office      the office kind (ADR-671): the module that projects AND edits
+                the format, with its name and address grammar. None: yarnnn
+                reads the format (or not) but does not edit it in place.
     """
 
     exts: Tuple[str, ...]
@@ -113,6 +117,7 @@ class FileFormat:
     extractor: Optional[Extractor] = None
     zip_container: bool = False
     export_as: Tuple[ExportTarget, ...] = field(default_factory=tuple)
+    office: Optional[OfficeKind] = None
 
 
 _IMG, _MOV, _AUD, _TXT, _DAT = (
@@ -144,15 +149,15 @@ FORMATS: Tuple[FileFormat, ...] = (
     FileFormat(("docx",),
                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                _DAT, "text", "wordprocessing",
-               extractor=extract_text_from_docx, zip_container=True),
+               extractor=office_docx.KIND.extract, zip_container=True, office=office_docx.KIND),
     FileFormat(("xlsx",),
                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                _DAT, "text", "spreadsheet",
-               extractor=extract_text_from_xlsx, zip_container=True),
+               extractor=office_xlsx.KIND.extract, zip_container=True, office=office_xlsx.KIND),
     FileFormat(("pptx",),
                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                _DAT, "text", "presentation",
-               extractor=extract_text_from_pptx, zip_container=True),
+               extractor=office_pptx.KIND.extract, zip_container=True, office=office_pptx.KIND),
     FileFormat(("hwpx",), "application/hwp+zip", _DAT, "text", "download",
                extractor=extract_text_from_hwpx, zip_container=True),
     FileFormat(("hwp",), "application/x-hwp", _DAT, "text", "download",
@@ -233,6 +238,13 @@ def is_binary_text_family(file_type: Optional[str]) -> bool:
     """
     fmt = format_for(file_type)
     return bool(fmt and fmt.projection == "text" and fmt.extractor is not None)
+
+
+def office_kind(path: Optional[str]) -> Optional[OfficeKind]:
+    """The office kind of this path's format — its projector, editor, name and
+    address grammar — or None when yarnnn does not edit it in place (ADR-671)."""
+    fmt = format_of_path(path)
+    return fmt.office if fmt else None
 
 
 def ext_for_mime(mime: Optional[str]) -> Optional[str]:
@@ -342,6 +354,7 @@ __all__ = [
     "ext_for_mime",
     "export_targets",
     "export_writer",
+    "office_kind",
     "inline_source_ext",
     "is_export_target",
     "format_for",

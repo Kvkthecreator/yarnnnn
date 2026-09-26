@@ -37,146 +37,9 @@ async def extract_text_from_pdf(file_content: bytes) -> tuple[str, int]:
         return "", 0
 
 
-def _docx_table_text(table) -> str:
-    """One table as tab-separated rows — the shape a model reads as a table."""
-    rows = []
-    for row in table.rows:
-        cells = [c.text.strip().replace("\t", " ") for c in row.cells]
-        if any(cells):
-            rows.append("\t".join(cells))
-    return "\n".join(rows)
-
-
-async def extract_text_from_docx(file_content: bytes) -> tuple[str, int]:
-    """Extract text from DOCX — body in document order, plus headers/footers.
-
-    ADR-395 am.1 D10: this walked `doc.paragraphs` only, which silently DROPS
-    tables, headers and footers. A contract or a spec sheet is mostly tables,
-    so a successful upload could carry almost none of the document's substance
-    — live data loss that read as success.
-
-    `doc.paragraphs` and `doc.tables` are each flat lists in their own order, so
-    zipping them cannot recover interleaving. The body's XML child order is the
-    only record of "this table sits between these two paragraphs", so we walk
-    that. Returns (text, block_count).
-    """
-    try:
-        import docx
-        from docx.table import Table
-        from docx.text.paragraph import Paragraph
-
-        doc = docx.Document(io.BytesIO(file_content))
-        blocks: list[str] = []
-
-        body = doc.element.body
-        for child in body.iterchildren():
-            tag = child.tag.rsplit("}", 1)[-1]
-            if tag == "p":
-                text = Paragraph(child, doc).text.strip()
-                if text:
-                    blocks.append(text)
-            elif tag == "tbl":
-                table = _docx_table_text(Table(child, doc))
-                if table:
-                    blocks.append(table)
-
-        # Headers/footers live per-section, outside the body entirely. A letterhead,
-        # a document title, a confidentiality notice and a page footer all live here.
-        for section in doc.sections:
-            for part in (section.header, section.footer):
-                if part is None:
-                    continue
-                for para in part.paragraphs:
-                    text = para.text.strip()
-                    if text and text not in blocks:
-                        blocks.append(text)
-                for table in part.tables:
-                    table_text = _docx_table_text(table)
-                    if table_text and table_text not in blocks:
-                        blocks.append(table_text)
-
-        return "\n\n".join(blocks), len(blocks)
-    except Exception as e:
-        logger.error(f"DOCX extraction failed: {e}")
-        return "", 0
-
-
-async def extract_text_from_xlsx(file_content: bytes) -> tuple[str, int]:
-    """Extract text from XLSX — one `## sheet` section per sheet, TSV rows.
-
-    ADR-395 am.1 D10. `data_only=True` reads the cached formula RESULT: a model
-    reading `=SUM(B2:B9)` learns nothing, and we have no evaluator. A file saved
-    by a tool that never computed the cache yields None there — the cell reads
-    empty, which is honest (we do not fabricate a value we do not have).
-    Returns (text, sheet_count).
-    """
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True, read_only=True)
-        sections: list[str] = []
-        for ws in wb.worksheets:
-            rows: list[str] = []
-            for row in ws.iter_rows(values_only=True):
-                cells = ["" if v is None else str(v).replace("\t", " ") for v in row]
-                while cells and not cells[-1].strip():   # trim trailing empties
-                    cells.pop()
-                if cells:
-                    rows.append("\t".join(cells))
-            if rows:
-                sections.append(f"## {ws.title}\n\n" + "\n".join(rows))
-        wb.close()
-        return "\n\n".join(sections), len(sections)
-    except Exception as e:
-        logger.error(f"XLSX extraction failed: {e}")
-        return "", 0
-
-
-async def extract_text_from_pptx(file_content: bytes) -> tuple[str, int]:
-    """Extract text from PPTX — one `## Slide N` section per slide, plus notes.
-
-    ADR-395 am.1 D10. Shapes are walked in the slide's own order (including
-    inside group shapes, which hold the text in most designed decks); a table
-    shape reads as TSV, matching the docx table spelling. Speaker notes are the
-    argument the slide only gestures at, so they are kept and labelled.
-    Returns (text, slide_count).
-    """
-    try:
-        from pptx import Presentation
-
-        def shape_text(shape) -> list[str]:
-            out: list[str] = []
-            if getattr(shape, "shape_type", None) is not None and shape.shape_type == 6:  # GROUP
-                for member in shape.shapes:
-                    out.extend(shape_text(member))
-                return out
-            if getattr(shape, "has_table", False):
-                for row in shape.table.rows:
-                    cells = [c.text.strip().replace("\t", " ") for c in row.cells]
-                    if any(cells):
-                        out.append("\t".join(cells))
-                return out
-            if getattr(shape, "has_text_frame", False):
-                text = shape.text_frame.text.strip()
-                if text:
-                    out.append(text)
-            return out
-
-        prs = Presentation(io.BytesIO(file_content))
-        sections: list[str] = []
-        for n, slide in enumerate(prs.slides, start=1):
-            lines: list[str] = []
-            for shape in slide.shapes:
-                lines.extend(shape_text(shape))
-            if slide.has_notes_slide:
-                notes = (slide.notes_slide.notes_text_frame.text or "").strip()
-                if notes:
-                    lines.append(f"Speaker notes: {notes}")
-            if lines:
-                sections.append(f"## Slide {n}\n\n" + "\n\n".join(lines))
-        return "\n\n".join(sections), len(sections)
-    except Exception as e:
-        logger.error(f"PPTX extraction failed: {e}")
-        return "", 0
+# Word, Excel and PowerPoint are read by the office kernel (`services/office/`,
+# ADR-671): their projections carry the addresses an in-place edit takes, so
+# the reader and the editor live in one module per format.
 
 
 #: Ceiling on the bytes an archive-shaped format may inflate to while we read it
@@ -644,8 +507,8 @@ async def derive_upload_projection(
     """Derive a landed binary's `.extracted.md` projection (ADR-395 Piece B).
 
     The ONE derive tail for a binary that has just landed: an upload
-    (`process_document`) and an export (`services/export/office.py`, ADR-395
-    am.2 §11.11) both call it, so a file yarnnn WROTE is indexed exactly as a
+    (`process_document`), a new office file (`services/office/create.py`) and an
+    office edit or a restore (`land_binary_revision`) all call it, so a file yarnnn WROTE is indexed exactly as a
     file a member UPLOADED — same sibling, same attribution, same marker when
     the text is empty. Runs the ExtractTextFromBlob primitive with the
     already-extracted `text`, so the bytes are not re-parsed.
@@ -689,6 +552,77 @@ async def derive_upload_projection(
     except Exception as e:
         logger.warning(f"[DOCUMENTS] Projection derive raised for {raw_path}: {e}")
     return {"projection_path": None, "word_count": 0, "embed_pending": False}
+
+
+async def land_binary_revision(
+    auth,
+    *,
+    path: str,
+    data: bytes,
+    authored_by: str,
+    message: str,
+    author_identity_uuid: Optional[str] = None,
+    summary: Optional[str] = None,
+    revision_kind: str = "authored",
+    derived_from: Optional[list] = None,
+    expected_parent_version_id: Optional[str] = None,
+) -> dict:
+    """Land `data` as a new revision of `path`, then re-derive its projection.
+
+    The ONE tail for bytes yarnnn writes over a workspace path — a new office
+    file (`office/create.py`), an in-place office edit (`office/edit.py`) and a
+    revision restore (`routes/workspace.py`). Three copies of this sequence
+    existed before ADR-671; the order matters and was easy to get wrong:
+
+      1. the bytes ride the SERVICE client — the `workspace-cas` bucket refuses
+         a member JWT (ADR-395 am.2 §11.12). Authorization already happened on
+         the caller's own client; the service client is REACH, never attribution
+         (that stays `authored_by` + `author_identity_uuid`);
+      2. the write is conditional on the head the caller read, when given
+         (ADR-406 D4) — a `StaleWriteError` propagates to the caller;
+      3. a format the registry READS has its `.extracted.md` re-derived from
+         the WRITTEN bytes, so an agent never reads the words of a version that
+         is no longer the file. Best-effort: the bytes are what matter.
+
+    Returns {revision_id, projection_path, word_count, embed_pending}.
+    """
+    from services.authored_substrate import write_revision
+    from services.file_formats import format_of_path
+    from services.supabase import get_service_client
+
+    kwargs: dict = {}
+    if expected_parent_version_id is not None:
+        kwargs["expected_parent_version_id"] = expected_parent_version_id
+    workspace_id = getattr(auth, "workspace_id", None)
+    revision_id = write_revision(
+        get_service_client(),
+        user_id=auth.user_id,
+        workspace_id=workspace_id,
+        path=path,
+        content_bytes=data,
+        authored_by=authored_by,
+        author_identity_uuid=author_identity_uuid,
+        message=message,
+        summary=summary,
+        lifecycle="active",
+        revision_kind=revision_kind,
+        derived_from=derived_from,
+        **kwargs,
+    )
+    out = {"revision_id": revision_id, "projection_path": None, "word_count": 0, "embed_pending": False}
+    fmt = format_of_path(path)
+    if fmt is None or fmt.projection != "text":
+        return out
+    ext = path.rsplit(".", 1)[-1].lower()
+    try:
+        text, _units = await extract_text(data, ext)
+        out.update(await derive_upload_projection(
+            auth.client, auth.user_id, path, text,
+            filename=path.rsplit("/", 1)[-1], file_type=ext, workspace_id=workspace_id,
+        ))
+    except Exception as exc:  # noqa: BLE001 — the bytes landed; the index is best-effort
+        logger.warning(f"[DOCUMENTS] projection re-derive failed for {path}: {exc}")
+    return out
 
 
 # =============================================================================

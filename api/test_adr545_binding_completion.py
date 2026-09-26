@@ -165,10 +165,15 @@ def main():
     # ── identity discipline carries to edit (structural) ──────────────────────
     from services.primitives import workspace as wsprim
     edit_src = inspect.getsource(wsprim.handle_edit_file)
+    helper_src = inspect.getsource(wsprim._identity_uuid)
+    # The species rule lives in ONE helper since ADR-671; both EditFile doors
+    # (text, and the office branch) must route through it.
     results.append(_check(
         "6 EditFile stamps author_identity_uuid for human-traceable species",
         "author_identity_uuid=identity_uuid" in edit_src
-        and 'startswith("yarnnn:mcp:")' in edit_src))
+        and "_identity_uuid(auth, resolved_author)" in edit_src
+        and "author_identity_uuid=_identity_uuid(auth, office_author)" in edit_src
+        and 'startswith("yarnnn:mcp:")' in helper_src))
 
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-545 assertions pass")

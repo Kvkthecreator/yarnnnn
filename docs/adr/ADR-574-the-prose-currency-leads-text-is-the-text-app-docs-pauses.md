@@ -217,6 +217,11 @@ evolves under it.
 
 ### D4 — The reopening condition: an outbound Publish surface, never a better word processor
 
+> **Narrowed by [ADR-671](ADR-671-office-files-are-first-class.md) (2026-09-26)**:
+> an app may edit a member's office file at its grain (paragraphs, shapes, cells)
+> and apply *the file's own styles*. What stays refused is a freeform formatting
+> and layout editor — anything past the grain is "Edit in Word/Excel/PowerPoint".
+
 Docs reopens for **one** reason: an HTML-native **publishing** surface — a Publish/blog
 app that carves the `web` type out of Studio, consolidates the document canvas, and
 earns its housing with capability the system does not have today (connected-account
