@@ -3472,15 +3472,18 @@ export const api = {
         account_email: string | null;
         workspace_name: string | null;
         workspace_id: string | null;
-        grants: string[];
-        legacy_full_access: boolean;
+        // ADR-563 am.1 — the operator picks the tier; each carries its sentences.
+        tiers: { scope: string; label: string; grants: string[] }[];
+        default_scope: string;
       }>(`/api/mcp/oauth-consent?code=${encodeURIComponent(code)}`),
     // Binds the operator to the code — POST, called only on explicit Approve.
     // ADR-573: `workspaceId` binds the connection to a specific workspace the
     // operator reaches. Omitted → the principal's default (ADR-373 D6).
-    completeAuthorize: (code: string, workspaceId?: string | null) =>
+    // ADR-563 am.1: `scope` is the tier the operator granted.
+    completeAuthorize: (code: string, workspaceId: string | null, scope: string) =>
       request<{ redirect_url: string }>(
         `/api/mcp/oauth-callback?code=${encodeURIComponent(code)}` +
+          `&scope=${encodeURIComponent(scope)}` +
           (workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : ""),
         { method: "POST" }
       ),

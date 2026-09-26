@@ -49,7 +49,9 @@ def run() -> int:
         SCOPE_WRITE,
         SCOPE_SHARE,
         SCOPE_LEGACY_FULL,
-        normalize_scopes,
+        GRANTABLE_TIERS,
+        DEFAULT_GRANT,
+        consent_tiers,
         describe_scopes,
         is_legacy_full,
     )
@@ -111,13 +113,17 @@ def run() -> int:
         "share" in blob and "member" in blob,
     )
 
-    # ── D3. An absent/empty scope string is the LEGACY grant, not the floor ──
-    # The column default is 'read'. Displaying the safe floor for a token that
-    # will actually carry full access would be the same lie in a new place.
+    # ── D3. The screen offers a CHOICE, described by the enforcement table ──
+    # ADR-563 am.1: the screen used to describe the client's REQUEST, which was
+    # an accident of registration (ChatGPT read-only forever, Claude legacy
+    # full). The operator now picks; each option describes itself through
+    # `describe_scopes`, so the choice cannot say more or less than it grants.
+    offered = consent_tiers()
     _check(
-        "D3. an empty scope string describes LEGACY full access, not the floor",
-        normalize_scopes(None) == [SCOPE_LEGACY_FULL]
-        and normalize_scopes("") == [SCOPE_LEGACY_FULL],
+        "D3. the choice is exactly the grantable tiers, each self-described",
+        [t["scope"] for t in offered] == GRANTABLE_TIERS
+        and all(t["grants"] == describe_scopes([t["scope"]]) for t in offered)
+        and DEFAULT_GRANT in GRANTABLE_TIERS,
     )
 
     # An unknown scope must not invent a permission sentence.
@@ -136,7 +142,7 @@ def run() -> int:
                     fields.add(stmt.target.id)
     _check(
         "D4. MCPConsentInfo carries who / where / what",
-        {"account_email", "workspace_name", "grants", "legacy_full_access"} <= fields,
+        {"account_email", "workspace_name", "tiers", "default_scope"} <= fields,
     )
 
     # The workspace shown must be resolved by the SAME function the connector's
@@ -163,8 +169,9 @@ def run() -> int:
     # type declaration still says `grants`), so a screen rendering NOTHING read
     # as green. A counting/co-occurrence check cannot defend a specific site.
     _check(
-        "D5. the screen iterates the grants FROM the payload",
-        re.search(r"info\s*\.\s*grants\s*\.\s*map\s*\(", fe_src) is not None,
+        "D5. the screen offers the tiers FROM the payload, and lists the chosen one's grants",
+        re.search(r"info\s*\.\s*tiers\s*\.\s*map\s*\(", fe_src) is not None
+        and re.search(r"chosenTier\?\s*\.\s*grants", fe_src) is not None,
     )
     _check(
         "D5. the screen names the account being connected as",
@@ -174,13 +181,16 @@ def run() -> int:
         "D5. the screen names the workspace",
         "workspace_name" in fe_src,
     )
+    # am.1: no new grant can be legacy full access, so the warning branch for
+    # one is dead and deleted — a branch no input can reach misleads the reader.
     _check(
-        "D5. legacy full access gets its own visible warning branch",
-        "legacy_full_access" in fe_src,
+        "D5. the approve bind sends the chosen scope; the dead legacy branch is gone",
+        re.search(r"completeAuthorize\(\s*code\s*,\s*chosen\s*,\s*scope\s*\)", fe_src) is not None
+        and "legacy_full_access" not in fe_src,
     )
     _check(
         "D5. the API client type carries the new fields (no silent undefined)",
-        all(k in client_src for k in ("account_email", "workspace_name", "grants")),
+        all(k in client_src for k in ("account_email", "workspace_name", "tiers", "default_scope")),
     )
 
     # ── D6. The members pane shows the tier, as its OWN axis ────────────────

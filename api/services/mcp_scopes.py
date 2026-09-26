@@ -25,7 +25,7 @@ it also needs consent copy.
 
 from __future__ import annotations
 
-from typing import Dict, FrozenSet, List, Optional
+from typing import Dict, FrozenSet, List
 
 # ── The tiers ───────────────────────────────────────────────────────────────
 #
@@ -48,7 +48,8 @@ SCOPE_SHARE = "files:share"
 # (schema default `ARRAY['read']`, and both the OAuth and static-bearer paths
 # hardcoded it). It authorizes everything — NOT because that is a good grant,
 # but because narrowing it retroactively would silently break live connectors
-# on a deploy nobody watched. New registrations should request the narrow set.
+# on a deploy nobody watched. It is honoured, never minted: no new grant can
+# carry it (ADR-563 am.1 — the operator picks a tier at consent).
 SCOPE_LEGACY_FULL = "read"
 
 # verb → the narrow scope it requires. Derived from the SAME distinction the
@@ -96,12 +97,32 @@ SATISFIES: Dict[str, FrozenSet[str]] = {
     SCOPE_SHARE: frozenset({SCOPE_SHARE, SCOPE_LEGACY_FULL}),
 }
 
-# What a newly registering client may ask for. `read` stays valid so existing
-# clients can still refresh, but it is no longer the DEFAULT — a fresh
-# registration that names nothing gets the read-only tier, which is the safe
-# floor rather than the full grant.
-VALID_SCOPES = [SCOPE_READ, SCOPE_WRITE, SCOPE_SHARE, SCOPE_LEGACY_FULL]
-DEFAULT_SCOPES = [SCOPE_READ]
+# ── Who decides the grant (ADR-563 am.1) ────────────────────────────────────
+#
+# The tiers a connection may be GRANTED, weakest first. The legacy `read` is not
+# among them: it is still honoured on the tokens that already carry it
+# (`SATISFIES`), but no new grant can mint it.
+GRANTABLE_TIERS = [SCOPE_READ, SCOPE_WRITE, SCOPE_SHARE]
+
+# Registration is a CEILING, not the grant. A client that registers without
+# naming a scope may later be granted any tier, and the MCP SDK refuses an
+# authorize request for a scope the client did not register — so a registration
+# default below the top tier is a permanent cap no consent screen can lift.
+# That is what ADR-563 D1 shipped (`default_scopes=["files:read"]`): ChatGPT
+# registered read-only, asked for exactly that at /authorize, and reconnecting
+# re-used the same client, so "re-authorize the connector" could never grant
+# write. `valid_scopes` is the same list: it is also what the authorization
+# server advertises as `scopes_supported`, and the legacy grant is not offered.
+REGISTRATION_SCOPES = list(GRANTABLE_TIERS)
+
+# The OPERATOR decides the grant, on the consent screen, and the bind writes it
+# onto the pending code (`POST /api/mcp/oauth-callback?scope=`). What the client
+# asked for at /authorize does not decide it: ChatGPT asks for whatever it was
+# registered with, Claude asks for nothing. This is the tier preselected there —
+# write, because a connected assistant that cannot save is not connected to a
+# shared commons; share stays an explicit opt-in because it hands the workspace
+# to whoever opens a link.
+DEFAULT_GRANT = SCOPE_WRITE
 
 
 # ── The operator-facing half ────────────────────────────────────────────────
@@ -116,15 +137,13 @@ _GRANT_SENTENCES = {
     SCOPE_SHARE: "Create share links, which can give whoever opens them full member access.",
 }
 
-# The legacy grant is described honestly and its risk is named. A token carrying
-# `read` can delete and share; the pre-563 consent screen said it could
-# "read and write your memory", which understated it in both directions
-# (wrong noun, and silent about deletion and about handing out member access).
-_LEGACY_SENTENCES = [
-    "Read your files — open, list, search, view their history — and what your agents did (runs).",
-    "Create, edit, move, and delete files. Every change is signed and revertible.",
-    "Create share links, which can give whoever opens them full member access.",
-]
+# The choice the consent screen offers, one label per grantable tier. The label
+# names the tier; the sentences above say what it permits.
+_TIER_LABELS = {
+    SCOPE_READ: "Read only",
+    SCOPE_WRITE: "Read and write",
+    SCOPE_SHARE: "Read, write, and share",
+}
 
 
 def satisfied_by(required: str, held: List[str]) -> bool:
@@ -135,19 +154,6 @@ def satisfied_by(required: str, held: List[str]) -> bool:
     return any(s in allowed for s in held)
 
 
-def normalize_scopes(raw: Optional[str]) -> List[str]:
-    """Parse a stored space-delimited scope string into a list.
-
-    The `mcp_oauth_codes.scope` column is a single TEXT field written as
-    `" ".join(scopes)` by the authorize leg. Empty/absent means the legacy
-    grant, matching the column default (`'read'`) — NOT the safe floor, because
-    what we display must describe what the token will actually carry.
-    """
-    if not raw or not raw.strip():
-        return [SCOPE_LEGACY_FULL]
-    return [s for s in raw.split() if s]
-
-
 def describe_scopes(scopes: List[str]) -> List[str]:
     """The operator-facing sentences for a set of held scopes (ADR-563).
 
@@ -156,15 +162,27 @@ def describe_scopes(scopes: List[str]) -> List[str]:
     An unrecognized scope is ignored rather than guessed at — never invent a
     permission sentence for a scope this build does not understand.
     """
-    if SCOPE_LEGACY_FULL in scopes:
-        return list(_LEGACY_SENTENCES)
-
     out: List[str] = []
-    for tier in (SCOPE_READ, SCOPE_WRITE, SCOPE_SHARE):
-        # Additive: holding files:write implies the read sentence too.
+    for tier in GRANTABLE_TIERS:
+        # Additive: holding files:write implies the read sentence too, and the
+        # legacy grant satisfies every tier, so it reads as the full set.
         if satisfied_by(tier, scopes):
             out.append(_GRANT_SENTENCES[tier])
     return out
+
+
+def consent_tiers() -> List[Dict[str, object]]:
+    """The choice the consent screen offers (ADR-563 am.1).
+
+    One entry per grantable tier, weakest first, each carrying the sentences
+    `describe_scopes` gives for it, so what the operator picks is described by
+    the same table `assert_scope` enforces. The bind accepts exactly these
+    scopes and nothing else.
+    """
+    return [
+        {"scope": tier, "label": _TIER_LABELS[tier], "grants": describe_scopes([tier])}
+        for tier in GRANTABLE_TIERS
+    ]
 
 
 def allowed_verbs(scopes: List[str]) -> List[str]:
@@ -184,7 +202,9 @@ def allowed_verbs(scopes: List[str]) -> List[str]:
 def is_legacy_full(scopes: List[str]) -> bool:
     """Whether this connection carries the LEGACY full-access grant.
 
-    The consent screen flags this: a `read`-labelled token that can delete and
-    share is the exact thing ADR-563 exists to stop being invisible.
+    No new grant can carry it (ADR-563 am.1), but pre-563 tokens still do and
+    rotate forever, so the members pane flags them: a `read`-labelled token that
+    can delete and share is the exact thing ADR-563 exists to stop being
+    invisible.
     """
     return SCOPE_LEGACY_FULL in scopes

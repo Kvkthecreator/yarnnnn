@@ -81,7 +81,11 @@ ordered by containment:
 | `files:share` | + `share` |
 | `read` *(legacy)* | everything — every pre-ADR-563 token carries this |
 
-`files:read` is the **default** for a new registration. `share` is its own tier
+A new registration is granted **no** tier by registering: it registers for every
+tier (a ceiling — the SDK refuses an authorize request above it), and the
+operator picks the grant on the consent screen, `files:write` preselected; the
+bind writes it onto the code (ADR-563 am.1). The legacy `read` is honoured on
+old tokens and never minted. `share` is its own tier
 because granting *reach* differs from changing *content*: a token that may write
 need not be one that may hand the workspace to a stranger via a member grant.
 

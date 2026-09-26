@@ -41,13 +41,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class ConsentTier(BaseModel):
+    """One grantable tier on the consent screen (ADR-563 am.1)."""
+    scope: str
+    label: str
+    # What this tier permits, from the same table `assert_scope` enforces.
+    grants: list[str]
+
+
 class MCPConsentInfo(BaseModel):
     """What the operator is being asked to approve — shown on the consent screen
     BEFORE any bind write. Read-only; carries no capability.
 
     Answers the three questions a consent screen must answer, which this one did
     not until 2026-08-17: **who am I approving as** (`account_email`), **what
-    will it reach** (`workspace_name`), and **what may it do** (`grants`).
+    will it reach** (`workspace_name`), and **what may it do** (`tiers` — the
+    operator picks one, ADR-563 am.1).
 
     Before, it showed only the client and its redirect host, and the FE printed a
     FIXED sentence — "read and write your memory" — that was wrong in both
@@ -77,13 +86,13 @@ class MCPConsentInfo(BaseModel):
     # missing. Gate: `test_adr573_no_stale_deferral_claims.py`.
     workspace_name: Optional[str]
     workspace_id: Optional[str]
-    # WHAT — one operator-facing sentence per capability, from the token's real
-    # scopes (ADR-563), not a fixed paragraph.
-    grants: list[str]
-    # Whether those scopes are the LEGACY full-access grant. Surfaced so the
-    # screen can say so plainly instead of quietly describing full access in the
-    # same tone as a narrow one.
-    legacy_full_access: bool
+    # WHAT — the operator CHOOSES it (ADR-563 am.1). Each tier carries its own
+    # sentences from the enforcement table; `default_scope` is preselected. The
+    # client's requested scope is not shown as the grant because it does not
+    # decide it: ChatGPT asks for whatever it registered with and Claude asks
+    # for nothing, so describing the request described an accident.
+    tiers: list[ConsentTier]
+    default_scope: str
 
 
 class MCPCallbackResponse(BaseModel):
@@ -175,10 +184,8 @@ async def mcp_oauth_consent_info(
         # the operator from connecting at all.
         logger.warning("[MCP consent] workspace resolve failed: %s", exc)
 
-    # WHAT it may do — from the pending code's real scopes (ADR-563).
-    from services.mcp_scopes import normalize_scopes, describe_scopes, is_legacy_full
-
-    scopes = normalize_scopes(row.get("scope"))
+    # WHAT it may do — the operator's choice among the grantable tiers.
+    from services.mcp_scopes import consent_tiers, DEFAULT_GRANT
 
     return MCPConsentInfo(
         client_name=client_name,
@@ -187,8 +194,8 @@ async def mcp_oauth_consent_info(
         account_email=auth.email,
         workspace_name=workspace_name,
         workspace_id=workspace_id,
-        grants=describe_scopes(scopes),
-        legacy_full_access=is_legacy_full(scopes),
+        tiers=[ConsentTier(**t) for t in consent_tiers()],
+        default_scope=DEFAULT_GRANT,
     )
 
 
@@ -201,6 +208,13 @@ async def mcp_oauth_callback(
         description=(
             "ADR-573: the workspace to bind this connection to. Must be one the "
             "operator reaches. Omitted → the principal's default (ADR-373 D6)."
+        ),
+    ),
+    scope: Optional[str] = Query(
+        None,
+        description=(
+            "ADR-563 am.1: the tier the operator granted — one of the grantable "
+            "tiers. Omitted → the tier the consent screen preselects."
         ),
     ),
 ) -> MCPCallbackResponse:
@@ -227,6 +241,14 @@ async def mcp_oauth_callback(
             auth.user_id[:8], str(existing_user)[:8],
         )
         raise HTTPException(status_code=409, detail="This authorization request is already bound to another account.")
+
+    # ADR-563 am.1: the granted tier. Only a grantable tier binds — the legacy
+    # full-access `read` is honoured on old tokens and never minted.
+    from services.mcp_scopes import GRANTABLE_TIERS, DEFAULT_GRANT
+
+    granted = scope or DEFAULT_GRANT
+    if granted not in GRANTABLE_TIERS:
+        raise HTTPException(status_code=400, detail="Unknown permission level.")
 
     # ADR-573: the chosen workspace, validated against the operator's REACH.
     # Fail closed — a workspace the operator cannot reach is a 403, never a
@@ -265,7 +287,8 @@ async def mcp_oauth_callback(
 
     # Bind the real operator onto the pending code (consent granted).
     if not existing_user:
-        update = {"user_id": auth.user_id}
+        # The bind is the ONE writer of the code's scope (ADR-563 am.1).
+        update = {"user_id": auth.user_id, "scope": granted}
         # Only written when chosen: leaving it NULL means "resolve the
         # principal's default", which is the pre-573 behaviour every existing
         # connector already has.
@@ -273,9 +296,9 @@ async def mcp_oauth_callback(
             update["workspace_id"] = bound_workspace
         svc.table("mcp_oauth_codes").update(update).eq("code", code).execute()
         logger.info(
-            "[MCP OAuth] Bound user %s to auth code, client %s, workspace %s (consent)",
+            "[MCP OAuth] Bound user %s to auth code, client %s, workspace %s, scope %s (consent)",
             auth.user_id[:8], row.get("client_id"),
-            (bound_workspace or "(default)")[:8],
+            (bound_workspace or "(default)")[:8], granted,
         )
 
     # Build the OAuth client redirect target (code + original state). The web

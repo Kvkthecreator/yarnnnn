@@ -241,7 +241,7 @@ check("compose_runs reads through the caller's client under the connection's wor
       "list_runs(auth.client, ws" in _fn and "get_service_client" not in _fn
       and 'effective_workspace_id(auth.user_id, getattr(auth, "workspace_id", None))' in _fn)
 check("the consent sentence for the read tier says so, in the server's words and the hub's",
-      "runs" in sc._GRANT_SENTENCES[sc.SCOPE_READ] and sc._LEGACY_SENTENCES[0] == sc._GRANT_SENTENCES[sc.SCOPE_READ]
+      "runs" in sc._GRANT_SENTENCES[sc.SCOPE_READ] and sc.describe_scopes([sc.SCOPE_LEGACY_FULL])[0] == sc._GRANT_SENTENCES[sc.SCOPE_READ]
       and json.loads(read("web/messages/en.json"))["marketing"]["developers"]["scope"]["read"] == sc._GRANT_SENTENCES[sc.SCOPE_READ])
 
 

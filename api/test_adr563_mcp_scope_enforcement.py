@@ -68,7 +68,7 @@ def _load_scope_tables():
                 isinstance(n, ast.FunctionDef)
                 and n.name
                 in ("assert_scope", "token_scopes", "satisfied_by", "describe_scopes",
-                    "normalize_scopes", "is_legacy_full")
+                    "is_legacy_full")
             )
         ]
         exec(compile(ast.Module(body=keep, type_ignores=[]), "scopes", "exec"), mod.__dict__)
@@ -90,13 +90,23 @@ def run() -> int:
             "files:read", "files:write", "files:share"
         },
     )
+    # ADR-563 am.1: the legacy grant is HONOURED (containment, below) and never
+    # MINTED — it is not a tier the operator can grant.
     ok &= _check(
-        "D1. the legacy full-access scope is retained (pre-563 tokens keep working)",
-        a.SCOPE_LEGACY_FULL == "read" and "read" in a.VALID_SCOPES,
+        "D1. the legacy `read` is honoured but not grantable (am.1)",
+        a.SCOPE_LEGACY_FULL == "read"
+        and a.SCOPE_LEGACY_FULL in a.SATISFIES[a.SCOPE_SHARE]
+        and a.SCOPE_LEGACY_FULL not in a.GRANTABLE_TIERS,
     )
+    # am.1: registration is the CEILING (every tier), the grant is the
+    # operator's pick at consent with write preselected. The pre-am.1 arm here
+    # asserted a `files:read` registration default — which the SDK turns into a
+    # permanent cap, so ChatGPT could never be granted write. Driven end to end
+    # in test_adr563_am1_scope_granted_at_consent.py.
     ok &= _check(
-        "D1. a fresh registration defaults to the READ-ONLY floor, not full access",
-        a.DEFAULT_SCOPES == ["files:read"],
+        "D1. registration is the ceiling; write is the preselected grant (am.1)",
+        a.REGISTRATION_SCOPES == ["files:read", "files:write", "files:share"]
+        and a.DEFAULT_GRANT == "files:write",
     )
 
     # ── D2. Every bound verb is classified ──────────────────────────────────
@@ -218,8 +228,10 @@ def run() -> int:
         re.search(r"required_scopes\s*=\s*\[\s*\]", server_code) is not None,
     )
     ok &= _check(
-        "D4. the SDK registers the real scope list, not a hardcoded ['read']",
-        re.search(r"valid_scopes\s*=\s*mcp_auth\.VALID_SCOPES", server_code)
+        "D4. the SDK registers and defaults to the tier ceiling, not a hardcoded list",
+        re.search(r"valid_scopes\s*=\s*mcp_auth\.REGISTRATION_SCOPES", server_code)
+        is not None
+        and re.search(r"default_scopes\s*=\s*mcp_auth\.REGISTRATION_SCOPES", server_code)
         is not None,
     )
 

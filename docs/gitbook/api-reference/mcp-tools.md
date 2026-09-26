@@ -18,7 +18,7 @@ Every verb requires one of three scopes. They're additive and ordered — `files
 | `files:write` | `save` · `edit` · `delete` · `move` · `request_upload` |
 | `files:share` | `share` |
 
-Enforcement is per-call, not per-session: a token holding only `files:read` is refused when it calls `save`. A registration that requests no scope gets `files:read`.
+Enforcement is per-call, not per-session: a token holding only `files:read` is refused when it calls `save`. The tier is not what the client requests: the person approving the connection picks it on the approval screen, with read and write preselected.
 
 Tokens issued before scopes existed carry a legacy `read` scope that authorizes everything; they keep working until narrowed or revoked. New clients should request the narrow set they need.
 

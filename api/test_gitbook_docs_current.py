@@ -471,8 +471,13 @@ if _tiers:
         not _hub_missing,
     )
 
+    # Anchored on the sentence table itself: the same file also maps each tier
+    # to its consent-screen LABEL (ADR-563 am.1), in the same `SCOPE_X: "…"`
+    # shape, and a whole-file match counted both.
+    _sentence_table = _scopes_src[_scopes_src.index("_GRANT_SENTENCES = {"):]
+    _sentence_table = _sentence_table[: _sentence_table.index("\n}") + 2]
     _grant_sentences = re.findall(
-        r'^\s+SCOPE_(?:READ|WRITE|SHARE): "([^"]+)",$', _scopes_src, re.MULTILINE
+        r'^\s+SCOPE_(?:READ|WRITE|SHARE): "([^"]+)",$', _sentence_table, re.MULTILINE
     )
     check(
         f"read the consent sentences from mcp_scopes.py ({len(_grant_sentences)})",

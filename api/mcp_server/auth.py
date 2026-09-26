@@ -61,8 +61,7 @@ from services.mcp_scopes import (  # noqa: F401  (re-exported for call sites)
     SCOPE_SHARE,
     SCOPE_LEGACY_FULL,
     VERB_SCOPES,
-    VALID_SCOPES,
-    DEFAULT_SCOPES,
+    REGISTRATION_SCOPES,
     SATISFIES as _SATISFIES,
     satisfied_by,
 )

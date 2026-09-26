@@ -92,7 +92,7 @@ Once it's connected, tell ChatGPT something worth keeping and ask Claude about i
 
 ## What a connection is allowed to do
 
-A connection isn't all-or-nothing. Each verb sits in one of three tiers, and a client is granted only the tiers it asks for:
+A connection isn't all-or-nothing. Each verb sits in one of three tiers, and you choose which one a connection gets when you approve it:
 
 | Tier | What it allows |
 |---|---|
@@ -100,9 +100,9 @@ A connection isn't all-or-nothing. Each verb sits in one of three tiers, and a c
 | `files:write` | Create, edit, move, and delete files. Every change is signed and revertible. |
 | `files:share` | Create share links, which can give whoever opens them full member access. |
 
-The tiers are additive — write includes read, share includes both. A client that asks for nothing gets read-only, which is the safe floor.
+The tiers are additive — write includes read, share includes both. The approval screen preselects read and write; share links are only granted if you choose them.
 
-This is enforced on every call, not just displayed at sign-up: a token holding `files:read` is refused when it tries to save. You see the tiers a connection asked for on the approval screen, and again at **Workspace Settings → Access**.
+This is enforced on every call, not just displayed at sign-up: a token holding `files:read` is refused when it tries to save. You choose the tier on the approval screen and see it again at **Workspace Settings → Access**.
 
 {% hint style="info" %}
 Connections made before tiers were introduced carry an older full-access grant, so they keep working. You can narrow or revoke any of them at any time.

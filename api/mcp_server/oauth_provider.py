@@ -11,10 +11,11 @@ Flow (ADR-310 D4 — real login, multi-user):
 3. /authorize writes a PENDING auth code (user_id=NULL) and redirects the
    operator to {APP_URL}/mcp/authorize (the web app)
 4. Web app authenticates the operator, describes the client via
-   GET /api/mcp/oauth-consent, shows an approve/deny screen, and only on
-   approval calls POST /api/mcp/oauth-callback (on the API service,
-   JWT-scoped), which binds the real Supabase user_id onto the pending code
-   and bounces back to the client redirect_uri
+   GET /api/mcp/oauth-consent, shows an approve/deny screen with a tier
+   picker, and only on approval calls POST /api/mcp/oauth-callback (on the
+   API service, JWT-scoped), which binds the real Supabase user_id AND the
+   chosen scope onto the pending code and bounces back to the client
+   redirect_uri (ADR-563 am.1)
 5. Client exchanges code for access token (POST /token) — a code whose
    user_id is still NULL is rejected, so login is mandatory
 6. Client uses access token on /mcp requests; each request resolves its own
@@ -153,8 +154,8 @@ class YarnnnOAuthProvider(
 ):
     """OAuth provider backed by Supabase tables.
 
-    Auto-approves authorization for any request (single-user mode).
-    Issues tokens scoped to MCP_USER_ID.
+    Authorization is a real login plus an explicit consent (ADR-310 D4); the
+    operator picks the tier the connection is granted (ADR-563 am.1).
     """
 
     def _client(self):
@@ -224,7 +225,11 @@ class YarnnnOAuthProvider(
             "client_id": client.client_id,
             "user_id": None,  # PENDING — bound at /api/mcp/oauth-callback
             "redirect_uri": str(params.redirect_uri),
-            "scope": " ".join(params.scopes) if params.scopes else "read",
+            # No scope here (ADR-563 am.1): the grant is the operator's pick at
+            # consent, and the bind is its one writer. What the client asked for
+            # does not decide it — ChatGPT asks for whatever it registered with,
+            # Claude asks for nothing, and this line used to turn "nothing" into
+            # the legacy full-access `read`.
             "code_challenge": params.code_challenge,
             "code_challenge_method": "S256",
             "state": params.state,
@@ -274,7 +279,13 @@ class YarnnnOAuthProvider(
             logger.info("[MCP OAuth] Rejected exchange of pending (unbound) auth code")
             return None
 
-        scopes = row.get("scope", "read").split(" ")
+        # A bound code always carries the operator's granted tier. One without
+        # it was bound by no consent screen that chose — refuse it rather than
+        # guess a grant (ADR-563 am.1).
+        scopes = (row.get("scope") or "").split()
+        if not scopes:
+            logger.warning("[MCP OAuth] Rejected exchange of a code with no granted scope")
+            return None
 
         return YarnnnAuthCode(
             code=row["code"],
@@ -393,7 +404,7 @@ class YarnnnOAuthProvider(
         return YarnnnRefreshToken(
             token=row["token"],
             client_id=row["client_id"],
-            scopes=row.get("scopes", ["read"]),
+            scopes=row["scopes"],
             user_id=row["user_id"],
             workspace_id=row.get("workspace_id"),  # ADR-573
         )
@@ -499,7 +510,7 @@ class YarnnnOAuthProvider(
         return YarnnnAccessToken(
             token=row["token"],
             client_id=row["client_id"],
-            scopes=row.get("scopes", ["read"]),
+            scopes=row["scopes"],
             expires_at=int(expires_at.timestamp()),
             user_id=row["user_id"],
             # ADR-573 — read per request by `resolve_mcp_workspace`. NULL on

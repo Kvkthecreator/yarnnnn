@@ -32,8 +32,15 @@ type ConsentInfo = {
   account_email: string | null;
   workspace_name: string | null;
   workspace_id: string | null;
+  tiers: ConsentTier[];
+  default_scope: string;
+};
+
+/** ADR-563 am.1 — one permission level the operator may grant. */
+type ConsentTier = {
+  scope: string;
+  label: string;
   grants: string[];
-  legacy_full_access: boolean;
 };
 
 /** ADR-573 — one workspace the operator may bind this connection to. */
@@ -56,6 +63,9 @@ function MCPAuthorizeHandler() {
   // touching the picker is byte-identical to the pre-573 flow.
   const [workspaces, setWorkspaces] = useState<WorkspaceChoice[]>([]);
   const [chosen, setChosen] = useState<string | null>(null);
+  // ADR-563 am.1 — the tier the operator grants. Starts at the server's
+  // preselection; the bind writes exactly this onto the code.
+  const [scope, setScope] = useState<string | null>(null);
 
   const code = searchParams.get("code");
 
@@ -79,6 +89,7 @@ function MCPAuthorizeHandler() {
         const consent = await api.mcp.consentInfo(code);
         setInfo(consent);
         setChosen(consent.workspace_id);
+        setScope(consent.default_scope);
         setPhase("consent");
         // ADR-573 — the picker's options come from the EXISTING memberships
         // endpoint (the switcher's, ADR-407 Phase 5), not a second list that
@@ -110,10 +121,10 @@ function MCPAuthorizeHandler() {
 
   // Step 4: bind on explicit approval.
   const approve = async () => {
-    if (!code) return;
+    if (!code || !scope) return;
     setPhase("approving");
     try {
-      const { redirect_url } = await api.mcp.completeAuthorize(code, chosen);
+      const { redirect_url } = await api.mcp.completeAuthorize(code, chosen, scope);
       setPhase("done");
       window.location.href = redirect_url;
     } catch (e) {
@@ -133,6 +144,7 @@ function MCPAuthorizeHandler() {
   // The picked workspace's own label, for the destination sentence under the
   // select. Falls back to the server-resolved name so the sentence still names
   // a real place if memberships loaded but the ids don't line up.
+  const chosenTier = info?.tiers.find((t) => t.scope === scope) ?? null;
   const chosenLabel =
     workspaces.find((w) => w.workspace_id === chosen)?.label ||
     info?.workspace_name ||
@@ -226,8 +238,7 @@ function MCPAuthorizeHandler() {
                 <p className="mt-2 text-sm text-gray-700">
                   {chosenLabel ? (
                     <>
-                      <span className="font-semibold">{clientLabel}</span> will read and
-                      write in{" "}
+                      <span className="font-semibold">{clientLabel}</span> will reach{" "}
                       <span className="font-semibold text-gray-900">{chosenLabel}</span> —
                       and nowhere else.
                     </>
@@ -244,13 +255,34 @@ function MCPAuthorizeHandler() {
               </div>
             )}
 
-            {/* WHAT — the token's REAL scopes (ADR-563), one sentence each,
-                riskiest last. Replaces a fixed sentence that used pre-ADR-512
-                vocabulary and understated a legacy token's actual reach: it
-                never mentioned deletion or member-granting share links. */}
+            {/* WHAT — ADR-563 am.1: the operator CHOOSES the tier. Before, the
+                screen described whatever the client happened to request, and
+                that was not a choice: ChatGPT asked for the read-only tier it
+                was registered with, so it could never be granted write, and
+                Claude asked for nothing and was handed legacy full access.
+                Each option's sentences come from the enforcement table, and
+                the chosen tier's list is what "It will be able to" says. */}
+            <fieldset className="mb-4">
+              <legend className="text-sm font-medium text-gray-700 mb-2">Permission</legend>
+              <div className="space-y-1.5">
+                {info.tiers.map((t) => (
+                  <label key={t.scope} className="flex items-center gap-2 text-sm text-gray-800">
+                    <input
+                      type="radio"
+                      name="mcp-scope"
+                      value={t.scope}
+                      checked={scope === t.scope}
+                      onChange={() => setScope(t.scope)}
+                    />
+                    <span>{t.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <p className="text-sm font-medium text-gray-700 mb-2">It will be able to:</p>
             <ul className="mb-4 space-y-1.5">
-              {info.grants.map((g) => (
+              {(chosenTier?.grants ?? []).map((g) => (
                 <li key={g} className="flex gap-2 text-sm text-gray-700">
                   <span aria-hidden="true" className="text-gray-400">
                     •
@@ -260,13 +292,6 @@ function MCPAuthorizeHandler() {
               ))}
             </ul>
 
-            {info.legacy_full_access && (
-              <p className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                This app is requesting <span className="font-semibold">full access</span> rather
-                than a narrower permission. Only approve if you trust it with everything above.
-              </p>
-            )}
-
             <p className="text-sm text-gray-500 mb-6">
               Redirects to <span className="font-mono">{info.redirect_host}</span>. Only approve
               if you started this connection from an app you trust.
@@ -274,6 +299,7 @@ function MCPAuthorizeHandler() {
             <div className="flex gap-3 justify-center">
               <button
                 onClick={approve}
+                disabled={!scope}
                 className="px-4 py-2 rounded bg-gray-900 text-white hover:bg-gray-700"
               >
                 Approve

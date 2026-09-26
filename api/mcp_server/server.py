@@ -434,7 +434,9 @@ _INTEROP_VERBS: tuple[tuple[str, str], ...] = (
         "replacement. Only the change travels — content you never read is "
         "never at risk, so this is the right verb for files open returned "
         "truncated, and for concurrent work (edits to different regions don't "
-        "conflict). Fails loudly if the anchor is missing or ambiguous.",
+        "conflict). Fails loudly if the anchor is missing or ambiguous. A Word, "
+        "Excel or PowerPoint file is edited in place: pass the element's address "
+        "from open as `at` ('p12', 'Budget!B7', 's3/5').",
     ),
     (
         "delete",
@@ -584,10 +586,15 @@ mcp = HostGatedFastMCP(
         # transport would reject every pre-563 token (all carry legacy "read")
         # before a handler could apply the containment rule that keeps them
         # working. The authorization decision belongs at the verb, not the door.
+        #
+        # ADR-563 am.1: registration is a CEILING, not the grant — a client that
+        # names no scope registers for every tier, because the SDK refuses an
+        # authorize request above the registered scope. The grant itself is
+        # the operator's pick at consent, written onto the code by the bind.
         client_registration_options=ClientRegistrationOptions(
             enabled=True,
-            valid_scopes=mcp_auth.VALID_SCOPES,
-            default_scopes=mcp_auth.DEFAULT_SCOPES,
+            valid_scopes=mcp_auth.REGISTRATION_SCOPES,
+            default_scopes=mcp_auth.REGISTRATION_SCOPES,
         ),
         revocation_options=RevocationOptions(enabled=True),
         required_scopes=[],
@@ -1366,10 +1373,11 @@ async def request_upload(
 async def edit(
     ctx: Context,
     reference: str,
-    old: str,
     new: str,
+    old: str = "",
     replace_all: bool = False,
     message: Optional[str] = None,
+    at: Optional[str] = None,
 ) -> dict:
     """Change PART of a file in the user's yarnnn workspace — an anchored edit.
 
@@ -1387,12 +1395,21 @@ async def edit(
     The edit lands as one attributed revision signed as you; use `save` only
     to create a file or rewrite one wholesale.
 
+    A Word, Excel or PowerPoint file is edited IN PLACE — its formatting,
+    formulas and layout stay as they are. `open` labels each element with its
+    address; pass it as `at` ('p12' a paragraph, 'Budget!B7' a cell, 's3/5' a
+    slide shape). With `old` the phrase is replaced inside that element;
+    without it the whole element is. In Word the change shows as a tracked
+    change signed with your name.
+
     Args:
         reference: The file — same grammar as open. Required.
-        old: Exact text to replace (verbatim; unique unless replace_all).
         new: Replacement text.
+        old: Exact text to replace (verbatim; unique unless replace_all).
+            Required for a text file; optional with `at`.
         replace_all: Replace every occurrence (default false).
         message: Optional one-line description of the change.
+        at: An office file's element address, as `open` labels it.
     """
     auth = resolve_request_client(verb="edit")
     client_name = mcp_composition.derive_client_name_from_token(auth)
@@ -1402,7 +1419,7 @@ async def edit(
         )
     result = await mcp_composition.compose_edit(
         auth=auth, reference=reference, old=old, new=new,
-        replace_all=replace_all, message=message,
+        replace_all=replace_all, message=message, at=at,
     )
     outcome = "edited" if result.get("success") else (result.get("error") or "failed")
     _emit_mcp_narrative(
