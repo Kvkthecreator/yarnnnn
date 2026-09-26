@@ -253,8 +253,14 @@ check("needs-you lists a waiting run only for its own member",
 _band = code_only_ts(read("web/components/supervisor/MinderBand.tsx"))
 check("the band names whose browser a browser run is in",
       re.search(r"running\?\.kind === 'browser'\s*\?\s*t\('workingBrowser'", _band) is not None)
+# ADR-670 D5: the band asks the store's ONE predicate (`waitsOnViewer`), never
+# a second spelling of it. Both ends must be FOUND — `find` returns -1 for a
+# missing needle, which reads as "first" and kept this arm green through a
+# deleted predicate.
+_due = re.search(r"\.find\(\(r\) => r\.topic && waitsOnViewer\(r, viewerId\)\)", _band)
+_blocked = _band.find("r.problem != null")
 check("the band raises a run due on the viewer first",
-      _band.find("r.state === 'waiting' && r.topic && r.user_id === viewerId") < _band.find("r.problem != null"))
+      _due is not None and _blocked >= 0 and _due.start() < _blocked)
 _en = json.loads(read("web/messages/en.json"))
 check("working no longer claims the Supervisor does the work",
       "Supervisor" not in _en["supervisor"]["minderBand"]["working"])

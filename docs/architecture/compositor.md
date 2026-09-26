@@ -123,8 +123,10 @@ that registers in neither gets the wrong default for both:
   read. A surface absent from this map is *unconstrained*: any key delivered to
   it is accepted and persisted forever, including one it has never read.
 - `SURFACE_EPHEMERAL_PARAM_KEYS` — which owned keys must not be REPLAYED on a
-  bare launch. `reconcileUrl` merges `incoming < remembered < delivered`, so a
-  remembered key outranks a live deep-link. The test is whether replaying it
+  bare launch. `resolveSurfaceParams` merges `remembered < incoming < delivered`
+  (`web/lib/shell/route-sync.ts`): a live deep-link outranks a remembered key, but
+  a bare launch carries no incoming key, so whatever was remembered replays. The
+  test is whether replaying it
   answers a question the member is asking *now* (a resting posture — restore) or
   one they asked once and moved on from (a specific object they drilled into —
   forget). Document identity is always the second kind.

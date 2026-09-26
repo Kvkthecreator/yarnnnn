@@ -49,6 +49,7 @@ import { AlertTriangle } from 'lucide-react';
 import type { Run, StandingSummary } from '@/lib/api/client';
 import { WorkingGlyph } from '@/components/shared/Working';
 import { cn } from '@/lib/utils';
+import { waitsOnViewer } from '@/lib/attention/useNeedsYou';
 
 export function MinderBand({
   rows, runs, viewerId, busyTopic, onOpen, onRunIt,
@@ -84,7 +85,7 @@ export function MinderBand({
 
   // RAISING — first a run due on THIS member; then a piece of work that
   // cannot run until it is fixed.
-  const due = (runs ?? []).find((r) => r.state === 'waiting' && r.topic && r.user_id === viewerId);
+  const due = (runs ?? []).find((r) => r.topic && waitsOnViewer(r, viewerId));
   if (due?.topic) {
     return (
       <Band tone="attention">
