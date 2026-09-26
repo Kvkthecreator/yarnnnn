@@ -1,7 +1,7 @@
 # ADR-563 — The MCP scope authorizes; it does not decorate
 
 > **Status**: **Accepted + Implemented** (2026-08-13). Three additive scopes replace the single decorative `read`, enforced per-verb at the one chokepoint every handler already calls. Gate `api/test_adr563_mcp_scope_enforcement.py` 16/16, three falsifiers verified red; enforcement verified at runtime against real SDK token objects, 9/9 cases.
-> **Amendment 1** (2026-09-26, operator-ruled): **the scope is granted at consent, never defaulted.** Registration is a ceiling (every tier); the operator picks the tier on the consent screen, write preselected; the bind is the one writer of a code's scope; legacy `read` is honoured and never minted. Migration 266 written, dry-run clean, **not yet applied** (the code does not depend on it). Gate `api/test_adr563_am1_scope_granted_at_consent.py` 12/12, driven end to end, five falsifiers red. See §8.
+> **Amendment 1** (2026-09-26, operator-ruled): **the scope is granted at consent, never defaulted.** Registration is a ceiling (every tier); the operator picks the tier on the consent screen, write preselected; the bind is the one writer of a code's scope; legacy `read` is honoured and never minted. Migration 266 applied 2026-09-26, verified on the live columns. Gate `api/test_adr563_am1_scope_granted_at_consent.py` 12/12, driven end to end, five falsifiers red. See §8.
 > **Date**: 2026-08-13
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Dimensional classification** (Axiom 0): **Mechanism** (Axiom 5). The authorization field existed, was issued, was stored — and was never read.
@@ -106,11 +106,11 @@ The scope field now means what it says, and the surface can be described accurat
 
 The consent screen described whichever of those accidents the code carried and offered no choice. D1's "the label stops lying for every new grant" held for neither client.
 
-**D5 — Registration is a ceiling, not the grant.** `REGISTRATION_SCOPES` (every grantable tier) is both the SDK's `default_scopes` and its `valid_scopes`, and so what the server advertises as `scopes_supported`. The legacy `read` is not among them: it is honoured on the tokens that carry it (`SATISFIES`) and never offered or minted. Migration 266 raises every registered client to the ceiling (dry-run: 25 rows).
+**D5 — Registration is a ceiling, not the grant.** `REGISTRATION_SCOPES` (every grantable tier) is both the SDK's `default_scopes` and its `valid_scopes`, and so what the server advertises as `scopes_supported`. The legacy `read` is not among them: it is honoured on the tokens that carry it (`SATISFIES`) and never offered or minted. Migration 266 raised every registered client to the ceiling (25 rows).
 
 **D6 — The operator picks the tier; the bind is its one writer.** The consent screen offers the grantable tiers (`consent_tiers()`), each described by the same `describe_scopes` the enforcement table drives, with **`files:write` preselected** (`DEFAULT_GRANT`). The operator's reason: a connected assistant that cannot save is not connected to a shared commons, and every write is signed and revertible. Share stays an explicit opt-in, because it hands the workspace to whoever opens a link. `POST /api/mcp/oauth-callback?scope=` writes the pick onto the code and refuses anything that is not a grantable tier (400). `/authorize` writes no scope at all: what the client asked for does not decide the grant.
 
-**D7 — No default can grant.** A bound code without a scope is refused at exchange, never guessed. Migration 266 drops the `'read'` column defaults on `mcp_oauth_clients.scope`, `mcp_oauth_codes.scope`, `mcp_oauth_access_tokens.scopes` and `mcp_oauth_refresh_tokens.scopes`, so an unnamed scope can no longer become full access anywhere.
+**D7 — No default can grant.** A bound code without a scope is refused at exchange, never guessed. Migration 266 dropped the `'read'` column defaults on `mcp_oauth_clients.scope`, `mcp_oauth_codes.scope`, `mcp_oauth_access_tokens.scopes` and `mcp_oauth_refresh_tokens.scopes`, so an unnamed scope can no longer become full access anywhere.
 
 **What did not change.** Issued tokens keep exactly the scopes they carry: Claude's legacy `read` tokens still reach every verb and still rotate, and the members pane still flags them (`is_legacy_full`). The tiers, the containment, and the chokepoint are untouched. So is the refusal copy — *re-authorize* is now true, because a reconnect reaches a screen that can grant write.
 
@@ -128,5 +128,4 @@ The consent screen described whichever of those accidents the code carried and o
 
 The pre-am.1 arms in `test_adr563_mcp_scope_enforcement.py` (16/16) and `test_adr563_consent_discloses.py` (23/23) that asserted the old default were rewritten to the ruling.
 
-**Order and what is owed.** The code does not depend on migration 266. A client registered under the old default asks for the scope it registered with, so it passes the SDK check and reaches consent, where the bind writes the operator's pick. Until 266 is applied, a pending code picks up the column default `'read'` between `/authorize` and the bind, and the bind overwrites it. **Owed:** apply 266 (`scripts/db/run-migration.sh supabase/migrations/266_…sql`) and verify the four live defaults read NONE. Then drive a real reconnect (ChatGPT, pick *Read and write*) and read the new token's `scopes` as the receipt.
-
+**Applied and verified (2026-09-26).** Deployed as `0b5bb56` on the API, the MCP server and Vercel. The live authorization-server metadata now advertises `scopes_supported = [files:read, files:write, files:share]` (no `read`). Migration 266 applied: `UPDATE 25` + 4 `ALTER`. The live check shows `column_default` NULL on all four `mcp_oauth_*` scope columns, and 25/25 clients at `files:read files:write files:share`. **Owed:** a real reconnect (ChatGPT, pick *Read and write*), with the new token's `scopes` as the receipt.

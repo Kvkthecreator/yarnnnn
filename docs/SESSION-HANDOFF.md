@@ -8,9 +8,6 @@ Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed int
 
 ## MCP scope granted at consent — what stays OPEN (ADR-563 am.1, 2026-09-26)
 
-- **Apply migration 266** (`scripts/db/run-migration.sh supabase/migrations/266_adr563_am1_mcp_scope_is_granted_at_consent.sql`;
-  dry-run clean: UPDATE 25 + 4 ALTER). The auto-mode classifier refused the production write, so it needs the operator's hand. Verify the
-  four `mcp_oauth_*` scope columns read no default. The code does not depend on it.
 - **Drive a real reconnect**: ChatGPT → reconnect yarnnn → the consent screen shows the tier picker (Read and write
   preselected) → approve. The receipt is the new `mcp_oauth_access_tokens` row for client `e1d1dd40…` with
   `scopes = {files:write}`, followed by a successful `save`.
