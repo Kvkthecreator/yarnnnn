@@ -210,6 +210,9 @@ A click-pass drives both surfaces at the ladder's four rungs.
 
 - [ ] D1 boot · D8 deletions (shell)
 - [x] D2–D5 Chat frame, supervision side, index, `useNeedsYou` — `3fdd7c4` (gate 34/0, every arm proven RED; not yet driven in a browser)
-- [ ] D6 Supervisor into the frame, `supervisor_state` deleted
-- [ ] D7 the live mark on the authoring apps' Chat tab
+- [x] D6 Supervisor into the frame, `supervisor_state` deleted — `780fe8f` (rail · canvas · side through `usePaneSlot`;
+  `?supervisor.run=` is the Trace; one run-opening helper, `useOpenRun`; `StandingDetail` split into canvas + side;
+  gate 76/0, every new arm proven RED; not yet driven in a browser)
+- [x] D7 the live mark on the authoring apps' Chat tab — `780fe8f` (`LanePanel` `onBusyChange`; Studio and Text; not yet
+  driven in a browser)
 - [ ] Click-pass at the four rungs
