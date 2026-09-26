@@ -311,9 +311,9 @@ export function UserMenu({ email }: UserMenuProps) {
             </div>
           )}
 
-          {/* ADR-358 — layout-mode control. Canvas (chat-left + one
-              full-bleed surface) vs Desktop (free-floating window manager
-              + right rail). The operator's choice of spatial paradigm.
+          {/* ADR-358 — layout-mode control. Canvas (one full-bleed
+              surface) vs Desktop (free-floating window manager). The
+              member's choice of spatial paradigm.
               Desktop-only: mode is inert on mobile (one arrangement is
               physically possible), so the row is hidden below the
               breakpoint. Same segmented-control grammar as the theme

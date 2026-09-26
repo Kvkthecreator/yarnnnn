@@ -261,11 +261,9 @@ def is_composition(entry: dict) -> bool:
 # default to the `main` region with `summon`-style visibility — i.e., the
 # active atomic surface mounts to `main`):
 #   - `default_region`: which named layout region the compositor mounts
-#     this surface into. One of `main | main-rail | top | bottom-floating |
-#     bottom-fixed | floating-overlay`. `main-rail` (ADR-316) is the
-#     dockable command rail docked to the right of `main`'s window area —
-#     a flex sibling of SurfaceViewport that *reduces* the surface area
-#     rather than occluding it. Chat lives here, not in floating-overlay.
+#     this surface into. One of `main | top | bottom-floating |
+#     bottom-fixed | floating-overlay`. Chat is a windowed content surface
+#     in `main`, not chrome (ADR-454 D3 · ADR-632 · ADR-670 D8).
 #   - `default_visibility`: when the compositor mounts it. One of
 #     `always` (mounted whenever any authenticated surface is active),
 #     `summon` (mounted only when explicitly opened — e.g., Launcher
@@ -300,8 +298,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # inline creation. Member-experience scope: the surface lists the
         # VIEWER's lanes in the acting workspace (ADR-407 D6) — it composes
         # chat_sessions lanes, not authored substrate, so substrate_paths
-        # is honestly empty. The steward is NOT here (Altitude 1 lives in
-        # the chat-drawer rail — D2); the slug's redirect-stub lineage
+        # is honestly empty. The slug's redirect-stub lineage
         # (ADR-259 → /feed, ADR-385 → notifications) ends — third life as
         # a real surface.
         #
@@ -1013,7 +1010,9 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # mounts where.
     #
     # D12 (2026-05-21) collapsed the prior 4-entry chrome set (top-bar,
-    # dock, launcher, chat-composer) to 3 entries. The `dock` kernel
+    # dock, launcher, chat-composer) to 3 entries; D16's chat composer (later
+    # the chat drawer) was deleted with the steward (ADR-632), and its row
+    # with the drawer's last remains (ADR-670 D8). The `dock` kernel
     # surface is DELETED — its responsibility (rendering pinned-surface
     # icons + dispatching `setSurface` on click) absorbs into the
     # top-bar body. The launcher's overlay still mounts in
@@ -1042,31 +1041,6 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "",  # not navigable; summon-only overlay
         "summary": "Full surface index overlay — type-to-filter, per-row pin toggle, tier grouping. Trigger lives in top-bar (D12).",
         "default_region": "floating-overlay",
-        "default_visibility": "summon",
-    },
-    {
-        # D16 (2026-05-22): chat-composer renamed → chat-drawer; region
-        # flips bottom-fixed → floating-overlay; visibility flips
-        # always → summon. The pre-D16 bottom-strip composer dissolves
-        # into a FAB + slide-over drawer pattern (universal generalization
-        # of /feed's ADR-289 ConversationDrawer). See ADR-297 §D16.
-        #
-        # ADR-316 (2026-06-04): region flips floating-overlay → main-rail.
-        # Chat is the command-line OVER the active surface — a dockable
-        # rail that reduces the surface area, not an overlay that occludes
-        # it. The FAB still summons it; on desktop it docks to main's right
-        # (surface reflows), on mobile it degrades to a full-screen overlay
-        # (the isMobile branch in ChatDrawer). The "Viewing: X" label is
-        # now honest because the surface stays visible. See ADR-316.
-        "slug": "chat-drawer",
-        "title": "Chat Drawer",
-        "archetype": "input",
-        "substrate_paths": [],  # writes session_messages DB table
-        "icon_key": "message-circle",
-        "default_pinned": False,
-        "route": "",  # not navigable; FAB-summoned command rail
-        "summary": "Operator command rail — FAB summons a dockable right rail (desktop) / overlay (mobile) with composer + addressed-conversation timeline, scoped to the foregrounded surface.",
-        "default_region": "main-rail",
         "default_visibility": "summon",
     },
 ]

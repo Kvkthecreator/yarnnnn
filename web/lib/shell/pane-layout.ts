@@ -16,9 +16,8 @@
  *    = 600 hand-rolled in Chat;
  *  - the toggles: Studio `useState(false)` · Text `useState(true)` · Chat and
  *    Files none at all — and Studio/Text's only rendered at ONE rung of four;
- *  - the widths: three independent pointer-drag handlers with three key
- *    schemes (`yarnnn:shell:chat-drawer-width`, `yarnnn:pane-shell:nav-width:*`,
- *    `studio.navWidth`), three min/max bands, and two different pointer APIs.
+ *  - the widths: independent pointer-drag handlers, each with its own key
+ *    scheme and min/max band, and two different pointer APIs.
  *
  * Three spellings of one rule is how the shell and the surface came to disagree
  * about what a tablet is (rule 15's own lesson). This module is the single home.

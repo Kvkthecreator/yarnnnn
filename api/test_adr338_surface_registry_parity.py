@@ -77,7 +77,7 @@ def _backend_navigable_slugs() -> set[str]:
     from services.kernel_surfaces import KERNEL_SURFACES
 
     # Navigable = has a non-empty route AND is not `hidden` AND is EXPOSED.
-    # Chrome surfaces (top-bar, launcher, chat-drawer) carry route="" and are
+    # Chrome surfaces (top-bar, launcher) carry route="" and are
     # not Launcher navigation targets. ADR-425 D2 (2026-07-09): `hidden`
     # surfaces (sources) keep a bookmark-safe redirect-stub route but present NO
     # operator door — so they are not a real navigation target and must not

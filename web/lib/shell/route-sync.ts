@@ -115,3 +115,30 @@ export function resolveSurfaceParams(
 ): Record<string, string> {
   return { ...remembered, ...incoming, ...(delivered || {}) };
 }
+
+/**
+ * The boot decision (ADR-670 D1 — amends ADR-297 D17). Extracted pure for the
+ * same reason as its siblings above: a gate EXECUTES it rather than reading it.
+ *
+ * Login boots to the home route and restores the last session's windows
+ * (ADR-297 D17, unchanged). When that restore is EMPTY, the shell foregrounds
+ * Chat — the surface a member acts from (ADR-435) — instead of landing them on
+ * an empty wallpaper. Two cases decide nothing:
+ *   - the pathname is not the home route: a surface route is explicit intent
+ *     (the pathname sync opens what it names) and a page route renders its
+ *     own page.
+ *   - the restored set is not empty: that is the restore, and it stands.
+ *
+ * The caller runs this ONCE per boot, on the settled restore. Closing every
+ * window mid-session is a choice the member made, not a boot — it still shows
+ * the Desktop's "nothing open" state.
+ */
+export function resolveBootSurface(
+  pathname: string,
+  homeRoute: string,
+  restoredOpen: readonly string[],
+): string | null {
+  if (pathname !== homeRoute) return null;
+  if (restoredOpen.length > 0) return null;
+  return 'chat';
+}

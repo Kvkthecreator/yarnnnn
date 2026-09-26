@@ -4,9 +4,9 @@
  * Desktop page — ADR-297 D17 Agent OS boot route.
  *
  * The authenticated landing route. Login auth-callback + middleware
- * redirect operators here. SurfaceViewport reads the open-surfaces
- * registry and either restores last-session windows or shows the
- * Desktop empty state with the context-aware welcome copy.
+ * redirect members here. SurfaceViewport reads the open-surfaces
+ * registry and restores last-session windows; with nothing to restore,
+ * the shell foregrounds Chat (ADR-670 D1).
  *
  * This page renders nothing — the entire view is driven by
  * SurfaceViewport (mounted inside AuthenticatedLayout > ShellCompositor).
@@ -14,8 +14,8 @@
  * the actual rendering happens in the shell.
  *
  * Per ADR-297 D17 §1: Desktop is the always-rendered background layer
- * of the authenticated viewport. The empty-state copy + windows + FAB
- * all live inside SurfaceViewport's unified Desktop wrapper. This page
+ * of the authenticated viewport. The "nothing open" state and the
+ * windows live inside SurfaceViewport's unified Desktop wrapper. This page
  * file is a route-recognition stub, nothing more.
  */
 

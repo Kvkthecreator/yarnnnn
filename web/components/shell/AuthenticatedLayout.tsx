@@ -25,8 +25,8 @@
  *   - The setup-confirm modal (still mounted at shell level for now).
  *
  * What ShellCompositor owns:
- *   - All chrome surface mounting (top bar, dock, launcher, future
- *     chat composer)
+ *   - All chrome surface mounting (the top bar with its Dock, the
+ *     launcher)
  *   - The main content region (SurfaceViewport + children fallback)
  */
 

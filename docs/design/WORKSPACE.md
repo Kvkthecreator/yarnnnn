@@ -38,7 +38,7 @@ When a design decision spans two surfaces, both contracts must allow it. When th
 The authenticated desktop is a **window manager** (macOS-literal), not a tab bar:
 
 - **A surface is a mountable React component bound to substrate**, addressed by surface state (`slug` + params), rendered into the shell's viewport (ADR-297 D11). URLs are optional addressing transport (deep-links), not identity — and a deep link must win over remembered state (2026-09-07: a pane link rewritten to the last-visited pane is not shareable).
-- **`HOME_ROUTE = /desktop`** (ADR-297 D17) — login boots to the Desktop; **Chat holds the dock-anchor and default-landing roles** (ADR-435, inherited from the deleted Home). Last-session windows restore from the member's open-surfaces registry (D13).
+- **`HOME_ROUTE = /desktop`** (ADR-297 D17) — login boots to the Desktop; **Chat holds the dock-anchor and default-landing roles** (ADR-435, inherited from the deleted Home). Last-session windows restore from the member's open-surfaces registry (D13); with nothing to restore, the shell foregrounds Chat (ADR-670 D1). Closing every window mid-session shows the Desktop's "nothing open" state.
 - **Multi-mount lifecycle** (D13): opened surfaces stay mounted; exactly one is foregrounded. Closing is explicit; no LRU eviction.
 - **Window chrome** (D14): every open surface renders inside a `WindowFrame`; the Dock shows kept + open surfaces, each mark carrying its own hue (ADR-641 — accent is identity; red and amber are reserved for state).
 - **Navigation primitive** (D19.5): `navigateToSurface(slug, params)` is the single cross-surface verb (`useSurfacePreferences`, `web/lib/shell/surface-preferences.ts`); `router.push` is transport. Redirect stubs are pure server `redirect()` (ADR-308), hand-listed in `middleware.ts` (ADR-592's obligation). Full contract: [compositor.md § Navigating between surfaces](../architecture/compositor.md).
@@ -59,7 +59,7 @@ An **app** is one row on the server (`register_app(slug, resident, posture)`) an
 
 ## Part 1 — Surface Inventory + Per-Surface Contracts
 
-Derived from `KERNEL_SURFACES` on 2026-09-12. Registers: **application** (the work) · **os-config** (the OS configuring itself) · chrome (no route).
+Derived from `KERNEL_SURFACES` on 2026-09-12; the Supervisor row added 2026-09-26. Registers: **application** (the work) · **composition** (a surface composed over work that lives elsewhere, ADR-653 D3.a) · **os-config** (the OS configuring itself) · chrome (no route).
 
 | Surface | Route | Register | Stage | Archetype | Reads (substrate) |
 |---|---|---|---|---|---|
@@ -71,11 +71,12 @@ Derived from `KERNEL_SURFACES` on 2026-09-12. Registers: **application** (the wo
 | **Files** | `/files` | application | primary | browser | `workspace_files` + `workspace_file_versions` |
 | **Agents** | `/agents` | application | primary | roster | the one register (`AGENTS`) + faces |
 | **Reach** | `/reach` | application | primary | dashboard | `platform_connections` · the proposal queue's boundary families · the timeline under `?lens=boundary` |
+| **Supervisor** | `/supervisor` | composition | primary | dashboard | the standing declarations (`{folder}/_standing.yaml`, ADR-656) · the `runs` ledger (ADR-666) · what waits on the viewer; it owns no namespace — its own notes live in `supervisor/` |
 | **Notifications** | `/notifications` | application | search-only | dashboard | the witness queue + mentions (derived per viewer) · `execution_events` · the standing declarations |
 | **Settings** | `/settings` | os-config | — | dashboard | account: billing (`/billing`) · usage (`/usage`) · notification settings — panes |
 | **Workspace settings** | `/workspace-settings` | application | — | dashboard | the workspace's dials |
 | *(internal)* connectors · sources | `/connectors` · `/sources` | os-config | internal | dashboard | rows kept off the roster (ADR-592); Reach owns the connection acts (ADR-645) |
-| *(chrome)* `top-bar` · `launcher` · `chat-drawer` | `""` | — | — | chrome / navigator / input | — |
+| *(chrome)* `top-bar` · `launcher` | `""` | — | — | chrome / navigator | — |
 
 Every retired route (`/home` · `/feed` · `/recurrence` · `/queue` · `/activity` · `/mandate` · `/principles` · `/identity` · `/autonomy` · `/budget` · `/program` · `/workspace` · `/studio` · `/strings` …) is a redirect stub into a live surface.
 

@@ -68,7 +68,12 @@ import {
   type WindowState,
   type WindowStateMap,
 } from './surface-preferences';
-import { resolveForegroundPathname, resolveSurfaceParams } from './route-sync';
+import {
+  resolveBootSurface,
+  resolveForegroundPathname,
+  resolveSurfaceParams,
+} from './route-sync';
+import { HOME_ROUTE } from '@/lib/routes';
 import { WINDOW_Z_MAX } from './z-tiers';
 
 // ---------------------------------------------------------------------------
@@ -101,9 +106,15 @@ export function scopeParamKey(slug: string, key: string): string {
 export interface SurfacePreferences {
   userId: string | null;
   /** True once the one-time mount restore has run (localStorage read inside the
-   *  getUser callback). Consumers gate the Desktop empty-state on this so a
-   *  refresh doesn't flash "Nothing open" before persisted windows remount. */
+   *  getUser callback). The pathname sync (AuthenticatedLayout) gates on this
+   *  so it always runs after the restore; the Desktop's empty state gates on
+   *  `booted`, which comes after it. */
   hydrated: boolean;
+  /** True once the boot decision has run (ADR-670 D1): the restore settled
+   *  and, if it was empty on the home route, Chat was foregrounded. The
+   *  Desktop gates its "nothing open" state on this, so a boot with nothing
+   *  to restore goes straight to Chat instead of flashing the empty state. */
+  booted: boolean;
   /** Dock-permanence surfaces (D14). The macOS "Keep in Dock" semantic. */
   kept: string[];
   /** Currently-open surfaces (D13). */
@@ -217,8 +228,8 @@ export interface SurfacePreferences {
   /**
    * ADR-316: the Desktop container's measured inner bounds. Window
    * geometry (cascade origin, maximize snap, drag-clamp) is relative to
-   * the DESKTOP, not the raw viewport — because the command rail
-   * (chat) and any future docked chrome reduce the Desktop's width.
+   * the DESKTOP, not the raw viewport — the shell chrome above it (top
+   * bar, locator strip) reduces the Desktop's box.
    * The Desktop component reports its bounds here via a ResizeObserver;
    * the geometry math reads from here instead of `window.innerWidth`.
    * Null until the Desktop mounts + measures (geometry falls back to
@@ -232,7 +243,7 @@ const Ctx = createContext<SurfacePreferences | null>(null);
 export function SurfacePreferencesProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: composition } = useComposition();
+  const { data: composition, loading: compositionLoading } = useComposition();
   const [userId, setUserId] = useState<string | null>(null);
   const [kept, setKept] = useState<string[]>(DEFAULT_KEPT_SURFACES);
   const [open, setOpen] = useState<string[]>(DEFAULT_OPEN_SURFACES);
@@ -268,7 +279,8 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // the just-hydrated server value) isn't immediately echoed back.
   const serverSyncReady = useRef(false);
 
-  // Hydration gate for the DESKTOP EMPTY-STATE (2026-07-13). `open` initializes
+  // Hydration gate (2026-07-13; the Desktop's empty state now waits on the
+  // later `booted`, ADR-670 D1, and the pathname sync on this). `open` initializes
   // to [] and only fills after supabase.auth.getUser() resolves (a network
   // round-trip), so for the first tick after a refresh the Desktop sees zero
   // windows and flashes its "Nothing open" empty-state before restoring the
@@ -277,6 +289,16 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // can suppress the empty-state until we actually know the window set. It is a
   // one-way latch — never resets — so it can't cause the empty-state to blink.
   const [hydrated, setHydrated] = useState(false);
+
+  // ADR-670 D1 — the boot decision reads the SETTLED restore. `hydrated` flips
+  // on the local read; on a fresh device (no local state) the server snapshot
+  // can still fill the window set after it, so the boot waits for that read to
+  // settle too. Otherwise a fresh device would open Chat and then have the
+  // server's windows land over it. The read is bounded by the client's request
+  // timeout, and nothing but the boot decision waits on it.
+  const [restoreSettled, setRestoreSettled] = useState(false);
+  const [booted, setBooted] = useState(false);
+  const bootDecided = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -289,6 +311,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         // No user → nothing to restore; unblock the empty-state so a genuinely
         // empty desktop still shows its "Nothing open" copy.
         setHydrated(true);
+        setRestoreSettled(true);
         return;
       }
       const hadLocal = hasLocalShellState(uid);
@@ -299,6 +322,9 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       // The local (synchronous) restore has run — `open` now reflects the
       // persisted window set. Unblock the empty-state (one-way latch).
       setHydrated(true);
+      // Local state wins over the server copy (below), so a device that has
+      // it holds its final window set now.
+      if (hadLocal) setRestoreSettled(true);
 
       // ADR-407 Phase 3 — one-time server read. The server value fills a
       // FRESH device only (no local state for the current (workspace, user)
@@ -332,6 +358,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         })
         .finally(() => {
           serverSyncReady.current = true;
+          if (mounted) setRestoreSettled(true);
         });
     });
     return () => {
@@ -708,17 +735,9 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
           // the TopBar offset must NOT be in the y origin (it was
           // double-counted pre-D19.3, producing a gap between window
           // top edges and the TopBar bottom most visible on maximize).
-          // D19.5.1 (2026-05-22) — FAB_BOTTOM_RESERVED constant
-          // DELETED. Pre-D19.5.1 the FAB lived at Desktop-fixed
-          // bottom-center below windows; cascade reserved bottom
-          // space to keep the FAB visible. With FAB moved to
-          // viewport-fixed bottom-right above windows (Z_FAB=150),
-          // the cascade origin returns to a simple viewport-padded
-          // box. Singular Implementation.
           // ADR-316: prefer the Desktop-measured bounds (already excludes
-          // the top-bar AND the command rail, since the Desktop is the
-          // flex-1 sibling of the rail). Fall back to window dims minus
-          // chrome only before the Desktop has measured.
+          // the shell chrome above it). Fall back to window dims minus the
+          // top bar only before the Desktop has measured.
           const bounds = desktopBoundsRef.current;
           const DESKTOP_PAD = 16;
           let usableW: number;
@@ -815,6 +834,20 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [foregroundSurface]
   );
 
+  // ADR-670 D1 — boot: nothing to restore opens Chat. Runs ONCE per boot (the
+  // ref latch), after the restore has settled and the roster fetch has
+  // resolved (so Chat's route is known and the address bar follows it). The
+  // decision is `resolveBootSurface` in route-sync.ts, executed by its gate.
+  // A mid-session close-all never re-enters: the latch is already set.
+  useEffect(() => {
+    if (bootDecided.current) return;
+    if (!restoreSettled || compositionLoading) return;
+    bootDecided.current = true;
+    const slug = resolveBootSurface(pathname, HOME_ROUTE, open);
+    if (slug) navigateToSurface(slug);
+    setBooted(true);
+  }, [restoreSettled, compositionLoading, pathname, open, navigateToSurface]);
+
   // ADR-297 D19.6 (2026-06-12): intra-surface deep-link update with NO
   // pathname flip. See interface docstring. Uses the native History API
   // (Next 14.2 patches replaceState → router syncs useSearchParams,
@@ -894,9 +927,8 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         } else {
           // Zoom. Save current geometry into prevGeometry, snap to max.
           // ADR-316: maximize snaps to the DESKTOP bounds (already
-          // exclude the top-bar AND the command rail) when measured, so a
-          // zoomed window fills the surface area beside the rail, never
-          // under it. Falls back to the viewport-based helper pre-measure.
+          // exclude the shell chrome) when measured. Falls back to the
+          // viewport-based helper pre-measure.
           const bounds = desktopBoundsRef.current;
           const max = bounds
             ? computeMaximizedGeometryFromBounds(bounds.width, bounds.height)
@@ -1038,6 +1070,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     () => ({
       userId,
       hydrated,
+      booted,
       kept,
       open,
       foregrounded,
@@ -1062,6 +1095,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [
       userId,
       hydrated,
+      booted,
       kept,
       open,
       foregrounded,

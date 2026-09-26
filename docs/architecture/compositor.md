@@ -46,17 +46,15 @@ closed.
   Applications showing it (Files dispatches; Cockpit embeds).
 
 `register` is declared per surface in `api/services/kernel_surfaces.py` and
-mirrored on the FE `Surface` type. Chrome (top-bar, launcher, chat-drawer)
-is neither register — it is the window manager's own framing.
+mirrored on the FE `Surface` type. Chrome (top-bar, launcher) is neither
+register — it is the window manager's own framing.
 
-> **STALE SECTION — corrected 2026-08-02 (the ADR-512 canon pass; drift flagged by the
-> chat-architecture audit).** The two paragraphs below describe the pre-ADR-454
-> chat-drawer/rail model and are preserved as history only. **ADR-454 D3 gated the
-> steward's chat chrome off, and ADR-632 deleted it**; the live chat is a
-> **windowed kernel surface** — a `SurfaceRegistry` row (`chat`), launcher-tier primary,
-> dock anchor + default landing per ADR-435 — an app under the Think act (ADR-507), not
-> chrome and not a rail. The `Viewing:`/`surfaceOverride` binding described below died
-> with the drawer. Read the FE `SurfaceRegistry` + `kernel_surfaces.py` for the live set.
+**Chat is a surface, not chrome (ADR-454 D3 · ADR-632 · ADR-670).** There is no global
+chat. Chat is a windowed kernel surface (`chat`, launcher-tier primary, first in the
+Dock), opened like any other window; when nothing is restored at boot the shell
+foregrounds it (ADR-670 D1). A conversation about one open artifact lives in that
+artifact's app, in its side pane (ADR-454's seam rule); every other conversation lives in
+Chat. No layout region, kernel row or shell context carries a chat drawer.
 
 > **ADR-642 (2026-09-07) — Reach joins the live set as a PRIMARY kernel surface** (the
 > boundary's door: Connected · Leaving · Crossed), and the `queue` surface is ABSORBED
@@ -70,18 +68,6 @@ is neither register — it is the window manager's own framing.
 > middleware pair. A kernel surface that owns no file type has NO `AppDescriptor` row
 > (ADR-636 governs apps; ADR-639 D4 / ADR-642 D1 are the precedents).
 
-**Chat is the command rail, not an overlay (ADR-316).** The chat-drawer
-chrome lives in the `main-rail` region — a flex sibling of `SurfaceViewport`
-inside `main` that *reduces* the surface area when open, never occluding it.
-On desktop it docks to the right of the window area (the foregrounded surface
-reflows and stays co-visible, so the chat header's `Viewing: X` label is
-honest); on mobile (<640px) it degrades to a full-screen overlay because the
-surface cannot be co-visible. The same `foregrounded` slug that names the
-`Viewing:` surface scopes the agent's context (`surfaceOverride`) and resolves
-its prompt profile (ADR-186) — one gesture (`foregroundSurface`) both raises
-the window and scopes the conversation. Chrome that frames content sits beside
-it; it does not cover it.
-
 > **The shell's 640px is the SHELL's threshold, not every surface's.** A surface
 > may declare its own width ladder when its internal layout needs more room than
 > the window does — the authoring workbench does (`WORKBENCH_*_PX`, four rungs;
@@ -94,23 +80,13 @@ it; it does not cover it.
 > container (`useNarrowContainer` / `useWorkbenchWidth`), because a surface can be
 > narrow inside a roomy window.
 
-**Two layout modes — the operator picks the spatial paradigm (ADR-358).** The
-shell's arrangement is an operator preference (`layoutMode ∈ {canvas, desktop}`
-in `ShellChromeContext`, persisted, default **canvas**), chosen at the UserMenu.
-**Canvas:** one surface fills the column edge-to-edge (window chrome suppressed
-via `canvasFill` + `chromeless`) with chat docked as a flex **rail on the
-right** — the two-panel chat-interface composition, side-to-side divider only.
-**Desktop:** the ADR-297 D15 free-floating window manager, with chat as a
-**summoned `position: fixed` overlay** (FAB-summoned, floats over the windows,
-consumes zero flex space) — *not* a pinned rail, so "everything floats in
-Desktop, chat included." The `main` flex row order is fixed (surface, then
-rail); the docked-vs-overlay decision lives entirely in `ChatDrawer`
-(`railMode` vs `overlayMode`). Chat is chrome in every mode, **never** a window
-(ADR-316 Alternative A stays rejected — the command channel must not be
-closable/buryable like content). Singular Implementation: one compositor, one
-chat component, one window manager; the window-manager core is mode-agnostic,
-and the `Viewing: X` ↔ `surfaceOverride` ↔ prompt-profile binding is identical
-in every mode.
+**Two layout modes — the member picks the spatial paradigm (ADR-358).** The shell's
+arrangement is a member preference (`layoutMode ∈ {canvas, desktop}` in
+`ShellChromeContext`, persisted, default **canvas**), chosen at the UserMenu.
+**Canvas:** one surface fills the column edge-to-edge (window chrome suppressed via
+`canvasFill` + `chromeless`). **Desktop:** the ADR-297 D15 free-floating window manager.
+Singular Implementation: one compositor, one window manager, and the window-manager core
+is mode-agnostic.
 
 **Window-namespaced deep-link params (ADR-358 D6).** Several windows are open at
 once but there is only ever **one** query string, so each window's intra-surface
@@ -326,7 +302,7 @@ When authoring a new component for a slot, honor these conventions. They're not 
 
 - **Visual:** in-row buttons/menus right-aligned in the SurfaceIdentityHeader actions slot.
 - **Content shape:** primary action (Fire/Run if reactive) → overflow menu (Pause/Resume/Edit-in-chat).
-- **CRUD discipline:** lifecycle ops are Direct (per ADR-215 R1); `Edit in chat` opens the rail composer with a seeded prompt (R5).
+- **CRUD discipline:** lifecycle ops are Direct (per ADR-215 R1); `Edit in chat` opens a conversation with a seeded prompt (R5).
 - **Example kernel default:** `KernelDeliverableActions` — single overflow menu (`OverflowMenu` from `web/components/library/kernel-chrome/`).
 - **Example bundle override:** alpha-trader's signal task could ship a custom `TradingSignalActions` component with a "Backtest now" button alongside the overflow.
 

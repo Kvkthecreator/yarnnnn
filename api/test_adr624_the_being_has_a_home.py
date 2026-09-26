@@ -196,7 +196,7 @@ for gone in ("identity", "mandate", "principles", "expected-output"):
     )
 
 # Narrowed deliberately. My first cut asserted NO routeless row survives and was
-# WRONG in a way worth recording: `top-bar`/`launcher`/`chat-drawer` are chrome
+# WRONG in a way worth recording: `top-bar`/`launcher` are chrome
 # and `setup` is a sequence — none of them is navigable BY DESIGN, so a blanket
 # rule would have demanded deleting correct rows. The defect D5 names is
 # narrower: a routeless DOCUMENT row, i.e. a reader-facing page reserved for a

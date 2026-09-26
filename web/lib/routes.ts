@@ -8,9 +8,9 @@
 // the pre-D11 single-page world where every operator was force-redirected to
 // the Feed surface on login. D17 ratifies the YARNNN Agent OS boot model:
 // login boots to the Desktop layer. Last-session windows restore from the
-// open-surfaces registry (D13). Empty registry → empty Desktop with context-
-// aware welcome copy. Per-slug routes (/feed, /recurrence, etc.) survive as
-// deep-link transports.
+// open-surfaces registry (D13). Nothing to restore → Chat is foregrounded
+// (ADR-670 D1, `resolveBootSurface` in lib/shell/route-sync.ts). Per-slug
+// routes survive as deep-link transports.
 //
 // Launcher primary tiles (ADR-412): Home | Chat | Channels | Files | Agents.
 // /schedule was a top-level tab (ADR-243) that has been folded into /work as

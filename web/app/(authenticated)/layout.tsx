@@ -24,12 +24,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * ADR-023: Supervisor Desk Architecture
- *
- * Layout for authenticated routes:
- * - Single desk view (one surface at a time)
- * - TP always present at bottom
- * - Domain browser as escape hatch
+ * Layout for authenticated routes: the shell (AuthenticatedLayout — the
+ * window manager, the chrome and the surface viewport, ADR-297) inside the
+ * auth gate and the interface-language scope (ADR-660).
  *
  * Auth gating: TWO halves, and both are always mounted (ADR-661 §8 step 1).
  * `middleware.ts` (updateSession) gates server-side, before this layout

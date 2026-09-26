@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ChromeRegistry — ADR-297 D11 + D12 + D16.
+ * ChromeRegistry — ADR-297 D11 + D12.
  *
  * Maps each chrome-surface slug (declared in
  * api/services/kernel_surfaces.py with archetype ∈ {chrome, navigator,
@@ -14,12 +14,11 @@
  * surfaces are none of those; they mount into top / floating-overlay
  * regions and are not pickable from the launcher.
  *
- * Post-ADR-316 chrome set:
- *   top-bar     — merged dock-bar (D12: brand · launcher · Dock · user)
+ * The chrome set:
+ *   top-bar     — merged dock-bar (D12: brand · launcher · Dock · user), top
  *   launcher    — full surface-index overlay (D4 + D11), floating-overlay
- *   (the chat drawer — ADR-316 — retired with the steward, ADR-632)
- * D12 collapsed `dock` into top-bar's body.
- * main-rail (a flex sibling of main that reduces the surface area).
+ * D12 collapsed `dock` into top-bar's body. Chat is a windowed surface, not
+ * chrome (ADR-454 D3 · ADR-632 · ADR-670 D8).
  */
 
 import type { ComponentType } from 'react';

@@ -3,10 +3,13 @@
 Enforces the operator-chosen-spatial-paradigm decision. The shell runs in
 one of two whole arrangements; the operator picks at the UserMenu:
 
-  CANVAS  — chat-LEFT + one full-bleed surface-RIGHT, side-to-side divider
-            only (the ChatGPT/Claude convention). DEFAULT.
-  DESKTOP — the ADR-297 D15 free-floating window manager + ADR-316
-            right-docked rail.
+  CANVAS  — one full-bleed surface at a time, window chrome suppressed.
+            DEFAULT.
+  DESKTOP — the ADR-297 D15 free-floating window manager.
+
+(The chat rail each mode once carried went with the chat drawer — ADR-632,
+and its `main-rail` region with ADR-670 D8. Chat is a windowed surface in
+both modes.)
 
 The invariant ADR-358 protects: within a mode, chat and surfaces speak the
 SAME spatial language (the contradiction it fixes was cross-mode welding —
@@ -92,13 +95,12 @@ def main() -> None:
         "the layout toggle is hidden on mobile (mode is desktop-only)",
     )
 
-    # --- 3. ShellCompositor: fixed order (surface, then rail) ---
-    # ADR-358 revised — chat always renders RIGHT of the surface column. In
-    # canvas it is a docked flex rail; in desktop/mobile it is a fixed
-    # overlay (zero flex space). So the order is fixed and the compositor no
-    # longer branches on layoutMode at all.
+    # --- 3. ShellCompositor: the main region is the surface column alone ---
+    # The compositor never branches on layoutMode; the mode lives in the
+    # viewport. The chat rail that once sat beside the surface column went
+    # with the drawer (ADR-632; its region with ADR-670 D8), so the main row
+    # holds exactly the surface column.
     comp = _read("components/shell/ShellCompositor.tsx")
-    _assert("ADR-358" in comp, "ShellCompositor cites ADR-358")
     _assert(
         "layoutMode" not in comp,
         "ShellCompositor no longer reads layoutMode (order is fixed)",
@@ -107,10 +109,8 @@ def main() -> None:
     main_close = comp.find("</main>")
     row = comp[main_open:main_close] if main_open != -1 else ""
     _assert(
-        row.find("{surfaceColumn}") != -1
-        and row.find("{chatRail}") != -1
-        and row.find("{surfaceColumn}") < row.find("{chatRail}"),
-        "surface column renders before the chat rail (chat docks RIGHT)",
+        row.find("{surfaceColumn}") != -1 and "chatRail" not in comp,
+        "the main row holds the surface column and no chat rail (ADR-670 D8)",
     )
 
     # (sections 4 + 4b — the chat drawer's dock side and default-open posture —

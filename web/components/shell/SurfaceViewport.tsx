@@ -7,8 +7,8 @@
  * empty-state component vs inline padded wrapper around windows) into
  * one always-rendered Desktop layer. The Desktop component now owns:
  *   - padded gray background
- *   - context-aware empty-state copy (visible when no windows)
- *   - the ChatFAB (D17 §7 — moved off viewport-fixed)
+ *   - the "nothing open" state (visible when no windows; a boot with
+ *     nothing to restore foregrounds Chat instead — ADR-670 D1)
  * Windows mount as absolute-positioned children of the Desktop layer.
  *
  * Resolution order (D17 + ADR-358):
@@ -25,7 +25,8 @@
  *
  * Pathname behavior (D17):
  *   - /desktop → no pathnameSlug; Desktop renders + restores
- *     whatever is in the open-surfaces registry.
+ *     whatever is in the open-surfaces registry (empty at boot → Chat,
+ *     ADR-670 D1).
  *   - /{surface-slug} → pathnameSlug = the slug; deep-link transport
  *     opens that surface in addition to whatever's in the registry.
  *   - Other authenticated routes (settings, connectors, docs, etc.)
@@ -74,9 +75,9 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   // irrelevant (single-surface either way).
   const canvasMode = layoutMode === 'canvas';
   const singleSurface = viewport.isMobile || canvasMode;
-  // ADR-316: drag/resize clamping uses the DESKTOP box (reduced by the
-  // command rail), falling back to the raw viewport before the Desktop
-  // measures. Keeps windows from being draggable under the rail.
+  // ADR-316: drag/resize clamping uses the DESKTOP box (below the shell
+  // chrome), falling back to the raw viewport before the Desktop measures.
+  // Keeps windows from being dragged out of the window area.
   const clampWidth = desktopBounds?.width ?? viewport.width;
   const clampHeight = desktopBounds?.height ?? viewport.height;
 

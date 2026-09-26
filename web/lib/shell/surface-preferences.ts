@@ -59,10 +59,13 @@ const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 // ORDER is meaning, not registry-declaration accident (the Dock renders `kept`
 // in its stored order, so this array IS the on-screen order):
 //
-//     Chat  │  Text  Slides  Blogger  Images  │  Files  Agents  Reach
-//     think     make (write · lay out · publish · compose)   <-- the record, its residents, its boundary -->
+//     Chat  │  Text  Slides  Blogger  Images  │  Files  Agents  Reach  Supervisor
+//     think     make (write · lay out · publish · compose)   <-- the record, its residents, its boundary, what is underway -->
 //
-// (Redrawn 2026-09-07 for ADR-642: +Reach. Redrawn 2026-09-04: the previous
+// The Dock's band dividers are DERIVED from this array and the app registry
+// (`dockBand` in TopBarSurface.tsx, ADR-670 D8) — never a second slug table.
+//
+// (Redrawn 2026-09-26 for ADR-656: +Supervisor. Redrawn 2026-09-07 for ADR-642: +Reach. Redrawn 2026-09-04: the previous
 // diagram read `Chat │ Text Slides Strings │ Files Agents` — Strings died
 // with ADR-639 (standing work is a kernel lane, its roster a Notifications
 // pane, not a Dock app); earlier redraws removed Docs (ADR-599), Radar
@@ -160,16 +163,6 @@ export const CASCADE_OFFSET_PX = 30;
 // D15 — default window dimensions (% of viewport).
 export const DEFAULT_WINDOW_WIDTH_PCT = 0.7;
 export const DEFAULT_WINDOW_HEIGHT_PCT = 0.7;
-
-// D19.5.1 (2026-05-22) — FAB_RESERVED_WIDTH + FAB_RESERVED_HEIGHT
-// DELETED. The D17 FAB lived at the Desktop's bottom-CENTER below
-// windows in the z-stack (z=5; windows start at z=10), requiring a
-// reserved column to keep the FAB reachable when windows covered its
-// position. D19.5.1 moves the FAB to viewport-fixed bottom-RIGHT at
-// Z_FAB (150, above windows) — windows can extend across the full
-// bottom edge and the FAB still floats above them. The reserved-zone
-// concept dissolves; window clamping returns to a simple viewport-
-// padded box. Singular Implementation — one window-clamping rule.
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
@@ -866,12 +859,6 @@ export function setWindowStates(userId: string, states: WindowStateMap): void {
  *  TopBar's bottom. The correct vertical offset is just the
  *  Desktop's own padding (16px on sm:p-4); the TopBar's height is
  *  already handled by the flex layout above Desktop.
- *
- *  D19.5.1 (2026-05-22) — FAB reserved zone DELETED. The FAB moved
- *  from Desktop-fixed bottom-center (z=5, below windows) to viewport-
- *  fixed bottom-right (Z_FAB=150, above windows). Maximized windows
- *  can now extend across the full Desktop bottom edge; the FAB still
- *  floats above. Bottom inset is now just Desktop padding.
  */
 export function computeMaximizedGeometry(
   viewportWidth: number,
@@ -884,8 +871,8 @@ export function computeMaximizedGeometry(
 
 /**
  * ADR-316: maximize geometry from the DESKTOP's own measured box
- * (already excludes the top-bar and the command rail — the Desktop is
- * the flex-1 sibling of the rail, below the top-bar). The input is the
+ * (already excludes the top-bar — the Desktop sits below the shell
+ * chrome). The input is the
  * usable Desktop area; this only insets the Desktop's own padding. The
  * viewport-based computeMaximizedGeometry above delegates here after
  * subtracting the top-bar, so both share one inset rule.
@@ -938,16 +925,7 @@ export function computeDefaultWindowState(
 
 /** Clamp a window's position so the title bar is at least partially
  *  visible (the operator can always grab the title bar). Clamps size
- *  to (WINDOW_MIN_*, viewport - 2*padding).
- *
- *  D19.5.1 (2026-05-22) — pre-D19.5.1 the clamp tightened maxY by
- *  FAB_RESERVED_HEIGHT when a window's horizontal extent overlapped
- *  the central FAB column (kept the FAB reachable when it lived at
- *  z=5 below windows). With the D19.5.1 FAB move (viewport-fixed
- *  bottom-right at Z_FAB=150, above windows), windows can extend
- *  fully across the bottom edge and the FAB still floats above —
- *  the overlap check + tightened maxY are now dead logic. Deleted.
- *  Singular Implementation — one clamp rule, no FAB special case. */
+ *  to (WINDOW_MIN_*, viewport - 2*padding). */
 export function clampWindowState(
   state: WindowState,
   viewportWidth: number,

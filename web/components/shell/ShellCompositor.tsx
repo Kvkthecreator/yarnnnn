@@ -8,19 +8,12 @@
  * matching JSX slot. Replaces the hardcoded shell JSX previously living
  * in AuthenticatedLayout.tsx.
  *
- * Layout regions (ADR-297 D11 + ADR-316):
+ * Layout regions (ADR-297 D11):
  *   - `top`              → top-of-viewport chrome (today: TopBar)
- *   - `main`             → primary content area (a flex ROW: SurfaceViewport
- *                           window area flex-1 + main-rail command rail).
- *                           ADR-358: chat docks RIGHT as a flex rail in
- *                           canvas; in desktop/mobile it is a fixed overlay
- *                           (zero flex space) so the row is just the surface.
- *   - `main-rail`        → chat (ADR-316/358, today: ChatDrawerSurface).
- *                           Canvas: a right-docked rail that reduces the
- *                           surface. Desktop/mobile: a fixed summoned
- *                           overlay. Never occludes in canvas; floats in
- *                           desktop.
- *   - `bottom-floating`  → floating affordance above main (today: Dock)
+ *   - `main`             → primary content area (SurfaceViewport). Chat is
+ *                           a windowed surface inside it, not chrome
+ *                           (ADR-454 D3 · ADR-632 · ADR-670 D8).
+ *   - `bottom-floating`  → floating affordance above main (today: unused)
  *   - `bottom-fixed`     → fixed input region below main (today: unused)
  *   - `floating-overlay` → modal overlays summoned over main (today:
  *                           LauncherSurface)
@@ -86,7 +79,6 @@ function partitionChromeByRegion(
 ): Record<LayoutRegion, ChromeSurfaceSlug[]> {
   const byRegion: Record<LayoutRegion, ChromeSurfaceSlug[]> = {
     main: [],
-    'main-rail': [],
     top: [],
     'bottom-floating': [],
     'bottom-fixed': [],
@@ -112,21 +104,11 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
       return <Component key={slug} />;
     });
 
-  // ADR-358 (revised) — chat always renders to the RIGHT of the surface
-  // column. In CANVAS (wide) it is a docked flex-sibling RAIL that reduces
-  // the surface area. In DESKTOP/mobile it renders as a `position: fixed`
-  // overlay, which consumes ZERO flex space — so it floats out of this row
-  // regardless of order. Hence the order is fixed (surface, then rail); the
-  // docked-vs-overlay decision lives entirely in ChatDrawer.
   const surfaceColumn = (
     <div className="flex-1 min-w-0 overflow-hidden">
       <SurfaceViewport>{children}</SurfaceViewport>
     </div>
   );
-  // main-rail region — chat. Owns its own open/closed + width + rail-vs-
-  // overlay state. Renders a right rail (canvas), a fixed overlay (desktop/
-  // mobile), or null-width when closed.
-  const chatRail = mountRegion('main-rail');
 
   return (
     <>
@@ -142,30 +124,23 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
             per-window title-bar crumb that vanished in canvas mode. */}
         <GlobalLocatorStrip />
 
-        {/* Main region — ADR-316 + ADR-358: a flex ROW. The surface column
-            is flex-1. In CANVAS the chat rail docks RIGHT as a flex sibling
-            (reduces the surface, never occludes). In DESKTOP/mobile chat is
-            a fixed overlay (ChatDrawer's own branch) consuming zero flex
-            space, so the row is just the surface column there. */}
+        {/* Main region — the surface column (SurfaceViewport). */}
         <main className="flex-1 min-h-0 overflow-hidden flex flex-row">
           {surfaceColumn}
-          {chatRail}
         </main>
 
         {/* D12 + D16 (2026-05-21..22): bottom-floating + bottom-fixed
             regions intentionally NOT mounted.
               - D12 deleted the Dock kernel surface (responsibility
                 absorbed into TopBarSurface).
-              - D16 deleted the bottom-strip ChatComposerSurface
-                (responsibility absorbed into ChatDrawerSurface in
-                floating-overlay).
+              - D16 deleted the bottom-strip ChatComposerSurface.
             Both LayoutRegions survive in the type union for future
             use but no kernel surface targets them today. */}
       </div>
 
-      {/* Floating-overlay region — LauncherSurface only (ADR-316 moved
-          ChatDrawerSurface to main-rail). Mounted outside the screen flow
-          because overlays use their own fixed positioning + z-index. */}
+      {/* Floating-overlay region — LauncherSurface only. Mounted outside
+          the screen flow because overlays use their own fixed positioning
+          + z-index. */}
       {mountRegion('floating-overlay')}
     </>
   );

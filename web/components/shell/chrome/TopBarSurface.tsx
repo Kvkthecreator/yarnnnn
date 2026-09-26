@@ -65,6 +65,8 @@ import { useTranslations } from 'next-intl';
 import { LayoutGrid } from 'lucide-react';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { DEFAULT_KEPT_SURFACES } from '@/lib/shell/surface-preferences';
+import { resolveApp } from '@/lib/apps/registry';
 import { resolveSurfaceIcon, resolveSurfaceAccent } from '@/lib/shell/surface-icons';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
@@ -79,24 +81,33 @@ import { cn } from '@/lib/utils';
 import { useSurfaceWords } from '@/lib/compositor/useSurfaceTitle';
 import { Wordmark } from '@/components/shared/Wordmark';
 
-// 2026-07-22 — the Dock's semantic BANDS. The five primary apps are not five
-// peers: they are three acts (matching DEFAULT_KEPT_SURFACES' order + the
-// ADR-457 Think/Make verbs).
+// The Dock's semantic BANDS (2026-07-22; derived since ADR-670 D8). The
+// primary apps are not peers: they are three acts, in DEFAULT_KEPT_SURFACES'
+// order and the ADR-457 Think/Make verbs.
 //
-//     Chat  │  Studio  Images  │  Files  Agents
-//     think    <--- make --->     <-- the record -->
+//     Chat  │  Text  Slides  Blogger  Images  │  Files  Agents  Reach  Supervisor
+//     think    <-------------- make -------------->   <------- the record ------->
 //
 // Used ONLY to decide where a divider falls between two adjacent kept icons
-// (see the kept-segment render). Presentation, not routing: a slug absent from
-// this map simply never starts a band, so a program-shipped or
-// operator-kept surface degrades cleanly rather than needing an entry.
-const DOCK_BAND: Record<string, string> = {
-  chat: 'think',
-  studio: 'make',
-  images: 'make',
-  files: 'record',
-  agents: 'record',
-};
+// (see the kept-segment render). Presentation, not routing.
+//
+// DERIVED, not hand-kept. This was a second slug table beside the Dock seed,
+// and it drifted exactly as a second table does: it still named `studio`
+// (gone to Slides, ADR-599 D4) and missed Text, Slides, Blogger, Reach and
+// the Supervisor, so the Dock drew one divider where it meant two. The bands
+// now read the registries that already hold the facts:
+//   - think  — Chat, the surface a member acts from (ADR-435);
+//   - make   — an app that owns artifact types (the ADR-636 app registry);
+//   - record — any other surface the Dock seeds (DEFAULT_KEPT_SURFACES).
+// A surface in none of them (a program-shipped or member-kept surface beyond
+// the seed) is unbanded and never starts a band.
+type DockBand = 'think' | 'make' | 'record';
+function dockBand(slug: string): DockBand | null {
+  if (slug === 'chat') return 'think';
+  if (resolveApp(slug)?.ownsArtifactTypes) return 'make';
+  if (DEFAULT_KEPT_SURFACES.includes(slug)) return 'record';
+  return null;
+}
 
 export function TopBarSurface() {
   const router = useRouter();
@@ -443,7 +454,7 @@ export function TopBarSurface() {
               className="mx-1 h-4 w-px shrink-0 bg-border/40"
             />
             {keptSurfaces.map((surface, i) => {
-              // 2026-07-22 — BAND separators inside the kept segment. The five
+              // 2026-07-22 — BAND separators inside the kept segment. The
               // primary apps read as three bands (think · make · the record),
               // the same grouping DEFAULT_KEPT_SURFACES orders them by; without
               // a rule they read as five undifferentiated squares.
@@ -452,11 +463,11 @@ export function TopBarSurface() {
               // an operator who unpins or reorders never gets a divider
               // stranded in the wrong place: a rule is drawn only where two
               // ADJACENT kept icons actually belong to different bands. An
-              // unbanded surface (anything the operator kept beyond the five)
-              // never draws one.
+              // unbanded surface (anything kept beyond the Dock seed) never
+              // draws one.
               const prev = i > 0 ? keptSurfaces[i - 1] : null;
-              const band = DOCK_BAND[surface.slug];
-              const prevBand = prev ? DOCK_BAND[prev.slug] : null;
+              const band = dockBand(surface.slug);
+              const prevBand = prev ? dockBand(prev.slug) : null;
               const startsBand = Boolean(prev && band && prevBand && band !== prevBand);
               return (
                 <Fragment key={surface.slug}>

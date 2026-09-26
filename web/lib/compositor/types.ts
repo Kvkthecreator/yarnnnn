@@ -80,20 +80,16 @@ export type Archetype =
  * Today's regions:
  *   - `main` — primary content area (one surface today; multi-surface
  *     composition is the D10 forward horizon)
- *   - `main-rail` — the dockable command rail docked to the right of
- *     `main`'s window area (ADR-316). A flex sibling of SurfaceViewport
- *     that *reduces* the surface area rather than occluding it. Today:
- *     the chat command rail. On mobile it degrades to a full-screen
- *     overlay (the surface can't be co-visible below 640px).
- *   - `top` — top-of-viewport chrome region
- *   - `bottom-floating` — bottom-floating affordance (today: Dock)
- *   - `bottom-fixed` — bottom-fixed input region (today: ChatComposer)
+ *   - `top` — top-of-viewport chrome region (today: TopBar)
+ *   - `bottom-floating` — bottom-floating affordance (no surface targets
+ *     it today; D12 absorbed the Dock into the top bar)
+ *   - `bottom-fixed` — bottom-fixed input region (no surface targets it
+ *     today; D16 deleted the bottom-strip composer)
  *   - `floating-overlay` — modal-style overlay summoned over `main`
  *     (today: Launcher)
  */
 export type LayoutRegion =
   | 'main'
-  | 'main-rail'
   | 'top'
   | 'bottom-floating'
   | 'bottom-fixed'

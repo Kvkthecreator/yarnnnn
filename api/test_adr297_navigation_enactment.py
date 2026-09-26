@@ -387,7 +387,7 @@ def test_no_dead_nav_targets() -> None:
 #   3. FE: web/types/surface.ts — the `KERNEL_SURFACE_SLUGS` RUNTIME ARRAY
 #          (what isKernelSurfaceSlug() checks; drives the pathname watcher).
 #
-# Chrome surfaces (route == "" — top-bar/launcher/chat-drawer) are
+# Chrome surfaces (route == "" — top-bar/launcher) are
 # deliberately excluded from the FE navigable union: they have no route and
 # never foreground via deep-link. They live in ChromeRegistry, not here.
 #

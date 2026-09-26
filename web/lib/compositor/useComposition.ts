@@ -36,7 +36,7 @@ import type {
 // kernel-universal, and known at build time — they carry no
 // workspace-dependent data, only the `default_region` the compositor needs
 // to mount the OS frame. Seeding them into the pre-fetch response lets the
-// shell chrome (top bar / launcher / chat rail) paint on the FIRST render,
+// shell chrome (top bar / launcher) paint on the FIRST render,
 // before /api/programs/surfaces resolves — the OS frame is the persistent
 // container, not the last thing in (operator-observed KVK 2026-06-19: the
 // topbar painted after the surface content because the WHOLE chrome was
@@ -75,19 +75,6 @@ const KERNEL_CHROME_DEFAULTS: Surface[] = [
     default_region: 'floating-overlay',
     default_visibility: 'summon',
   },
-  {
-    slug: 'chat-drawer',
-    title: 'Chat Drawer',
-    archetype: 'input',
-    substrate_paths: [],
-    icon_key: 'message-circle',
-    default_pinned: false,
-    route: '',
-    summary: 'Operator command rail — FAB summons a dockable right rail (desktop) / overlay (mobile).',
-    tier: 'kernel',
-    default_region: 'main-rail',
-    default_visibility: 'summon',
-  },
 ];
 
 const EMPTY_RESPONSE: SurfacesResponse = {
@@ -95,7 +82,7 @@ const EMPTY_RESPONSE: SurfacesResponse = {
   active_bundles: [],
   composition: { tabs: {}, chat_chips: [] },
   // Pre-fetch loading state. surfaces[] seeds the kernel CHROME defaults so
-  // the OS frame (top bar / launcher / chat rail) paints on first render,
+  // the OS frame (top bar / launcher) paints on first render,
   // before /api/programs/surfaces resolves. Content + program surfaces
   // populate when the fetch lands. Consumers that need the FULL surface
   // index (launcher at-rest list) during loading should gate on `loading`.

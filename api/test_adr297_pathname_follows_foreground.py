@@ -76,6 +76,9 @@ def _strip_types(ts: str) -> str:
     # leave `Record<, >` behind.
     out = re.sub(r"(\w+)\??:\s*Record<[^>]*>", r"\1", out)
     out = re.sub(r"\):\s*Record<[^>]*>\s*\{", ") {", out)
+    # `readonly string[]` params (resolveBootSurface) — before the bare
+    # `: string` rule, which would otherwise leave `readonly` behind.
+    out = re.sub(r"(\w+):\s*readonly string\[\]", r"\1", out)
     out = re.sub(r"(\w+):\s*string\b", r"\1", out)
     out = re.sub(r"\):\s*string \| null \{", ") {", out)
     out = re.sub(r"\):\s*string \{", ") {", out)
@@ -364,6 +367,55 @@ console.log(JSON.stringify({
     )
 
 
+def test_the_boot_opens_chat() -> None:
+    """Group 6 — ADR-670 D1 (amends D17): nothing to restore opens Chat.
+
+    Executes the REAL `resolveBootSurface`, then reads the ONE boot effect's
+    body (not the whole file — a whole-file substring stays green while the
+    guarded call site is broken, because the same names live elsewhere)."""
+    print("\n[6] boot: nothing to restore opens Chat (ADR-670 D1)")
+    out = _run_node(
+        """
+const r = (p, open) => resolveBootSurface(p, '/desktop', open);
+console.log(JSON.stringify({
+  empty_home: r('/desktop', []),
+  restored: r('/desktop', ['files']),
+  surface_route: r('/files', []),
+  page_route: r('/admin', []),
+  home_subpath: r('/desktop/x', []),
+}));
+"""
+    )
+    _assert(out["empty_home"] == "chat", "an empty restore on the home route foregrounds Chat")
+    _assert(out["restored"] is None, "a non-empty restore stands (ADR-297 D17)")
+    _assert(out["surface_route"] is None, "a surface route is explicit intent — the pathname sync opens it")
+    _assert(out["page_route"] is None, "a page route renders its own page")
+    _assert(out["home_subpath"] is None, "only the home route itself boots to Chat")
+
+    prefs = PREFS.read_text()
+    start = prefs.find("if (bootDecided.current) return;")
+    end = prefs.find("}, [restoreSettled, compositionLoading, pathname, open, navigateToSurface]);", start)
+    _assert(start >= 0 and end > start, "the boot effect is locatable (anchor intact)")
+    body = prefs[start:end] if start >= 0 and end > start else ""
+    _assert(
+        "if (!restoreSettled || compositionLoading) return;" in body,
+        "the boot waits for the settled restore and the roster",
+    )
+    _assert(
+        "bootDecided.current = true;" in body,
+        "the boot decides ONCE (a mid-session close-all never re-enters)",
+    )
+    _assert(
+        "resolveBootSurface(pathname, HOME_ROUTE, open)" in body
+        and "navigateToSurface(slug)" in body,
+        "the boot routes through resolveBootSurface and the one navigation verb",
+    )
+
+    desktop = (WEB / "components" / "shell" / "Desktop.tsx").read_text()
+    _assert("useIsFirstTime" not in desktop, "the first-time branch is deleted (useIsFirstTime gone)")
+    _assert("booted && !hasWindows" in desktop, "the Desktop's empty state waits for the boot decision")
+
+
 if __name__ == "__main__":
     print("ADR-297 D19.2 withdrawal — the pathname follows the foreground")
     test_the_operator_gesture()
@@ -371,6 +423,7 @@ if __name__ == "__main__":
     test_the_two_rules_agree()
     test_the_withdrawal_is_recorded()
     test_the_query_half_agrees()
+    test_the_boot_opens_chat()
 
     print(f"\n{'='*60}")
     print(f"pathname-follows-foreground gate: {_passed} passed, {_failed} failed")

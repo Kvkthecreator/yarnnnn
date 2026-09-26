@@ -16,7 +16,7 @@ import type { Surface } from '@/lib/compositor/types';
 // normalized → `channels` at the surface-preferences READ boundary
 // (lib/shell/surface-preferences.ts), so no `feed`/`context` slug ever reaches
 // this resolver. The single normalization point replaces the scattered
-// per-consumer alias handling (registry / title / chat-drawer) — Singular
+// per-consumer alias handling (registry / title) — Singular
 // Implementation.
 
 /**

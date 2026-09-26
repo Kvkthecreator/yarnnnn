@@ -20,7 +20,7 @@
  * needs more room.
  *
  * It is a MAX, not a width — which is the whole small-screen story. Below it the
- * column IS the pane, so nothing changes on a phone, inside the chat drawer, or
- * in a bound app's 380px side pane.
+ * column IS the pane, so nothing changes on a phone or in a bound app's 380px
+ * side pane.
  */
 export const CONVERSATION_COLUMN_PX = 820;

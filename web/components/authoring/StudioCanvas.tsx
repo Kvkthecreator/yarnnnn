@@ -379,7 +379,7 @@ export function StudioCanvas({
 
   // The auto-fit scale: for a deck, shrink the 992px stage to the column width
   // (never enlarge past 1); for fluid layouts, 1. Measured off the iframe's own
-  // width via ResizeObserver so it tracks the column (chat drawer, DevTools,
+  // width via ResizeObserver so it tracks the column (the side pane, DevTools,
   // window resize). The operator's `zoom` multiplies this base.
   const [fitScale, setFitScale] = useState(1);
   useEffect(() => {

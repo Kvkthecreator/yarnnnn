@@ -171,9 +171,8 @@ export function resolveSurfaceIcon(iconKey: string): SurfaceIcon {
  *
  * WHY THIS IS A SECOND MAP, NOT A FIELD ON ICON_REGISTRY
  * `ICON_REGISTRY` is keyed by `icon_key`, and an icon_key is SHARED: `bell`
- * dresses both Notifications and the alerts row, `message-circle` both Chat
- * and the chat-drawer. A hue keyed on the glyph would paint every sharer the
- * same, which is the opposite of "tell the apps apart". The accent is keyed
+ * dresses both Notifications and the alerts row. A hue keyed on the glyph
+ * would paint every sharer the same, which is the opposite of "tell the apps apart". The accent is keyed
  * on the SURFACE SLUG — the thing that actually has an identity.
  *
  * The pattern is `studioShapes.ts` (ADR-459), already ratified: a record of

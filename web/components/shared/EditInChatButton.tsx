@@ -30,7 +30,7 @@
 import { MessageSquare } from 'lucide-react';
 
 export interface EditInChatButtonProps {
-  /** Prompt text to seed the chat rail with. Must be non-empty. */
+  /** Prompt text to seed the conversation with. Must be non-empty. */
   prompt: string;
   /** Callback invoked with the prompt. Hosting page routes to sendMessage(). */
   onOpenChatDraft: (prompt: string) => void;

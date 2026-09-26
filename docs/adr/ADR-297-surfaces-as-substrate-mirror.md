@@ -559,6 +559,13 @@ D16 implementation status: **Implemented 2026-05-22** (this session, code commit
 
 ### D17 — Desktop as load-bearing layer + Agent OS boot model + FAB-on-desktop (2026-05-22 same-session amendment)
 
+> **Amended 2026-09-26 by [ADR-670](ADR-670-the-conversation-leads.md) D1 — nothing to restore opens Chat.** Login
+> still boots to `/desktop` and still restores last-session windows. When that restore is EMPTY, the shell foregrounds
+> Chat through `navigateToSurface('chat')`, once per boot, on the settled restore (`resolveBootSurface` in
+> `web/lib/shell/route-sync.ts`). The first-time welcome branch of the Desktop empty state (`useIsFirstTime`) is
+> deleted; closing every window mid-session still shows the concise "nothing open" state. The FAB this decision placed
+> went with the chat drawer (ADR-632).
+
 **Supersedes** the pre-D11 `HOME_ROUTE = "/feed"` boot convention (auth callback + middleware now redirect to `/desktop`). **Refines** D13 §5 (the prior "Desktop empty state" framing — D17 ratifies Desktop as an always-rendered layer, not just an empty-state component). **Refines** D16 §1 (FAB position — was viewport-fixed `bottom-center`; D17 moves it inside the Desktop wrapper so it lives on the desktop layer, not on top of windows).
 
 Three coupled corrections that fix an architectural confusion the operator surfaced (KVK 2026-05-22): *"I'm confused — shouldn't the FAB be not on the actual surfaces, but on the 'desktop'?"* Followed by: *"What exactly do we call the layout I'm referring as 'desktop' here? Isn't it the empty state where 0 surfaces are 'opened'? Tell me if this is clearly identifiable and do-able in code."* And then: *"Maybe the framing needs to think in terms of what page/redirect we go to when we log in — and thus what IS our Agent OS metaphor that correctly applies this desktop concept."*

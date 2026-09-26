@@ -10,10 +10,9 @@
  * non-streaming turns (POST → JSON reply), no command picker, no surface
  * override — a lane is a working thread, not the OS terminal.
  *
- * ADR-412 D2/D3 (2026-07-06): relocated from the chat-drawer chrome
- * (shell/chrome/) to the Chat surface body — the drawer purified to the
- * steward; member conversations live in their windowed workbench.
- * Mechanics unchanged.
+ * ADR-412 D2/D3 (2026-07-06): relocated from shell chrome (shell/chrome/)
+ * to the Chat surface body — member conversations live in their windowed
+ * workbench. Mechanics unchanged.
  *
  * ADR-441 D2 (2026-07-11): THE lane-thread renderer — one per member
  * conversation, frame-agnostic, mounted N times (the /chat workbench, the

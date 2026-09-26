@@ -25,20 +25,16 @@ ADR-297 D11 additions (Universal Surface Application):
 ADR-297 D12 amendments (top-center merged dock-bar):
 - D12 collapsed the prior 4-entry chrome set to 3 by deleting `dock`.
 
-ADR-297 D16 amendments (universal summon chat drawer):
-- D16 renamed `chat-composer` → `chat-drawer` and flipped its region
-  bottom-fixed → floating-overlay/summon. The bottom-strip composer
-  dissolves into a FAB + slide-over drawer.
+ADR-670 D8 (the drawer's last remains, 2026-09-26):
+- D16's chat composer became the chat drawer (ADR-316 docked it in a
+  `main-rail` region); ADR-632 deleted the drawer with the steward, and
+  ADR-670 D8 deleted its kernel row and its region. Chat is a windowed
+  content surface. Both absences are guarded, like `dock` and
+  `chat-composer` before them.
 
-ADR-316 amendment (chat as dockable command rail):
-- Chat-drawer's region flips floating-overlay → main-rail — a flex
-  sibling of `main`'s window area that reduces the surface rather than
-  occluding it. Still FAB-summoned; on mobile it degrades to overlay.
-
-Post-ADR-316 chrome surface set (3 entries):
+The chrome surface set (2 entries):
     `top-bar`    (chrome/top/always)              — merged dock-bar body
     `launcher`   (navigator/floating-overlay/summon) — overlay
-    `chat-drawer`(input/main-rail/summon)          — FAB + dockable rail
 
 Both `bottom-floating` and `bottom-fixed` LayoutRegions survive in the
 type union but no kernel surface targets them today.
@@ -161,11 +157,9 @@ def test_kernel_surfaces_module() -> None:
         "settings",
         "connectors",
         # ADR-297 D11 chrome surfaces (D12 collapsed `dock` into top-bar;
-        # D16 renamed `chat-composer` → `chat-drawer`; ADR-316 flipped
-        # chat-drawer's region floating-overlay → main-rail).
+        # the chat drawer's row is deleted — ADR-670 D8).
         "top-bar",
         "launcher",
-        "chat-drawer",
     }
 
     # ADR-297 D12: `dock` slug DELETED from registry. Singular
@@ -183,13 +177,16 @@ def test_kernel_surfaces_module() -> None:
         "ADR-327: `pace` kernel surface absent (retired → budget)",
     )
 
-    # ADR-297 D16: `chat-composer` slug DELETED from registry.
-    # Singular Implementation regression guard — chat is summon-style
-    # via the universal drawer (chat-drawer slug), not a persistent
-    # bottom-strip composer.
+    # ADR-297 D16: `chat-composer` slug DELETED from registry. Its successor,
+    # the chat drawer, went with the steward (ADR-632) and its row with the
+    # drawer's last remains (ADR-670 D8). Chat is the windowed `chat` surface.
     _assert(
         "chat-composer" not in slugs,
-        "D16: `chat-composer` kernel surface absent (replaced by `chat-drawer`)",
+        "D16: `chat-composer` kernel surface absent",
+    )
+    _assert(
+        "chat-drawer" not in slugs,
+        "ADR-670 D8: `chat-drawer` kernel surface absent (Chat is a window, not chrome)",
     )
     # ADR-624 D5: the four PER-AGENT reservations stay deleted. Inverted guard,
     # following this file's own precedent for every other retired slug (`dock`,
@@ -218,7 +215,7 @@ def test_kernel_surfaces_module() -> None:
     # but its slug survives so flat search still resolves the name instead of
     # 404-ing a bookmark. This rule predated that pattern and kept demanding
     # `route` of them, so the gate has been red on both ever since (cleared
-    # 2026-07-22). Chrome rows (top-bar/launcher/chat-drawer) carry `route: ""`
+    # 2026-07-22). Chrome rows (top-bar/launcher) carry `route: ""`
     # — declared-but-empty, so they satisfy the field check without being
     # navigable, and are unaffected either way.
     for entry in KERNEL_SURFACES:
@@ -555,17 +552,14 @@ def test_d11_archetype_catalog() -> None:
 def test_d11_chrome_surfaces() -> None:
     print("\n[5b-chrome] ADR-297 D11+D12+D16 chrome-surface contract")
 
-    # The three chrome surfaces (post-D12, post-D16, post-ADR-316) and
-    # their declared (archetype, region, visibility).
+    # The two chrome surfaces and their declared (archetype, region,
+    # visibility).
     #   D12 deleted `dock` from this set.
-    #   D16 renamed `chat-composer` → `chat-drawer`.
-    #   ADR-316 flipped chat-drawer's region floating-overlay → main-rail
-    #   (the dockable command rail that reduces the surface, not an
-    #   overlay that occludes it). Still FAB-summoned, still input/summon.
+    #   ADR-670 D8 deleted `chat-drawer` (and its `main-rail` region) — the
+    #   drawer itself went with the steward (ADR-632).
     expected_chrome = {
         "top-bar": ("chrome", "top", "always"),
         "launcher": ("navigator", "floating-overlay", "summon"),
-        "chat-drawer": ("input", "main-rail", "summon"),
     }
 
     by_slug = {s["slug"]: s for s in KERNEL_SURFACES}
@@ -614,9 +608,39 @@ def test_d11_chrome_surfaces() -> None:
             f"(region={has_region}, visibility={has_visibility})",
         )
 
-    # Every declared region is one of the canonical six (ADR-316 added
-    # `main-rail` — the dockable command rail beside `main`).
-    legal_regions = {"main", "main-rail", "top", "bottom-floating", "bottom-fixed", "floating-overlay"}
+    # Every declared region is one of the canonical five. `main-rail` (ADR-316,
+    # the chat drawer's dock) is NOT among them — ADR-670 D8 deleted it.
+    legal_regions = {"main", "top", "bottom-floating", "bottom-fixed", "floating-overlay"}
+
+    # The client is the other half of the wire: the TS `LayoutRegion` union is
+    # what the compositor can mount, and the pre-fetch seed is what it mounts
+    # before the roster lands. A region or row surviving on the client would
+    # be the drawer's remains standing where no server row names them.
+    web = os.path.join(os.path.dirname(__file__), "..", "web")
+    with open(os.path.join(web, "lib", "compositor", "types.ts")) as fh:
+        types_src = fh.read()
+    import re as _re
+    union = _re.search(r"export type LayoutRegion =([^;]*);", types_src)
+    ts_regions = set(_re.findall(r"'([a-z-]+)'", union.group(1))) if union else set()
+    _assert(
+        ts_regions == legal_regions,
+        f"TS LayoutRegion union equals the canonical regions "
+        f"(extra: {ts_regions - legal_regions or 'none'}, "
+        f"missing: {legal_regions - ts_regions or 'none'})",
+    )
+    with open(os.path.join(web, "lib", "compositor", "useComposition.ts")) as fh:
+        seed_src = fh.read()
+    _assert(
+        "'chat-drawer'" not in seed_src and "'main-rail'" not in seed_src,
+        "ADR-670 D8: the client's chrome seed carries no chat-drawer row",
+    )
+    with open(os.path.join(web, "components", "shell", "ShellCompositor.tsx")) as fh:
+        compositor_src = fh.read()
+    _assert(
+        "'main-rail'" not in compositor_src,
+        "ADR-670 D8: ShellCompositor mounts no main-rail region",
+    )
+
     for entry in KERNEL_SURFACES:
         region = entry.get("default_region")
         if region is not None:

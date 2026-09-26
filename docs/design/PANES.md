@@ -130,7 +130,7 @@ not, and never *shrinks itself* on a surface that got smaller. The share is a **
 the canvas's behalf**, not the unit the width is kept in.
 
 **The clamp runs on every render, not only on drag.** The container changes width under a
-persisted value (a window resize, the chat drawer opening), and the stored number must
+persisted value (a window resize, a sibling slot opening), and the stored number must
 never win over the room actually available.
 
 ## 5. Persistence
@@ -198,7 +198,7 @@ mounts:
 | mount | width | column |
 |---|---|---|
 | Text rail · Studio side pane | 320–380 | unchanged |
-| phone chat · chat drawer | 390–400 | unchanged |
+| phone chat | 390–400 | unchanged |
 | tablet chat | 768 | unchanged |
 | side pane at its new 50% ceiling (1600px surface) | 800 | unchanged |
 | laptop → maximised chat | 1100–1800 | **capped at 820, centred** |
@@ -303,22 +303,12 @@ into a surface rather than as the surface's own input.
 - **No second threshold.** A surface declaring its own "how wide is wide" is the drift
   this contract ends. Chat's hand-rolled 600px was the fourth spelling; it is deleted.
 - **No hand-rolled drag.** Resize belongs to `usePaneSlot`. Three independent pointer-drag
-  handlers with three key schemes and two different pointer APIs existed; two are deleted
-  and one is exempted below.
+  handlers with three key schemes and two different pointer APIs existed; `usePaneSlot` is
+  now the only one, with no exemption.
 - **No door gated on the overlay rung.** The overlay dismisses itself; the column is what
   needs the door.
 - **No `md:`/`lg:` in a pane's class strings.** A second spelling of a threshold is how the
   shell and a surface came to disagree about what a tablet is.
-
-### The one exemption, named
-
-**The chat drawer** (`components/shell/chrome/ChatDrawer.tsx`) keeps its own width store,
-its own 320–720 band, and its own drag. It is **shell chrome, not a slot inside a
-surface**: it is sized against the viewport, it carries a postural default keyed on the
-foregrounded surface (`AUTHOR_WIDTH` / `SUPERVISE_WIDTH`, ADR-316 §5), and in Desktop
-layout mode it is a `position: fixed` overlay consuming zero flex space. Folding it into a
-surface-slot contract would be a false unity. Recorded here so the exemption is a decision
-rather than an oversight.
 
 ## 12. Owed
 

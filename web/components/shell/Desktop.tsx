@@ -9,12 +9,10 @@
  *
  *   1. The padded background (bg-muted/30) that's visible wherever
  *      windows don't cover it.
- *   2. The empty-state content — context-aware welcome copy shown
- *      ONLY when zero windows are mounted (first-time operator OR
- *      returning operator who closed everything).
- *   3. The ChatFAB at bottom-center (D17 §7 — was viewport-fixed in
- *      D16; D17 moves it into the Desktop layer so it belongs to the
- *      desktop, not on top of windows).
+ *   2. The "nothing open" state — shown ONLY when zero windows are
+ *      mounted because the member closed (or minimized) everything. A boot with nothing
+ *      to restore never shows it: the shell foregrounds Chat instead
+ *      (ADR-670 D1, the boot decision in useSurfacePreferences).
  *
  * The actual window mounting + positioning lives in SurfaceViewport;
  * Desktop is a thin presentational layer that SurfaceViewport composes
@@ -30,7 +28,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { LayoutGrid, FileText, MessageSquare, ArrowRight } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
@@ -44,49 +42,23 @@ interface DesktopProps {
   children?: React.ReactNode;
 }
 
-/**
- * Detect first-time operator vs returning-with-empty-registry.
- * First-time = the operator has never opened a window; their
- * windowStates registry is empty AND their open-surfaces registry is
- * empty AND their kept set is exactly the default `['home']`.
- * Anything else is treated as "returning operator who closed
- * everything" (more concise empty-state copy).
- */
-function useIsFirstTime(): boolean {
-  const { kept, open, windowStates } = useSurfacePreferences();
-  if (open.length > 0) return false;
-  if (Object.keys(windowStates).length > 0) return false;
-  // Default-kept set is ['chat'] (ADR-435 — Home deleted; was ['home'] and,
-  // before that, ['channels']/['context']/['feed'] through the dissolved-Channels
-  // lineage). Legacy kept entries naming any of those are normalized → 'chat' on
-  // read (surface-preferences.ts), so an old default reads as ['chat'] and isn't
-  // misclassified. If the operator modified the set (added/removed surfaces),
-  // they've used the workspace.
-  if (kept.length !== 1) return false;
-  if (kept[0] !== 'chat') return false;
-  return true;
-}
-
 export function Desktop({ hasWindows, children }: DesktopProps) {
   const { layoutMode } = useShellChrome();
-  const { setDesktopBounds, foregrounded, navigateToSurface, hydrated } = useSurfacePreferences();
-  const isFirstTime = useIsFirstTime();
+  const { setDesktopBounds, booted } = useSurfacePreferences();
   const t = useTranslations('shell.desktopEmpty');
   const ref = useRef<HTMLDivElement>(null);
   // ADR-358 — in CANVAS the window area is NOT a desktop with a floating
   // window on wallpaper; it is ONE primary surface filling the column. So
   // the desktop's gray wallpaper + padding are dropped (the surface fills
   // edge-to-edge) and the empty-state copy is suppressed when a surface is
-  // mounted. The FAB stays (chat can be closed + re-summoned in either
-  // mode). In DESKTOP the wallpaper + padding + empty-state are the
+  // mounted. In DESKTOP the wallpaper + padding + empty-state are the
   // ADR-297 D17 desktop, unchanged.
   const canvasFill = layoutMode === 'canvas' && hasWindows;
 
   // ADR-316: report the Desktop's own measured box to the window manager
   // so window geometry (cascade / maximize / drag-clamp) is relative to
-  // the Desktop — which the command rail (chat) reduces as a flex sibling
-  // — not the raw viewport. ResizeObserver fires on rail open/close/drag
-  // and on viewport resize, keeping geometry correct as the rail moves.
+  // the Desktop — below the top bar and locator strip — not the raw
+  // viewport. ResizeObserver keeps geometry correct as the viewport resizes.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -107,63 +79,22 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
         canvasFill ? 'bg-background' : 'bg-muted/30 p-3 sm:p-4',
       )}
     >
-      {/* Empty-state copy renders only when no windows are mounted.
-          Context-aware: a first-time operator gets a cold-start that teaches
-          the moat (durable, attributed memory) and invites the first
-          substrate-creating act (ADR-437 D3 — the empty state is the demo,
-          not a wizard); a returning operator gets a concise "nothing open"
-          hint. Neither points at program activation — a program is an
-          anytime hire, not a setup step (ADR-414 D5).
-          Gated on `hydrated` (2026-07-13): `open` fills only after auth
-          resolves, so before hydration `hasWindows` is spuriously false —
-          rendering the empty-state here flashed it on every refresh of a
-          workspace with open windows. Wait until the window set is known. */}
-      {hydrated && !hasWindows && (
+      {/* The "nothing open" state renders only when no windows are mounted,
+          and only after the boot decision (`booted`, ADR-670 D1): a boot with
+          nothing to restore foregrounds Chat, so this is reached only when the
+          member closed (or minimized) everything. Gating on the boot (not merely the
+          restore) also keeps a refresh of a workspace with open windows from
+          flashing it before they remount (the 2026-07-13 hydration fix). */}
+      {booted && !hasWindows && (
         <div className="absolute inset-0 flex items-center justify-center px-6 pointer-events-none">
           <div className="max-w-md text-center pointer-events-auto">
-            {isFirstTime ? (
-              <>
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border/40 bg-muted/40 text-muted-foreground">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <h2 className="text-lg font-medium text-foreground mb-1">
-                  {t('readyTitle')}
-                </h2>
-                <p className="text-sm text-muted-foreground">{t('readyBody')}</p>
-                <div className="mt-5 flex items-center justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => navigateToSurface('files')}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    {t('addFile')}
-                    <ArrowRight className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigateToSurface('chat')}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/30 transition-colors"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    {t('startChat')}
-                  </button>
-                </div>
-                <p className="mt-4 text-[11px] text-muted-foreground/70">
-                  {t('inviteHint')}
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border/40 bg-muted/40 text-muted-foreground">
-                  <LayoutGrid className="h-5 w-5" />
-                </div>
-                <h2 className="text-lg font-medium text-foreground mb-1">
-                  {t('nothingOpenTitle')}
-                </h2>
-                <p className="text-sm text-muted-foreground">{t('nothingOpenBody')}</p>
-              </>
-            )}
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border/40 bg-muted/40 text-muted-foreground">
+              <LayoutGrid className="h-5 w-5" />
+            </div>
+            <h2 className="text-lg font-medium text-foreground mb-1">
+              {t('nothingOpenTitle')}
+            </h2>
+            <p className="text-sm text-muted-foreground">{t('nothingOpenBody')}</p>
           </div>
         </div>
       )}

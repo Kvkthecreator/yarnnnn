@@ -1788,10 +1788,6 @@ function ContextPageBody() {
     openUpload(files);
   }, [openUpload]);
 
-  // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
-  // block were ThreePanelLayout-side affordances. Chat affordances
-  // now live in the universal ChatDrawer FAB (singular summon path).
-
   // Tree pane content — a "Recents" sidebar nav item (ADR-329 Amendment 2)
   // above the explorer tree. Clicking it deselects the current node, which
   // returns the center pane to the Finder "Recents" view (the empty-state).

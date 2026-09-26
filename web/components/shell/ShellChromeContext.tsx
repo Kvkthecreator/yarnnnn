@@ -1,25 +1,24 @@
 'use client';
 
 /**
- * ShellChromeContext — ADR-297 D11 + D14.1 + D16 + D18.1.
+ * ShellChromeContext — ADR-297 D11 + D14.1.
  *
  * Lightweight provider for chrome-surface shared state. Chrome
  * surfaces registered in ChromeRegistry consume this context instead
  * of receiving props from AuthenticatedLayout, so the compositor can
  * mount them without wiring N props through M JSX slots.
  *
- * ADR-632: the chat drawer (D16/D18.1/ADR-316) is DELETED with the steward;
- * this context carries the launcher + the layout mode.
+ * This context carries the launcher + the layout mode. Chat is a windowed
+ * surface, not chrome, so no chat state lives here (ADR-632 · ADR-670 D8).
  *
  * ADR-358 (2026-06-23): layout mode — the shell's spatial paradigm is an
  * operator preference, not a fixed architectural fact. `layoutMode` carries
- * the choice between CANVAS (chat-left + one full-bleed surface-right,
- * side-to-side divider only — the ChatGPT/Claude convention) and DESKTOP
- * (the ADR-297 D15 free-floating window manager + ADR-316 right-docked
- * rail). It persists to localStorage, defaults
- * CANVAS, and is restored post-mount (SSR renders the default → no
- * hydration mismatch). Three consumers read it: ShellCompositor (flex
- * order), SurfaceViewport (single-vs-multi window).
+ * the choice between CANVAS (one full-bleed surface at a time, window
+ * chrome suppressed) and DESKTOP (the ADR-297 D15 free-floating window
+ * manager). It persists to localStorage, defaults CANVAS, and is restored
+ * post-mount (SSR renders the default → no hydration mismatch). Readers:
+ * SurfaceViewport (single-vs-multi window), Desktop (wallpaper vs fill),
+ * TopBar, and the UserMenu control that sets it.
  * Mobile is mode-independent (one physically-possible arrangement).
  */
 
@@ -35,12 +34,11 @@ import {
 import { MOBILE_BREAKPOINT_PX } from '@/lib/shell/surface-preferences';
 import { createClient } from '@/lib/supabase/client';
 
-// ADR-358 — the shell's spatial paradigm. CANVAS = chat-left + one
-// full-bleed surface-right (the chat-interface convention); DESKTOP = the
-// free-floating window manager + right-docked rail. Persisted, default
+// ADR-358 — the shell's spatial paradigm. CANVAS = one full-bleed surface
+// at a time; DESKTOP = the free-floating window manager. Persisted, default
 // CANVAS, restored post-mount (SSR renders the default → no hydration
 // mismatch). Mode is desktop-only — on mobile both modes collapse to the
-// same single-surface + overlay-chat arrangement.
+// same single-surface arrangement.
 export type LayoutMode = 'canvas' | 'desktop';
 const LAYOUT_MODE_KEY = 'yarnnn:shell:layout-mode';
 const DEFAULT_LAYOUT_MODE: LayoutMode = 'canvas';
@@ -50,9 +48,8 @@ interface ShellChromeContextValue {
   launcherOpen: boolean;
   openLauncher: () => void;
   closeLauncher: () => void;
-  /** ADR-358 — the operator's chosen spatial paradigm. Read by the
-   *  compositor (flex order), the chat rail (dock side), and the surface
-   *  viewport (single-vs-multi window). Default canvas. */
+  /** ADR-358 — the member's chosen spatial paradigm. Read by the surface
+   *  viewport (single-vs-multi window) and the Desktop. Default canvas. */
   layoutMode: LayoutMode;
   setLayoutMode: (mode: LayoutMode) => void;
 }
