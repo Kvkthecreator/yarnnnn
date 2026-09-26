@@ -6,6 +6,20 @@ This file holds OPEN items only. Delete an item in the commit that closes it. Na
 
 Reset 2026-09-12: the 3,196-line journal (2026-08-18 → 09-12) was absorbed into ADRs, evaluation records and memory.
 
+## The conversation leads — what stays OPEN (ADR-670, 2026-09-26)
+
+Built and driven on production (§5 there). Still owed:
+- **A trashed file opens as live.** Chat's *Made here* lists files a later turn moved to Trash; opening one (from the
+  side OR the in-turn `ArtifactCard`) shows it in Text with no Trash notice. Fix at the file-open path, not the side.
+- **Not driven**: D7's live mark on the Studio/Text Chat tab during a turn; a waiting run in *Needs you* (bell, Chat's
+  strip, the Supervisor's rail, To do) — needs a browser declaration come due on the rig.
+- **Chat's who-filter narrowed** (`3fdd7c4`): faces filter by AGENT only; people and engine-only chats lost their
+  facet (search still finds them). Confirm with the operator or restore a people facet.
+- **Dead vocabulary left standing**: the `input` archetype and the `bottom-floating` / `bottom-fixed` regions have no
+  row (`kernel_surfaces.py`, `web/lib/compositor/types.ts`) — delete with their gate arms.
+- **Owed gate repairs**: `web/scripts/gates/shell_route_sync_cold_load.mjs` crashes (its stripper can't read
+  `Record<string, string>`); Studio's side-tab labels are literal `'Properties'`/`'Chat'`, not catalog keys.
+
 ## MCP scope granted at consent — what stays OPEN (ADR-563 am.1, 2026-09-26)
 
 - **Drive a real reconnect**: ChatGPT → reconnect yarnnn → the consent screen shows the tier picker (Read and write
