@@ -208,11 +208,23 @@ A click-pass drives both surfaces at the ladder's four rungs.
 
 ## 5. Implementation status
 
-- [ ] D1 boot · D8 deletions (shell)
+- [x] D1 boot · D8 deletions (shell) — `95cbad8` (`resolveBootSurface`, executed by `test_adr297_pathname_follows_foreground`)
 - [x] D2–D5 Chat frame, supervision side, index, `useNeedsYou` — `3fdd7c4` (gate 34/0, every arm proven RED; not yet driven in a browser)
 - [x] D6 Supervisor into the frame, `supervisor_state` deleted — `780fe8f` (rail · canvas · side through `usePaneSlot`;
   `?supervisor.run=` is the Trace; one run-opening helper, `useOpenRun`; `StandingDetail` split into canvas + side;
   gate 76/0, every new arm proven RED; not yet driven in a browser)
 - [x] D7 the live mark on the authoring apps' Chat tab — `780fe8f` (`LanePanel` `onBusyChange`; Studio and Text; not yet
   driven in a browser)
-- [ ] Click-pass at the four rungs
+- [x] Click-pass on production, 2026-09-26, English, rig account `kvkthecreator@yarnnn.com`, driven at 1600 · 900 ·
+  500 px (Chrome's floor; `single-pane`). Chat: faces, lane list, conversation and *Made here* at full; the side folds
+  to a *Files & runs* tab at single-pane with no horizontal scroll. Supervisor: rail · setup canvas (behind the
+  extension gate) · running/recently; a run opens its Trace with the crumb `Supervisor › iana-watch › Run`, and each
+  crumb returns a level. A `/chat` login in a fresh context lands on Chat even with another surface saved in front
+  (one earlier sighting of Settings over `/chat` did not reproduce in two tries). Bell: 7 = activity, 0 waiting, so
+  Chat's *Needs you* strip was rightly absent — a waiting row was NOT exercised.
+  Fixed from the pass (`this commit`): a retired work's side was blank beside its own Trace — it now shows the runs
+  it left; `supervisor.work` joined the ephemeral keys, since a bare `/supervisor` reopened a retired work as "no
+  longer here". Gate 77/0, both new arms proven RED.
+  **Open**: *Made here* lists files a later turn moved to Trash, and opening one shows the file as live with no Trash
+  notice — the same as the in-turn `ArtifactCard`'s Open, so the defect is the file-open path's, surfaced by the side;
+  D7's live mark and a waiting run in *Needs you* were not driven.

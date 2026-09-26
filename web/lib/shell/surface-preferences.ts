@@ -779,11 +779,14 @@ const SURFACE_EPHEMERAL_PARAM_KEYS: Record<string, readonly string[]> = {
   // was refilled, and a TRASHED document kept reopening. Four repros on three
   // paths, 2026-08-16.
   text: ['file'],
-  // ADR-670 D6 — the Supervisor's Trace (`run`) is one occurrence opened full:
-  // a momentary look, never a place to land on the next launch. `start` is an
-  // ACT (it starts a browser run) — replaying it would start the run again.
-  // `work` stays remembered, like `chat.lane`: the index sits beside it.
-  supervisor: ['run', 'start'],
+  // ADR-670 D6 — the Supervisor's layers below its index are drill-ins, and a
+  // bare launch lands on the index. `work` is a drill-in on a roster (like
+  // `agents.agent`): remembered, a RETIRED work reopened as "no longer here" on
+  // every launch — the trashed-document shape `text.file` records above, seen
+  // on production 2026-09-26. `run` (the Trace) is one occurrence opened full.
+  // `start` is an ACT (it starts a browser run) — replaying it would start the
+  // run again.
+  supervisor: ['work', 'run', 'start'],
 };
 
 /** Drop persisted param keys a surface doesn't own (see SURFACE_PARAM_KEYS). */

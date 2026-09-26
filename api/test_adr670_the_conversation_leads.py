@@ -205,8 +205,14 @@ check("each level sets its crumb; the root returns to the index",
       re.search(r"useWindowCrumb\('supervisor',", SUP) is not None
       and re.search(r"const toIndex = \(\) => param\.set\(\{ work: null, run: null", SUP) is not None
       and re.search(r"\[\{ label: t\('frame\.run'\), onClick: toIndex \}\]", SUP) is not None)
-check("the Trace param is a momentary look — never replayed on a launch",
-      re.search(r"supervisor: \['run', 'start'\]", read("web/lib/shell/surface-preferences.ts")) is not None)
+check("the drill-ins below the index are never replayed on a launch (work · run · start)",
+      re.search(r"supervisor: \['work', 'run', 'start'\]", read("web/lib/shell/surface-preferences.ts")) is not None)
+# A retired work's side still shows the runs it left — the side went blank
+# beside its own Trace on production (2026-09-26).
+_detail = read("web/components/supervisor/StandingDetail.tsx")
+check("a retired work's side shows the runs it left, never blank",
+      re.search(r"if \(!detail\) \{[^}]*const left = work\.runs\.filter", _detail, re.S) is not None
+      and re.search(r": Array\.from\(liveById\.values\(\)\)\s*\)\.sort", _detail) is not None)
 
 # ONE way to open a run. The four callers the ADR names (the bell, Chat's
 # index, To do's runs due, Chat's supervision side) plus the run tray and the

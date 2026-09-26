@@ -364,12 +364,15 @@ export function useStandingDetail({
   // The runs: this work's history (the detail's read) with the live ledger's
   // copy of any run it also holds — newer, since realtime keeps it current.
   const liveById = new Map((ledger ?? []).filter((r) => r.topic === topic).map((r) => [r.id, r]));
-  const runs: Run[] = detail
+  // A retired work has no detail to read, but its runs are still the record of
+  // what it did — the ledger's copy is what remains to show (ADR-670 D6).
+  const runs: Run[] = (detail
     ? [
       ...Array.from(liveById.values()).filter((r) => !detail.runs.some((d) => d.id === r.id)),
       ...detail.runs.map((r) => liveById.get(r.id) ?? r),
-    ].sort((a, b) => String(b.started_at ?? '').localeCompare(String(a.started_at ?? '')))
-    : [];
+    ]
+    : Array.from(liveById.values())
+  ).sort((a, b) => String(b.started_at ?? '').localeCompare(String(a.started_at ?? '')));
 
   return {
     topic, detail, missing, busy, runningNow, note, laneId, activeRun, starts, folders, runs, mineToRun,
@@ -506,7 +509,30 @@ export function StandingDetailSide({
   const [confirmRetire, setConfirmRetire] = useState(false);
 
   const detail = work.detail;
-  if (!detail) return null;
+  if (!detail) {
+    // Retired (or not yet read): no verbs to offer, but the runs it left are
+    // still its record — the side never goes blank beside its own Trace.
+    const left = work.runs.filter((r) => r.id !== exceptRunId);
+    if (left.length === 0) return null;
+    return (
+      <section className="space-y-2">
+        <h3 className={H3}>{t('detail.runs')}</h3>
+        <ul className="space-y-2">
+          {left.map((r) => (
+            <li key={r.id}>
+              <RunView
+                run={r}
+                viewerId={userId}
+                compact
+                onOpen={(run) => openRun(run)}
+                onOpenFile={(path) => navigateToSurface('files', { path })}
+              />
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 
   const s = detail.summary;
   const browser = s.browser ?? null;
