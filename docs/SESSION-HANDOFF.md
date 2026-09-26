@@ -51,8 +51,10 @@ images and a table; a designed `.pptx`) plus one real Hancom `.hwp`/`.hwpx` for 
 1. the in-app agent reads each (addresses present) and changes one value/clause via EditFile — then OPEN THE
    RESULT IN REAL Word / Excel / PowerPoint: no repair prompt, formulas recalculate, the Word change shows as a
    tracked change by "{member} via {model}" and accepts cleanly;
-2. the same through a connected Claude over MCP (`open` shows the words, `edit` with `at`);
-3. WriteFile over the existing file answers `office_file_exists`; the Files preview shows no `[p12]` labels.
+2. MCP `open` + `edit(at=…)` is DRIVEN on a generated .docx (ADR-671 §9.1) — repeat it on an Office-authored
+   file and open the result in Word;
+3. WriteFile over the existing file answers `office_file_exists`; the Files preview shows no `[p12]` labels;
+   trashing an upload takes its `.extracted.md` with it, and Restore brings it back.
 Known cosmetic (am.2): a deck's metric block exports as "42%label▲ 8%". Phases 2–5 are ADR-671 §5, not debt.
 Delete once 1–3 are seen.
 

@@ -204,4 +204,21 @@ TSV spelling → the addressed table; the literal-tab arm deleted with the rescu
 `test_adr427` (the moved module's classification). `next build` exit 0 on HEAD + the two web files (the working
 tree carries another session's unfinished `ChatSurface.tsx`).
 
-**Owed**: the production drive with real Office-authored files (SESSION-HANDOFF).
+**Driven on production** (2026-09-26, through the claude.ai connector against the live MCP server at `68f4ada`):
+`save adr-671-drive/contract.docx` created a 36,918-byte Word file (revision `2c8e6523`); `open` served
+`[p1 · Heading 1] Service Agreement … [p7] 1,100 …` with the edit grammar in its explanation; `edit(at='p2',
+old='30 days', new='45 days')` landed revision `feff9c36`. Both revisions' bytes were downloaded and diffed: ONE
+part changed (`word/document.xml`), none added or removed; the XML carries `w:del` "30 days" and `w:ins` by
+*"KVKtheCreator's Claude (via MCP)"*; python-docx opens it. A text `save` over it was refused
+(`binary_file_not_writable`). ⚠️ `0b5bb56` (a concurrent ADR-563 commit) had already shipped this ADR's
+`server.py` half — `edit` passing `at=` to a `compose_edit` without it — for ~12 minutes; the MCP logs show no
+`edit` call in that window.
+
+**Found driving, fixed**: trashing the file left its `.extracted.md` projection LIVE — listed, searchable, citing a
+file in Trash. Move had carried the sibling since ADR-554 D1; archive and restore never did, for every upload of a
+format yarnnn reads. `archive_live_file` / `restore_live_file` (the one seam every delete and restore reaches) now
+carry it via `_carry_projection`, for the binary text family only — a member's own `notes.extracted.md` beside
+`notes.md` is never touched. Gate +3 arms (39/39), falsified both ways (18 falsifications in all).
+
+**Owed**: the same drive with REAL Office-authored files, opened afterwards in Word / Excel / PowerPoint
+(SESSION-HANDOFF).

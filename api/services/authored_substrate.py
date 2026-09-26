@@ -1159,6 +1159,7 @@ def archive_live_file(
     message: str,
     author_identity_uuid: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    carry_projection: bool = True,
 ) -> Optional[str]:
     """Move a file to TRASH: an attributed `lifecycle='archived'` revision.
 
@@ -1220,7 +1221,7 @@ def archive_live_file(
     if row.get("lifecycle") == "archived":
         return None  # already in Trash — not an error, but not a second act
 
-    return write_revision(
+    revision_id = write_revision(
         db_client=db_client,
         user_id=user_id,
         path=path,
@@ -1231,6 +1232,12 @@ def archive_live_file(
         lifecycle="archived",
         workspace_id=workspace_id,
     )
+    if revision_id and carry_projection:
+        _carry_projection(
+            archive_live_file, db_client, path, user_id=user_id, authored_by=authored_by,
+            message=message, author_identity_uuid=author_identity_uuid, workspace_id=workspace_id,
+        )
+    return revision_id
 
 
 def restore_live_file(
@@ -1242,6 +1249,7 @@ def restore_live_file(
     message: str,
     author_identity_uuid: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    carry_projection: bool = True,
 ) -> Optional[str]:
     """Put a file BACK from Trash: an attributed `lifecycle='active'` revision.
 
@@ -1287,7 +1295,7 @@ def restore_live_file(
     if not rows or rows[0].get("lifecycle") != "archived":
         return None
 
-    return write_revision(
+    revision_id = write_revision(
         db_client=db_client,
         user_id=user_id,
         path=path,
@@ -1298,6 +1306,43 @@ def restore_live_file(
         lifecycle="active",
         workspace_id=workspace_id,
     )
+    if revision_id and carry_projection:
+        _carry_projection(
+            restore_live_file, db_client, path, user_id=user_id, authored_by=authored_by,
+            message=message, author_identity_uuid=author_identity_uuid, workspace_id=workspace_id,
+        )
+    return revision_id
+
+
+def _carry_projection(act, db_client: Any, path: str, **kw) -> Optional[str]:
+    """The derived text projection goes to Trash — and comes back — with its file.
+
+    An upload of a format yarnnn reads (a PDF, an office file, a Hancom file)
+    carries a co-located `.extracted.md` projection. Move has carried it since
+    ADR-554 D1 (`_move_projection_sibling`); archive and restore did not, so a
+    trashed Word file left its words live — listed, searchable, citing a file in
+    Trash (found driving ADR-671 on production, 2026-09-26). This is the one
+    seam every delete and restore reaches (the Files route, DeleteFile, the
+    folder fan, Restore), so no door can forget it.
+
+    Only for the binary text family: there the sibling is the projection BY
+    CONSTRUCTION. A member's own `notes.extracted.md` beside `notes.md` is
+    never touched. Best-effort — the file's own act has already landed.
+    """
+    from services.file_formats import ext_of, is_binary_text_family
+
+    if not is_binary_text_family(ext_of(path)):
+        return None
+    from services.documents import upload_projection_path
+
+    sibling = upload_projection_path(path)
+    if sibling == path:
+        return None
+    try:
+        return act(db_client, path=sibling, carry_projection=False, **kw)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[AUTHORED_SUBSTRATE] projection did not follow %s: %s", path, exc)
+        return None
 
 
 # ---------------------------------------------------------------------------

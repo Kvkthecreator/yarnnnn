@@ -586,3 +586,59 @@ def test_client_slide_view_reads_the_addressed_projection():
     assert slides[0]["notes"] == "Emphasize hiring"
     assert "Metric\tValue\nARR\t$2.1M" in slides[1]["blocks"], slides[1]["blocks"]
     assert not any("[s" in b for s in slides for b in s["blocks"])
+
+
+# ── the projection follows its file to Trash and back (found driving, 2026-09-26)
+
+
+class _Files:
+    """A workspace_files-shaped fake whose rows answer by `path`."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def table(self, _n):
+        self._path = None
+        return self
+
+    def select(self, *_a, **_k):
+        return self
+
+    def limit(self, _n):
+        return self
+
+    def eq(self, col, val):
+        if col == "path":
+            self._path = val
+        return self
+
+    def execute(self):
+        row = self.rows.get(self._path)
+        return types.SimpleNamespace(data=[row] if row else [])
+
+
+@pytest.mark.parametrize("raw,sibling,follows", [
+    ("/workspace/deals/contract.docx", "/workspace/deals/contract.extracted.md", True),
+    ("/workspace/deals/q3.xlsx", "/workspace/deals/q3.extracted.md", True),
+    ("/workspace/notes/notes.md", "/workspace/notes/notes.extracted.md", False),
+])
+def test_the_projection_goes_to_trash_and_back_with_its_file(raw, sibling, follows):
+    import services.authored_substrate as sub
+
+    for act, before, after in ((sub.archive_live_file, "active", "archived"),
+                               (sub.restore_live_file, "archived", "active")):
+        rows = {p: {"id": p, "lifecycle": before, "content": "", "head_version_id": "h",
+                    "content_type": "x"} for p in (raw, sibling)}
+        wrote = []
+
+        def _write(**kw):
+            wrote.append((kw["path"], kw["lifecycle"]))
+            rows[kw["path"]]["lifecycle"] = kw["lifecycle"]
+            return f"rev-{len(wrote)}"
+
+        with patch.object(sub, "write_revision", _write), \
+             patch.object(sub, "_head_content_form", lambda _c, _r: {"content": ""}), \
+             patch.object(sub, "_substrate_scope", lambda q, _u, _w: q):
+            act(_Files(rows), user_id="u1", path=raw, authored_by="operator", message="m", workspace_id="w1")
+        assert (raw, after) in wrote
+        assert ((sibling, after) in wrote) is follows, (act.__name__, wrote)
