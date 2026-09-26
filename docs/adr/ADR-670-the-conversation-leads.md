@@ -209,7 +209,7 @@ A click-pass drives both surfaces at the ladder's four rungs.
 ## 5. Implementation status
 
 - [ ] D1 boot · D8 deletions (shell)
-- [ ] D2–D5 Chat frame, supervision side, index, `useNeedsYou`
+- [x] D2–D5 Chat frame, supervision side, index, `useNeedsYou` — `3fdd7c4` (gate 34/0, every arm proven RED; not yet driven in a browser)
 - [ ] D6 Supervisor into the frame, `supervisor_state` deleted
 - [ ] D7 the live mark on the authoring apps' Chat tab
 - [ ] Click-pass at the four rungs
