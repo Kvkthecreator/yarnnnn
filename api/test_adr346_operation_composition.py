@@ -113,7 +113,11 @@ def test_one_body_two_mounts() -> None:
     # QueueBody extracted + mounted by BOTH the mirror and the Operation pane.
     qbody = _read("components/queue/QueueBody.tsx")
     check("QueueBody component exists", "export function QueueBody" in qbody)
-    check("QueueBody owns the proposal data-load", "api.proposals.list" in qbody)
+    # Repointed 2026-09-26 (ADR-670 D5): the data-load is the ONE needs-you
+    # store's; the body reads it (every mount — the bell, To do, Reach).
+    check("QueueBody reads the proposal data-load from the needs-you store",
+          "useNeedsYou()" in qbody
+          and "api.proposals.list" in _read("lib/attention/useNeedsYou.ts"))
 
     # ADR-642: /queue is a redirect stub, so the second mount of QueueBody is
     # Reach -> Leaving, not the retired mirror. One body, still two mounts.

@@ -35,8 +35,9 @@ leaves. **The canvas never yields** (rule 15's ordering principle, unchanged).
 folds in a declared order as room runs out.
 
 **A slot a surface does not compose is ABSENT, not broken.** Text composes no rail —
-markdown has no navigator. Chat composes no side — the conversation *is* the canvas, and
-the participants drill-in deliberately takes the whole pane rather than splitting it.
+markdown has no navigator. Chat composes all three (ADR-670 D2): its side is the
+conversation's supervision — what it made and what it ran — while the participants
+drill-in still takes the whole pane rather than splitting it.
 
 > **Absence is legitimate; a second spelling never is.** This is the pane-spine rule's
 > asymmetry ([AUTHORING.md §The pane](AUTHORING.md)) applied one rung out. Absence is a
@@ -156,7 +157,7 @@ choice for the **session** only; their next visit forgot it.
 |---|---|---|---|
 | **Studio** / Docs / IMAGES | slide strip (paged only) | the artifact | Properties · Chat |
 | **Text** | — (markdown has no navigator) | the document | Properties · Chat |
-| **Chat** | lane list | the conversation | — (the drill-in owns the pane) |
+| **Chat** | needs you · who · lane list | the conversation | supervision: made here · runs (ADR-670 D3) |
 | ~~Strings~~ | — | — | DELETED (ADR-639): standing work is a Notifications pane, not an app |
 | **Files** (via `SettingsPaneShell`) | explorer tree | the viewer | — |
 

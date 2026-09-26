@@ -72,6 +72,10 @@ interface ConversationHeaderProps {
    *  part of the header's grammar: the header names the room, and this names
    *  the LAYOUT, which is why it is a slot rather than a fixed element. */
   leading?: React.ReactNode;
+  /** An optional control pinned at the row's TRAILING edge — the surface's
+   *  side-pane door (ADR-670 D3: what this conversation made and ran). A
+   *  layout control, like `leading`, so it sits on the side it opens. */
+  trailing?: React.ReactNode;
   /** The room's name — EVERY participant but the viewer, species-blind. A
    *  group is named by its cast; a 1:1 by its counterpart, whatever it is. */
   title: string;
@@ -136,6 +140,7 @@ export function ConversationHeader({
   onOpenDetails,
   onAddParticipant,
   leading,
+  trailing,
 }: ConversationHeaderProps) {
   const t = useTranslations('chat.header');
   const identity = (
@@ -234,6 +239,7 @@ export function ConversationHeader({
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>
+        {trailing}
       </div>
     </div>
     </div>

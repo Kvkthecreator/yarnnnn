@@ -421,12 +421,17 @@ def test_fe_wiring() -> None:
             "the keyboard's selectable list includes people, in render order")
 
     bell = _read("web/components/shell/AttentionCenter.tsx")
-    _assert("api.mentions.list" in bell, "the bell fetches the mention derivation")
+    # Repointed 2026-09-26 (ADR-670 D5): the bell reads the ONE needs-you
+    # store, and the store fetches the mention derivation.
+    store = _read("web/lib/attention/useNeedsYou.ts")
+    _assert("useNeedsYou()" in bell and "api.mentions.list" in store,
+            "the bell reads the mention derivation (the needs-you store fetches it)")
     _assert("unseenMentions.length" in bell and "badgeCount" in bell,
             "the badge counts unseen mentions (recency), distinct from membership")
     # ADR-637 — the bell row's click IS the visit, so the row must not
     # survive it locally until the next 60s derive.
-    _assert("setMentions((prev) =>" in bell,
+    _assert("dischargeMention(m.conversation_id, m.sequence)" in bell
+            and "r.sequence > sequence" in store,
             "clicking a bell mention drops the row (the visit discharges it)")
 
     queue = _read("web/components/notifications/MentionQueue.tsx")

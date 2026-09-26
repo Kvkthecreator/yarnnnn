@@ -11,49 +11,27 @@
  * discharge, no second call needed. "Dismiss" is the same cursor for the
  * mention you know you needn't read; it is an alternative to visiting, never
  * the only way out (the pre-637 shape, which stranded rows for a week).
+ *
+ * ADR-670 D5 — the rows are read from `useNeedsYou`, the ONE client reader of
+ * what is waiting on the member; this queue no longer fetches its own copy, so
+ * it cannot disagree with the bell about which mentions still want you.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { AtSign } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useFeedback } from '@/contexts/FeedbackContext';
-
-interface MentionRow {
-  conversation_id: string;
-  conversation_name: string;
-  sequence: number;
-  at: string | null;
-  excerpt: string;
-  author: string;
-}
+import { dischargeMention, useNeedsYou, type MentionRow } from '@/lib/attention/useNeedsYou';
 
 export function MentionQueue() {
   const t = useTranslations('supervisor.mentions');
   const { runAction } = useFeedback();
-  const [rows, setRows] = useState<MentionRow[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { mentions: rows, loaded, refresh } = useNeedsYou();
   const [resolving, setResolving] = useState<string | null>(null);
   const { navigateToSurface } = useSurfacePreferences();
-
-  const load = useCallback(async () => {
-    try {
-      const res = await api.mentions.list(20);
-      setRows(res.mentions || []);
-    } catch {
-      // An API without the endpoint yet (deploy skew) degrades to no rows —
-      // the queue below still renders; never a broken pane.
-      setRows([]);
-    } finally {
-      setLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const dismiss = useCallback(
     async (m: MentionRow) => {
@@ -66,12 +44,10 @@ export function MentionQueue() {
         await runAction(() => api.mentions.markRead(m.conversation_id, m.sequence), {
           error: t('couldNotClear'),
         });
-        // Optimistic local clear of everything the cursor now covers.
-        setRows((prev) =>
-          prev.filter(
-            (r) => r.conversation_id !== m.conversation_id || r.sequence > m.sequence,
-          ),
-        );
+        // Clear everything the cursor now covers — in the one store, so the
+        // bell's To do drops the same rows at the same moment.
+        dischargeMention(m.conversation_id, m.sequence);
+        void refresh();
       } catch {
         // Leave the row — a mention whose cursor failed to advance is still
         // unread; the next load re-derives the truth.
@@ -79,7 +55,7 @@ export function MentionQueue() {
         setResolving(null);
       }
     },
-    [runAction, t],
+    [runAction, t, refresh],
   );
 
   if (!loaded || rows.length === 0) return null;
@@ -122,9 +98,10 @@ export function MentionQueue() {
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    navigateToSurface('chat', { lane: m.conversation_id })
-                  }
+                  onClick={() => {
+                    dischargeMention(m.conversation_id, m.sequence);
+                    navigateToSurface('chat', { lane: m.conversation_id });
+                  }}
                   className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted transition-colors"
                 >
                   {t('openConversation')}

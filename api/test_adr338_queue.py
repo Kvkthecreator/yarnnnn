@@ -76,7 +76,11 @@ def test_queue_de_stubbed() -> None:
     # reusable QueueBody (one body, two mounts) — queue/page.tsx is a thin
     # SurfacePage wrapper; the guarded behavior lives in QueueBody.
     src = _read("components/queue/QueueBody.tsx")
-    check("queue fetches pending proposals", "api.proposals.list('pending'" in src)
+    # Repointed 2026-09-26 (ADR-670 D5): the body reads the ONE needs-you
+    # store, and the store is what fetches pending proposals.
+    store = _read("lib/attention/useNeedsYou.ts")
+    check("queue fetches pending proposals",
+          "useNeedsYou()" in src and "api.proposals.list('pending'" in store)
     check(
         "queue uses the SINGULAR modal path (useProposalModal)",
         "useProposalModal" in src,
@@ -90,7 +94,7 @@ def test_queue_de_stubbed() -> None:
     )
     check(
         "refresh on resolve (resolved row drops)",
-        "onResolved" in src and "void load()" in src,
+        "onResolved" in src and "void refresh()" in src,
     )
     check("honest empty state", "Nothing to decide" in src)
     # Regression guard: the old stub copy is gone.

@@ -14,9 +14,11 @@
  * not merely "what needs you," and it speaks the SAME operator words as the
  * Operation panes so the bell and the surface it lands on read as one thing:
  *
- *   - "To do"     (present — what wants my decision)  → pending action_proposals,
- *                  honestly labeled (ADR-410 D2: action + proposer + the
- *                  dial line) → Operation ?pane=resolve
+ *   - "To do"     (present — what wants me)           → `useNeedsYou` (ADR-670
+ *                  D5): pending action_proposals, honestly labeled (ADR-410
+ *                  D2: action + proposer + the dial line) → Operation
+ *                  ?pane=resolve; unresolved mentions → the conversation; runs
+ *                  due on the viewer → their work in the Supervisor
  *   - "Activity"  (past — what just happened)          → the WORKSPACE TIMELINE
  *                  (ADR-410 D1: peer + agent acts only — actor ≠ viewer —
  *                  since last looked; self-acts excluded by construction,
@@ -48,7 +50,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Bell } from 'lucide-react';
-import { api } from '@/lib/api/client';
+import { api, type Run } from '@/lib/api/client';
+import { dischargeMention, useNeedsYou, type PendingProposal } from '@/lib/attention/useNeedsYou';
 import { useProposalLabels } from '@/lib/proposal-labels';
 import { formatRelativeTime, formatLedgerTime, formatAbsolute } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -71,30 +74,10 @@ const LOW_BALANCE_THRESHOLD_USD = 1.0;
 const LAST_SEEN_KEY_PREFIX = 'yarnnn:attention:last-seen:';
 const MAX_ROWS_PER_SECTION = 5;
 
-interface PendingProposal {
-  id: string;
-  primitive: string;
-  family: 'capital' | 'substrate';
-  task_slug: string | null;
-  agent_slug: string | null;
-  created_at: string;
-  /** ADR-410 D2 — the proposer (drives the dial line + attribution). */
-  source: string | null;
-}
-
-/** ADR-605 — one unresolved mention of the viewer (the To-do second source,
- * ADR-492 D3). Derived server-side from the conversation substrate — cast ∩
- * visibility window ∩ the write-time stamp. ADR-637: membership keys on the
- * per-conversation READ cursor, which visiting the conversation advances —
- * so this list and the badge below can no longer disagree. */
-interface MentionRow {
-  conversation_id: string;
-  conversation_name: string;
-  sequence: number;
-  at: string | null;
-  excerpt: string;
-  author: string;
-}
+// ADR-670 D5 — To do (pending proposals · unresolved mentions · runs due on
+// the viewer) is read from `useNeedsYou`, the ONE client reader of what is
+// waiting on the member. The bell's private proposals + mentions fetch is
+// deleted; it keeps only what is not "needs you": the timeline and the limits.
 
 /** ADR-410 D1 — one peer/agent act from the workspace timeline. */
 interface PeerActivity {
@@ -143,13 +126,13 @@ function writeLastSeen(userId: string, iso: string) {
 export function AttentionCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const t = useTranslations('shell.attention');
+  const tRuns = useTranslations('runs');
   // ADR-660 — the shared label layers are hooks now (they read the
   // catalog); the grammar and the vocabulary are unchanged.
   const { actionLabel, queuedByDialLine } = useProposalLabels();
   const { actorLine } = useTimelineRows();
   const resolveActorForViewer = useActorForViewer();
-  const [proposals, setProposals] = useState<PendingProposal[]>([]);
-  const [mentions, setMentions] = useState<MentionRow[]>([]);
+  const { proposals, mentions, waitingRuns } = useNeedsYou();
   const [activity, setActivity] = useState<PeerActivity[]>([]);
   const [lowBalance, setLowBalance] = useState<number | null>(null);
   // Whether the low-balance warning may show the dollar figure (billing
@@ -205,13 +188,8 @@ export function AttentionCenter() {
   useEffect(() => () => { alive.current = false; }, []);
 
   const derive = useCallback(async () => {
-      const [proposalsResult, mentionsResult, timelineResult, limitsResult] =
+      const [timelineResult, limitsResult] =
         await Promise.allSettled([
-          api.proposals.list('pending', 20),
-          // ADR-605 — the To-do second source: unresolved mentions of the
-          // viewer (ADR-492 D3). allSettled: an API deployed without the
-          // endpoint yet degrades to no mention rows, never a broken bell.
-          api.mentions.list(20),
           // ADR-410 D1 — the ONE "what happened" source (the attributed
           // ledgers). chat.globalHistory is gone: post-ADR-407-Phase-4 it
           // read the viewer's PRIVATE thread — self-echo, peers invisible.
@@ -219,24 +197,6 @@ export function AttentionCenter() {
           api.integrations.getLimits(),
         ]);
       if (!alive.current) return;
-
-      if (proposalsResult.status === 'fulfilled') {
-        setProposals(
-          (proposalsResult.value.proposals || []).map((p) => ({
-            id: p.id,
-            primitive: p.primitive,
-            family: p.family,
-            task_slug: p.task_slug,
-            agent_slug: p.agent_slug,
-            created_at: p.created_at,
-            source: (p as { source?: string | null }).source ?? null,
-          })),
-        );
-      }
-
-      if (mentionsResult.status === 'fulfilled') {
-        setMentions(mentionsResult.value.mentions || []);
-      }
 
       if (timelineResult.status === 'fulfilled') {
         // Revision + invocation acts (proposal lifecycle renders in TO DO /
@@ -300,10 +260,10 @@ export function AttentionCenter() {
   }, [derive]);
 
   // Layer-1 G3 (ADR-593 §6, phase 4's first mount) — push invalidation on
-  // the PUBLISHED tables (session_messages: mentions + turns, RLS-gated per
-  // viewer; workspace_file_versions: revisions). A mention badges in
-  // seconds instead of a minute; proposals/runs stay on the poll floor
-  // until their tables are published (a migration, not an FE change).
+  // the PUBLISHED tables (session_messages: turns, RLS-gated per viewer;
+  // workspace_file_versions: revisions) for the TIMELINE this bell derives.
+  // Mentions and proposals are the needs-you store's to keep fresh (ADR-670
+  // D5): it carries its own poll floor and its own invalidation.
   useAttentionRealtime({ enabled: !!userId, onActivity: derive });
 
   // Click-outside + Escape close (shared dismissal contract, 2026-07-01).
@@ -330,7 +290,10 @@ export function AttentionCenter() {
     (m) => !lastSeen || (m.at != null && m.at > lastSeen),
   );
 
-  const badgeCount = proposals.length + unseenMentions.length + unseenPeer.length;
+  // A waiting run counts like a proposal: it asks for the member until they
+  // act on it, so a glance does not quiet it.
+  const badgeCount =
+    proposals.length + waitingRuns.length + unseenMentions.length + unseenPeer.length;
   const hasWarning = lowBalance != null;
 
   const toggleOpen = useCallback(() => {
@@ -369,6 +332,20 @@ export function AttentionCenter() {
       } else {
         navigateToSurface('notifications', { pane: target });
       }
+    },
+    [navigateToSurface],
+  );
+
+  // A run due on the viewer opens where it is run: its work in the Supervisor
+  // (the one door that starts a browser run, ADR-666 D4), else the
+  // conversation it belongs to. Phase 3 of ADR-670 moves this to the run's
+  // own Trace level.
+  const openRun = useCallback(
+    (run: Run) => {
+      setIsOpen(false);
+      if (run.topic) navigateToSurface('supervisor', { work: run.topic });
+      else if (run.lane_id) navigateToSurface('chat', { lane: run.lane_id });
+      else navigateToSurface('supervisor');
     },
     [navigateToSurface],
   );
@@ -445,7 +422,7 @@ export function AttentionCenter() {
               </button>
             )}
 
-            {(proposals.length > 0 || mentions.length > 0) && (
+            {(proposals.length > 0 || mentions.length > 0 || waitingRuns.length > 0) && (
               <div className="border-b border-border/60">
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                   {t('toDo')}
@@ -461,13 +438,7 @@ export function AttentionCenter() {
                     type="button"
                     onClick={() => {
                       setIsOpen(false);
-                      setMentions((prev) =>
-                        prev.filter(
-                          (r) =>
-                            r.conversation_id !== m.conversation_id ||
-                            r.sequence > m.sequence,
-                        ),
-                      );
+                      dischargeMention(m.conversation_id, m.sequence);
                       navigateToSurface('chat', { lane: m.conversation_id });
                     }}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
@@ -482,6 +453,22 @@ export function AttentionCenter() {
                           {formatRelativeTime(m.at)}
                         </span>
                       )}
+                    </span>
+                  </button>
+                ))}
+                {/* ADR-670 D5 — a run due on the viewer, in the run's own words. */}
+                {waitingRuns.slice(0, MAX_ROWS_PER_SECTION).map((r) => (
+                  <button
+                    key={`run-${r.id}`}
+                    type="button"
+                    onClick={() => openRun(r)}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                  >
+                    <span className="block text-foreground truncate">
+                      {r.topic || tRuns('inConversation')}
+                    </span>
+                    <span className="block text-[10px] text-muted-foreground truncate">
+                      {tRuns('dueYou')}
                     </span>
                   </button>
                 ))}
@@ -545,6 +532,7 @@ export function AttentionCenter() {
             {!hasWarning &&
               proposals.length === 0 &&
               mentions.length === 0 &&
+              waitingRuns.length === 0 &&
               peerActivity.length === 0 && (
                 <p className="px-3 py-4 text-xs text-muted-foreground">{t('empty')}</p>
               )}

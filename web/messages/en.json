@@ -307,11 +307,6 @@
       "settings": "Settings"
     },
     "desktopEmpty": {
-      "readyTitle": "Your workspace is ready",
-      "readyBody": "Add a file, or start a chat and say what you're working on. Everything kept here carries a name, and you, your team, and any AI you connect can find it again.",
-      "addFile": "Add your first file",
-      "startChat": "Start a chat",
-      "inviteHint": "Working with others? Invite them from Workspace Settings.",
       "nothingOpenTitle": "Nothing open",
       "nothingOpenBody": "Click an icon in the dock, or open the Launcher (the grid icon) to see everything in this workspace."
     },
@@ -342,7 +337,6 @@
     "showListAction": "Show your chats",
     "search": "Search chats…",
     "clearSearch": "Clear search",
-    "allWho": "All",
     "noChatsTitle": "No chats yet",
     "noChatsBody": "Each chat is with one agent, kept separate from the others. Whatever it makes lands in your workspace files, under your name.",
     "noMatches": "No chats match “{query}”.",
@@ -636,6 +630,23 @@
       "stoppedUnchanged": "Stopped",
       "wrote": "Wrote {subject}",
       "wroteUnchanged": "{subject} was already current"
+    },
+    "index": {
+      "needsYou": "Needs you",
+      "decision": "Waiting for your decision",
+      "moreInToDo": "{count} more in To do",
+      "who": "Agents",
+      "showAll": "Show all"
+    },
+    "supervision": {
+      "label": "Files and runs from this chat",
+      "show": "Show files and runs",
+      "hide": "Hide files and runs",
+      "madeHere": "Made here",
+      "runs": "Runs",
+      "empty": "Files this chat makes and work it runs show up here.",
+      "tabConversation": "Chat",
+      "tabSide": "Files & runs"
     }
   },
   "feedback": {
@@ -1892,11 +1903,12 @@
       "paneStanding": "Standing work",
       "groupOperate": "Operate",
       "navLabel": "Notifications",
-      "toDoSubtitle": "Decisions to make and mentions to answer.",
+      "toDoSubtitle": "Decisions to make, mentions to answer, and runs waiting on you.",
       "openReach": "Open Reach",
       "notificationSettings": "Notification settings",
       "activitySubtitle": "Everything that happened in this workspace, and who did it.",
-      "standingSubtitle": "Files kept current on a schedule. What's set up, what ran, what changed."
+      "standingSubtitle": "Files kept current on a schedule. What's set up, what ran, what changed.",
+      "runsDueHeading": "Runs due"
     },
     "mentions": {
       "heading": "Mentions",

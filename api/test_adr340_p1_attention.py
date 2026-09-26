@@ -69,7 +69,11 @@ def test_attention_center() -> None:
     print("\n[attention] AttentionCenter — derived, never stored (DP29)")
     src = _read("components/shell/AttentionCenter.tsx")
     check("AttentionCenter.tsx exists", bool(src))
-    check("derives Decide from api.proposals.list", "api.proposals.list" in src)
+    # Repointed 2026-09-26 (ADR-670 D5): To do reads the ONE needs-you store;
+    # the store is what derives Decide from api.proposals.list.
+    store = _read("lib/attention/useNeedsYou.ts")
+    check("derives Decide from api.proposals.list",
+          "useNeedsYou()" in src and "api.proposals.list" in store)
     # ADR-410 D1 (2026-07-06): the Read derivation re-sourced — the chat
     # history was the viewer's PRIVATE thread post-ADR-407-Phase-4 (self-echo
     # in, peers invisible). The bell now derives from the workspace timeline,

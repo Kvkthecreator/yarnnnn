@@ -10,16 +10,21 @@
  *   - Notifications
  *
  * Both read the same action_proposals over the same ADR-307 gate (one
- * gate, one queue). The body owns its own data-load + modal + refresh;
- * the wrapper owns only the surface chrome.
+ * gate, one queue). The body owns its modal; the wrapper owns only the
+ * surface chrome.
+ *
+ * ADR-670 D5 — the rows come from `useNeedsYou`, the ONE client reader of
+ * what is waiting on the member. The body used to fetch its own copy, which
+ * was free to disagree with the bell about what was still pending; a decision
+ * made here now refreshes the one store every mount reads.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { Inbox, ShieldCheck } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
 import { useProposalModal, type ProposalData } from '@/components/queue/ProposalCard';
-import { api } from '@/lib/api/client';
+import { useNeedsYou } from '@/lib/attention/useNeedsYou';
 import { useProposalLabels } from '@/lib/proposal-labels';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime, formatAbsolute } from '@/lib/formatting';
@@ -74,7 +79,17 @@ const ALL_FAMILIES: readonly QueueFamily[] = ['capital', 'external-write', 'subs
 export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
   const t = useTranslations('supervisor.queue');
   const { queuedByDialLine } = useProposalLabels();
-  const [proposals, setProposals] = useState<QueueProposal[] | null>(null);
+  const { proposals: pending, occupant: served, loaded, refresh } = useNeedsYou();
+  // `families` is a mount's lens over the one list, never a second read.
+  const proposals = useMemo<QueueProposal[] | null>(
+    () =>
+      loaded
+        ? (pending as unknown as QueueProposal[]).filter((p) =>
+            families.includes(p.family as QueueFamily),
+          )
+        : null,
+    [pending, loaded, families],
+  );
 
   const rowLabel = (p: QueueProposal): string => {
     if (p.family === 'substrate') {
@@ -85,28 +100,12 @@ export function QueueBody({ families = ALL_FAMILIES }: QueueBodyProps = {}) {
     const prim = p.primitive.replace(/^platform_/, '').replace(/_/g, ' ');
     return prim.charAt(0).toUpperCase() + prim.slice(1);
   };
-  const [occupant, setOccupant] = useState<Occupant | null>(null);
+  const occupant: Occupant | null =
+    served && 'occupant' in served ? (served as Occupant) : null;
 
-  const load = useCallback(async () => {
-    try {
-      const r = await api.proposals.list('pending', 100);
-      const rows = ((r.proposals as unknown as QueueProposal[]) ?? []).filter((p) =>
-        families.includes(p.family as QueueFamily),
-      );
-      setProposals(rows);
-      const occ = r.current_occupant as Occupant | Record<string, never>;
-      setOccupant('occupant' in occ ? (occ as Occupant) : null);
-    } catch {
-      setProposals([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // After approve/reject the modal closes → refresh so the resolved row drops.
-  const { openProposal, modalElement } = useProposalModal({ onResolved: () => void load() });
+  // After approve/reject the modal closes → refresh so the resolved row drops
+  // (from every mount — the bell's To do reads the same store).
+  const { openProposal, modalElement } = useProposalModal({ onResolved: () => void refresh() });
 
   return (
     <>

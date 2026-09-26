@@ -25,6 +25,7 @@ import { ArrowRight } from 'lucide-react';
 import type { Run } from '@/lib/api/client';
 import { RunView } from '@/components/runs/RunView';
 import { useRuns } from '@/lib/runs/useRuns';
+import { waitsOnViewer } from '@/lib/attention/useNeedsYou';
 import { usePopoverDismissal } from '@/lib/shell/usePopoverDismissal';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
@@ -39,7 +40,8 @@ export function RunTray() {
   usePopoverDismissal(ref, open, () => setOpen(false));
 
   const going = (runs ?? []).filter((r) => r.state === 'queued' || r.state === 'running');
-  const dueOnMe = (runs ?? []).filter((r) => r.state === 'waiting' && r.user_id === userId);
+  // ONE predicate for "waits on me" — the needs-you store's (ADR-670 D5).
+  const dueOnMe = (runs ?? []).filter((r) => waitsOnViewer(r, userId));
   const shown: Run[] = [...going, ...dueOnMe];
   if (shown.length === 0) return null;
 

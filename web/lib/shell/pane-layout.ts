@@ -36,7 +36,7 @@
  * *resizable*, and folds in a declared order as room runs out.
  *
  * **A slot a surface does not compose is ABSENT, not broken.** Text has no rail;
- * Chat has no side. Absence is a property of the surface's grain, and it is
+ * Files has no side. Absence is a property of the surface's grain, and it is
  * legitimate — the pane-spine rule's asymmetry ("absence is legitimate;
  * re-ordering never is") holds identically for the housing. What is never
  * legitimate is a second spelling of the ladder, the toggle, or the width.

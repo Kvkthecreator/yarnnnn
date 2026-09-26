@@ -45,6 +45,7 @@ import { SettingsPaneShell, PaneHeader, type PaneGroup } from "@/components/sett
 import { QueueBody } from "@/components/queue/QueueBody";
 import { ActivityLedger } from "@/components/notifications/ActivityLedger";
 import { MentionQueue } from "@/components/notifications/MentionQueue";
+import { WaitingRunQueue } from "@/components/notifications/WaitingRunQueue";
 import { StandingWork } from "@/components/notifications/StandingWork";
 import { SurfaceBoundary } from '@/components/shell/SurfaceBoundary';
 
@@ -117,8 +118,10 @@ function OperationPageBody() {
               }
             />
             <div className="flex-1 overflow-y-auto p-6">
-              {/* ADR-605 — the To-do second source (ADR-492 D3): unresolved
-                  mentions of the viewer, discharged by replying or by Done. */}
+              {/* ADR-670 D5 — every section reads ONE store (`useNeedsYou`):
+                  runs due on the viewer, unresolved mentions (ADR-605,
+                  discharged by visiting or by Dismiss), then decisions. */}
+              <WaitingRunQueue />
               <MentionQueue />
               <QueueBody />
             </div>

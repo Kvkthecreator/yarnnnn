@@ -75,6 +75,7 @@ import {
 } from 'lucide-react';
 import { WorkspacePickerModal } from '@/components/workspace/WorkspacePicker';
 import { api } from '@/lib/api/client';
+import { refreshNeedsYou } from '@/lib/attention/useNeedsYou';
 import { useCurrentFocus, focusToWire } from '@/lib/shell/useSurfaceFocus';
 import { formatDaySeparator, formatAbsolute } from '@/lib/formatting';
 import { cn } from '@/lib/utils';
@@ -415,6 +416,20 @@ export interface LaneMountSlots {
    *  The card-vs-suppress decision is a MOUNT concern (declared here), never a
    *  branch inside the renderer (ADR-441 D2). */
   artifactWrite?: 'card' | 'link' | 'none';
+  /** ADR-670 D3 — the files this conversation's turns wrote, reported UP so a
+   *  mount can show them beside the conversation ("Made here"). Newest first,
+   *  one entry per path, landed writes only (a pending write may never land).
+   *  Derived from the SAME messages the cards render — loaded rows and the
+   *  ones that land live mid-turn — so the mount never reads the lane twice.
+   *  Absent → nothing reported; no other mount changes. */
+  onArtifactsChange?: (files: MadeHereFile[]) => void;
+}
+
+/** One file a conversation made — what `onArtifactsChange` reports. */
+export interface MadeHereFile {
+  path: string;
+  /** `WriteFile` · `EditFile` when the live stream named it; absent on reload. */
+  verb?: string;
 }
 
 interface LanePanelProps extends LaneMountSlots {
@@ -537,11 +552,44 @@ export function LanePanel({
   startRunId = null,
   onRunTurnSettled,
   onTurnSettled,
+  onArtifactsChange,
 }: LanePanelProps) {
   // ADR-562 D5 — who the member reads as working. Falls back to the engine
   // label, so a mount with no colleague renders byte-identically to pre-562.
   const speaker = speakerLabel || modelLabel;
   const [messages, setMessages] = useState<LaneMessage[]>([]);
+  // How many rows the transcript holds — read by the resync, which must not
+  // take `messages` as a dependency (it would rebuild the turn machinery).
+  const messageCountRef = useRef(0);
+  messageCountRef.current = messages.length;
+
+  // ADR-670 D3 — "Made here": every file this conversation's turns wrote,
+  // newest first, one per path, landed writes only. Read off the SAME rows the
+  // cards render (reloaded metadata and live `artifact` frames alike), so the
+  // mount beside the conversation needs no read of its own.
+  const madeHere = useMemo<MadeHereFile[]>(() => {
+    const seen = new Set<string>();
+    const out: MadeHereFile[] = [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const arts = messages[i].artifacts ?? [];
+      for (let j = arts.length - 1; j >= 0; j--) {
+        const a = arts[j];
+        if (a.pending || seen.has(a.path)) continue;
+        seen.add(a.path);
+        out.push({ path: a.path, verb: a.verb });
+      }
+    }
+    return out;
+  }, [messages]);
+  const onArtifactsChangeRef = useRef(onArtifactsChange);
+  onArtifactsChangeRef.current = onArtifactsChange;
+  // Keyed on the paths, not the array: a resync swaps row identities without
+  // changing what was made, and the mount should not re-render for that.
+  const madeHereKey = madeHere.map((f) => `${f.path}\t${f.verb ?? ''}`).join('\n');
+  useEffect(() => {
+    onArtifactsChangeRef.current?.(madeHere);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [madeHereKey]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -746,6 +794,11 @@ export function LanePanel({
       .then((res) => {
         if (cancelled) return;
         setMessages(mapMessages(res.messages));
+        // ADR-637 — this read IS the visit: the server advanced the viewer's
+        // read cursor to its top, which discharges any mention in it. The
+        // needs-you store re-reads so the bell and every index follow
+        // (ADR-670 D5) instead of listing a mention the member is looking at.
+        void refreshNeedsYou();
       })
       .catch(() => !cancelled && setError(t('errors.load')))
       .finally(() => !cancelled && setLoading(false));
@@ -767,6 +820,11 @@ export function LanePanel({
     try {
       const res = await api.lanes.messages(laneId);
       const next = mapMessages(res.messages);
+      // A resync is a read too, so it advances the cursor over whatever just
+      // arrived — a mention landing while the member is here is discharged by
+      // being seen, and the needs-you store must hear it (ADR-637/670 D5).
+      // Only when rows arrived: the 15 s poll on a quiet lane changes nothing.
+      if (next.length !== messageCountRef.current) void refreshNeedsYou();
       setMessages((prev) =>
         prev.length === next.length &&
         prev.every(

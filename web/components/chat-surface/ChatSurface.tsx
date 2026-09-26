@@ -4,8 +4,14 @@
  * ChatSurface — the chat workbench (ADR-412 D3/D4).
  *
  * Your conversations with colleagues (ADR-411 lanes) as a windowed surface —
- * a working area summoned like any window, distinct from the steward rail
- * (the chat drawer) and the Agents roster (who they are).
+ * a working area summoned like any window, distinct from the Agents roster
+ * (who they are).
+ *
+ * ADR-670 D2 — the frame is PANES' own, and nothing new: the lane list is the
+ * INDEX (rail: what needs you · who · the list), the conversation is the
+ * OBJECT (canvas), and what the conversation made and ran is the SUPERVISION
+ * beside it (side). The ladder folds the side: an overlay at `two-pane`, a
+ * bottom tab at `single-pane`.
  *
  * ⚠️ VOCABULARY (ADR-460 D1, corrected 2026-07-22 — §6.10d). This header used
  * to place the surface on a three-rung ladder ("A2's chrome home", vs the
@@ -19,9 +25,10 @@
  *
  * D4 — lanes organize by WORK, never by model: the list is flat recents
  * (updated_at desc — the API touches updated_at on every turn), each row
- * named by its work with the pinned model as a CHIP; a model FILTER facet
- * gives the by-engine view on demand. Model-first folders are rejected
- * (ADR-385 precedent: group by relationship, never transport).
+ * named by its work with the pinned model as a CHIP; a WHO filter gives the
+ * by-agent view on demand (ADR-460 re-axed it from the engine; ADR-670 D4
+ * made it the agents' faces). Model-first folders are rejected (ADR-385
+ * precedent: group by relationship, never transport).
  *
  * The guardrail (ADR-412 D3): this is a workbench over the shared
  * workspace, not the product's center — the ADR-411 contract is restated
@@ -35,9 +42,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Archive, MessageCircle, PanelLeft, Pencil, Pin, Plus, Search, X } from 'lucide-react';
+import { Archive, MessageCircle, PanelLeft, PanelRight, Pencil, Pin, Plus, Search, X } from 'lucide-react';
 import { Working } from '@/components/shared/Working';
-import { LanePanel } from './LanePanel';
+import { LanePanel, type MadeHereFile } from './LanePanel';
+import { ChatSupervision } from './ChatSupervision';
+import { NeedsYouStrip, WhoStrip } from './ChatIndexStrips';
 import { ConversationHeader, type HeaderFace } from './ConversationHeader';
 import { ConversationDetail } from './ConversationDetail';
 import { AgentFace } from '@/components/agents/AgentFace';
@@ -50,7 +59,7 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { engineBrandIcon } from '@/lib/ai-providers/brand-icons';
 import { cn } from '@/lib/utils';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
-import { usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
+import { slotIsColumn, usePaneLadder, usePaneSlot } from '@/lib/shell/pane-layout';
 import { useSelfLocatedSurface, useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { isSubmitKey } from '@/lib/shell/submit-key';
@@ -118,12 +127,18 @@ export function ChatSurface() {
   const [data, setData] = useState<LaneData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  // D4 — the FILTER facet (null = all lanes, the default view). ADR-460: it
-  // filters by WHO you talked to, not by which engine ran — the last
-  // spec-sheet surface in chat, re-axed. A lane with no agent (pre-registry,
-  // Studio/derive) files under its engine label, which is honest: that IS
-  // what those lanes are.
+  // D4 — the FILTER (null = all lanes, the default view). ADR-460: it
+  // filters by WHO you talked to, not by which engine ran. ADR-670 D4 — the
+  // filter is made VISIBLE as the agents' faces (the Who strip): it holds an
+  // agent's slug, and a chat matches when that agent is in it. One state; the
+  // strip renders it and asks to change it.
   const [whoFilter, setWhoFilter] = useState<string | null>(null);
+  // ADR-670 D3 — what this conversation made, reported UP by the panel (which
+  // holds the transcript), the same way `defaultResponder` is.
+  const [madeHere, setMadeHere] = useState<MadeHereFile[]>([]);
+  // At the single-pane rung the conversation and its supervision are two tabs
+  // of one screen; above it they sit side by side and this is unused.
+  const [narrowPane, setNarrowPane] = useState<'conversation' | 'side'>('conversation');
   // WHO answers an unaddressed message — reported UP by the panel (which holds
   // the transcript) so the Details roster can mark it. One derivation, two
   // readers; deriving it again here would be free to disagree with the panel.
@@ -172,18 +187,23 @@ export function ChatSurface() {
   );
   // Measured on THIS surface's own box, not the viewport — a surface can be
   // narrow inside a roomy window (a 320px window on a 1440px monitor), and a
-  // 768px tablet reads "desktop" to the viewport while leaving ~80px of
-  // transcript once the chat drawer takes its 400px.
+  // 768px tablet reads "desktop" to the viewport whatever room the surface
+  // itself was actually given.
   //
   // The rungs are the SHELL's (`lib/shell/pane-layout.ts`), not a threshold of
   // this surface's own. Chat previously hand-rolled 600px, which was a fourth
   // spelling of "how wide is wide" and disagreed with the three around it.
   const [setPaneNode, wb] = usePaneLadder();
-  // Chat composes a RAIL and a CANVAS; it composes no side pane, and that
-  // absence is a property of its grain, not a gap — the conversation IS the
-  // canvas, and the participants drill-in deliberately takes the whole pane
-  // rather than splitting it (see the ADR note at the detail mount below).
+  // Chat composes all three slots (ADR-670 D2): the RAIL is the index, the
+  // CANVAS the conversation, the SIDE its supervision (what it made, what it
+  // ran). The participants drill-in still takes the whole pane rather than
+  // splitting it (see the ADR note at the detail mount below).
   const rail = usePaneSlot('chat', 'rail', userId, wb, { defaultShown: true });
+  // The side rests shown where it is a COLUMN and withdrawn where it would be
+  // an OVERLAY — an overlay covers the conversation, and a conversation the
+  // member opened must not arrive covered. A moving default (PANES §5): it
+  // follows the rung until the member chooses, and never fights them after.
+  const side = usePaneSlot('chat', 'side', userId, wb, { defaultShown: !wb.sideIsOverlay });
   // One screen at a time at the narrowest rung: the lane list IS the screen
   // until you pick a lane, then the conversation is.
   const isNarrow = wb.singlePane;
@@ -191,6 +211,19 @@ export function ChatSurface() {
   // member is showing it. Derived once — branching on the pair at each call
   // site is how Studio and Text came to disagree about when a toggle exists.
   const railIsColumn = !isNarrow && rail.shown;
+  const sideIsColumn = slotIsColumn(wb, side);
+
+  // Escape withdraws the side while it is an OVERLAY (it covers the canvas, so
+  // it is modal); a COLUMN is not, and Escape must not reach across and close
+  // it. Studio's rule, the same slot.
+  useEffect(() => {
+    if (!wb.sideIsOverlay || !side.shown) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') side.toggle();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [wb.sideIsOverlay, side]);
 
   // Debounced transcript search — content matches union with name matches.
   useEffect(() => {
@@ -271,6 +304,19 @@ export function ChatSurface() {
   const laneAgent = useCallback(
     (lane: { agent?: string | null }) => agentBySlug(lane.agent),
     [agentBySlug],
+  );
+  // Is this agent IN the conversation? Read from the CAST (a colleague joins,
+  // ADR-558), falling back to the resident only for a pre-cast lane with no
+  // agent rows — the same branch `laneAvatarUrl` takes, so the face a member
+  // chose and the faces on the rows it keeps can never disagree.
+  const laneIncludesAgent = useCallback(
+    (lane: { agent?: string | null; participants?: Participant[] }, slug: string) => {
+      const agents = (lane.participants ?? []).filter((p) => p.member_kind === 'agent');
+      return agents.length
+        ? agents.some((p) => p.agent_slug === slug)
+        : lane.agent === slug;
+    },
+    [],
   );
   // Direct conversations (2+ humans, no agent in the cast): the conversation
   // is WITH the other humans, so it is labeled by THEM — never by the dormant
@@ -487,20 +533,23 @@ export function ChatSurface() {
       const tb = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
       return tb - ta;
     });
-    const byModel = whoFilter
-      ? all.filter((l) => laneLabel(l) === whoFilter)
+    const byWho = whoFilter
+      ? all.filter((l) => laneIncludesAgent(l, whoFilter))
       : all;
     const q = query.trim().toLowerCase();
-    if (!q) return byModel;
-    return byModel.filter(
+    if (!q) return byWho;
+    return byWho.filter(
       (l) => l.name.toLowerCase().includes(q) || contentHits?.has(l.id),
     );
-  }, [data, whoFilter, query, contentHits, laneLabel]);
+  }, [data, whoFilter, query, contentHits, laneIncludesAgent]);
 
-  // The facet only offers colleagues actually present in the list.
-  const presentWho = useMemo(
-    () => Array.from(new Set((data?.lanes ?? []).map((l) => laneLabel(l)))),
-    [data, laneLabel],
+  // ADR-670 D4 — the Who strip's faces: every agent on the roster the list
+  // already carries (`data.agents`, ADR-601 D4 — every agent that EXISTS). No
+  // second roster read.
+  const whoFaces = useMemo(
+    () =>
+      (data?.agents ?? []).map((a) => ({ slug: a.slug, name: a.name, avatarUrl: a.avatar_url })),
+    [data],
   );
 
   const activeLane = useMemo(
@@ -656,6 +705,7 @@ export function ChatSurface() {
       setData((d) => (d ? { ...d, lanes: [...d.lanes, info] } : d));
       setParam({ lane: info.id, detail: null });
       setCreating(false);
+      return lane;
     } catch (e) {
       // SHOW it. This swallowed a live 409 ("Lane limit reached") and the
       // member saw a click that did nothing, with no reason given. The modal
@@ -693,6 +743,33 @@ export function ChatSurface() {
         : d,
     );
   }, []);
+
+  // ADR-670 D4 — a face was chosen in the Who strip. With a chat already, it
+  // is the who-filter (choosing it again shows every chat); with none, it
+  // starts one through the ONE create path above — the door's own act.
+  const chooseWho = useCallback(
+    (slug: string) => {
+      if ((data?.lanes ?? []).some((l) => laneIncludesAgent(l, slug))) {
+        setWhoFilter((cur) => (cur === slug ? null : slug));
+        return;
+      }
+      setWhoFilter(null);
+      // The server seeds the chosen colleague into the cast and says so
+      // (`lane.agent`); the row carries it until the next list read brings the
+      // cast, so choosing the same face again filters rather than starting a
+      // second chat. A failure is already reported by runAction's toast.
+      void createLane({ agent: slug })
+        .then((lane) => lane && updateLaneLocal(lane.id, { agent: lane.agent ?? slug }))
+        .catch(() => undefined);
+    },
+    [data, laneIncludesAgent, createLane, updateLaneLocal],
+  );
+
+  // A lane switch starts on the conversation, never on the previous lane's
+  // side tab (single-pane only).
+  useEffect(() => {
+    setNarrowPane('conversation');
+  }, [activeLaneId]);
 
   const togglePin = useCallback(
     async (lane: LaneInfo) => {
@@ -766,6 +843,9 @@ export function ChatSurface() {
     );
   }
 
+  // Worded here, never inline (the ADR-660 meter reads a JSX ternary as copy).
+  const sideDoorLabel = side.shown ? t('supervision.hide') : t('supervision.show');
+
   // The new-chat flow is a MODAL (NewChatModal) — ADR-614 D1: it leads with
   // COLLEAGUES and keeps engines a click behind. People still join through the
   // CAST, from inside the conversation (ADR-495), which is why no human roster
@@ -778,7 +858,9 @@ export function ChatSurface() {
           agents={data?.agents ?? []}
           engines={data?.models ?? []}
           defaultEngine={data?.default_engine ?? null}
-          onPick={createLane}
+          onPick={async (choice) => {
+            await createLane(choice);
+          }}
           onClose={() => setCreating(false)}
         />
       )}
@@ -851,37 +933,16 @@ export function ChatSurface() {
           </div>
         </div>
 
-        {/* The filter facet — by WHO, on demand, never the default grouping
-            (D4). Renders only when ≥2 colleagues are in play. */}
-        {presentWho.length > 1 && (
-          <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border shrink-0 overflow-x-auto">
-            <button
-              onClick={() => setWhoFilter(null)}
-              className={cn(
-                'px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition-colors',
-                whoFilter === null
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t('allWho')}
-            </button>
-            {presentWho.map((m) => (
-              <button
-                key={m}
-                onClick={() => setWhoFilter((cur) => (cur === m ? null : m))}
-                className={cn(
-                  'px-2 py-0.5 rounded-full text-[11px] whitespace-nowrap transition-colors',
-                  whoFilter === m
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* ADR-670 D4 — the index's two strips above the recents: what needs
+            you (the one queue, D5), and who (the agents as faces — the
+            who-filter made visible). Each is absent when it has nothing. */}
+        <NeedsYouStrip onOpenLane={(laneId) => setParam({ lane: laneId, detail: null })} />
+        <WhoStrip
+          faces={whoFaces}
+          selected={whoFilter}
+          onChoose={chooseWho}
+          onClear={() => setWhoFilter(null)}
+        />
 
         <div className="flex-1 min-h-0 overflow-y-auto">
           {lanes.length === 0 && (
@@ -1078,6 +1139,19 @@ export function ChatSurface() {
           />
         ) : activeLane ? (
           <>
+          {/* ADR-670 D2 — canvas + side. The canvas (header + conversation)
+              takes what the side leaves, so the conversation column (PANES
+              §10) stays centred on the CANVAS, never on the pane. At
+              single-pane the two are tabs of one screen; the panel stays
+              MOUNTED behind the side tab so a streaming turn — and the files it
+              is making — survive the switch. */}
+          <div className="relative flex min-h-0 flex-1">
+          <div
+            className={cn(
+              'min-w-0 flex-1 flex-col min-h-0',
+              isNarrow && narrowPane === 'side' ? 'hidden' : 'flex',
+            )}
+          >
             {/* ONE header row, conventional grammar (see ConversationHeader):
                 stacked faces · title · participant count · ⋯ → details.
 
@@ -1140,6 +1214,23 @@ export function ChatSurface() {
               // The dedicated invite act: straight to the add flow, not to the
               // roster with the invite hidden inside it.
               onAddParticipant={() => setParam({ detail: 'add' })}
+              // The side's DOOR, at every rung where the side is a column or
+              // an overlay (PANES §3) — hidden only at single-pane, where the
+              // bottom tab bar is the switcher.
+              trailing={
+                !isNarrow ? (
+                  <button
+                    type="button"
+                    onClick={side.toggle}
+                    className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    title={sideDoorLabel}
+                    aria-label={sideDoorLabel}
+                    aria-expanded={side.shown}
+                  >
+                    <PanelRight className="h-4 w-4" />
+                  </button>
+                ) : null
+              }
             />
             <LanePanel
               key={activeLane.id}
@@ -1265,7 +1356,73 @@ export function ChatSurface() {
               // multi-selection or a folder); the composer binds each one.
               citePaths={citePaths}
               onCiteConsumed={() => setParam({ cite: null })}
+              // ADR-670 D3 — what this conversation made, for the side.
+              onArtifactsChange={setMadeHere}
             />
+          </div>
+
+          {/* The side: a COLUMN at the three-column rungs, an OVERLAY at
+              two-pane (a scrim, Escape, and the door dismiss it), a full pane
+              behind the bottom tab at single-pane. */}
+          {wb.sideIsOverlay && side.shown && (
+            <div
+              role="presentation"
+              onClick={side.toggle}
+              className="absolute inset-0 z-20 bg-black/20"
+            />
+          )}
+          {sideIsColumn && (
+            <div
+              onPointerDown={side.startResize}
+              role="separator"
+              aria-orientation="vertical"
+              title={t('resizeRail')}
+              className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-primary/20 active:bg-primary/30"
+            />
+          )}
+          {(isNarrow ? narrowPane === 'side' : side.shown) && (
+            <aside
+              style={sideIsColumn ? { width: side.width } : undefined}
+              aria-label={t('supervision.label')}
+              className={cn(
+                'flex min-h-0 flex-col overflow-y-auto bg-background',
+                isNarrow
+                  ? 'min-w-0 flex-1'
+                  : wb.sideIsOverlay
+                    ? 'absolute inset-y-0 right-0 z-30 w-[min(22rem,85%)] border-l border-border shadow-xl'
+                    : 'shrink-0 border-l border-border',
+              )}
+            >
+              <ChatSupervision laneId={activeLane.id} files={madeHere} />
+            </aside>
+          )}
+          </div>
+
+          {/* Single-pane: one screen, two tabs (PANES §2's last rung). The
+              tuples hold CATALOG KEYS; the word is taken at render. */}
+          {isNarrow && (
+            <nav className="flex shrink-0 border-t border-border">
+              {([
+                ['conversation', 'supervision.tabConversation'],
+                ['side', 'supervision.tabSide'],
+              ] as const).map(([pane, labelKey]) => (
+                <button
+                  key={pane}
+                  type="button"
+                  aria-current={narrowPane === pane ? 'page' : undefined}
+                  onClick={() => setNarrowPane(pane)}
+                  className={cn(
+                    'min-h-[44px] flex-1 py-2 text-xs font-medium transition-colors',
+                    narrowPane === pane
+                      ? 'border-t-2 border-foreground text-foreground'
+                      : 'border-t-2 border-transparent text-muted-foreground',
+                  )}
+                >
+                  {t(labelKey)}
+                </button>
+              ))}
+            </nav>
+          )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center p-8">
